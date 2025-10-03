@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $_SESSION['first_name'] = $user['first_name'];
                 $_SESSION['last_name'] = $user['last_name'];
                 $_SESSION['is_admin'] = $user['is_admin'];
-                $_SESSION['user_role'] = $user['user_role'] ?? 'user';
+                $_SESSION['role'] = $user['user_role'] ?? 'user';
                 $_SESSION['email_notifications'] = $user['email_notifications'] ?? 1;
                 
                 // Aktivität loggen
