@@ -294,7 +294,7 @@ function log_activity($user_id, $action, $details = '') {
 /**
  * Google Kalender API - Event erstellen
  */
-function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $end_datetime) {
+function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $end_datetime, $reservation_id = null) {
     global $db;
     
     try {
@@ -342,14 +342,13 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
         
         $event_id = $google_calendar->createEvent($title, $start_datetime, $end_datetime, $description);
         
-        if ($event_id) {
+        if ($event_id && $reservation_id) {
             // Event ID in der Datenbank speichern
             $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$reservation_id, $event_id, $title, $start_datetime, $end_datetime]);
-            return $event_id;
         }
         
-        return false;
+        return $event_id;
     } catch (Exception $e) {
         error_log('Google Calendar Fehler: ' . $e->getMessage());
         return false;
