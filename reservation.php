@@ -353,8 +353,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 const vehicleInfo = document.querySelector('.alert-info p');
                 if (vehicleInfo) {
                     vehicleInfo.innerHTML = `
-                        <strong>${vehicleData.name}</strong> 
-                        (${vehicleData.type})<br>
+                        <strong>${vehicleData.name}</strong><br>
                         <small>${vehicleData.description}</small>
                     `;
                 }
