@@ -25,15 +25,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $action = $_POST['action'] ?? '';
     $vehicle_id = (int)($_POST['vehicle_id'] ?? 0);
     
-    // Debug: CSRF-Token prüfen
-    if (isset($_GET['debug'])) {
-        echo "<div class='alert alert-info'>";
-        echo "<strong>CSRF-Token Debug:</strong><br>";
-        echo "POST Token: " . ($_POST['csrf_token'] ?? 'NICHT GESETZT') . "<br>";
-        echo "Session Token: " . ($_SESSION['csrf_token'] ?? 'NICHT GESETZT') . "<br>";
-        echo "Token gültig: " . (validate_csrf_token($_POST['csrf_token'] ?? '') ? 'JA' : 'NEIN') . "<br>";
-        echo "</div>";
-    }
     
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "Ungültiger Sicherheitstoken.";
@@ -53,22 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $message = "Fahrzeug wurde erfolgreich hinzugefügt.";
                     log_activity($_SESSION['user_id'], 'vehicle_added', "Fahrzeug '$name' hinzugefügt");
                     
-                    // Debug: Vor Weiterleitung
-                    if (isset($_GET['debug'])) {
-                        echo "<div class='alert alert-success'>";
-                        echo "<strong>Fahrzeug hinzugefügt! Weiterleitung wird ausgeführt...</strong><br>";
-                        echo "Neue Fahrzeug-ID: $new_id<br>";
-                        echo "Name: $name<br>";
-                        echo "Beschreibung: $description<br>";
-                        echo "Aktiv: " . ($is_active ? 'Ja' : 'Nein') . "<br>";
-                        echo "</div>";
-                    }
-                    
                     // Weiterleitung um POST-Problem zu vermeiden
-                    if (!isset($_GET['debug'])) {
-                        header("Location: vehicles.php?success=added");
-                        exit();
-                    }
+                    header("Location: vehicles.php?success=added");
+                    exit();
                     
                 } elseif ($action == 'edit') {
                     $stmt = $db->prepare("UPDATE vehicles SET name = ?, description = ?, is_active = ? WHERE id = ?");
@@ -77,10 +55,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     log_activity($_SESSION['user_id'], 'vehicle_updated', "Fahrzeug '$name' aktualisiert");
                     
                     // Weiterleitung um POST-Problem zu vermeiden
-                    if (!isset($_GET['debug'])) {
-                        header("Location: vehicles.php?success=updated");
-                        exit();
-                    }
+                    header("Location: vehicles.php?success=updated");
+                    exit();
                 }
             } catch(PDOException $e) {
                 $error = "Fehler beim Speichern des Fahrzeugs: " . $e->getMessage();
@@ -118,21 +94,6 @@ try {
     $stmt->execute();
     $vehicles = $stmt->fetchAll();
     
-    // Debug: Fahrzeuge anzeigen
-    if (isset($_GET['debug'])) {
-        echo "<div class='alert alert-info'>";
-        echo "<strong>Debug Info:</strong><br>";
-        echo "Anzahl Fahrzeuge: " . count($vehicles) . "<br>";
-        foreach ($vehicles as $v) {
-            echo "ID: {$v['id']}, Name: {$v['name']}, Aktiv: " . ($v['is_active'] ? 'Ja' : 'Nein') . "<br>";
-        }
-        echo "<br><strong>POST-Daten:</strong><br>";
-        echo "REQUEST_METHOD: " . $_SERVER['REQUEST_METHOD'] . "<br>";
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            echo "POST-Daten: " . print_r($_POST, true) . "<br>";
-        }
-        echo "</div>";
-    }
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Fahrzeuge: " . $e->getMessage();
     $vehicles = [];
@@ -375,39 +336,6 @@ if (isset($_GET['edit'])) {
             }
         }
         
-        // Warten bis DOM geladen ist
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM geladen, JavaScript wird initialisiert...');
-            
-            // Debug: Formular-Absendung überwachen
-            const form = document.getElementById('vehicleForm');
-            if (form) {
-                form.addEventListener('submit', function(event) {
-                    console.log('Formular wird abgesendet!');
-                    console.log('Action:', document.getElementById('action').value);
-                    console.log('Name:', document.getElementById('name').value);
-                    console.log('Description:', document.getElementById('description').value);
-                    console.log('Is Active:', document.getElementById('is_active').checked);
-                });
-                console.log('Form Event Listener hinzugefügt');
-            } else {
-                console.log('Formular nicht gefunden!');
-            }
-            
-            // Debug: Submit-Button klicken
-            const submitBtn = document.getElementById('submitButton');
-            if (submitBtn) {
-                submitBtn.addEventListener('click', function(event) {
-                    console.log('Submit-Button wurde geklickt!');
-                    console.log('Formular wird abgesendet...');
-                });
-                console.log('Submit Button Event Listener hinzugefügt');
-            } else {
-                console.log('Submit Button nicht gefunden!');
-            }
-            
-            console.log('Alle Event Listener initialisiert!');
-        });
     </script>
 </body>
 </html>
