@@ -319,53 +319,77 @@ if (isset($_GET['edit'])) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Modal Event Listener
-        document.getElementById('vehicleModal').addEventListener('show.bs.modal', function (event) {
-            const button = event.relatedTarget;
+        // Warten bis DOM geladen ist
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM geladen, JavaScript wird initialisiert...');
             
-            if (button) {
-                // Bearbeitung
-                const vehicleId = button.getAttribute('data-vehicle-id');
-                const vehicleName = button.getAttribute('data-vehicle-name');
-                const vehicleDescription = button.getAttribute('data-vehicle-description');
-                const vehicleActive = button.getAttribute('data-vehicle-active');
-                
-                document.getElementById('vehicleModalTitle').textContent = 'Fahrzeug bearbeiten';
-                document.getElementById('vehicle_id').value = vehicleId;
-                document.getElementById('name').value = vehicleName;
-                document.getElementById('description').value = vehicleDescription;
-                document.getElementById('is_active').checked = vehicleActive == '1';
-                document.getElementById('action').value = 'edit';
-                document.getElementById('submitButton').textContent = 'Aktualisieren';
+            // Modal Event Listener
+            const modal = document.getElementById('vehicleModal');
+            if (modal) {
+                modal.addEventListener('show.bs.modal', function (event) {
+                    console.log('Modal wird geöffnet...');
+                    const button = event.relatedTarget;
+                    
+                    if (button) {
+                        // Bearbeitung
+                        const vehicleId = button.getAttribute('data-vehicle-id');
+                        const vehicleName = button.getAttribute('data-vehicle-name');
+                        const vehicleDescription = button.getAttribute('data-vehicle-description');
+                        const vehicleActive = button.getAttribute('data-vehicle-active');
+                        
+                        document.getElementById('vehicleModalTitle').textContent = 'Fahrzeug bearbeiten';
+                        document.getElementById('vehicle_id').value = vehicleId;
+                        document.getElementById('name').value = vehicleName;
+                        document.getElementById('description').value = vehicleDescription;
+                        document.getElementById('is_active').checked = vehicleActive == '1';
+                        document.getElementById('action').value = 'edit';
+                        document.getElementById('submitButton').textContent = 'Aktualisieren';
+                    } else {
+                        // Neues Fahrzeug
+                        console.log('Neues Fahrzeug wird erstellt...');
+                        document.getElementById('vehicleModalTitle').textContent = 'Neues Fahrzeug';
+                        document.getElementById('vehicle_id').value = '';
+                        document.getElementById('name').value = '';
+                        document.getElementById('description').value = '';
+                        document.getElementById('is_active').checked = true;
+                        document.getElementById('action').value = 'add';
+                        document.getElementById('submitButton').textContent = 'Hinzufügen';
+                    }
+                });
+                console.log('Modal Event Listener hinzugefügt');
             } else {
-                // Neues Fahrzeug
-                document.getElementById('vehicleModalTitle').textContent = 'Neues Fahrzeug';
-                document.getElementById('vehicle_id').value = '';
-                document.getElementById('name').value = '';
-                document.getElementById('description').value = '';
-                document.getElementById('is_active').checked = true;
-                document.getElementById('action').value = 'add';
-                document.getElementById('submitButton').textContent = 'Hinzufügen';
+                console.log('Modal nicht gefunden!');
             }
+            
+            // Debug: Formular-Absendung überwachen
+            const form = document.getElementById('vehicleForm');
+            if (form) {
+                form.addEventListener('submit', function(event) {
+                    console.log('Formular wird abgesendet!');
+                    console.log('Action:', document.getElementById('action').value);
+                    console.log('Name:', document.getElementById('name').value);
+                    console.log('Description:', document.getElementById('description').value);
+                    console.log('Is Active:', document.getElementById('is_active').checked);
+                });
+                console.log('Form Event Listener hinzugefügt');
+            } else {
+                console.log('Formular nicht gefunden!');
+            }
+            
+            // Debug: Submit-Button klicken
+            const submitBtn = document.getElementById('submitButton');
+            if (submitBtn) {
+                submitBtn.addEventListener('click', function(event) {
+                    console.log('Submit-Button wurde geklickt!');
+                    console.log('Formular wird abgesendet...');
+                });
+                console.log('Submit Button Event Listener hinzugefügt');
+            } else {
+                console.log('Submit Button nicht gefunden!');
+            }
+            
+            console.log('Alle Event Listener initialisiert!');
         });
-        
-        // Debug: Formular-Absendung überwachen
-        document.getElementById('vehicleForm').addEventListener('submit', function(event) {
-            console.log('Formular wird abgesendet!');
-            console.log('Action:', document.getElementById('action').value);
-            console.log('Name:', document.getElementById('name').value);
-            console.log('Description:', document.getElementById('description').value);
-            console.log('Is Active:', document.getElementById('is_active').checked);
-        });
-        
-        // Debug: Submit-Button klicken
-        document.getElementById('submitButton').addEventListener('click', function(event) {
-            console.log('Submit-Button wurde geklickt!');
-            console.log('Formular wird abgesendet...');
-        });
-        
-        // Debug: JavaScript lädt
-        console.log('JavaScript für Fahrzeug-Modal geladen!');
     </script>
 </body>
 </html>
