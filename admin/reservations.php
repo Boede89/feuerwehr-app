@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     <p>Ihr Antrag für die Reservierung wurde genehmigt.</p>
                     <p><strong>Details:</strong></p>
                     <ul>
-                        <li>Fahrzeug: " . htmlspecialchars($reservation['requester_name']) . "</li>
+                        <li>Fahrzeug: " . htmlspecialchars($reservation['vehicle_name']) . "</li>
                         <li>Von: " . format_datetime($reservation['start_datetime']) . "</li>
                         <li>Bis: " . format_datetime($reservation['end_datetime']) . "</li>
                     </ul>
