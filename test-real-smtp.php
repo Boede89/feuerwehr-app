@@ -11,7 +11,7 @@ echo "=================\n\n";
 
 try {
     // SMTP-Einstellungen laden
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key IN ('smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_encryption', 'smtp_from_email', 'smtp_from_name')");
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_encryption', 'smtp_from_email', 'smtp_from_name')");
     $stmt->execute();
     $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     
