@@ -31,7 +31,8 @@ function validate_date($date, $format = 'Y-m-d') {
 /**
  * Datum und Uhrzeit validieren
  */
-function validate_datetime($datetime, $format = 'Y-m-d H:i') {
+function validate_datetime($datetime, $format = 'Y-m-d\TH:i') {
+    // HTML datetime-local Input verwendet das Format Y-m-d\TH:i
     $d = DateTime::createFromFormat($format, $datetime);
     return $d && $d->format($format) === $datetime;
 }
