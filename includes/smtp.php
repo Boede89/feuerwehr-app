@@ -70,10 +70,20 @@ class SimpleSMTP {
             $this->sendCommand("DATA");
             
             // E-Mail-Header und -Inhalt senden
-            $email_data = "From: {$this->from_name} <{$this->from_email}>\r\n";
-            $email_data .= "To: $to\r\n";
-            $email_data .= "Subject: $subject\r\n";
+            // Header korrekt formatieren (keine Leerzeichen nach Doppelpunkt)
+            $from_name_clean = trim($this->from_name);
+            $from_email_clean = trim($this->from_email);
+            $to_clean = trim($to);
+            $subject_clean = trim($subject);
+            
+            $email_data = "From: {$from_name_clean} <{$from_email_clean}>\r\n";
+            $email_data .= "To: {$to_clean}\r\n";
+            $email_data .= "Subject: {$subject_clean}\r\n";
+            $email_data .= "MIME-Version: 1.0\r\n";
             $email_data .= "Content-Type: text/html; charset=UTF-8\r\n";
+            $email_data .= "Content-Transfer-Encoding: 8bit\r\n";
+            $email_data .= "X-Mailer: PHP/" . phpversion() . "\r\n";
+            $email_data .= "X-Priority: 3\r\n";
             $email_data .= "\r\n";
             $email_data .= $message . "\r\n";
             $email_data .= ".\r\n";
