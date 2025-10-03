@@ -348,6 +348,21 @@ if (isset($_GET['edit'])) {
                 document.getElementById('submitButton').textContent = 'Hinzufügen';
             }
         });
+        
+        // Debug: Formular-Absendung überwachen
+        document.getElementById('vehicleModal').addEventListener('submit', function(event) {
+            console.log('Formular wird abgesendet!');
+            console.log('Action:', document.getElementById('action').value);
+            console.log('Name:', document.getElementById('name').value);
+            console.log('Description:', document.getElementById('description').value);
+            console.log('Is Active:', document.getElementById('is_active').checked);
+        });
+        
+        // Debug: Submit-Button klicken
+        document.getElementById('submitButton').addEventListener('click', function(event) {
+            console.log('Submit-Button wurde geklickt!');
+            console.log('Formular wird abgesendet...');
+        });
     </script>
 </body>
 </html>
