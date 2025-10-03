@@ -61,13 +61,65 @@ function generate_token($length = 32) {
  * E-Mail senden
  */
 function send_email($to, $subject, $message, $headers = '') {
-    if (empty($headers)) {
-        $headers = "From: noreply@feuerwehr-app.local\r\n";
-        $headers .= "Reply-To: noreply@feuerwehr-app.local\r\n";
-        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    global $db;
+    
+    try {
+        // SMTP-Einstellungen aus der Datenbank laden
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key IN ('smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_encryption', 'smtp_from_email', 'smtp_from_name')");
+        $stmt->execute();
+        $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        
+        $smtp_host = $settings['smtp_host'] ?? '';
+        $smtp_port = $settings['smtp_port'] ?? '587';
+        $smtp_username = $settings['smtp_username'] ?? '';
+        $smtp_password = $settings['smtp_password'] ?? '';
+        $smtp_encryption = $settings['smtp_encryption'] ?? 'tls';
+        $smtp_from_email = $settings['smtp_from_email'] ?? 'noreply@feuerwehr-app.local';
+        $smtp_from_name = $settings['smtp_from_name'] ?? 'Feuerwehr App';
+        
+        // Wenn SMTP-Einstellungen konfiguriert sind, verwende PHPMailer
+        if (!empty($smtp_host) && !empty($smtp_username)) {
+            return send_email_smtp($to, $subject, $message, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name);
+        } else {
+            // Fallback auf einfache mail() Funktion
+            if (empty($headers)) {
+                $headers = "From: $smtp_from_name <$smtp_from_email>\r\n";
+                $headers .= "Reply-To: $smtp_from_email\r\n";
+                $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+            }
+            
+            return mail($to, $subject, $message, $headers);
+        }
+    } catch (Exception $e) {
+        error_log('E-Mail Fehler: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * E-Mail über SMTP senden (vereinfachte Version)
+ */
+function send_email_smtp($to, $subject, $message, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $from_email, $from_name) {
+    // Verwende die PHP mail() Funktion mit konfigurierten Headers
+    $headers = "From: $from_name <$from_email>\r\n";
+    $headers .= "Reply-To: $from_email\r\n";
+    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
+    
+    // Zusätzliche Parameter für SMTP
+    $additional_parameters = "-f$from_email";
+    
+    // Debug-Informationen
+    error_log("SMTP Debug - Host: $smtp_host, Port: $smtp_port, From: $from_email, To: $to");
+    
+    // Versuche E-Mail zu senden
+    $result = mail($to, $subject, $message, $headers, $additional_parameters);
+    
+    if (!$result) {
+        error_log("E-Mail konnte nicht gesendet werden. Prüfen Sie die PHP mail() Konfiguration.");
     }
     
-    return mail($to, $subject, $message, $headers);
+    return $result;
 }
 
 /**
