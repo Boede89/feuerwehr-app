@@ -269,8 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             <div class="alert alert-info">
                                 <h6><i class="fas fa-truck"></i> Ausgewähltes Fahrzeug</h6>
                                 <p class="mb-0">
-                                    <strong><?php echo htmlspecialchars($selectedVehicle['name']); ?></strong> 
-                                    (<?php echo htmlspecialchars($selectedVehicle['type']); ?>)<br>
+                                    <strong><?php echo htmlspecialchars($selectedVehicle['name']); ?></strong><br>
                                     <small><?php echo htmlspecialchars($selectedVehicle['description']); ?></small>
                                 </p>
                             </div>
