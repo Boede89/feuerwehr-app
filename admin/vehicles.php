@@ -282,7 +282,7 @@ if (isset($_GET['edit'])) {
     <div class="modal fade" id="vehicleModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form method="POST">
+                <form method="POST" id="vehicleForm">
                     <div class="modal-header">
                         <h5 class="modal-title" id="vehicleModalTitle">Neues Fahrzeug</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -350,7 +350,7 @@ if (isset($_GET['edit'])) {
         });
         
         // Debug: Formular-Absendung überwachen
-        document.getElementById('vehicleModal').addEventListener('submit', function(event) {
+        document.getElementById('vehicleForm').addEventListener('submit', function(event) {
             console.log('Formular wird abgesendet!');
             console.log('Action:', document.getElementById('action').value);
             console.log('Name:', document.getElementById('name').value);
@@ -363,6 +363,9 @@ if (isset($_GET['edit'])) {
             console.log('Submit-Button wurde geklickt!');
             console.log('Formular wird abgesendet...');
         });
+        
+        // Debug: JavaScript lädt
+        console.log('JavaScript für Fahrzeug-Modal geladen!');
     </script>
 </body>
 </html>
