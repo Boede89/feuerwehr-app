@@ -54,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Google Calendar Einstellungen
             $google_settings = [
                 'google_calendar_service_account_file' => sanitize_input($_POST['google_calendar_service_account_file'] ?? ''),
+                'google_calendar_service_account_json' => $_POST['google_calendar_service_account_json'] ?? '',
                 'google_calendar_id' => sanitize_input($_POST['google_calendar_id'] ?? ''),
                 'google_calendar_auth_type' => sanitize_input($_POST['google_calendar_auth_type'] ?? 'service_account'),
             ];
@@ -301,19 +302,55 @@ if (isset($_POST['test_email'])) {
                                 </select>
                             </div>
                             
-                            <div id="service_account_config" class="mb-3">
-                                <label for="google_calendar_service_account_file" class="form-label">Service Account JSON-Datei</label>
-                                <input type="text" class="form-control" id="google_calendar_service_account_file" name="google_calendar_service_account_file" 
-                                       value="<?php echo htmlspecialchars($settings['google_calendar_service_account_file'] ?? ''); ?>"
-                                       placeholder="/path/to/service-account-key.json">
-                                <div class="form-text">
-                                    <strong>Status:</strong> 
-                                    <?php if (!empty($settings['google_calendar_service_account_file']) && file_exists($settings['google_calendar_service_account_file'])): ?>
-                                        <span class="text-success">✅ Datei gefunden</span>
-                                    <?php else: ?>
-                                        <span class="text-danger">❌ Datei nicht gefunden</span>
-                                    <?php endif; ?><br>
-                                    <strong>Pfad:</strong> Absoluter Pfad zur JSON-Datei (z.B. /var/www/feuerwehr-app/service-account-key.json)
+                            <div id="service_account_config">
+                                <div class="mb-3">
+                                    <label class="form-label">Service Account Konfiguration</label>
+                                    <div class="btn-group w-100" role="group">
+                                        <input type="radio" class="btn-check" name="service_account_method" id="service_account_file" value="file" 
+                                               <?php echo empty($settings['google_calendar_service_account_json']) ? 'checked' : ''; ?>>
+                                        <label class="btn btn-outline-primary" for="service_account_file">Datei-Pfad</label>
+                                        
+                                        <input type="radio" class="btn-check" name="service_account_method" id="service_account_json" value="json" 
+                                               <?php echo !empty($settings['google_calendar_service_account_json']) ? 'checked' : ''; ?>>
+                                        <label class="btn btn-outline-primary" for="service_account_json">JSON-Inhalt</label>
+                                    </div>
+                                </div>
+                                
+                                <div id="service_account_file_config" class="mb-3">
+                                    <label for="google_calendar_service_account_file" class="form-label">Service Account JSON-Datei</label>
+                                    <input type="text" class="form-control" id="google_calendar_service_account_file" name="google_calendar_service_account_file" 
+                                           value="<?php echo htmlspecialchars($settings['google_calendar_service_account_file'] ?? ''); ?>"
+                                           placeholder="/path/to/service-account-key.json">
+                                    <div class="form-text">
+                                        <strong>Status:</strong> 
+                                        <?php if (!empty($settings['google_calendar_service_account_file']) && file_exists($settings['google_calendar_service_account_file'])): ?>
+                                            <span class="text-success">✅ Datei gefunden</span>
+                                        <?php else: ?>
+                                            <span class="text-danger">❌ Datei nicht gefunden</span>
+                                        <?php endif; ?><br>
+                                        <strong>Pfad:</strong> Absoluter Pfad zur JSON-Datei
+                                    </div>
+                                </div>
+                                
+                                <div id="service_account_json_config" class="mb-3">
+                                    <label for="google_calendar_service_account_json" class="form-label">Service Account JSON-Inhalt</label>
+                                    <textarea class="form-control" id="google_calendar_service_account_json" name="google_calendar_service_account_json" 
+                                              rows="8" placeholder='{"type": "service_account", "project_id": "...", "private_key_id": "...", ...}'><?php echo htmlspecialchars($settings['google_calendar_service_account_json'] ?? ''); ?></textarea>
+                                    <div class="form-text">
+                                        <strong>Status:</strong> 
+                                        <?php if (!empty($settings['google_calendar_service_account_json'])): ?>
+                                            <?php 
+                                            $json_data = json_decode($settings['google_calendar_service_account_json'], true);
+                                            if ($json_data && isset($json_data['type']) && $json_data['type'] === 'service_account'): ?>
+                                                <span class="text-success">✅ Gültiger JSON-Inhalt</span>
+                                            <?php else: ?>
+                                                <span class="text-danger">❌ Ungültiger JSON-Inhalt</span>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <span class="text-muted">Kein JSON-Inhalt eingegeben</span>
+                                        <?php endif; ?><br>
+                                        <strong>Hinweis:</strong> Fügen Sie hier den kompletten Inhalt der JSON-Datei ein
+                                    </div>
                                 </div>
                             </div>
                             
@@ -449,6 +486,22 @@ if (isset($_POST['test_email'])) {
             }
         });
         
+        // Service Account Methode wechseln
+        document.querySelectorAll('input[name="service_account_method"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const fileConfig = document.getElementById('service_account_file_config');
+                const jsonConfig = document.getElementById('service_account_json_config');
+                
+                if (this.value === 'file') {
+                    fileConfig.style.display = 'block';
+                    jsonConfig.style.display = 'none';
+                } else {
+                    fileConfig.style.display = 'none';
+                    jsonConfig.style.display = 'block';
+                }
+            });
+        });
+        
         // Initiale Anzeige setzen
         document.addEventListener('DOMContentLoaded', function() {
             const authType = document.getElementById('google_calendar_auth_type').value;
@@ -458,6 +511,21 @@ if (isset($_POST['test_email'])) {
             if (authType === 'service_account') {
                 serviceAccountConfig.style.display = 'block';
                 apiKeyConfig.style.display = 'none';
+                
+                // Service Account Methode setzen
+                const serviceAccountMethod = document.querySelector('input[name="service_account_method"]:checked');
+                if (serviceAccountMethod) {
+                    const fileConfig = document.getElementById('service_account_file_config');
+                    const jsonConfig = document.getElementById('service_account_json_config');
+                    
+                    if (serviceAccountMethod.value === 'file') {
+                        fileConfig.style.display = 'block';
+                        jsonConfig.style.display = 'none';
+                    } else {
+                        fileConfig.style.display = 'none';
+                        jsonConfig.style.display = 'block';
+                    }
+                }
             } else {
                 serviceAccountConfig.style.display = 'none';
                 apiKeyConfig.style.display = 'block';

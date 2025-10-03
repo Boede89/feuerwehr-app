@@ -5,18 +5,25 @@
 
 class GoogleCalendarServiceAccount {
     private $service_account_file;
+    private $service_account_json;
     private $calendar_id;
     private $scopes = ['https://www.googleapis.com/auth/calendar'];
     private $access_token;
     private $token_expires;
     
-    public function __construct($service_account_file, $calendar_id = 'primary') {
-        $this->service_account_file = $service_account_file;
+    public function __construct($service_account_file_or_json, $calendar_id = 'primary', $is_json = false) {
+        if ($is_json) {
+            $this->service_account_json = $service_account_file_or_json;
+            $this->service_account_file = null;
+        } else {
+            $this->service_account_file = $service_account_file_or_json;
+            $this->service_account_json = null;
+        }
         $this->calendar_id = $calendar_id;
     }
     
     /**
-     * Service Account JSON-Datei laden und Access Token generieren
+     * Service Account JSON laden und Access Token generieren
      */
     private function getAccessToken() {
         // Token noch gültig?
@@ -24,14 +31,23 @@ class GoogleCalendarServiceAccount {
             return $this->access_token;
         }
         
-        if (!file_exists($this->service_account_file)) {
-            throw new Exception('Service Account JSON-Datei nicht gefunden: ' . $this->service_account_file);
-        }
-        
-        $service_account = json_decode(file_get_contents($this->service_account_file), true);
-        
-        if (!$service_account) {
-            throw new Exception('Service Account JSON-Datei ist ungültig');
+        // Service Account JSON laden
+        if ($this->service_account_json) {
+            // Aus JSON-String laden
+            $service_account = json_decode($this->service_account_json, true);
+            if (!$service_account) {
+                throw new Exception('Service Account JSON-Inhalt ist ungültig');
+            }
+        } else {
+            // Aus Datei laden
+            if (!file_exists($this->service_account_file)) {
+                throw new Exception('Service Account JSON-Datei nicht gefunden: ' . $this->service_account_file);
+            }
+            
+            $service_account = json_decode(file_get_contents($this->service_account_file), true);
+            if (!$service_account) {
+                throw new Exception('Service Account JSON-Datei ist ungültig');
+            }
         }
         
         // JWT Header

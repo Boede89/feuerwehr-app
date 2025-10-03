@@ -18,6 +18,7 @@ try {
     echo "1. Google Calendar Einstellungen:\n";
     echo "   Auth Type: " . ($settings['google_calendar_auth_type'] ?? 'nicht gesetzt') . "\n";
     echo "   Service Account File: " . ($settings['google_calendar_service_account_file'] ?? 'nicht gesetzt') . "\n";
+    echo "   Service Account JSON: " . (!empty($settings['google_calendar_service_account_json']) ? 'GESETZT' : 'nicht gesetzt') . "\n";
     echo "   Calendar ID: " . ($settings['google_calendar_id'] ?? 'nicht gesetzt') . "\n";
     echo "   API Key: " . (!empty($settings['google_calendar_api_key']) ? 'GESETZT' : 'nicht gesetzt') . "\n\n";
     
@@ -25,14 +26,73 @@ try {
     
     if ($auth_type === 'service_account') {
         $service_account_file = $settings['google_calendar_service_account_file'] ?? '';
+        $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
         
-        if (empty($service_account_file)) {
-            echo "❌ Service Account Datei nicht konfiguriert!\n";
-            echo "   Bitte setzen Sie den Pfad zur JSON-Datei in den Einstellungen.\n\n";
-        } elseif (!file_exists($service_account_file)) {
-            echo "❌ Service Account Datei nicht gefunden: $service_account_file\n";
-            echo "   Bitte überprüfen Sie den Pfad in den Einstellungen.\n\n";
-        } else {
+        if (!empty($service_account_json)) {
+            // JSON-Inhalt verwenden
+            echo "✅ Service Account JSON-Inhalt gefunden\n";
+            
+            // Service Account JSON validieren
+            $service_account = json_decode($service_account_json, true);
+            
+            if (!$service_account) {
+                echo "❌ Service Account JSON ist ungültig!\n\n";
+            } else {
+                echo "✅ Service Account JSON ist gültig\n";
+                echo "   Client Email: " . ($service_account['client_email'] ?? 'nicht gefunden') . "\n";
+                echo "   Project ID: " . ($service_account['project_id'] ?? 'nicht gefunden') . "\n";
+                echo "   Private Key: " . (!empty($service_account['private_key']) ? 'GEFUNDEN' : 'nicht gefunden') . "\n\n";
+                
+                // Service Account Test mit JSON
+                echo "2. Service Account Verbindung testen (JSON):\n";
+                require_once 'includes/google_calendar_service_account.php';
+                
+                $calendar_id = $settings['google_calendar_id'] ?? 'primary';
+                $calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
+                
+                if ($calendar->testConnection()) {
+                    echo "✅ Service Account Verbindung erfolgreich!\n";
+                    echo "   Kalender: $calendar_id\n\n";
+                    
+                    // Test Event erstellen
+                    echo "3. Test Event erstellen:\n";
+                    $test_title = "Test Event - " . date('Y-m-d H:i:s');
+                    $test_start = date('Y-m-d H:i:s', strtotime('+1 hour'));
+                    $test_end = date('Y-m-d H:i:s', strtotime('+2 hours'));
+                    $test_description = "Test Event von Feuerwehr App";
+                    
+                    echo "   Titel: $test_title\n";
+                    echo "   Start: $test_start\n";
+                    echo "   Ende: $test_end\n";
+                    echo "   Erstelle Event...\n";
+                    
+                    $event_id = $calendar->createEvent($test_title, $test_start, $test_end, $test_description);
+                    
+                    if ($event_id) {
+                        echo "✅ Test Event erfolgreich erstellt!\n";
+                        echo "   Event ID: $event_id\n";
+                        echo "   Event URL: https://calendar.google.com/calendar/event?eid=" . base64url_encode($event_id) . "\n\n";
+                        
+                        // Event wieder löschen
+                        echo "4. Test Event löschen:\n";
+                        if ($calendar->deleteEvent($event_id)) {
+                            echo "✅ Test Event erfolgreich gelöscht!\n\n";
+                        } else {
+                            echo "❌ Test Event konnte nicht gelöscht werden\n\n";
+                        }
+                    } else {
+                        echo "❌ Test Event konnte nicht erstellt werden\n\n";
+                    }
+                } else {
+                    echo "❌ Service Account Verbindung fehlgeschlagen!\n";
+                    echo "   Mögliche Ursachen:\n";
+                    echo "   - Service Account hat keine Berechtigung für den Kalender\n";
+                    echo "   - Kalender ID ist falsch\n";
+                    echo "   - Service Account ist deaktiviert\n\n";
+                }
+            }
+        } elseif (!empty($service_account_file) && file_exists($service_account_file)) {
+            // Datei verwenden
             echo "✅ Service Account Datei gefunden: $service_account_file\n";
             
             // Service Account JSON validieren
@@ -94,7 +154,13 @@ try {
                     echo "   - Kalender ID ist falsch\n";
                     echo "   - Service Account ist deaktiviert\n\n";
                 }
+                }
             }
+        } else {
+            echo "❌ Service Account nicht konfiguriert!\n";
+            echo "   Bitte setzen Sie entweder:\n";
+            echo "   - Den Pfad zur JSON-Datei ODER\n";
+            echo "   - Den JSON-Inhalt direkt in den Einstellungen\n\n";
         }
     } else {
         echo "ℹ️  API Key Modus aktiviert (Service Account wird nicht verwendet)\n\n";
