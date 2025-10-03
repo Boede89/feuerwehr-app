@@ -52,17 +52,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
             
             // Google Calendar Einstellungen
-            // Prüfe ob JSON-Inhalt eingegeben wurde
-            $json_content = $_POST['google_calendar_service_account_json'] ?? '';
+            // JSON-Inhalt nur trimmen, NICHT htmlspecialchars verwenden!
+            $json_content = trim($_POST['google_calendar_service_account_json'] ?? '');
             $file_path = sanitize_input($_POST['google_calendar_service_account_file'] ?? '');
             
             // Debug: Logge die POST-Daten
             error_log("JSON Content Length: " . strlen($json_content));
+            error_log("JSON Content Preview: " . substr($json_content, 0, 100));
             error_log("File Path: " . $file_path);
             
             $google_settings = [
                 'google_calendar_service_account_file' => $file_path,
-                'google_calendar_service_account_json' => $json_content, // Immer speichern, auch wenn leer
+                'google_calendar_service_account_json' => $json_content, // Nur trimmen, nicht sanitizen!
                 'google_calendar_id' => sanitize_input($_POST['google_calendar_id'] ?? ''),
                 'google_calendar_auth_type' => sanitize_input($_POST['google_calendar_auth_type'] ?? 'service_account'),
             ];
@@ -343,7 +344,7 @@ if (isset($_POST['test_email_btn'])) {
                                 <div id="service_account_json_config" class="mb-3">
                                     <label for="google_calendar_service_account_json" class="form-label">Service Account JSON-Inhalt</label>
                                     <textarea class="form-control" id="google_calendar_service_account_json" name="google_calendar_service_account_json" 
-                                              rows="8" placeholder='{"type": "service_account", "project_id": "...", "private_key_id": "...", ...}'><?php echo htmlspecialchars($settings['google_calendar_service_account_json'] ?? ''); ?></textarea>
+                                              rows="8" placeholder='{"type": "service_account", "project_id": "...", "private_key_id": "...", ...}'><?php echo htmlspecialchars($settings['google_calendar_service_account_json'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
                                     <div class="form-text">
                                         <strong>Status:</strong> 
                                         <?php if (!empty($settings['google_calendar_service_account_json'])): ?>
