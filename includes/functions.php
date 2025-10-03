@@ -77,20 +77,19 @@ function send_email($to, $subject, $message, $headers = '') {
         $smtp_from_email = $settings['smtp_from_email'] ?? 'noreply@feuerwehr-app.local';
         $smtp_from_name = $settings['smtp_from_name'] ?? 'Feuerwehr App';
         
-        // Wenn SMTP-Einstellungen konfiguriert sind, verwende SMTP
-        if (!empty($smtp_host) && !empty($smtp_username) && !empty($smtp_password)) {
-            return send_email_smtp($to, $subject, $message, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name);
-        } else {
-            // Fallback auf einfache mail() Funktion
-            if (empty($headers)) {
-                $headers = "From: $smtp_from_name <$smtp_from_email>\r\n";
-                $headers .= "Reply-To: $smtp_from_email\r\n";
-                $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-            }
-            
-            error_log("SMTP nicht vollständig konfiguriert. Verwende mail() Funktion.");
-            return mail($to, $subject, $message, $headers);
+        // Verwende immer die mail() Funktion, da sie funktioniert
+        if (empty($headers)) {
+            $headers = "From: $smtp_from_name <$smtp_from_email>\r\n";
+            $headers .= "Reply-To: $smtp_from_email\r\n";
+            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+            $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
         }
+        
+        // Zusätzliche Parameter für bessere Zustellung
+        $additional_parameters = "-f$smtp_from_email";
+        
+        error_log("E-Mail wird über mail() Funktion gesendet an: $to");
+        return mail($to, $subject, $message, $headers, $additional_parameters);
     } catch (Exception $e) {
         error_log('E-Mail Fehler: ' . $e->getMessage());
         return false;
