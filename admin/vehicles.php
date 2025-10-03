@@ -20,24 +20,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = "Ungültiger Sicherheitstoken.";
     } else {
         $name = sanitize_input($_POST['name'] ?? '');
-        $type = sanitize_input($_POST['type'] ?? '');
         $description = sanitize_input($_POST['description'] ?? '');
-        $capacity = (int)($_POST['capacity'] ?? 1);
         $is_active = isset($_POST['is_active']) ? 1 : 0;
         
-        if (empty($name) || empty($type)) {
-            $error = "Name und Typ sind erforderlich.";
+        if (empty($name)) {
+            $error = "Name ist erforderlich.";
         } else {
             try {
                 if ($action == 'add') {
-                    $stmt = $db->prepare("INSERT INTO vehicles (name, type, description, capacity, is_active) VALUES (?, ?, ?, ?, ?)");
-                    $stmt->execute([$name, $type, $description, $capacity, $is_active]);
+                    $stmt = $db->prepare("INSERT INTO vehicles (name, description, is_active) VALUES (?, ?, ?)");
+                    $stmt->execute([$name, $description, $is_active]);
                     $message = "Fahrzeug wurde erfolgreich hinzugefügt.";
                     log_activity($_SESSION['user_id'], 'vehicle_added', "Fahrzeug '$name' hinzugefügt");
                     
                 } elseif ($action == 'edit') {
-                    $stmt = $db->prepare("UPDATE vehicles SET name = ?, type = ?, description = ?, capacity = ?, is_active = ? WHERE id = ?");
-                    $stmt->execute([$name, $type, $description, $capacity, $is_active, $vehicle_id]);
+                    $stmt = $db->prepare("UPDATE vehicles SET name = ?, description = ?, is_active = ? WHERE id = ?");
+                    $stmt->execute([$name, $description, $is_active, $vehicle_id]);
                     $message = "Fahrzeug wurde erfolgreich aktualisiert.";
                     log_activity($_SESSION['user_id'], 'vehicle_updated', "Fahrzeug '$name' aktualisiert");
                 }
@@ -189,9 +187,7 @@ if (isset($_GET['edit'])) {
                                 <thead>
                                     <tr>
                                         <th>Name</th>
-                                        <th>Typ</th>
                                         <th>Beschreibung</th>
-                                        <th>Kapazität</th>
                                         <th>Status</th>
                                         <th>Erstellt</th>
                                         <th>Aktionen</th>
@@ -201,13 +197,7 @@ if (isset($_GET['edit'])) {
                                     <?php foreach ($vehicles as $vehicle): ?>
                                         <tr>
                                             <td><strong><?php echo htmlspecialchars($vehicle['name']); ?></strong></td>
-                                            <td><?php echo htmlspecialchars($vehicle['type']); ?></td>
                                             <td><?php echo htmlspecialchars($vehicle['description']); ?></td>
-                                            <td>
-                                                <span class="badge bg-info">
-                                                    <i class="fas fa-users"></i> <?php echo $vehicle['capacity']; ?>
-                                                </span>
-                                            </td>
                                             <td>
                                                 <?php if ($vehicle['is_active']): ?>
                                                     <span class="badge bg-success">Aktiv</span>
@@ -223,9 +213,7 @@ if (isset($_GET['edit'])) {
                                                             data-bs-target="#vehicleModal"
                                                             data-vehicle-id="<?php echo $vehicle['id']; ?>"
                                                             data-vehicle-name="<?php echo htmlspecialchars($vehicle['name']); ?>"
-                                                            data-vehicle-type="<?php echo htmlspecialchars($vehicle['type']); ?>"
                                                             data-vehicle-description="<?php echo htmlspecialchars($vehicle['description']); ?>"
-                                                            data-vehicle-capacity="<?php echo $vehicle['capacity']; ?>"
                                                             data-vehicle-active="<?php echo $vehicle['is_active']; ?>">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
@@ -262,16 +250,8 @@ if (isset($_GET['edit'])) {
                             <input type="text" class="form-control" id="name" name="name" required>
                         </div>
                         <div class="mb-3">
-                            <label for="type" class="form-label">Typ *</label>
-                            <input type="text" class="form-control" id="type" name="type" required>
-                        </div>
-                        <div class="mb-3">
                             <label for="description" class="form-label">Beschreibung</label>
                             <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label for="capacity" class="form-label">Kapazität</label>
-                            <input type="number" class="form-control" id="capacity" name="capacity" min="1" value="1">
                         </div>
                         <div class="mb-3">
                             <div class="form-check">
@@ -304,17 +284,13 @@ if (isset($_GET['edit'])) {
                 // Bearbeitung
                 const vehicleId = button.getAttribute('data-vehicle-id');
                 const vehicleName = button.getAttribute('data-vehicle-name');
-                const vehicleType = button.getAttribute('data-vehicle-type');
                 const vehicleDescription = button.getAttribute('data-vehicle-description');
-                const vehicleCapacity = button.getAttribute('data-vehicle-capacity');
                 const vehicleActive = button.getAttribute('data-vehicle-active');
                 
                 document.getElementById('vehicleModalTitle').textContent = 'Fahrzeug bearbeiten';
                 document.getElementById('vehicle_id').value = vehicleId;
                 document.getElementById('name').value = vehicleName;
-                document.getElementById('type').value = vehicleType;
                 document.getElementById('description').value = vehicleDescription;
-                document.getElementById('capacity').value = vehicleCapacity;
                 document.getElementById('is_active').checked = vehicleActive == '1';
                 document.getElementById('action').value = 'edit';
                 document.getElementById('submitButton').textContent = 'Aktualisieren';
@@ -323,9 +299,7 @@ if (isset($_GET['edit'])) {
                 document.getElementById('vehicleModalTitle').textContent = 'Neues Fahrzeug';
                 document.getElementById('vehicle_id').value = '';
                 document.getElementById('name').value = '';
-                document.getElementById('type').value = '';
                 document.getElementById('description').value = '';
-                document.getElementById('capacity').value = '1';
                 document.getElementById('is_active').checked = true;
                 document.getElementById('action').value = 'add';
                 document.getElementById('submitButton').textContent = 'Hinzufügen';

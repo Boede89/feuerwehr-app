@@ -90,13 +90,12 @@ try {
                             <div class="row g-4">
                                 <?php foreach ($vehicles as $vehicle): ?>
                                     <div class="col-lg-4 col-md-6">
-                                        <div class="card h-100 vehicle-card" onclick="selectVehicle(<?php echo $vehicle['id']; ?>, '<?php echo htmlspecialchars($vehicle['name']); ?>', '<?php echo htmlspecialchars($vehicle['type']); ?>', <?php echo $vehicle['capacity']; ?>, '<?php echo htmlspecialchars($vehicle['description']); ?>')">
+                                        <div class="card h-100 vehicle-card" onclick="selectVehicle(<?php echo $vehicle['id']; ?>, '<?php echo htmlspecialchars($vehicle['name']); ?>', '<?php echo htmlspecialchars($vehicle['description']); ?>')"
                                             <div class="card-body text-center p-4">
                                                 <div class="vehicle-icon mb-3">
                                                     <i class="fas fa-truck text-primary"></i>
                                                 </div>
                                                 <h5 class="card-title"><?php echo htmlspecialchars($vehicle['name']); ?></h5>
-                                                <p class="text-muted mb-2"><?php echo htmlspecialchars($vehicle['type']); ?></p>
                                                 <p class="card-text small"><?php echo htmlspecialchars($vehicle['description']); ?></p>
                                             </div>
                                         </div>
@@ -117,13 +116,11 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function selectVehicle(vehicleId, vehicleName, vehicleType, capacity, description) {
+        function selectVehicle(vehicleId, vehicleName, description) {
             // Fahrzeugdaten in Session Storage speichern
             const vehicleData = {
                 id: vehicleId,
                 name: vehicleName,
-                type: vehicleType,
-                capacity: capacity,
                 description: description
             };
             
