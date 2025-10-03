@@ -91,6 +91,17 @@ try {
     $stmt = $db->prepare("SELECT * FROM vehicles ORDER BY name");
     $stmt->execute();
     $vehicles = $stmt->fetchAll();
+    
+    // Debug: Fahrzeuge anzeigen
+    if (isset($_GET['debug'])) {
+        echo "<div class='alert alert-info'>";
+        echo "<strong>Debug Info:</strong><br>";
+        echo "Anzahl Fahrzeuge: " . count($vehicles) . "<br>";
+        foreach ($vehicles as $v) {
+            echo "ID: {$v['id']}, Name: {$v['name']}, Aktiv: " . ($v['is_active'] ? 'Ja' : 'Nein') . "<br>";
+        }
+        echo "</div>";
+    }
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Fahrzeuge: " . $e->getMessage();
     $vehicles = [];
