@@ -98,34 +98,27 @@ function send_email($to, $subject, $message, $headers = '') {
 }
 
 /**
- * E-Mail über SMTP senden (mit cURL)
+ * E-Mail über SMTP senden (echte SMTP-Implementierung)
  */
 function send_email_smtp($to, $subject, $message, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $from_email, $from_name) {
-    // Für Gmail verwende die Gmail API oder eine einfache cURL-Lösung
-    if ($smtp_host === 'smtp.gmail.com') {
-        return send_email_gmail($to, $subject, $message, $smtp_username, $smtp_password, $from_email, $from_name);
+    require_once 'smtp.php';
+    
+    try {
+        $smtp = new SimpleSMTP($smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $from_email, $from_name);
+        $result = $smtp->send($to, $subject, $message);
+        
+        if ($result) {
+            error_log("SMTP E-Mail erfolgreich gesendet an: $to");
+        } else {
+            error_log("SMTP E-Mail fehlgeschlagen an: $to");
+        }
+        
+        return $result;
+        
+    } catch (Exception $e) {
+        error_log("SMTP Fehler: " . $e->getMessage());
+        return false;
     }
-    
-    // Für andere SMTP-Server verwende die mail() Funktion mit konfigurierten Headers
-    $headers = "From: $from_name <$from_email>\r\n";
-    $headers .= "Reply-To: $from_email\r\n";
-    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
-    
-    // Zusätzliche Parameter für SMTP
-    $additional_parameters = "-f$from_email";
-    
-    // Debug-Informationen
-    error_log("SMTP Debug - Host: $smtp_host, Port: $smtp_port, From: $from_email, To: $to");
-    
-    // Versuche E-Mail zu senden
-    $result = mail($to, $subject, $message, $headers, $additional_parameters);
-    
-    if (!$result) {
-        error_log("E-Mail konnte nicht gesendet werden. Prüfen Sie die PHP mail() Konfiguration.");
-    }
-    
-    return $result;
 }
 
 /**
