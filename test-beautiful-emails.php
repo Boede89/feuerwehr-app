@@ -200,10 +200,20 @@ try {
                         <td style='padding: 8px 0; font-weight: bold; color: #555;'>📝 Grund:</td>
                         <td style='padding: 8px 0; color: #333;'>Schulung</td>
                     </tr>
-                    <tr>
-                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>📅 Zeiträume:</td>
-                        <td style='padding: 8px 0; color: #333;'>2 Zeitraum(e) beantragt</td>
-                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555; vertical-align: top;'>📅 Zeiträume:</td>
+                                        <td style='padding: 8px 0; color: #333;'>
+                                            <strong>2 Zeitraum(e) beantragt</strong>
+                                            <div style='margin-top: 10px;'>
+                                                <div style='background-color: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #007bff;'>
+                                                    <strong>Zeitraum 1:</strong> 15.10.2025 14:00 - 15.10.2025 16:00
+                                                </div>
+                                                <div style='background-color: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #007bff;'>
+                                                    <strong>Zeitraum 2:</strong> 16.10.2025 10:00 - 16.10.2025 12:00
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
                 </table>
             </div>
             

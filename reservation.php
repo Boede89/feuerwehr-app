@@ -96,7 +96,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 
                 if (!empty($admin_emails)) {
+                    // Alle Zeiträume für diesen Antrag laden
+                    $stmt = $db->prepare("SELECT start_datetime, end_datetime FROM reservations WHERE vehicle_id = ? AND requester_email = ? AND reason = ? ORDER BY start_datetime");
+                    $stmt->execute([$vehicle_id, $requester_email, $reason]);
+                    $timeframes = $stmt->fetchAll();
+                    
                     $subject = "🔔 Neue Fahrzeugreservierung - " . htmlspecialchars($selectedVehicle['name']);
+                    
+                    // Zeiträume-Liste erstellen
+                    $timeframes_html = "";
+                    if (!empty($timeframes)) {
+                        $timeframes_html = "<div style='margin-top: 10px;'>";
+                        foreach ($timeframes as $index => $timeframe) {
+                            $timeframes_html .= "<div style='background-color: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #007bff;'>";
+                            $timeframes_html .= "<strong>Zeitraum " . ($index + 1) . ":</strong> ";
+                            $timeframes_html .= format_datetime($timeframe['start_datetime']) . " - " . format_datetime($timeframe['end_datetime']);
+                            $timeframes_html .= "</div>";
+                        }
+                        $timeframes_html .= "</div>";
+                    }
+                    
                     $message_content = "
                     <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;'>
                         <div style='background-color: #007bff; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;'>
@@ -125,8 +144,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                                         <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($reason) . "</td>
                                     </tr>
                                     <tr>
-                                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>📅 Zeiträume:</td>
-                                        <td style='padding: 8px 0; color: #333;'>$success_count Zeitraum(e) beantragt</td>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555; vertical-align: top;'>📅 Zeiträume:</td>
+                                        <td style='padding: 8px 0; color: #333;'>
+                                            <strong>$success_count Zeitraum(e) beantragt</strong>
+                                            $timeframes_html
+                                        </td>
                                     </tr>
                                 </table>
                             </div>
