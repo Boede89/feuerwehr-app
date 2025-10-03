@@ -38,11 +38,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 'smtp_host' => sanitize_input($_POST['smtp_host'] ?? ''),
                 'smtp_port' => sanitize_input($_POST['smtp_port'] ?? ''),
                 'smtp_username' => sanitize_input($_POST['smtp_username'] ?? ''),
-                'smtp_password' => trim($_POST['smtp_password'] ?? ''),
                 'smtp_encryption' => sanitize_input($_POST['smtp_encryption'] ?? ''),
                 'smtp_from_email' => sanitize_input($_POST['smtp_from_email'] ?? ''),
                 'smtp_from_name' => sanitize_input($_POST['smtp_from_name'] ?? ''),
             ];
+            
+            // Passwort nur speichern wenn es eingegeben wurde
+            if (!empty(trim($_POST['smtp_password'] ?? ''))) {
+                $smtp_settings['smtp_password'] = trim($_POST['smtp_password']);
+            } else {
+                // Passwort nicht ändern - aktuelles aus der Datenbank behalten
+                $smtp_settings['smtp_password'] = $settings['smtp_password'] ?? '';
+            }
             
             // Google Calendar Einstellungen
             $google_settings = [
@@ -226,6 +233,15 @@ if (isset($_POST['test_email'])) {
                                     <label for="smtp_password" class="form-label">Passwort</label>
                                     <input type="password" class="form-control" id="smtp_password" name="smtp_password" 
                                            placeholder="Leer lassen um nicht zu ändern">
+                                    <div class="form-text">
+                                        <strong>Status:</strong> 
+                                        <?php if (!empty($settings['smtp_password'])): ?>
+                                            <span class="text-success">✅ GESETZT (<?php echo strlen($settings['smtp_password']); ?> Zeichen)</span>
+                                        <?php else: ?>
+                                            <span class="text-danger">❌ NICHT GESETZT</span>
+                                        <?php endif; ?><br>
+                                        <strong>Hinweis:</strong> Leer lassen, um das aktuelle Passwort beizubehalten.
+                                    </div>
                                 </div>
                             </div>
                             
