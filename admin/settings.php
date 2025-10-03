@@ -52,9 +52,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
             
             // Google Calendar Einstellungen
+            $service_account_method = $_POST['service_account_method_value'] ?? 'file';
+            
             $google_settings = [
                 'google_calendar_service_account_file' => sanitize_input($_POST['google_calendar_service_account_file'] ?? ''),
-                'google_calendar_service_account_json' => $_POST['google_calendar_service_account_json'] ?? '',
+                'google_calendar_service_account_json' => $service_account_method === 'json' ? ($_POST['google_calendar_service_account_json'] ?? '') : '',
                 'google_calendar_id' => sanitize_input($_POST['google_calendar_id'] ?? ''),
                 'google_calendar_auth_type' => sanitize_input($_POST['google_calendar_auth_type'] ?? 'service_account'),
             ];
@@ -307,13 +309,15 @@ if (isset($_POST['test_email'])) {
                                     <label class="form-label">Service Account Konfiguration</label>
                                     <div class="btn-group w-100" role="group">
                                         <input type="radio" class="btn-check" name="service_account_method" id="service_account_file" value="file" 
-                                               <?php echo empty($settings['google_calendar_service_account_json']) ? 'checked' : ''; ?>>
+                                               <?php echo (!empty($settings['google_calendar_service_account_json'])) ? '' : 'checked'; ?>>
                                         <label class="btn btn-outline-primary" for="service_account_file">Datei-Pfad</label>
                                         
                                         <input type="radio" class="btn-check" name="service_account_method" id="service_account_json" value="json" 
-                                               <?php echo !empty($settings['google_calendar_service_account_json']) ? 'checked' : ''; ?>>
+                                               <?php echo (!empty($settings['google_calendar_service_account_json'])) ? 'checked' : ''; ?>>
                                         <label class="btn btn-outline-primary" for="service_account_json">JSON-Inhalt</label>
                                     </div>
+                                    <input type="hidden" name="service_account_method_value" id="service_account_method_value" 
+                                           value="<?php echo !empty($settings['google_calendar_service_account_json']) ? 'json' : 'file'; ?>">
                                 </div>
                                 
                                 <div id="service_account_file_config" class="mb-3">
@@ -491,13 +495,16 @@ if (isset($_POST['test_email'])) {
             radio.addEventListener('change', function() {
                 const fileConfig = document.getElementById('service_account_file_config');
                 const jsonConfig = document.getElementById('service_account_json_config');
+                const hiddenInput = document.getElementById('service_account_method_value');
                 
                 if (this.value === 'file') {
                     fileConfig.style.display = 'block';
                     jsonConfig.style.display = 'none';
+                    hiddenInput.value = 'file';
                 } else {
                     fileConfig.style.display = 'none';
                     jsonConfig.style.display = 'block';
+                    hiddenInput.value = 'json';
                 }
             });
         });
@@ -517,13 +524,16 @@ if (isset($_POST['test_email'])) {
                 if (serviceAccountMethod) {
                     const fileConfig = document.getElementById('service_account_file_config');
                     const jsonConfig = document.getElementById('service_account_json_config');
+                    const hiddenInput = document.getElementById('service_account_method_value');
                     
                     if (serviceAccountMethod.value === 'file') {
                         fileConfig.style.display = 'block';
                         jsonConfig.style.display = 'none';
+                        hiddenInput.value = 'file';
                     } else {
                         fileConfig.style.display = 'none';
                         jsonConfig.style.display = 'block';
+                        hiddenInput.value = 'json';
                     }
                 }
             } else {
