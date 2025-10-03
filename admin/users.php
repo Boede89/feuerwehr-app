@@ -11,6 +11,15 @@ if (!is_logged_in()) {
 $message = '';
 $error = '';
 
+// Erfolgsmeldungen von GET-Parameter
+if (isset($_GET['success'])) {
+    if ($_GET['success'] == 'added') {
+        $message = "Benutzer wurde erfolgreich hinzugefügt.";
+    } elseif ($_GET['success'] == 'updated') {
+        $message = "Benutzer wurde erfolgreich aktualisiert.";
+    }
+}
+
 // Benutzer hinzufügen/bearbeiten
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $action = $_POST['action'] ?? '';
@@ -42,6 +51,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $is_admin, $is_active]);
                         $message = "Benutzer wurde erfolgreich hinzugefügt.";
                         log_activity($_SESSION['user_id'], 'user_added', "Benutzer '$username' hinzugefügt");
+                        
+                        // Weiterleitung um POST-Problem zu vermeiden
+                        header("Location: users.php?success=added");
+                        exit();
                     }
                 } elseif ($action == 'edit') {
                     if (!empty($password)) {
@@ -54,6 +67,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     }
                     $message = "Benutzer wurde erfolgreich aktualisiert.";
                     log_activity($_SESSION['user_id'], 'user_updated', "Benutzer '$username' aktualisiert");
+                    
+                    // Weiterleitung um POST-Problem zu vermeiden
+                    header("Location: users.php?success=updated");
+                    exit();
                 }
             } catch(PDOException $e) {
                 $error = "Fehler beim Speichern des Benutzers: " . $e->getMessage();

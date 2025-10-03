@@ -11,6 +11,15 @@ if (!is_logged_in()) {
 $message = '';
 $error = '';
 
+// Erfolgsmeldungen von GET-Parameter
+if (isset($_GET['success'])) {
+    if ($_GET['success'] == 'added') {
+        $message = "Fahrzeug wurde erfolgreich hinzugefügt.";
+    } elseif ($_GET['success'] == 'updated') {
+        $message = "Fahrzeug wurde erfolgreich aktualisiert.";
+    }
+}
+
 // Fahrzeug hinzufügen/bearbeiten
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $action = $_POST['action'] ?? '';
@@ -33,11 +42,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $message = "Fahrzeug wurde erfolgreich hinzugefügt.";
                     log_activity($_SESSION['user_id'], 'vehicle_added', "Fahrzeug '$name' hinzugefügt");
                     
+                    // Weiterleitung um POST-Problem zu vermeiden
+                    header("Location: vehicles.php?success=added");
+                    exit();
+                    
                 } elseif ($action == 'edit') {
                     $stmt = $db->prepare("UPDATE vehicles SET name = ?, description = ?, is_active = ? WHERE id = ?");
                     $stmt->execute([$name, $description, $is_active, $vehicle_id]);
                     $message = "Fahrzeug wurde erfolgreich aktualisiert.";
                     log_activity($_SESSION['user_id'], 'vehicle_updated', "Fahrzeug '$name' aktualisiert");
+                    
+                    // Weiterleitung um POST-Problem zu vermeiden
+                    header("Location: vehicles.php?success=updated");
+                    exit();
                 }
             } catch(PDOException $e) {
                 $error = "Fehler beim Speichern des Fahrzeugs: " . $e->getMessage();
