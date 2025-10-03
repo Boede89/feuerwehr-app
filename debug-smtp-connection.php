@@ -47,6 +47,13 @@ try {
     $response = fgets($connection, 512);
     echo "   EHLO: " . trim($response) . "\n";
     
+    // Gmail sendet 220 als erste Antwort, dann 250 für EHLO
+    if (strpos($response, '220') !== false) {
+        // Warte auf die 250-Antwort
+        $response = fgets($connection, 512);
+        echo "   EHLO (2): " . trim($response) . "\n";
+    }
+    
     if (strpos($response, '250') === false) {
         echo "   ❌ EHLO fehlgeschlagen\n";
         fclose($connection);

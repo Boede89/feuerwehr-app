@@ -76,6 +76,12 @@ class SimpleSMTP {
         // Debug-Ausgabe
         error_log("SMTP: $command -> $response");
         
+        // Für EHLO-Kommando: Gmail sendet manchmal mehrere Antworten
+        if ($command === "EHLO localhost" && strpos($response, '220') !== false) {
+            $response = fgets($this->connection, 512);
+            error_log("SMTP: EHLO (2) -> $response");
+        }
+        
         return $response;
     }
 }
