@@ -191,9 +191,9 @@ if (isset($_GET['edit'])) {
                     <h1 class="h3 mb-0">
                         <i class="fas fa-users"></i> Benutzer
                     </h1>
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#userModal">
-                        <i class="fas fa-plus"></i> Neuer Benutzer
-                    </button>
+                        <button type="button" class="btn btn-primary" onclick="openUserModal()">
+                            <i class="fas fa-plus"></i> Neuer Benutzer
+                        </button>
                 </div>
                 
                 <?php if ($message): ?>
@@ -248,8 +248,7 @@ if (isset($_GET['edit'])) {
                                             <td>
                                                 <div class="btn-group" role="group">
                                                     <button type="button" class="btn btn-outline-primary btn-sm" 
-                                                            data-bs-toggle="modal" 
-                                                            data-bs-target="#userModal"
+                                                            onclick="editUser(this)"
                                                             data-user-id="<?php echo $user['id']; ?>"
                                                             data-username="<?php echo htmlspecialchars($user['username']); ?>"
                                                             data-email="<?php echo htmlspecialchars($user['email']); ?>"
@@ -283,7 +282,7 @@ if (isset($_GET['edit'])) {
     <div class="modal fade" id="userModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form method="POST">
+                <form method="POST" id="userForm">
                     <div class="modal-header">
                         <h5 class="modal-title" id="userModalTitle">Neuer Benutzer</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -341,7 +340,7 @@ if (isset($_GET['edit'])) {
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeUserModal()">Abbrechen</button>
                         <button type="submit" class="btn btn-primary" id="submitButton">Speichern</button>
                     </div>
                 </form>
@@ -351,12 +350,46 @@ if (isset($_GET['edit'])) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Modal Event Listener
-        document.getElementById('userModal').addEventListener('show.bs.modal', function (event) {
-            const button = event.relatedTarget;
-            
-            if (button) {
-                // Bearbeitung
+        // Einfache Funktionen ohne Bootstrap-Event-Listener
+        function openUserModal() {
+            // Modal anzeigen
+            const modal = document.getElementById('userModal');
+            if (modal) {
+                // Neuer Benutzer vorbereiten
+                document.getElementById('userModalTitle').textContent = 'Neuer Benutzer';
+                document.getElementById('user_id').value = '';
+                document.getElementById('username').value = '';
+                document.getElementById('email').value = '';
+                document.getElementById('first_name').value = '';
+                document.getElementById('last_name').value = '';
+                document.getElementById('is_admin').checked = false;
+                document.getElementById('is_active').checked = true;
+                document.getElementById('action').value = 'add';
+                document.getElementById('submitButton').textContent = 'Hinzufügen';
+                document.getElementById('password-required').textContent = '*';
+                document.getElementById('password-help').style.display = 'none';
+                
+                // Modal anzeigen
+                modal.style.display = 'block';
+                modal.classList.add('show');
+                document.body.classList.add('modal-open');
+            }
+        }
+        
+        function closeUserModal() {
+            const modal = document.getElementById('userModal');
+            if (modal) {
+                modal.style.display = 'none';
+                modal.classList.remove('show');
+                document.body.classList.remove('modal-open');
+            }
+        }
+        
+        function editUser(button) {
+            // Modal anzeigen
+            const modal = document.getElementById('userModal');
+            if (modal) {
+                // Bearbeitung vorbereiten
                 const userId = button.getAttribute('data-user-id');
                 const username = button.getAttribute('data-username');
                 const email = button.getAttribute('data-email');
@@ -377,22 +410,13 @@ if (isset($_GET['edit'])) {
                 document.getElementById('submitButton').textContent = 'Aktualisieren';
                 document.getElementById('password-required').textContent = '';
                 document.getElementById('password-help').style.display = 'block';
-            } else {
-                // Neuer Benutzer
-                document.getElementById('userModalTitle').textContent = 'Neuer Benutzer';
-                document.getElementById('user_id').value = '';
-                document.getElementById('username').value = '';
-                document.getElementById('email').value = '';
-                document.getElementById('first_name').value = '';
-                document.getElementById('last_name').value = '';
-                document.getElementById('is_admin').checked = false;
-                document.getElementById('is_active').checked = true;
-                document.getElementById('action').value = 'add';
-                document.getElementById('submitButton').textContent = 'Hinzufügen';
-                document.getElementById('password-required').textContent = '*';
-                document.getElementById('password-help').style.display = 'none';
+                
+                // Modal anzeigen
+                modal.style.display = 'block';
+                modal.classList.add('show');
+                document.body.classList.add('modal-open');
             }
-        });
+        }
     </script>
 </body>
 </html>
