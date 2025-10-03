@@ -52,11 +52,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
             
             // Google Calendar Einstellungen
-            $service_account_method = $_POST['service_account_method_value'] ?? 'file';
+            // Prüfe ob JSON-Inhalt eingegeben wurde
+            $json_content = $_POST['google_calendar_service_account_json'] ?? '';
+            $file_path = sanitize_input($_POST['google_calendar_service_account_file'] ?? '');
+            
+            // Debug: Logge die POST-Daten
+            error_log("JSON Content Length: " . strlen($json_content));
+            error_log("File Path: " . $file_path);
             
             $google_settings = [
-                'google_calendar_service_account_file' => sanitize_input($_POST['google_calendar_service_account_file'] ?? ''),
-                'google_calendar_service_account_json' => $service_account_method === 'json' ? ($_POST['google_calendar_service_account_json'] ?? '') : '',
+                'google_calendar_service_account_file' => $file_path,
+                'google_calendar_service_account_json' => $json_content, // Immer speichern, auch wenn leer
                 'google_calendar_id' => sanitize_input($_POST['google_calendar_id'] ?? ''),
                 'google_calendar_auth_type' => sanitize_input($_POST['google_calendar_auth_type'] ?? 'service_account'),
             ];
@@ -101,26 +107,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 // Test E-Mail senden
-if (isset($_POST['test_email'])) {
+if (isset($_POST['test_email_btn'])) {
     $test_email = sanitize_input($_POST['test_email'] ?? '');
     
-    if (empty($test_email) || !validate_email($test_email)) {
-        $error = "Bitte geben Sie eine gültige E-Mail-Adresse ein.";
-    } else {
-        $subject = "Test E-Mail - Feuerwehr App";
-        $message_content = "
-        <h2>Test E-Mail</h2>
-        <p>Diese E-Mail wurde als Test von der Feuerwehr App gesendet.</p>
-        <p>Falls Sie diese E-Mail erhalten haben, funktioniert die E-Mail-Konfiguration korrekt.</p>
-        <p><strong>Zeitstempel:</strong> " . date('d.m.Y H:i:s') . "</p>
-        ";
-        
-        if (send_email($test_email, $subject, $message_content)) {
-            $message = "Test E-Mail wurde erfolgreich gesendet.";
+    // Nur senden wenn E-Mail eingegeben wurde
+    if (!empty($test_email)) {
+        if (!validate_email($test_email)) {
+            $error = "Bitte geben Sie eine gültige E-Mail-Adresse ein.";
         } else {
-            $error = "Fehler beim Senden der Test E-Mail. Bitte überprüfen Sie die SMTP-Einstellungen.";
+            $subject = "Test E-Mail - Feuerwehr App";
+            $message_content = "
+            <h2>Test E-Mail</h2>
+            <p>Diese E-Mail wurde als Test von der Feuerwehr App gesendet.</p>
+            <p>Falls Sie diese E-Mail erhalten haben, funktioniert die E-Mail-Konfiguration korrekt.</p>
+            <p><strong>Zeitstempel:</strong> " . date('d.m.Y H:i:s') . "</p>
+            ";
+            
+            if (send_email($test_email, $subject, $message_content)) {
+                $message = "Test E-Mail wurde erfolgreich gesendet.";
+            } else {
+                $error = "Fehler beim Senden der Test E-Mail. Bitte überprüfen Sie die SMTP-Einstellungen.";
+            }
         }
     }
+    // Wenn E-Mail leer ist, wird einfach ignoriert (keine Fehlermeldung)
 }
 ?>
 <!DOCTYPE html>
@@ -307,17 +317,11 @@ if (isset($_POST['test_email'])) {
                             <div id="service_account_config">
                                 <div class="mb-3">
                                     <label class="form-label">Service Account Konfiguration</label>
-                                    <div class="btn-group w-100" role="group">
-                                        <input type="radio" class="btn-check" name="service_account_method" id="service_account_file" value="file" 
-                                               <?php echo (!empty($settings['google_calendar_service_account_json'])) ? '' : 'checked'; ?>>
-                                        <label class="btn btn-outline-primary" for="service_account_file">Datei-Pfad</label>
-                                        
-                                        <input type="radio" class="btn-check" name="service_account_method" id="service_account_json" value="json" 
-                                               <?php echo (!empty($settings['google_calendar_service_account_json'])) ? 'checked' : ''; ?>>
-                                        <label class="btn btn-outline-primary" for="service_account_json">JSON-Inhalt</label>
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle"></i>
+                                        <strong>Hinweis:</strong> Sie können entweder einen Datei-Pfad ODER den JSON-Inhalt eingeben. 
+                                        Wenn beide ausgefüllt sind, wird der JSON-Inhalt bevorzugt.
                                     </div>
-                                    <input type="hidden" name="service_account_method_value" id="service_account_method_value" 
-                                           value="<?php echo !empty($settings['google_calendar_service_account_json']) ? 'json' : 'file'; ?>">
                                 </div>
                                 
                                 <div id="service_account_file_config" class="mb-3">
@@ -490,25 +494,6 @@ if (isset($_POST['test_email'])) {
             }
         });
         
-        // Service Account Methode wechseln
-        document.querySelectorAll('input[name="service_account_method"]').forEach(radio => {
-            radio.addEventListener('change', function() {
-                const fileConfig = document.getElementById('service_account_file_config');
-                const jsonConfig = document.getElementById('service_account_json_config');
-                const hiddenInput = document.getElementById('service_account_method_value');
-                
-                if (this.value === 'file') {
-                    fileConfig.style.display = 'block';
-                    jsonConfig.style.display = 'none';
-                    hiddenInput.value = 'file';
-                } else {
-                    fileConfig.style.display = 'none';
-                    jsonConfig.style.display = 'block';
-                    hiddenInput.value = 'json';
-                }
-            });
-        });
-        
         // Initiale Anzeige setzen
         document.addEventListener('DOMContentLoaded', function() {
             const authType = document.getElementById('google_calendar_auth_type').value;
@@ -518,24 +503,6 @@ if (isset($_POST['test_email'])) {
             if (authType === 'service_account') {
                 serviceAccountConfig.style.display = 'block';
                 apiKeyConfig.style.display = 'none';
-                
-                // Service Account Methode setzen
-                const serviceAccountMethod = document.querySelector('input[name="service_account_method"]:checked');
-                if (serviceAccountMethod) {
-                    const fileConfig = document.getElementById('service_account_file_config');
-                    const jsonConfig = document.getElementById('service_account_json_config');
-                    const hiddenInput = document.getElementById('service_account_method_value');
-                    
-                    if (serviceAccountMethod.value === 'file') {
-                        fileConfig.style.display = 'block';
-                        jsonConfig.style.display = 'none';
-                        hiddenInput.value = 'file';
-                    } else {
-                        fileConfig.style.display = 'none';
-                        jsonConfig.style.display = 'block';
-                        hiddenInput.value = 'json';
-                    }
-                }
             } else {
                 serviceAccountConfig.style.display = 'none';
                 apiKeyConfig.style.display = 'block';

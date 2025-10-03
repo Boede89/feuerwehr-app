@@ -311,6 +311,7 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
             $service_account_file = $settings['google_calendar_service_account_file'] ?? '';
             $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
             
+            // JSON-Inhalt hat Priorität über Datei
             if (!empty($service_account_json)) {
                 // JSON-Inhalt verwenden
                 require_once 'includes/google_calendar_service_account.php';
