@@ -45,7 +45,7 @@ try {
     
     // Heutige Reservierungen
     $stmt = $db->prepare("
-        SELECT r.*, v.name as vehicle_name, v.type as vehicle_type
+        SELECT r.*, v.name as vehicle_name
         FROM reservations r
         JOIN vehicles v ON r.vehicle_id = v.id
         WHERE DATE(r.start_datetime) = CURDATE()
@@ -241,8 +241,7 @@ try {
                                         <?php foreach ($today_reservations as $reservation): ?>
                                             <tr>
                                                 <td>
-                                                    <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong><br>
-                                                    <small class="text-muted"><?php echo htmlspecialchars($reservation['vehicle_type']); ?></small>
+                                                    <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
                                                 </td>
                                                 <td><?php echo htmlspecialchars($reservation['requester_name']); ?></td>
                                                 <td>
