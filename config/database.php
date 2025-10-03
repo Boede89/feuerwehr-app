@@ -4,7 +4,7 @@
  */
 
 class Database {
-    private $host = 'localhost';
+    private $host = 'mysql';
     private $db_name = 'feuerwehr_app';
     private $username = 'feuerwehr_user';
     private $password = 'feuerwehr_password';
