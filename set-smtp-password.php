@@ -9,7 +9,7 @@ echo "🔧 SMTP-Passwort direkt setzen\n";
 echo "==============================\n\n";
 
 // Gmail App-Passwort hier einfügen (16 Zeichen ohne Leerzeichen)
-$gmail_app_password = 'IHR_GMAIL_APP_PASSWORT_HIER'; // ← HIER DAS PASSWORT EINFÜGEN
+$gmail_app_password = 'tnli grex fdpw dmhv'; // ← HIER DAS PASSWORT EINFÜGEN
 
 if ($gmail_app_password === 'IHR_GMAIL_APP_PASSWORT_HIER') {
     echo "❌ Bitte setzen Sie zuerst das Gmail App-Passwort in der Datei!\n";
