@@ -32,14 +32,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $name = sanitize_input($_POST['name'] ?? '');
         $description = sanitize_input($_POST['description'] ?? '');
         $is_active = isset($_POST['is_active']) ? 1 : 0;
+        $sort_order = (int)($_POST['sort_order'] ?? 0);
         
         if (empty($name)) {
             $error = "Name ist erforderlich.";
         } else {
             try {
                 if ($action == 'add') {
-                    $stmt = $db->prepare("INSERT INTO vehicles (name, description, is_active) VALUES (?, ?, ?)");
-                    $stmt->execute([$name, $description, $is_active]);
+                    // Automatische Sortier-Reihenfolge für neue Fahrzeuge
+                    if ($sort_order == 0) {
+                        $stmt = $db->prepare("SELECT MAX(sort_order) as max_order FROM vehicles");
+                        $stmt->execute();
+                        $max_order = $stmt->fetch()['max_order'] ?? 0;
+                        $sort_order = $max_order + 1;
+                    }
+                    
+                    $stmt = $db->prepare("INSERT INTO vehicles (name, description, is_active, sort_order) VALUES (?, ?, ?, ?)");
+                    $stmt->execute([$name, $description, $is_active, $sort_order]);
                     $new_id = $db->lastInsertId();
                     $message = "Fahrzeug wurde erfolgreich hinzugefügt.";
                     log_activity($_SESSION['user_id'], 'vehicle_added', "Fahrzeug '$name' hinzugefügt");
@@ -49,8 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     exit();
                     
                 } elseif ($action == 'edit') {
-                    $stmt = $db->prepare("UPDATE vehicles SET name = ?, description = ?, is_active = ? WHERE id = ?");
-                    $stmt->execute([$name, $description, $is_active, $vehicle_id]);
+                    $stmt = $db->prepare("UPDATE vehicles SET name = ?, description = ?, is_active = ?, sort_order = ? WHERE id = ?");
+                    $stmt->execute([$name, $description, $is_active, $sort_order, $vehicle_id]);
                     $message = "Fahrzeug wurde erfolgreich aktualisiert.";
                     log_activity($_SESSION['user_id'], 'vehicle_updated', "Fahrzeug '$name' aktualisiert");
                     
@@ -90,7 +99,7 @@ if (isset($_GET['delete'])) {
 
 // Fahrzeuge laden
 try {
-    $stmt = $db->prepare("SELECT * FROM vehicles ORDER BY name");
+    $stmt = $db->prepare("SELECT * FROM vehicles ORDER BY sort_order ASC, name ASC");
     $stmt->execute();
     $vehicles = $stmt->fetchAll();
     
@@ -208,6 +217,7 @@ if (isset($_GET['edit'])) {
                                     <tr>
                                         <th>Name</th>
                                         <th>Beschreibung</th>
+                                        <th>Sortierung</th>
                                         <th>Status</th>
                                         <th>Erstellt</th>
                                         <th>Aktionen</th>
@@ -219,6 +229,9 @@ if (isset($_GET['edit'])) {
                                             <td><strong><?php echo htmlspecialchars($vehicle['name']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($vehicle['description']); ?></td>
                                             <td>
+                                                <span class="badge bg-info"><?php echo $vehicle['sort_order'] ?? 0; ?></span>
+                                            </td>
+                                            <td>
                                                 <?php if ($vehicle['is_active']): ?>
                                                     <span class="badge bg-success">Aktiv</span>
                                                 <?php else: ?>
@@ -229,12 +242,7 @@ if (isset($_GET['edit'])) {
                                             <td>
                                                 <div class="btn-group" role="group">
                                                     <button type="button" class="btn btn-outline-primary btn-sm" 
-                                                            data-bs-toggle="modal" 
-                                                            data-bs-target="#vehicleModal"
-                                                            data-vehicle-id="<?php echo $vehicle['id']; ?>"
-                                                            data-vehicle-name="<?php echo htmlspecialchars($vehicle['name']); ?>"
-                                                            data-vehicle-description="<?php echo htmlspecialchars($vehicle['description']); ?>"
-                                                            data-vehicle-active="<?php echo $vehicle['is_active']; ?>">
+                                                            onclick="editVehicle(<?php echo $vehicle['id']; ?>, '<?php echo htmlspecialchars($vehicle['name']); ?>', '<?php echo htmlspecialchars($vehicle['description']); ?>', <?php echo $vehicle['sort_order'] ?? 0; ?>, <?php echo $vehicle['is_active']; ?>)">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
                                                     <a href="?delete=<?php echo $vehicle['id']; ?>" 
@@ -274,6 +282,13 @@ if (isset($_GET['edit'])) {
                             <textarea class="form-control" id="description" name="description" rows="3"></textarea>
                         </div>
                         <div class="mb-3">
+                            <label for="sort_order" class="form-label">Sortier-Reihenfolge</label>
+                            <input type="number" class="form-control" id="sort_order" name="sort_order" min="0" value="0">
+                            <div class="form-text">
+                                Niedrigere Zahlen werden zuerst angezeigt. 0 = automatisch am Ende einfügen.
+                            </div>
+                        </div>
+                        <div class="mb-3">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="is_active" name="is_active" checked>
                                 <label class="form-check-label" for="is_active">
@@ -310,6 +325,7 @@ if (isset($_GET['edit'])) {
                 document.getElementById('vehicle_id').value = '';
                 document.getElementById('name').value = '';
                 document.getElementById('description').value = '';
+                document.getElementById('sort_order').value = '0';
                 document.getElementById('is_active').checked = true;
                 document.getElementById('action').value = 'add';
                 document.getElementById('submitButton').textContent = 'Hinzufügen';
@@ -322,6 +338,32 @@ if (isset($_GET['edit'])) {
                 console.log('Modal angezeigt!');
             } else {
                 console.log('Modal nicht gefunden!');
+            }
+        }
+        
+        function editVehicle(vehicleId, vehicleName, vehicleDescription, vehicleSortOrder, vehicleActive) {
+            console.log('editVehicle() aufgerufen!');
+            
+            // Modal anzeigen
+            const modal = document.getElementById('vehicleModal');
+            if (modal) {
+                console.log('Modal gefunden, wird angezeigt...');
+                
+                // Fahrzeug-Daten setzen
+                document.getElementById('vehicleModalTitle').textContent = 'Fahrzeug bearbeiten';
+                document.getElementById('vehicle_id').value = vehicleId;
+                document.getElementById('name').value = vehicleName;
+                document.getElementById('description').value = vehicleDescription;
+                document.getElementById('sort_order').value = vehicleSortOrder || 0;
+                document.getElementById('is_active').checked = vehicleActive == 1;
+                document.getElementById('action').value = 'edit';
+                document.getElementById('submitButton').textContent = 'Aktualisieren';
+                
+                // Modal anzeigen
+                modal.style.display = 'block';
+                modal.classList.add('show');
+                document.body.classList.add('modal-open');
+                console.log('Modal für Bearbeitung angezeigt!');
             }
         }
         

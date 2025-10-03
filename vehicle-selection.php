@@ -6,10 +6,29 @@ require_once 'includes/functions.php';
 $message = '';
 $error = '';
 
-// Fahrzeuge laden
+// Fahrzeuge laden mit Sortierung
 $vehicles = [];
 try {
-    $stmt = $db->prepare("SELECT * FROM vehicles WHERE is_active = 1 ORDER BY name");
+    // Sortier-Modus aus Einstellungen laden
+    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'vehicle_sort_mode'");
+    $stmt->execute();
+    $sort_mode = $stmt->fetchColumn() ?: 'manual';
+    
+    // SQL-Query basierend auf Sortier-Modus
+    switch ($sort_mode) {
+        case 'name':
+            $order_by = "ORDER BY name ASC";
+            break;
+        case 'created':
+            $order_by = "ORDER BY created_at ASC";
+            break;
+        case 'manual':
+        default:
+            $order_by = "ORDER BY sort_order ASC, name ASC";
+            break;
+    }
+    
+    $stmt = $db->prepare("SELECT * FROM vehicles WHERE is_active = 1 $order_by");
     $stmt->execute();
     $vehicles = $stmt->fetchAll();
 } catch(PDOException $e) {
@@ -87,16 +106,19 @@ try {
                                 Es sind derzeit keine Fahrzeuge zur Reservierung verfügbar.
                             </div>
                         <?php else: ?>
-                            <div class="row g-4">
+                            <div class="row justify-content-center g-4">
                                 <?php foreach ($vehicles as $vehicle): ?>
-                                    <div class="col-lg-4 col-md-6">
-                                        <div class="card h-100 vehicle-card" onclick="selectVehicle(<?php echo $vehicle['id']; ?>, '<?php echo htmlspecialchars($vehicle['name']); ?>', '<?php echo htmlspecialchars($vehicle['description']); ?>')"
+                                    <div class="col-lg-4 col-md-6 col-sm-8 col-10">
+                                        <div class="card h-100 vehicle-card shadow-sm" onclick="selectVehicle(<?php echo $vehicle['id']; ?>, '<?php echo htmlspecialchars($vehicle['name']); ?>', '<?php echo htmlspecialchars($vehicle['description']); ?>')">
                                             <div class="card-body text-center p-4">
                                                 <div class="vehicle-icon mb-3">
-                                                    <i class="fas fa-truck text-primary"></i>
+                                                    <i class="fas fa-truck"></i>
                                                 </div>
-                                                <h5 class="card-title"><?php echo htmlspecialchars($vehicle['name']); ?></h5>
-                                                <p class="card-text small"><?php echo htmlspecialchars($vehicle['description']); ?></p>
+                                                <h5 class="card-title fw-bold"><?php echo htmlspecialchars($vehicle['name']); ?></h5>
+                                                <p class="card-text text-muted"><?php echo htmlspecialchars($vehicle['description']); ?></p>
+                                                <div class="vehicle-action mt-3">
+                                                    <span class="badge bg-primary">Auswählen</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -149,24 +171,74 @@ try {
             cursor: pointer;
             transition: all 0.3s ease;
             border: 2px solid transparent;
+            border-radius: 15px;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
         }
         
         .vehicle-card:hover {
-            border-color: var(--primary-color);
-            transform: translateY(-5px);
+            border-color: #0d6efd;
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1) !important;
         }
         
         .vehicle-icon {
-            font-size: 3rem;
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
         }
         
         .vehicle-icon i {
             display: inline-block;
-            padding: 1rem;
+            padding: 1.2rem;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary-color), #ff6b6b);
+            background: linear-gradient(135deg, #0d6efd, #6610f2);
             color: white;
-            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+            box-shadow: 0 8px 25px rgba(13, 110, 253, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .vehicle-card:hover .vehicle-icon i {
+            transform: scale(1.1);
+            box-shadow: 0 12px 35px rgba(13, 110, 253, 0.4);
+        }
+        
+        .vehicle-action {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .vehicle-card:hover .vehicle-action {
+            opacity: 1;
+        }
+        
+        .card-title {
+            color: #212529;
+            margin-bottom: 0.75rem;
+        }
+        
+        .card-text {
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        
+        /* Responsive Anpassungen */
+        @media (max-width: 768px) {
+            .vehicle-icon {
+                font-size: 3rem;
+            }
+            
+            .vehicle-icon i {
+                padding: 1rem;
+            }
+        }
+        
+        /* Zentrierte Darstellung für weniger Fahrzeuge */
+        .row.justify-content-center {
+            justify-content: center !important;
+        }
+        
+        /* Mindestbreite für Fahrzeugkarten */
+        .vehicle-card {
+            min-width: 280px;
         }
     </style>
 </body>

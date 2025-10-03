@@ -56,8 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 'app_url' => sanitize_input($_POST['app_url'] ?? ''),
             ];
             
+            // Fahrzeug-Einstellungen
+            $vehicle_settings = [
+                'vehicle_sort_mode' => sanitize_input($_POST['vehicle_sort_mode'] ?? 'manual'),
+            ];
+            
             // Alle Einstellungen speichern
-            $all_settings = array_merge($smtp_settings, $google_settings, $app_settings);
+            $all_settings = array_merge($smtp_settings, $google_settings, $app_settings, $vehicle_settings);
             
             foreach ($all_settings as $key => $value) {
                 $stmt = $db->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = ?");
@@ -327,6 +332,45 @@ if (isset($_POST['test_email'])) {
                                 <div class="form-text">
                                     Vollständige URL der Anwendung (z.B. https://feuerwehr-app.example.com)
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fahrzeug-Einstellungen -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-truck"></i> Fahrzeug-Einstellungen
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="vehicle_sort_mode" class="form-label">Sortier-Modus</label>
+                                <select class="form-select" id="vehicle_sort_mode" name="vehicle_sort_mode">
+                                    <option value="manual" <?php echo ($settings['vehicle_sort_mode'] ?? 'manual') == 'manual' ? 'selected' : ''; ?>>
+                                        Manuelle Reihenfolge
+                                    </option>
+                                    <option value="name" <?php echo ($settings['vehicle_sort_mode'] ?? '') == 'name' ? 'selected' : ''; ?>>
+                                        Alphabetisch nach Name
+                                    </option>
+                                    <option value="created" <?php echo ($settings['vehicle_sort_mode'] ?? '') == 'created' ? 'selected' : ''; ?>>
+                                        Nach Erstellungsdatum
+                                    </option>
+                                </select>
+                                <div class="form-text">
+                                    <strong>Manuelle Reihenfolge:</strong> Fahrzeuge werden nach der in der Fahrzeug-Verwaltung festgelegten Reihenfolge angezeigt<br>
+                                    <strong>Alphabetisch:</strong> Fahrzeuge werden alphabetisch nach Namen sortiert<br>
+                                    <strong>Erstellungsdatum:</strong> Fahrzeuge werden nach dem Erstellungsdatum sortiert
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>Hinweis:</strong> Bei der manuellen Reihenfolge können Sie in der 
+                                <a href="vehicles.php" target="_blank">Fahrzeug-Verwaltung</a> 
+                                die Reihenfolge durch Bearbeiten der Sortier-Reihenfolge anpassen.
                             </div>
                         </div>
                     </div>
