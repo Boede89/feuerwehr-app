@@ -11,7 +11,7 @@ if (!can_approve_reservations()) {
 $error = '';
 
 try {
-    // Offene Anträge (ausstehend)
+    // Nur offene Anträge (ausstehend)
     $stmt = $db->prepare("
         SELECT r.*, v.name as vehicle_name
         FROM reservations r
@@ -21,30 +21,6 @@ try {
     ");
     $stmt->execute();
     $pending_reservations = $stmt->fetchAll();
-    
-    // Genehmigte Anträge (letzte 10)
-    $stmt = $db->prepare("
-        SELECT r.*, v.name as vehicle_name
-        FROM reservations r
-        JOIN vehicles v ON r.vehicle_id = v.id
-        WHERE r.status = 'approved'
-        ORDER BY r.updated_at DESC
-        LIMIT 10
-    ");
-    $stmt->execute();
-    $approved_reservations = $stmt->fetchAll();
-    
-    // Abgelehnte Anträge (letzte 10)
-    $stmt = $db->prepare("
-        SELECT r.*, v.name as vehicle_name
-        FROM reservations r
-        JOIN vehicles v ON r.vehicle_id = v.id
-        WHERE r.status = 'rejected'
-        ORDER BY r.updated_at DESC
-        LIMIT 10
-    ");
-    $stmt->execute();
-    $rejected_reservations = $stmt->fetchAll();
     
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Reservierungen: " . $e->getMessage();
@@ -131,7 +107,7 @@ try {
 
         <div class="row">
             <!-- Offene Anträge -->
-            <div class="col-lg-6 mb-4">
+            <div class="col-lg-8 mb-4">
                 <div class="card shadow">
                     <div class="card-header">
                         <h6 class="m-0 font-weight-bold text-warning">
@@ -140,15 +116,24 @@ try {
                     </div>
                     <div class="card-body">
                         <?php if (empty($pending_reservations)): ?>
-                            <p class="text-muted text-center">Keine ausstehenden Anträge.</p>
+                            <div class="text-center py-5">
+                                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                                <h5 class="text-muted">Keine ausstehenden Anträge</h5>
+                                <p class="text-muted">Alle Anträge wurden bearbeitet.</p>
+                                <a href="reservations.php" class="btn btn-primary">
+                                    <i class="fas fa-calendar-check"></i> Alle Reservierungen anzeigen
+                                </a>
+                            </div>
                         <?php else: ?>
                             <div class="table-responsive">
-                                <table class="table table-sm">
+                                <table class="table table-hover">
                                     <thead>
                                         <tr>
                                             <th>Fahrzeug</th>
                                             <th>Antragsteller</th>
-                                            <th>Datum</th>
+                                            <th>E-Mail</th>
+                                            <th>Datum/Zeit</th>
+                                            <th>Grund</th>
                                             <th>Aktion</th>
                                         </tr>
                                     </thead>
@@ -159,8 +144,16 @@ try {
                                                     <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
                                                 </td>
                                                 <td><?php echo htmlspecialchars($reservation['requester_name']); ?></td>
+                                                <td><?php echo htmlspecialchars($reservation['requester_email']); ?></td>
                                                 <td>
-                                                    <?php echo format_datetime($reservation['start_datetime'], 'd.m.Y H:i'); ?>
+                                                    <strong><?php echo format_datetime($reservation['start_datetime'], 'd.m.Y'); ?></strong><br>
+                                                    <small class="text-muted">
+                                                        <?php echo format_datetime($reservation['start_datetime'], 'H:i'); ?> - 
+                                                        <?php echo format_datetime($reservation['end_datetime'], 'H:i'); ?>
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    <small><?php echo htmlspecialchars($reservation['reason']); ?></small>
                                                 </td>
                                                 <td>
                                                     <a href="reservations.php?id=<?php echo $reservation['id']; ?>" class="btn btn-sm btn-primary">
@@ -177,94 +170,49 @@ try {
                 </div>
             </div>
 
-            <!-- Genehmigte Anträge -->
-            <div class="col-lg-6 mb-4">
+            <!-- Schnellzugriff -->
+            <div class="col-lg-4 mb-4">
                 <div class="card shadow">
                     <div class="card-header">
-                        <h6 class="m-0 font-weight-bold text-success">
-                            <i class="fas fa-check-circle"></i> Genehmigte Anträge
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-bolt"></i> Schnellzugriff
                         </h6>
                     </div>
                     <div class="card-body">
-                        <?php if (empty($approved_reservations)): ?>
-                            <p class="text-muted text-center">Keine genehmigten Anträge.</p>
-                        <?php else: ?>
-                            <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Fahrzeug</th>
-                                            <th>Antragsteller</th>
-                                            <th>Datum</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($approved_reservations as $reservation): ?>
-                                            <tr>
-                                                <td>
-                                                    <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($reservation['requester_name']); ?></td>
-                                                <td>
-                                                    <?php echo format_datetime($reservation['start_datetime'], 'd.m.Y H:i'); ?>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-success">Genehmigt</span>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
+                        <div class="d-grid gap-2">
+                            <a href="reservations.php" class="btn btn-outline-primary">
+                                <i class="fas fa-calendar-check"></i> Alle Reservierungen
+                            </a>
+                            <a href="reservations.php?status=pending" class="btn btn-outline-warning">
+                                <i class="fas fa-clock"></i> Nur Offene Anträge
+                            </a>
+                            <a href="reservations.php?status=approved" class="btn btn-outline-success">
+                                <i class="fas fa-check-circle"></i> Genehmigte Anträge
+                            </a>
+                            <a href="reservations.php?status=rejected" class="btn btn-outline-danger">
+                                <i class="fas fa-times-circle"></i> Abgelehnte Anträge
+                            </a>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="text-center">
+                            <h6 class="text-muted mb-3">Statistik</h6>
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="h4 text-warning"><?php echo count($pending_reservations); ?></div>
+                                    <small class="text-muted">Offen</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="h4 text-success">-</div>
+                                    <small class="text-muted">Genehmigt</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="h4 text-danger">-</div>
+                                    <small class="text-muted">Abgelehnt</small>
+                                </div>
                             </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            <!-- Abgelehnte Anträge -->
-            <div class="col-lg-6 mb-4">
-                <div class="card shadow">
-                    <div class="card-header">
-                        <h6 class="m-0 font-weight-bold text-danger">
-                            <i class="fas fa-times-circle"></i> Abgelehnte Anträge
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <?php if (empty($rejected_reservations)): ?>
-                            <p class="text-muted text-center">Keine abgelehnten Anträge.</p>
-                        <?php else: ?>
-                            <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Fahrzeug</th>
-                                            <th>Antragsteller</th>
-                                            <th>Datum</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($rejected_reservations as $reservation): ?>
-                                            <tr>
-                                                <td>
-                                                    <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($reservation['requester_name']); ?></td>
-                                                <td>
-                                                    <?php echo format_datetime($reservation['start_datetime'], 'd.m.Y H:i'); ?>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-danger">Abgelehnt</span>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             </div>
