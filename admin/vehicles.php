@@ -49,12 +49,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($action == 'add') {
                     $stmt = $db->prepare("INSERT INTO vehicles (name, description, is_active) VALUES (?, ?, ?)");
                     $stmt->execute([$name, $description, $is_active]);
+                    $new_id = $db->lastInsertId();
                     $message = "Fahrzeug wurde erfolgreich hinzugefügt.";
                     log_activity($_SESSION['user_id'], 'vehicle_added', "Fahrzeug '$name' hinzugefügt");
                     
+                    // Debug: Vor Weiterleitung
+                    if (isset($_GET['debug'])) {
+                        echo "<div class='alert alert-success'>";
+                        echo "<strong>Fahrzeug hinzugefügt! Weiterleitung wird ausgeführt...</strong><br>";
+                        echo "Neue Fahrzeug-ID: $new_id<br>";
+                        echo "Name: $name<br>";
+                        echo "Beschreibung: $description<br>";
+                        echo "Aktiv: " . ($is_active ? 'Ja' : 'Nein') . "<br>";
+                        echo "</div>";
+                    }
+                    
                     // Weiterleitung um POST-Problem zu vermeiden
-                    header("Location: vehicles.php?success=added");
-                    exit();
+                    if (!isset($_GET['debug'])) {
+                        header("Location: vehicles.php?success=added");
+                        exit();
+                    }
                     
                 } elseif ($action == 'edit') {
                     $stmt = $db->prepare("UPDATE vehicles SET name = ?, description = ?, is_active = ? WHERE id = ?");
@@ -63,8 +77,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     log_activity($_SESSION['user_id'], 'vehicle_updated', "Fahrzeug '$name' aktualisiert");
                     
                     // Weiterleitung um POST-Problem zu vermeiden
-                    header("Location: vehicles.php?success=updated");
-                    exit();
+                    if (!isset($_GET['debug'])) {
+                        header("Location: vehicles.php?success=updated");
+                        exit();
+                    }
                 }
             } catch(PDOException $e) {
                 $error = "Fehler beim Speichern des Fahrzeugs: " . $e->getMessage();
