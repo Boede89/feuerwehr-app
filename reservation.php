@@ -5,91 +5,122 @@ require_once 'includes/functions.php';
 
 $message = '';
 $error = '';
+$selectedVehicle = null;
 
-// Fahrzeuge laden
-$vehicles = [];
-try {
-    $stmt = $db->prepare("SELECT * FROM vehicles WHERE is_active = 1 ORDER BY name");
-    $stmt->execute();
-    $vehicles = $stmt->fetchAll();
-} catch(PDOException $e) {
-    $error = "Fehler beim Laden der Fahrzeuge: " . $e->getMessage();
+// Ausgewähltes Fahrzeug aus Session Storage laden (wird per JavaScript übertragen)
+if (isset($_POST['vehicle_data'])) {
+    $selectedVehicle = json_decode($_POST['vehicle_data'], true);
+} elseif (isset($_SESSION['selected_vehicle'])) {
+    $selectedVehicle = $_SESSION['selected_vehicle'];
+}
+
+// Falls kein Fahrzeug ausgewählt, zurück zur Fahrzeugauswahl
+if (!$selectedVehicle) {
+    redirect('vehicle-selection.php');
 }
 
 // Formular verarbeiten
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation'])) {
     $csrf_token = $_POST['csrf_token'] ?? '';
     
     if (!validate_csrf_token($csrf_token)) {
         $error = "Ungültiger Sicherheitstoken. Bitte versuchen Sie es erneut.";
     } else {
-        $vehicle_id = sanitize_input($_POST['vehicle_id'] ?? '');
+        $vehicle_id = $selectedVehicle['id'];
         $requester_name = sanitize_input($_POST['requester_name'] ?? '');
         $requester_email = sanitize_input($_POST['requester_email'] ?? '');
         $reason = sanitize_input($_POST['reason'] ?? '');
-        $start_datetime = sanitize_input($_POST['start_datetime'] ?? '');
-        $end_datetime = sanitize_input($_POST['end_datetime'] ?? '');
+        
+        // Mehrere Datum/Zeit-Paare verarbeiten
+        $date_times = [];
+        $i = 0;
+        while (isset($_POST["start_datetime_$i"]) && isset($_POST["end_datetime_$i"])) {
+            $start_datetime = sanitize_input($_POST["start_datetime_$i"] ?? '');
+            $end_datetime = sanitize_input($_POST["end_datetime_$i"] ?? '');
+            
+            if (!empty($start_datetime) && !empty($end_datetime)) {
+                $date_times[] = [
+                    'start' => $start_datetime,
+                    'end' => $end_datetime
+                ];
+            }
+            $i++;
+        }
         
         // Validierung
-        if (empty($vehicle_id) || empty($requester_name) || empty($requester_email) || empty($reason) || empty($start_datetime) || empty($end_datetime)) {
-            $error = "Bitte füllen Sie alle Felder aus.";
+        if (empty($requester_name) || empty($requester_email) || empty($reason) || empty($date_times)) {
+            $error = "Bitte füllen Sie alle Felder aus und geben Sie mindestens einen Zeitraum an.";
         } elseif (!validate_email($requester_email)) {
             $error = "Bitte geben Sie eine gültige E-Mail-Adresse ein.";
-        } elseif (!validate_datetime($start_datetime) || !validate_datetime($end_datetime)) {
-            $error = "Bitte geben Sie gültige Datum und Uhrzeit ein.";
-        } elseif (strtotime($start_datetime) >= strtotime($end_datetime)) {
-            $error = "Das Enddatum muss nach dem Startdatum liegen.";
-        } elseif (strtotime($start_datetime) < time()) {
-            $error = "Das Startdatum darf nicht in der Vergangenheit liegen.";
         } else {
-            // Kollisionsprüfung
-            if (check_vehicle_conflict($vehicle_id, $start_datetime, $end_datetime)) {
-                $error = "Das ausgewählte Fahrzeug ist in diesem Zeitraum bereits reserviert.";
-            } else {
+            $success_count = 0;
+            $errors = [];
+            
+            foreach ($date_times as $index => $dt) {
+                $start_datetime = $dt['start'];
+                $end_datetime = $dt['end'];
+                
+                if (!validate_datetime($start_datetime) || !validate_datetime($end_datetime)) {
+                    $errors[] = "Zeitraum " . ($index + 1) . ": Bitte geben Sie gültige Datum und Uhrzeit ein.";
+                    continue;
+                }
+                
+                if (strtotime($start_datetime) >= strtotime($end_datetime)) {
+                    $errors[] = "Zeitraum " . ($index + 1) . ": Das Enddatum muss nach dem Startdatum liegen.";
+                    continue;
+                }
+                
+                if (strtotime($start_datetime) < time()) {
+                    $errors[] = "Zeitraum " . ($index + 1) . ": Das Startdatum darf nicht in der Vergangenheit liegen.";
+                    continue;
+                }
+                
+                if (check_vehicle_conflict($vehicle_id, $start_datetime, $end_datetime)) {
+                    $errors[] = "Zeitraum " . ($index + 1) . ": Das ausgewählte Fahrzeug ist in diesem Zeitraum bereits reserviert.";
+                    continue;
+                }
+                
                 // Reservierung speichern
                 try {
                     $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?, ?)");
                     $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $start_datetime, $end_datetime]);
-                    
-                    $reservation_id = $db->lastInsertId();
-                    
-                    // E-Mail an Admins senden
-                    $admin_emails = [];
-                    $stmt = $db->prepare("SELECT email FROM users WHERE is_admin = 1 AND is_active = 1");
-                    $stmt->execute();
-                    $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                    
-                    if (!empty($admin_emails)) {
-                        $vehicle_name = '';
-                        $stmt = $db->prepare("SELECT name FROM vehicles WHERE id = ?");
-                        $stmt->execute([$vehicle_id]);
-                        $vehicle = $stmt->fetch();
-                        if ($vehicle) {
-                            $vehicle_name = $vehicle['name'];
-                        }
-                        
-                        $subject = "Neue Fahrzeugreservierung - " . $vehicle_name;
-                        $message_content = "
-                        <h2>Neue Fahrzeugreservierung</h2>
-                        <p><strong>Fahrzeug:</strong> " . htmlspecialchars($vehicle_name) . "</p>
-                        <p><strong>Antragsteller:</strong> " . htmlspecialchars($requester_name) . "</p>
-                        <p><strong>E-Mail:</strong> " . htmlspecialchars($requester_email) . "</p>
-                        <p><strong>Grund:</strong> " . htmlspecialchars($reason) . "</p>
-                        <p><strong>Von:</strong> " . format_datetime($start_datetime) . "</p>
-                        <p><strong>Bis:</strong> " . format_datetime($end_datetime) . "</p>
-                        <p><a href='" . $_SERVER['HTTP_HOST'] . "/admin/reservations.php'>Antrag bearbeiten</a></p>
-                        ";
-                        
-                        foreach ($admin_emails as $admin_email) {
-                            send_email($admin_email, $subject, $message_content);
-                        }
-                    }
-                    
-                    $message = "Ihr Antrag wurde erfolgreich eingereicht. Sie erhalten eine E-Mail, sobald über Ihren Antrag entschieden wurde.";
-                    
+                    $success_count++;
                 } catch(PDOException $e) {
-                    $error = "Fehler beim Speichern der Reservierung: " . $e->getMessage();
+                    $errors[] = "Zeitraum " . ($index + 1) . ": Fehler beim Speichern - " . $e->getMessage();
                 }
+            }
+            
+            if ($success_count > 0) {
+                // E-Mail an Admins senden
+                $admin_emails = [];
+                $stmt = $db->prepare("SELECT email FROM users WHERE is_admin = 1 AND is_active = 1");
+                $stmt->execute();
+                $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                
+                if (!empty($admin_emails)) {
+                    $subject = "Neue Fahrzeugreservierung - " . $selectedVehicle['name'];
+                    $message_content = "
+                    <h2>Neue Fahrzeugreservierung</h2>
+                    <p><strong>Fahrzeug:</strong> " . htmlspecialchars($selectedVehicle['name']) . "</p>
+                    <p><strong>Antragsteller:</strong> " . htmlspecialchars($requester_name) . "</p>
+                    <p><strong>E-Mail:</strong> " . htmlspecialchars($requester_email) . "</p>
+                    <p><strong>Grund:</strong> " . htmlspecialchars($reason) . "</p>
+                    <p><strong>Anzahl Zeiträume:</strong> $success_count</p>
+                    <p><a href='" . $_SERVER['HTTP_HOST'] . "/admin/reservations.php'>Antrag bearbeiten</a></p>
+                    ";
+                    
+                    foreach ($admin_emails as $admin_email) {
+                        send_email($admin_email, $subject, $message_content);
+                    }
+                }
+                
+                if (empty($errors)) {
+                    $message = "Alle $success_count Reservierungen wurden erfolgreich eingereicht. Sie erhalten eine E-Mail, sobald über Ihre Anträge entschieden wurde.";
+                } else {
+                    $message = "$success_count Reservierungen wurden erfolgreich eingereicht. " . implode(' ', $errors);
+                }
+            } else {
+                $error = "Keine Reservierungen konnten gespeichert werden. " . implode(' ', $errors);
             }
         }
     }
@@ -152,6 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <h3 class="mb-0">
                             <i class="fas fa-truck"></i> Fahrzeug Reservierung
                         </h3>
+                        <p class="text-muted mb-0">Ausgewähltes Fahrzeug: <strong><?php echo htmlspecialchars($selectedVehicle['name']); ?></strong></p>
                     </div>
                     <div class="card-body p-4">
                         <?php if ($message): ?>
@@ -164,74 +196,74 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         
                         <form method="POST" action="">
                             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <input type="hidden" name="vehicle_data" value="<?php echo htmlspecialchars(json_encode($selectedVehicle)); ?>">
+                            
+                            <!-- Fahrzeug-Info -->
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-truck"></i> Ausgewähltes Fahrzeug</h6>
+                                <p class="mb-0">
+                                    <strong><?php echo htmlspecialchars($selectedVehicle['name']); ?></strong> 
+                                    (<?php echo htmlspecialchars($selectedVehicle['type']); ?>)<br>
+                                    <small><?php echo htmlspecialchars($selectedVehicle['description']); ?></small><br>
+                                    <span class="badge bg-info"><i class="fas fa-users"></i> <?php echo $selectedVehicle['capacity']; ?> Personen</span>
+                                </p>
+                            </div>
                             
                             <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="vehicle_id" class="form-label">Fahrzeug auswählen *</label>
-                                    <select class="form-select" id="vehicle_id" name="vehicle_id" required>
-                                        <option value="">Bitte wählen...</option>
-                                        <?php foreach ($vehicles as $vehicle): ?>
-                                            <option value="<?php echo $vehicle['id']; ?>" 
-                                                    data-capacity="<?php echo $vehicle['capacity']; ?>"
-                                                    data-description="<?php echo htmlspecialchars($vehicle['description']); ?>">
-                                                <?php echo htmlspecialchars($vehicle['name'] . ' (' . $vehicle['type'] . ')'); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <div class="form-text" id="vehicle-info"></div>
-                                </div>
-                                
                                 <div class="col-md-6 mb-3">
                                     <label for="requester_name" class="form-label">Ihr Name *</label>
                                     <input type="text" class="form-control" id="requester_name" name="requester_name" 
                                            value="<?php echo htmlspecialchars($_POST['requester_name'] ?? ''); ?>" required>
                                 </div>
-                            </div>
-                            
-                            <div class="row">
+                                
                                 <div class="col-md-6 mb-3">
                                     <label for="requester_email" class="form-label">E-Mail Adresse *</label>
                                     <input type="email" class="form-control" id="requester_email" name="requester_email" 
                                            value="<?php echo htmlspecialchars($_POST['requester_email'] ?? ''); ?>" required>
                                 </div>
-                                
-                                <div class="col-md-6 mb-3">
-                                    <label for="reason" class="form-label">Grund der Reservierung *</label>
-                                    <input type="text" class="form-control" id="reason" name="reason" 
-                                           value="<?php echo htmlspecialchars($_POST['reason'] ?? ''); ?>" 
-                                           placeholder="z.B. Übung, Einsatz, Veranstaltung" required>
-                                </div>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="start_datetime" class="form-label">Von (Datum & Uhrzeit) *</label>
-                                    <input type="datetime-local" class="form-control" id="start_datetime" name="start_datetime" 
-                                           value="<?php echo htmlspecialchars($_POST['start_datetime'] ?? ''); ?>" required>
-                                </div>
-                                
-                                <div class="col-md-6 mb-3">
-                                    <label for="end_datetime" class="form-label">Bis (Datum & Uhrzeit) *</label>
-                                    <input type="datetime-local" class="form-control" id="end_datetime" name="end_datetime" 
-                                           value="<?php echo htmlspecialchars($_POST['end_datetime'] ?? ''); ?>" required>
-                                </div>
                             </div>
                             
                             <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="terms" required>
-                                    <label class="form-check-label" for="terms">
-                                        Ich bestätige, dass die angegebenen Daten korrekt sind und ich für die Reservierung verantwortlich bin.
-                                    </label>
+                                <label for="reason" class="form-label">Grund der Reservierung *</label>
+                                <input type="text" class="form-control" id="reason" name="reason" 
+                                       value="<?php echo htmlspecialchars($_POST['reason'] ?? ''); ?>" 
+                                       placeholder="z.B. Übung, Einsatz, Veranstaltung" required>
+                            </div>
+                            
+                            <!-- Zeiträume -->
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6><i class="fas fa-calendar"></i> Zeiträume *</h6>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="add-timeframe">
+                                        <i class="fas fa-plus"></i> Weitere Zeit hinzufügen
+                                    </button>
+                                </div>
+                                
+                                <div id="timeframes">
+                                    <div class="timeframe-row row mb-3">
+                                        <div class="col-md-5">
+                                            <label class="form-label">Von (Datum & Uhrzeit) *</label>
+                                            <input type="datetime-local" class="form-control start-datetime" name="start_datetime_0" required>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label">Bis (Datum & Uhrzeit) *</label>
+                                            <input type="datetime-local" class="form-control end-datetime" name="end_datetime_0" required>
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe" style="display: none;">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
                             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                <a href="index.php" class="btn btn-outline-secondary me-md-2">
-                                    <i class="fas fa-arrow-left"></i> Zurück
+                                <a href="vehicle-selection.php" class="btn btn-outline-secondary me-md-2">
+                                    <i class="fas fa-arrow-left"></i> Fahrzeug ändern
                                 </a>
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-paper-plane"></i> Fahrzeug beantragen
+                                <button type="submit" name="submit_reservation" class="btn btn-primary">
+                                    <i class="fas fa-paper-plane"></i> Reservierung beantragen
                                 </button>
                             </div>
                         </form>
@@ -243,42 +275,80 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Fahrzeug-Info anzeigen
-        document.getElementById('vehicle_id').addEventListener('change', function() {
-            const selectedOption = this.options[this.selectedIndex];
-            const infoDiv = document.getElementById('vehicle-info');
+        let timeframeCount = 1;
+        
+        // Weitere Zeit hinzufügen
+        document.getElementById('add-timeframe').addEventListener('click', function() {
+            const timeframesDiv = document.getElementById('timeframes');
+            const newTimeframe = document.createElement('div');
+            newTimeframe.className = 'timeframe-row row mb-3';
+            newTimeframe.innerHTML = `
+                <div class="col-md-5">
+                    <label class="form-label">Von (Datum & Uhrzeit) *</label>
+                    <input type="datetime-local" class="form-control start-datetime" name="start_datetime_${timeframeCount}" required>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">Bis (Datum & Uhrzeit) *</label>
+                    <input type="datetime-local" class="form-control end-datetime" name="end_datetime_${timeframeCount}" required>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
             
-            if (selectedOption.value) {
-                const capacity = selectedOption.dataset.capacity;
-                const description = selectedOption.dataset.description;
-                infoDiv.innerHTML = `
-                    <small class="text-muted">
-                        <i class="fas fa-users"></i> Kapazität: ${capacity} Personen<br>
-                        <i class="fas fa-info-circle"></i> ${description}
-                    </small>
-                `;
-            } else {
-                infoDiv.innerHTML = '';
+            timeframesDiv.appendChild(newTimeframe);
+            timeframeCount++;
+            
+            // Entfernen-Button für alle Zeiträume anzeigen
+            document.querySelectorAll('.remove-timeframe').forEach(btn => {
+                btn.style.display = 'block';
+            });
+            
+            // Event Listener für neuen Zeitraum
+            setupTimeframeValidation(newTimeframe);
+        });
+        
+        // Zeitraum entfernen
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.remove-timeframe')) {
+                const timeframeRow = e.target.closest('.timeframe-row');
+                timeframeRow.remove();
+                
+                // Entfernen-Button verstecken wenn nur noch ein Zeitraum vorhanden
+                if (document.querySelectorAll('.timeframe-row').length === 1) {
+                    document.querySelectorAll('.remove-timeframe').forEach(btn => {
+                        btn.style.display = 'none';
+                    });
+                }
             }
         });
         
-        // Datum-Validierung
-        document.getElementById('start_datetime').addEventListener('change', function() {
-            const startDate = new Date(this.value);
-            const endInput = document.getElementById('end_datetime');
-            const endDate = new Date(endInput.value);
+        // Datum-Validierung für Zeiträume
+        function setupTimeframeValidation(timeframeRow) {
+            const startInput = timeframeRow.querySelector('.start-datetime');
+            const endInput = timeframeRow.querySelector('.end-datetime');
             
-            if (endInput.value && endDate <= startDate) {
-                endInput.value = '';
-                alert('Das Enddatum muss nach dem Startdatum liegen.');
-            }
-        });
+            startInput.addEventListener('change', function() {
+                const startDate = new Date(this.value);
+                const endDate = new Date(endInput.value);
+                
+                if (endInput.value && endDate <= startDate) {
+                    endInput.value = '';
+                    alert('Das Enddatum muss nach dem Startdatum liegen.');
+                }
+            });
+            
+            // Mindestdatum setzen
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            const minDateTime = now.toISOString().slice(0, 16);
+            startInput.min = minDateTime;
+        }
         
-        // Mindestdatum auf heute setzen
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        const minDateTime = now.toISOString().slice(0, 16);
-        document.getElementById('start_datetime').min = minDateTime;
+        // Initiale Validierung für ersten Zeitraum
+        setupTimeframeValidation(document.querySelector('.timeframe-row'));
     </script>
 </body>
 </html>

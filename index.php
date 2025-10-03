@@ -66,7 +66,7 @@ require_once 'includes/functions.php';
                                 </div>
                                 <h5 class="card-title">Fahrzeug Reservierung</h5>
                                 <p class="card-text">Reservieren Sie Feuerwehrfahrzeuge für Ihre Einsätze und Veranstaltungen.</p>
-                                <a href="reservation.php" class="btn btn-primary btn-lg">
+                                <a href="vehicle-selection.php" class="btn btn-primary btn-lg">
                                     <i class="fas fa-calendar-plus"></i> Fahrzeug reservieren
                                 </a>
                             </div>
