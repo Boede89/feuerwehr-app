@@ -130,17 +130,17 @@ try {
         </div>
 
         <div class="row">
-            <!-- Offene Anträge -->
-            <div class="col-lg-6 mb-4">
+            <!-- Heutige Reservierungen -->
+            <div class="col-lg-8 mb-4">
                 <div class="card shadow">
                     <div class="card-header">
-                        <h6 class="m-0 font-weight-bold text-warning">
-                            <i class="fas fa-clock"></i> Offene Anträge (<?php echo count($pending_reservations); ?>)
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-calendar-day"></i> Heutige Reservierungen
                         </h6>
                     </div>
                     <div class="card-body">
-                        <?php if (empty($pending_reservations)): ?>
-                            <p class="text-muted text-center">Keine ausstehenden Anträge.</p>
+                        <?php if (empty($today_reservations)): ?>
+                            <p class="text-muted text-center">Keine Reservierungen für heute.</p>
                         <?php else: ?>
                             <div class="table-responsive">
                                 <table class="table table-sm">
@@ -148,25 +148,22 @@ try {
                                         <tr>
                                             <th>Fahrzeug</th>
                                             <th>Antragsteller</th>
-                                            <th>Datum</th>
-                                            <th>Aktion</th>
+                                            <th>Zeit</th>
+                                            <th>Status</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php foreach ($pending_reservations as $reservation): ?>
+                                        <?php foreach ($today_reservations as $reservation): ?>
                                             <tr>
                                                 <td>
                                                     <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
                                                 </td>
                                                 <td><?php echo htmlspecialchars($reservation['requester_name']); ?></td>
                                                 <td>
-                                                    <?php echo format_datetime($reservation['start_datetime'], 'd.m.Y H:i'); ?>
+                                                    <?php echo format_datetime($reservation['start_datetime'], 'H:i'); ?> - 
+                                                    <?php echo format_datetime($reservation['end_datetime'], 'H:i'); ?>
                                                 </td>
-                                                <td>
-                                                    <a href="reservations.php?id=<?php echo $reservation['id']; ?>" class="btn btn-sm btn-primary">
-                                                        <i class="fas fa-edit"></i> Bearbeiten
-                                                    </a>
-                                                </td>
+                                                <td><?php echo get_status_badge($reservation['status']); ?></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>
@@ -177,92 +174,40 @@ try {
                 </div>
             </div>
 
-            <!-- Genehmigte Anträge -->
-            <div class="col-lg-6 mb-4">
+            <!-- Letzte Aktivitäten -->
+            <div class="col-lg-4 mb-4">
                 <div class="card shadow">
                     <div class="card-header">
-                        <h6 class="m-0 font-weight-bold text-success">
-                            <i class="fas fa-check-circle"></i> Genehmigte Anträge
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-history"></i> Letzte Aktivitäten
                         </h6>
                     </div>
                     <div class="card-body">
-                        <?php if (empty($approved_reservations)): ?>
-                            <p class="text-muted text-center">Keine genehmigten Anträge.</p>
+                        <?php if (empty($recent_activities)): ?>
+                            <p class="text-muted text-center">Keine Aktivitäten.</p>
                         <?php else: ?>
-                            <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Fahrzeug</th>
-                                            <th>Antragsteller</th>
-                                            <th>Datum</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($approved_reservations as $reservation): ?>
-                                            <tr>
-                                                <td>
-                                                    <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($reservation['requester_name']); ?></td>
-                                                <td>
-                                                    <?php echo format_datetime($reservation['start_datetime'], 'd.m.Y H:i'); ?>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-success">Genehmigt</span>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            <!-- Abgelehnte Anträge -->
-            <div class="col-lg-6 mb-4">
-                <div class="card shadow">
-                    <div class="card-header">
-                        <h6 class="m-0 font-weight-bold text-danger">
-                            <i class="fas fa-times-circle"></i> Abgelehnte Anträge
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <?php if (empty($rejected_reservations)): ?>
-                            <p class="text-muted text-center">Keine abgelehnten Anträge.</p>
-                        <?php else: ?>
-                            <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Fahrzeug</th>
-                                            <th>Antragsteller</th>
-                                            <th>Datum</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($rejected_reservations as $reservation): ?>
-                                            <tr>
-                                                <td>
-                                                    <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($reservation['requester_name']); ?></td>
-                                                <td>
-                                                    <?php echo format_datetime($reservation['start_datetime'], 'd.m.Y H:i'); ?>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-danger">Abgelehnt</span>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
+                            <div class="timeline">
+                                <?php foreach ($recent_activities as $activity): ?>
+                                    <div class="timeline-item">
+                                        <div class="timeline-marker bg-primary"></div>
+                                        <div class="timeline-content">
+                                            <h6 class="timeline-title"><?php echo htmlspecialchars($activity['action']); ?></h6>
+                                            <p class="timeline-text">
+                                                <?php if ($activity['username']): ?>
+                                                    <strong><?php echo htmlspecialchars($activity['username']); ?></strong>
+                                                <?php endif; ?>
+                                                <?php if ($activity['details']): ?>
+                                                    - <?php echo htmlspecialchars($activity['details']); ?>
+                                                <?php endif; ?>
+                                            </p>
+                                            <p class="timeline-time">
+                                                <small class="text-muted">
+                                                    <?php echo format_datetime($activity['created_at']); ?>
+                                                </small>
+                                            </p>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -272,5 +217,40 @@ try {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        .border-left-primary {
+            border-left: 0.25rem solid #4e73df !important;
+        }
+        .border-left-success {
+            border-left: 0.25rem solid #1cc88a !important;
+        }
+        .border-left-danger {
+            border-left: 0.25rem solid #e74a3b !important;
+        }
+        .border-left-info {
+            border-left: 0.25rem solid #36b9cc !important;
+        }
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+        .timeline-item {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        .timeline-marker {
+            position: absolute;
+            left: -35px;
+            top: 5px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .timeline-content {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
 </body>
 </html>

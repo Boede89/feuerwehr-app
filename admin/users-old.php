@@ -101,12 +101,25 @@ if (isset($_GET['delete'])) {
 
 // Benutzer laden
 try {
-    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, email_notifications, is_active, created_at FROM users ORDER BY created_at DESC");
+    $stmt = $db->prepare("SELECT * FROM users ORDER BY created_at DESC");
     $stmt->execute();
     $users = $stmt->fetchAll();
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Benutzer: " . $e->getMessage();
     $users = [];
+}
+
+// Benutzer für Bearbeitung laden
+$edit_user = null;
+if (isset($_GET['edit'])) {
+    $user_id = (int)$_GET['edit'];
+    try {
+        $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $edit_user = $stmt->fetch();
+    } catch(PDOException $e) {
+        $error = "Fehler beim Laden des Benutzers: " . $e->getMessage();
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -114,7 +127,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Benutzerverwaltung - Feuerwehr App</title>
+    <title>Benutzer - Feuerwehr App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="../assets/css/style.css" rel="stylesheet">
@@ -177,11 +190,11 @@ try {
             <div class="col-12">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h1 class="h3 mb-0">
-                        <i class="fas fa-users"></i> Benutzerverwaltung
+                        <i class="fas fa-users"></i> Benutzer
                     </h1>
-                    <button type="button" class="btn btn-primary" onclick="openUserModal()">
-                        <i class="fas fa-plus"></i> Neuer Benutzer
-                    </button>
+                        <button type="button" class="btn btn-primary" onclick="openUserModal()">
+                            <i class="fas fa-plus"></i> Neuer Benutzer
+                        </button>
                 </div>
                 
                 <?php if ($message): ?>
@@ -206,8 +219,7 @@ try {
                                         <th>Benutzername</th>
                                         <th>E-Mail</th>
                                         <th>Name</th>
-                                        <th>Rolle</th>
-                                        <th>E-Mail-Benachrichtigungen</th>
+                                        <th>Admin</th>
                                         <th>Status</th>
                                         <th>Erstellt</th>
                                         <th>Aktionen</th>
@@ -220,21 +232,10 @@ try {
                                             <td><?php echo htmlspecialchars($user['email']); ?></td>
                                             <td><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></td>
                                             <td>
-                                                <?php
-                                                $role_labels = [
-                                                    'admin' => ['bg-danger', 'Administrator'],
-                                                    'approver' => ['bg-warning', 'Genehmiger'],
-                                                    'user' => ['bg-secondary', 'Benutzer']
-                                                ];
-                                                $role_info = $role_labels[$user['user_role']] ?? ['bg-secondary', 'Unbekannt'];
-                                                ?>
-                                                <span class="badge <?php echo $role_info[0]; ?>"><?php echo $role_info[1]; ?></span>
-                                            </td>
-                                            <td>
-                                                <?php if ($user['email_notifications']): ?>
-                                                    <span class="badge bg-success">Aktiviert</span>
+                                                <?php if ($user['is_admin']): ?>
+                                                    <span class="badge bg-danger">Admin</span>
                                                 <?php else: ?>
-                                                    <span class="badge bg-secondary">Deaktiviert</span>
+                                                    <span class="badge bg-secondary">Benutzer</span>
                                                 <?php endif; ?>
                                             </td>
                                             <td>
@@ -246,16 +247,26 @@ try {
                                             </td>
                                             <td><?php echo format_date($user['created_at']); ?></td>
                                             <td>
-                                                <button type="button" class="btn btn-outline-primary btn-sm" 
-                                                        onclick="editUser(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['email']); ?>', '<?php echo htmlspecialchars($user['first_name']); ?>', '<?php echo htmlspecialchars($user['last_name']); ?>', '<?php echo $user['user_role']; ?>', <?php echo $user['email_notifications']; ?>, <?php echo $user['is_active']; ?>)">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
-                                                <?php if ($user['id'] != $_SESSION['user_id']): ?>
-                                                    <a href="?delete=<?php echo $user['id']; ?>" class="btn btn-outline-danger btn-sm" 
-                                                       onclick="return confirm('Sind Sie sicher, dass Sie diesen Benutzer löschen möchten?')">
-                                                        <i class="fas fa-trash"></i>
-                                                    </a>
-                                                <?php endif; ?>
+                                                <div class="btn-group" role="group">
+                                                    <button type="button" class="btn btn-outline-primary btn-sm" 
+                                                            onclick="editUser(this)"
+                                                            data-user-id="<?php echo $user['id']; ?>"
+                                                            data-username="<?php echo htmlspecialchars($user['username']); ?>"
+                                                            data-email="<?php echo htmlspecialchars($user['email']); ?>"
+                                                            data-first-name="<?php echo htmlspecialchars($user['first_name']); ?>"
+                                                            data-last-name="<?php echo htmlspecialchars($user['last_name']); ?>"
+                                                            data-is-admin="<?php echo $user['is_admin']; ?>"
+                                                            data-is-active="<?php echo $user['is_active']; ?>">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <?php if ($user['id'] != $_SESSION['user_id']): ?>
+                                                        <a href="?delete=<?php echo $user['id']; ?>" 
+                                                           class="btn btn-outline-danger btn-sm"
+                                                           onclick="return confirm('Sind Sie sicher, dass Sie diesen Benutzer löschen möchten?')">
+                                                            <i class="fas fa-trash"></i>
+                                                        </a>
+                                                    <?php endif; ?>
+                                                </div>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -301,33 +312,17 @@ try {
                         </div>
                         
                         <div class="mb-3">
-                            <label for="user_role" class="form-label">Rolle *</label>
-                            <select class="form-select" id="user_role" name="user_role" required>
-                                <option value="user">Benutzer</option>
-                                <option value="approver">Genehmiger</option>
-                                <option value="admin">Administrator</option>
-                            </select>
-                            <div class="form-text">
-                                <strong>Benutzer:</strong> Kann nur Reservierungen einreichen<br>
-                                <strong>Genehmiger:</strong> Kann Reservierungen genehmigen/ablehnen<br>
-                                <strong>Administrator:</strong> Vollzugriff auf alle Funktionen
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
                             <label for="password" class="form-label">Passwort <span id="password-required">*</span></label>
                             <input type="password" class="form-control" id="password" name="password">
-                            <div class="form-text" id="password-help" style="display: none;">
-                                Leer lassen, um das aktuelle Passwort beizubehalten.
-                            </div>
+                            <div class="form-text" id="password-help">Leer lassen um nicht zu ändern (nur bei Bearbeitung)</div>
                         </div>
                         
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="email_notifications" name="email_notifications" checked>
-                                    <label class="form-check-label" for="email_notifications">
-                                        E-Mail-Benachrichtigungen
+                                    <input class="form-check-input" type="checkbox" id="is_admin" name="is_admin">
+                                    <label class="form-check-label" for="is_admin">
+                                        Administrator
                                     </label>
                                 </div>
                             </div>
@@ -346,8 +341,8 @@ try {
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                        <button type="submit" class="btn btn-primary" id="submitButton">Hinzufügen</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeUserModal()">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary" id="submitButton">Speichern</button>
                     </div>
                 </form>
             </div>
@@ -368,8 +363,7 @@ try {
                 document.getElementById('email').value = '';
                 document.getElementById('first_name').value = '';
                 document.getElementById('last_name').value = '';
-                document.getElementById('user_role').value = 'user';
-                document.getElementById('email_notifications').checked = true;
+                document.getElementById('is_admin').checked = false;
                 document.getElementById('is_active').checked = true;
                 document.getElementById('action').value = 'add';
                 document.getElementById('submitButton').textContent = 'Hinzufügen';
@@ -392,20 +386,27 @@ try {
             }
         }
         
-        function editUser(userId, username, email, firstName, lastName, userRole, emailNotifications, isActive) {
+        function editUser(button) {
             // Modal anzeigen
             const modal = document.getElementById('userModal');
             if (modal) {
                 // Bearbeitung vorbereiten
+                const userId = button.getAttribute('data-user-id');
+                const username = button.getAttribute('data-username');
+                const email = button.getAttribute('data-email');
+                const firstName = button.getAttribute('data-first-name');
+                const lastName = button.getAttribute('data-last-name');
+                const isAdmin = button.getAttribute('data-is-admin');
+                const isActive = button.getAttribute('data-is-active');
+                
                 document.getElementById('userModalTitle').textContent = 'Benutzer bearbeiten';
                 document.getElementById('user_id').value = userId;
                 document.getElementById('username').value = username;
                 document.getElementById('email').value = email;
                 document.getElementById('first_name').value = firstName;
                 document.getElementById('last_name').value = lastName;
-                document.getElementById('user_role').value = userRole;
-                document.getElementById('email_notifications').checked = emailNotifications == 1;
-                document.getElementById('is_active').checked = isActive == 1;
+                document.getElementById('is_admin').checked = isAdmin == '1';
+                document.getElementById('is_active').checked = isActive == '1';
                 document.getElementById('action').value = 'edit';
                 document.getElementById('submitButton').textContent = 'Aktualisieren';
                 document.getElementById('password-required').textContent = '';

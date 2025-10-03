@@ -176,6 +176,7 @@ try {
                             <i class="fas fa-calendar-check"></i> Reservierungen
                         </a>
                     </li>
+                    <?php if (has_admin_access()): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="vehicles.php">
                             <i class="fas fa-truck"></i> Fahrzeuge
@@ -191,6 +192,7 @@ try {
                             <i class="fas fa-cog"></i> Einstellungen
                         </a>
                     </li>
+                    <?php endif; ?>
                 </ul>
                 <ul class="navbar-nav">
                     <li class="nav-item dropdown">
