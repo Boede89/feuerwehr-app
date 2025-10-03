@@ -342,42 +342,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Funktion zur Begrenzung auf 15-Minuten-Intervalle
-        function enforce15MinuteIntervals(input) {
-            input.addEventListener('change', function() {
-                if (this.value) {
-                    const date = new Date(this.value);
-                    const minutes = date.getMinutes();
-                    
-                    // Auf nächstes 15-Minuten-Intervall runden
-                    let roundedMinutes;
-                    if (minutes <= 7) {
-                        roundedMinutes = 0;
-                    } else if (minutes <= 22) {
-                        roundedMinutes = 15;
-                    } else if (minutes <= 37) {
-                        roundedMinutes = 30;
-                    } else if (minutes <= 52) {
-                        roundedMinutes = 45;
-                    } else {
-                        roundedMinutes = 0;
-                        date.setHours(date.getHours() + 1);
-                    }
-                    
-                    date.setMinutes(roundedMinutes, 0, 0);
-                    
-                    // Wert aktualisieren
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    const hours = String(date.getHours()).padStart(2, '0');
-                    const mins = String(date.getMinutes()).padStart(2, '0');
-                    
-                    this.value = `${year}-${month}-${day}T${hours}:${mins}`;
-                }
-            });
-        }
-
         // Fahrzeugdaten aus Session Storage laden und übertragen
         window.addEventListener('load', function() {
             const selectedVehicle = sessionStorage.getItem('selectedVehicle');
@@ -397,10 +361,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 // Kein Fahrzeug ausgewählt, zurück zur Auswahl
                 window.location.href = 'vehicle-selection.php';
             }
-            
-            // 15-Minuten-Intervalle für alle Zeitfelder aktivieren
-            const timeInputs = document.querySelectorAll('input[type="datetime-local"]');
-            timeInputs.forEach(enforce15MinuteIntervals);
         });
         
         let timeframeCount = 1;
@@ -427,10 +387,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     </button>
                 </div>
             `;
-            
-            // 15-Minuten-Intervalle für neue Zeitfelder aktivieren
-            const newTimeInputs = newTimeframe.querySelectorAll('input[type="datetime-local"]');
-            newTimeInputs.forEach(enforce15MinuteIntervals);
             
             timeframesDiv.appendChild(newTimeframe);
             timeframeCount++;
