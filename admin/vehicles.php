@@ -25,6 +25,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $action = $_POST['action'] ?? '';
     $vehicle_id = (int)($_POST['vehicle_id'] ?? 0);
     
+    // Debug: CSRF-Token prüfen
+    if (isset($_GET['debug'])) {
+        echo "<div class='alert alert-info'>";
+        echo "<strong>CSRF-Token Debug:</strong><br>";
+        echo "POST Token: " . ($_POST['csrf_token'] ?? 'NICHT GESETZT') . "<br>";
+        echo "Session Token: " . ($_SESSION['csrf_token'] ?? 'NICHT GESETZT') . "<br>";
+        echo "Token gültig: " . (validate_csrf_token($_POST['csrf_token'] ?? '') ? 'JA' : 'NEIN') . "<br>";
+        echo "</div>";
+    }
+    
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "Ungültiger Sicherheitstoken.";
     } else {
@@ -99,6 +109,11 @@ try {
         echo "Anzahl Fahrzeuge: " . count($vehicles) . "<br>";
         foreach ($vehicles as $v) {
             echo "ID: {$v['id']}, Name: {$v['name']}, Aktiv: " . ($v['is_active'] ? 'Ja' : 'Nein') . "<br>";
+        }
+        echo "<br><strong>POST-Daten:</strong><br>";
+        echo "REQUEST_METHOD: " . $_SERVER['REQUEST_METHOD'] . "<br>";
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            echo "POST-Daten: " . print_r($_POST, true) . "<br>";
         }
         echo "</div>";
     }
