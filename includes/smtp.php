@@ -33,12 +33,38 @@ class SimpleSMTP {
                 return false;
             }
             
-            // SMTP-Kommandos ausführen
+            // Server-Begrüßung lesen
+            $response = fgets($this->connection, 512);
+            error_log("SMTP Server: " . trim($response));
+            
+            if (strpos($response, '220') !== 0) {
+                error_log("SMTP: Ungültige Server-Antwort");
+                fclose($this->connection);
+                return false;
+            }
+            
+            // EHLO senden
             $this->sendCommand("EHLO localhost");
+            
+            // STARTTLS senden
             $this->sendCommand("STARTTLS");
+            
+            // TLS-Verbindung starten
+            if (!stream_socket_enable_crypto($this->connection, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                error_log("SMTP: TLS-Verbindung fehlgeschlagen");
+                fclose($this->connection);
+                return false;
+            }
+            
+            // EHLO nach TLS senden
+            $this->sendCommand("EHLO localhost");
+            
+            // AUTH LOGIN
             $this->sendCommand("AUTH LOGIN");
             $this->sendCommand(base64_encode($this->username));
             $this->sendCommand(base64_encode($this->password));
+            
+            // E-Mail senden
             $this->sendCommand("MAIL FROM: <{$this->from_email}>");
             $this->sendCommand("RCPT TO: <$to>");
             $this->sendCommand("DATA");
@@ -54,11 +80,12 @@ class SimpleSMTP {
             
             fwrite($this->connection, $email_data);
             $response = fgets($this->connection, 512);
+            error_log("SMTP E-Mail: " . trim($response));
             
             $this->sendCommand("QUIT");
             fclose($this->connection);
             
-            return strpos($response, '250') !== false;
+            return strpos($response, '250') === 0;
             
         } catch (Exception $e) {
             error_log("SMTP Fehler: " . $e->getMessage());
@@ -74,13 +101,13 @@ class SimpleSMTP {
         $response = fgets($this->connection, 512);
         
         // Debug-Ausgabe
-        error_log("SMTP: $command -> $response");
+        error_log("SMTP: $command -> " . trim($response));
         
         // Für EHLO-Kommando: Gmail sendet mehrere 250-Antworten
-        if ($command === "EHLO localhost" && (strpos($response, '220') !== false || strpos($response, '250-') === 0)) {
+        if ($command === "EHLO localhost" && strpos($response, '250-') === 0) {
             do {
                 $response = fgets($this->connection, 512);
-                error_log("SMTP: EHLO (2) -> $response");
+                error_log("SMTP: EHLO (2) -> " . trim($response));
             } while (strpos($response, '250-') === 0);
         }
         
