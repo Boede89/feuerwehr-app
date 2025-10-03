@@ -44,13 +44,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 $reservation = $stmt->fetch();
                 
                 if ($reservation) {
-                    $event_id = create_google_calendar_event(
-                        $reservation['vehicle_name'],
-                        $reservation['reason'],
-                        $reservation['start_datetime'],
-                        $reservation['end_datetime'],
-                        $reservation_id
-                    );
+                    // Prüfe ob Google Calendar Funktion verfügbar ist
+                    if (function_exists('create_google_calendar_event')) {
+                        $event_id = create_google_calendar_event(
+                            $reservation['vehicle_name'],
+                            $reservation['reason'],
+                            $reservation['start_datetime'],
+                            $reservation['end_datetime'],
+                            $reservation_id
+                        );
+                    } else {
+                        error_log('Google Calendar Funktion nicht verfügbar');
+                    }
                 }
             } catch (Exception $e) {
                 // Google Calendar Fehler ignorieren
