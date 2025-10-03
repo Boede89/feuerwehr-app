@@ -298,22 +298,37 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
     global $db;
     
     try {
-        // Einstellungen laden
-        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key IN ('google_calendar_api_key', 'google_calendar_id')");
+        // Google Calendar Einstellungen laden
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
         $stmt->execute();
         $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         
-        $api_key = $settings['google_calendar_api_key'] ?? '';
+        $auth_type = $settings['google_calendar_auth_type'] ?? 'service_account';
         $calendar_id = $settings['google_calendar_id'] ?? 'primary';
         
-        if (empty($api_key)) {
-            error_log('Google Calendar API Key nicht konfiguriert');
-            return false;
+        if ($auth_type === 'service_account') {
+            // Service Account verwenden
+            $service_account_file = $settings['google_calendar_service_account_file'] ?? '';
+            
+            if (empty($service_account_file) || !file_exists($service_account_file)) {
+                error_log('Google Calendar Service Account Datei nicht gefunden: ' . $service_account_file);
+                return false;
+            }
+            
+            require_once 'includes/google_calendar_service_account.php';
+            $google_calendar = new GoogleCalendarServiceAccount($service_account_file, $calendar_id);
+        } else {
+            // API Key verwenden (Fallback)
+            $api_key = $settings['google_calendar_api_key'] ?? '';
+            
+            if (empty($api_key)) {
+                error_log('Google Calendar API Key nicht konfiguriert');
+                return false;
+            }
+            
+            require_once 'includes/google_calendar.php';
+            $google_calendar = new GoogleCalendar($api_key, $calendar_id);
         }
-        
-        require_once 'google_calendar.php';
-        
-        $google_calendar = new GoogleCalendar($api_key, $calendar_id);
         
         $title = $vehicle_name . ' - ' . $reason;
         $description = "Fahrzeugreservierung über Feuerwehr App\nFahrzeug: $vehicle_name\nGrund: $reason";

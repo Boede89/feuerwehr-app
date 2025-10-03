@@ -53,8 +53,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             // Google Calendar Einstellungen
             $google_settings = [
-                'google_calendar_api_key' => sanitize_input($_POST['google_calendar_api_key'] ?? ''),
+                'google_calendar_service_account_file' => sanitize_input($_POST['google_calendar_service_account_file'] ?? ''),
                 'google_calendar_id' => sanitize_input($_POST['google_calendar_id'] ?? ''),
+                'google_calendar_auth_type' => sanitize_input($_POST['google_calendar_auth_type'] ?? 'service_account'),
             ];
             
             // App Einstellungen
@@ -293,6 +294,30 @@ if (isset($_POST['test_email'])) {
                         </div>
                         <div class="card-body">
                             <div class="mb-3">
+                                <label for="google_calendar_auth_type" class="form-label">Authentifizierung</label>
+                                <select class="form-select" id="google_calendar_auth_type" name="google_calendar_auth_type">
+                                    <option value="service_account" <?php echo ($settings['google_calendar_auth_type'] ?? 'service_account') === 'service_account' ? 'selected' : ''; ?>>Service Account (Empfohlen)</option>
+                                    <option value="api_key" <?php echo ($settings['google_calendar_auth_type'] ?? '') === 'api_key' ? 'selected' : ''; ?>>API Schlüssel</option>
+                                </select>
+                            </div>
+                            
+                            <div id="service_account_config" class="mb-3">
+                                <label for="google_calendar_service_account_file" class="form-label">Service Account JSON-Datei</label>
+                                <input type="text" class="form-control" id="google_calendar_service_account_file" name="google_calendar_service_account_file" 
+                                       value="<?php echo htmlspecialchars($settings['google_calendar_service_account_file'] ?? ''); ?>"
+                                       placeholder="/path/to/service-account-key.json">
+                                <div class="form-text">
+                                    <strong>Status:</strong> 
+                                    <?php if (!empty($settings['google_calendar_service_account_file']) && file_exists($settings['google_calendar_service_account_file'])): ?>
+                                        <span class="text-success">✅ Datei gefunden</span>
+                                    <?php else: ?>
+                                        <span class="text-danger">❌ Datei nicht gefunden</span>
+                                    <?php endif; ?><br>
+                                    <strong>Pfad:</strong> Absoluter Pfad zur JSON-Datei (z.B. /var/www/feuerwehr-app/service-account-key.json)
+                                </div>
+                            </div>
+                            
+                            <div id="api_key_config" class="mb-3" style="display: none;">
                                 <label for="google_calendar_api_key" class="form-label">API Schlüssel</label>
                                 <input type="text" class="form-control" id="google_calendar_api_key" name="google_calendar_api_key" 
                                        value="<?php echo htmlspecialchars($settings['google_calendar_api_key'] ?? ''); ?>">
@@ -306,18 +331,19 @@ if (isset($_POST['test_email'])) {
                                 <input type="text" class="form-control" id="google_calendar_id" name="google_calendar_id" 
                                        value="<?php echo htmlspecialchars($settings['google_calendar_id'] ?? ''); ?>">
                                 <div class="form-text">
-                                    Standard: primary (für Hauptkalender)
+                                    Standard: primary (für Hauptkalender) oder E-Mail-Adresse des Kalenders
                                 </div>
                             </div>
                             
                             <div class="alert alert-info">
                                 <i class="fas fa-info-circle"></i>
-                                <strong>Hinweis:</strong> Für die Google Calendar Integration müssen Sie:
+                                <strong>Service Account Setup:</strong>
                                 <ol class="mb-0 mt-2">
-                                    <li>Ein Google Cloud Projekt erstellen</li>
-                                    <li>Die Calendar API aktivieren</li>
-                                    <li>Einen API-Schlüssel erstellen</li>
-                                    <li>Den Kalender freigeben (falls nötig)</li>
+                                    <li>Google Cloud Console → APIs & Services → Credentials</li>
+                                    <li>Service Account erstellen</li>
+                                    <li>JSON-Schlüssel herunterladen</li>
+                                    <li>Datei auf Server hochladen</li>
+                                    <li>Kalender für Service Account freigeben</li>
                                 </ol>
                             </div>
                         </div>
@@ -408,5 +434,35 @@ if (isset($_POST['test_email'])) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Google Calendar Authentifizierung wechseln
+        document.getElementById('google_calendar_auth_type').addEventListener('change', function() {
+            const serviceAccountConfig = document.getElementById('service_account_config');
+            const apiKeyConfig = document.getElementById('api_key_config');
+            
+            if (this.value === 'service_account') {
+                serviceAccountConfig.style.display = 'block';
+                apiKeyConfig.style.display = 'none';
+            } else {
+                serviceAccountConfig.style.display = 'none';
+                apiKeyConfig.style.display = 'block';
+            }
+        });
+        
+        // Initiale Anzeige setzen
+        document.addEventListener('DOMContentLoaded', function() {
+            const authType = document.getElementById('google_calendar_auth_type').value;
+            const serviceAccountConfig = document.getElementById('service_account_config');
+            const apiKeyConfig = document.getElementById('api_key_config');
+            
+            if (authType === 'service_account') {
+                serviceAccountConfig.style.display = 'block';
+                apiKeyConfig.style.display = 'none';
+            } else {
+                serviceAccountConfig.style.display = 'none';
+                apiKeyConfig.style.display = 'block';
+            }
+        });
+    </script>
 </body>
 </html>
