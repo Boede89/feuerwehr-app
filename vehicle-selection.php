@@ -98,11 +98,6 @@ try {
                                                 <h5 class="card-title"><?php echo htmlspecialchars($vehicle['name']); ?></h5>
                                                 <p class="text-muted mb-2"><?php echo htmlspecialchars($vehicle['type']); ?></p>
                                                 <p class="card-text small"><?php echo htmlspecialchars($vehicle['description']); ?></p>
-                                                <div class="mt-3">
-                                                    <span class="badge bg-info">
-                                                        <i class="fas fa-users"></i> <?php echo $vehicle['capacity']; ?> Personen
-                                                    </span>
-                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -124,13 +119,15 @@ try {
     <script>
         function selectVehicle(vehicleId, vehicleName, vehicleType, capacity, description) {
             // Fahrzeugdaten in Session Storage speichern
-            sessionStorage.setItem('selectedVehicle', JSON.stringify({
+            const vehicleData = {
                 id: vehicleId,
                 name: vehicleName,
                 type: vehicleType,
                 capacity: capacity,
                 description: description
-            }));
+            };
+            
+            sessionStorage.setItem('selectedVehicle', JSON.stringify(vehicleData));
             
             // Weiterleitung zur Reservierungsseite
             window.location.href = 'reservation.php';

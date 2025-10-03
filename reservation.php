@@ -12,11 +12,9 @@ if (isset($_POST['vehicle_data'])) {
     $selectedVehicle = json_decode($_POST['vehicle_data'], true);
 } elseif (isset($_SESSION['selected_vehicle'])) {
     $selectedVehicle = $_SESSION['selected_vehicle'];
-}
-
-// Falls kein Fahrzeug ausgewählt, zurück zur Fahrzeugauswahl
-if (!$selectedVehicle) {
-    redirect('vehicle-selection.php');
+} else {
+    // JavaScript wird die Daten übertragen, daher erstmal weiterleiten
+    // Das JavaScript wird die Daten dann per POST übertragen
 }
 
 // Formular verarbeiten
@@ -204,8 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                                 <p class="mb-0">
                                     <strong><?php echo htmlspecialchars($selectedVehicle['name']); ?></strong> 
                                     (<?php echo htmlspecialchars($selectedVehicle['type']); ?>)<br>
-                                    <small><?php echo htmlspecialchars($selectedVehicle['description']); ?></small><br>
-                                    <span class="badge bg-info"><i class="fas fa-users"></i> <?php echo $selectedVehicle['capacity']; ?> Personen</span>
+                                    <small><?php echo htmlspecialchars($selectedVehicle['description']); ?></small>
                                 </p>
                             </div>
                             
@@ -275,6 +272,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Fahrzeugdaten aus Session Storage laden und übertragen
+        window.addEventListener('load', function() {
+            const selectedVehicle = sessionStorage.getItem('selectedVehicle');
+            if (selectedVehicle) {
+                const vehicleData = JSON.parse(selectedVehicle);
+                document.querySelector('input[name="vehicle_data"]').value = JSON.stringify(vehicleData);
+                
+                // Fahrzeug-Info anzeigen
+                const vehicleInfo = document.querySelector('.alert-info p');
+                if (vehicleInfo) {
+                    vehicleInfo.innerHTML = `
+                        <strong>${vehicleData.name}</strong> 
+                        (${vehicleData.type})<br>
+                        <small>${vehicleData.description}</small>
+                    `;
+                }
+            } else {
+                // Kein Fahrzeug ausgewählt, zurück zur Auswahl
+                window.location.href = 'vehicle-selection.php';
+            }
+        });
+        
         let timeframeCount = 1;
         
         // Weitere Zeit hinzufügen

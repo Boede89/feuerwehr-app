@@ -13,12 +13,12 @@ services:
       MYSQL_PASSWORD: feuerwehr_password
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     ports:
       - "3306:3306"
     networks:
       - feuerwehr_network
-    command: --default-authentication-plugin=mysql_native_password
+    command: --default-authentication-plugin=mysql_native_password --init-file=/docker-entrypoint-initdb.d/01-schema.sql
 
   # phpMyAdmin
   phpmyadmin:
