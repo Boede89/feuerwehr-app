@@ -1,4 +1,7 @@
 <?php
+// Output Buffering starten um Header-Probleme zu vermeiden
+ob_start();
+
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
@@ -567,3 +570,7 @@ try {
     </script>
 </body>
 </html>
+<?php
+// Output Buffering beenden
+ob_end_flush();
+?>
