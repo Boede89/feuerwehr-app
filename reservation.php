@@ -308,11 +308,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                                     <div class="timeframe-row row mb-3">
                                         <div class="col-md-5">
                                             <label class="form-label">Von (Datum & Uhrzeit) *</label>
-                                            <input type="datetime-local" class="form-control start-datetime" name="start_datetime_0" required>
+                                            <input type="datetime-local" class="form-control start-datetime" name="start_datetime_0" step="900" required>
+                                            <div class="form-text">Zeitauswahl in 15-Minuten-Intervallen</div>
                                         </div>
                                         <div class="col-md-5">
                                             <label class="form-label">Bis (Datum & Uhrzeit) *</label>
-                                            <input type="datetime-local" class="form-control end-datetime" name="end_datetime_0" required>
+                                            <input type="datetime-local" class="form-control end-datetime" name="end_datetime_0" step="900" required>
+                                            <div class="form-text">Zeitauswahl in 15-Minuten-Intervallen</div>
                                         </div>
                                         <div class="col-md-2 d-flex align-items-end">
                                             <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe" style="display: none;">
@@ -372,11 +374,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             newTimeframe.innerHTML = `
                 <div class="col-md-5">
                     <label class="form-label">Von (Datum & Uhrzeit) *</label>
-                    <input type="datetime-local" class="form-control start-datetime" name="start_datetime_${timeframeCount}" required>
+                    <input type="datetime-local" class="form-control start-datetime" name="start_datetime_${timeframeCount}" step="900" required>
+                    <div class="form-text">Zeitauswahl in 15-Minuten-Intervallen</div>
                 </div>
                 <div class="col-md-5">
                     <label class="form-label">Bis (Datum & Uhrzeit) *</label>
-                    <input type="datetime-local" class="form-control end-datetime" name="end_datetime_${timeframeCount}" required>
+                    <input type="datetime-local" class="form-control end-datetime" name="end_datetime_${timeframeCount}" step="900" required>
+                    <div class="form-text">Zeitauswahl in 15-Minuten-Intervallen</div>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe">
