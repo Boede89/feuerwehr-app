@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # MySQL Datenbank
+  mysql:
+    image: mysql:8.0
+    container_name: feuerwehr_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password_2024
+      MYSQL_DATABASE: feuerwehr_app
+      MYSQL_USER: feuerwehr_user
+      MYSQL_PASSWORD: feuerwehr_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    ports:
+      - "3306:3306"
+    networks:
+      - feuerwehr_network
+    command: --default-authentication-plugin=mysql_native_password
+
+  # phpMyAdmin
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: feuerwehr_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: feuerwehr_user
+      PMA_PASSWORD: feuerwehr_password
+      MYSQL_ROOT_PASSWORD: root_password_2024
+    ports:
+      - "8080:80"
+    depends_on:
+      - mysql
+    networks:
+      - feuerwehr_network
+
+  # Apache mit PHP
+  web:
+    build: .
+    container_name: feuerwehr_web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/apache/000-default.conf:/etc/apache2/sites-available/000-default.conf
+      - ./docker/php/php.ini:/usr/local/etc/php/php.ini
+    depends_on:
+      - mysql
+    networks:
+      - feuerwehr_network
+    environment:
+      - APACHE_DOCUMENT_ROOT=/var/www/html
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  feuerwehr_network:
+    driver: bridge
