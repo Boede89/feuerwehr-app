@@ -95,6 +95,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     $message = "Reservierung wurde abgelehnt.";
                     log_activity($_SESSION['user_id'], 'reservation_rejected', "Reservierung #$reservation_id abgelehnt: $rejection_reason");
                 }
+            } elseif ($action == 'delete') {
+                // Reservierung löschen
+                $stmt = $db->prepare("SELECT * FROM reservations WHERE id = ?");
+                $stmt->execute([$reservation_id]);
+                $reservation = $stmt->fetch();
+                
+                if ($reservation) {
+                    // Google Calendar Event löschen falls vorhanden
+                    $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
+                    $stmt->execute([$reservation_id]);
+                    $calendar_event = $stmt->fetch();
+                    
+                    if ($calendar_event && !empty($calendar_event['google_event_id'])) {
+                        // Hier könnte die Google Calendar API zum Löschen des Events aufgerufen werden
+                        // delete_google_calendar_event($calendar_event['google_event_id']);
+                    }
+                    
+                    // Calendar Event aus Datenbank löschen
+                    $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
+                    $stmt->execute([$reservation_id]);
+                    
+                    // Reservierung löschen
+                    $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
+                    $stmt->execute([$reservation_id]);
+                    
+                    $message = "Reservierung wurde gelöscht.";
+                    log_activity($_SESSION['user_id'], 'reservation_deleted', "Reservierung #$reservation_id gelöscht");
+                } else {
+                    $error = "Reservierung nicht gefunden.";
+                }
             }
         } catch(PDOException $e) {
             $error = "Fehler beim Aktualisieren der Reservierung: " . $e->getMessage();
@@ -279,6 +309,7 @@ try {
                                         <th>Zeitraum</th>
                                         <th>Grund</th>
                                         <th>Status</th>
+                                        <th>Ablehnungsgrund</th>
                                         <th>Erstellt</th>
                                         <th>Aktionen</th>
                                     </tr>
@@ -301,6 +332,16 @@ try {
                                             <td><?php echo htmlspecialchars($reservation['reason']); ?></td>
                                             <td><?php echo get_status_badge($reservation['status']); ?></td>
                                             <td>
+                                                <?php if ($reservation['status'] == 'rejected' && !empty($reservation['rejection_reason'])): ?>
+                                                    <span class="text-danger">
+                                                        <i class="fas fa-exclamation-triangle"></i>
+                                                        <?php echo htmlspecialchars($reservation['rejection_reason']); ?>
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="text-muted">-</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
                                                 <?php echo format_datetime($reservation['created_at']); ?>
                                                 <?php if ($reservation['approved_by_username']): ?>
                                                     <br><small class="text-muted">von <?php echo htmlspecialchars($reservation['approved_by_username']); ?></small>
@@ -320,6 +361,16 @@ try {
                                                                 data-bs-target="#rejectModal" 
                                                                 data-reservation-id="<?php echo $reservation['id']; ?>">
                                                             <i class="fas fa-times"></i>
+                                                        </button>
+                                                    </div>
+                                                <?php elseif (in_array($reservation['status'], ['approved', 'rejected'])): ?>
+                                                    <div class="btn-group" role="group">
+                                                        <button type="button" class="btn btn-outline-danger btn-sm" 
+                                                                data-bs-toggle="modal" 
+                                                                data-bs-target="#deleteModal" 
+                                                                data-reservation-id="<?php echo $reservation['id']; ?>"
+                                                                data-reservation-info="<?php echo htmlspecialchars($reservation['vehicle_name'] . ' - ' . $reservation['requester_name']); ?>">
+                                                            <i class="fas fa-trash"></i>
                                                         </button>
                                                     </div>
                                                 <?php else: ?>
@@ -388,6 +439,37 @@ try {
         </div>
     </div>
 
+    <!-- Löschen Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reservierung löschen</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>Achtung!</strong> Diese Aktion kann nicht rückgängig gemacht werden.
+                        </div>
+                        <p>Möchten Sie diese Reservierung wirklich löschen?</p>
+                        <p><strong>Reservierung:</strong> <span id="delete_reservation_info"></span></p>
+                        <input type="hidden" name="reservation_id" id="delete_reservation_id">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Löschen
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Modal Event Listeners
@@ -401,6 +483,14 @@ try {
             const button = event.relatedTarget;
             const reservationId = button.getAttribute('data-reservation-id');
             document.getElementById('reject_reservation_id').value = reservationId;
+        });
+
+        document.getElementById('deleteModal').addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const reservationId = button.getAttribute('data-reservation-id');
+            const reservationInfo = button.getAttribute('data-reservation-info');
+            document.getElementById('delete_reservation_id').value = reservationId;
+            document.getElementById('delete_reservation_info').textContent = reservationInfo;
         });
     </script>
 </body>
