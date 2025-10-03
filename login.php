@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = "Bitte geben Sie Benutzername und Passwort ein.";
     } else {
         try {
-            $stmt = $db->prepare("SELECT id, username, email, password_hash, first_name, last_name, is_admin, is_active FROM users WHERE username = ? OR email = ?");
+            $stmt = $db->prepare("SELECT id, username, email, password_hash, first_name, last_name, is_admin, is_active, user_role, email_notifications FROM users WHERE username = ? OR email = ?");
             $stmt->execute([$username, $username]);
             $user = $stmt->fetch();
             
@@ -29,6 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $_SESSION['first_name'] = $user['first_name'];
                 $_SESSION['last_name'] = $user['last_name'];
                 $_SESSION['is_admin'] = $user['is_admin'];
+                $_SESSION['user_role'] = $user['user_role'] ?? 'user';
+                $_SESSION['email_notifications'] = $user['email_notifications'] ?? 1;
                 
                 // Aktivität loggen
                 log_activity($user['id'], 'login', 'Benutzer angemeldet');

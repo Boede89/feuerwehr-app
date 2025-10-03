@@ -3,8 +3,8 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
-// Nur für eingeloggte Benutzer
-if (!is_logged_in()) {
+// Nur für eingeloggte Benutzer mit Genehmiger-Zugriff
+if (!can_approve_reservations()) {
     redirect('../login.php');
 }
 

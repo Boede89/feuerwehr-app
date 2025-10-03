@@ -32,7 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $email = sanitize_input($_POST['email'] ?? '');
         $first_name = sanitize_input($_POST['first_name'] ?? '');
         $last_name = sanitize_input($_POST['last_name'] ?? '');
-        $is_admin = isset($_POST['is_admin']) ? 1 : 0;
+        $user_role = sanitize_input($_POST['user_role'] ?? 'user');
+        $email_notifications = isset($_POST['email_notifications']) ? 1 : 0;
         $is_active = isset($_POST['is_active']) ? 1 : 0;
         $password = $_POST['password'] ?? '';
         
@@ -47,8 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $error = "Passwort ist erforderlich.";
                     } else {
                         $password_hash = hash_password($password);
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, is_admin, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $is_admin, $is_active]);
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, email_notifications, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_role, $email_notifications, $is_active]);
                         $message = "Benutzer wurde erfolgreich hinzugefügt.";
                         log_activity($_SESSION['user_id'], 'user_added', "Benutzer '$username' hinzugefügt");
                         
@@ -59,11 +60,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 } elseif ($action == 'edit') {
                     if (!empty($password)) {
                         $password_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, is_admin = ?, is_active = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $is_admin, $is_active, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_role, $email_notifications, $is_active, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, is_admin = ?, is_active = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, $is_admin, $is_active, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $user_role, $email_notifications, $is_active, $user_id]);
                     }
                     $message = "Benutzer wurde erfolgreich aktualisiert.";
                     log_activity($_SESSION['user_id'], 'user_updated', "Benutzer '$username' aktualisiert");

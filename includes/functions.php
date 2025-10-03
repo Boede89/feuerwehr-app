@@ -207,6 +207,20 @@ function is_admin() {
 }
 
 /**
+ * Prüfen ob Benutzer Genehmiger oder Admin ist
+ */
+function can_approve_reservations() {
+    return is_logged_in() && isset($_SESSION['user_role']) && in_array($_SESSION['user_role'], ['admin', 'approver']);
+}
+
+/**
+ * Prüfen ob Benutzer Admin-Zugriff hat (nur für Einstellungen)
+ */
+function has_admin_access() {
+    return is_logged_in() && isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
+}
+
+/**
  * Weiterleitung
  */
 function redirect($url) {
