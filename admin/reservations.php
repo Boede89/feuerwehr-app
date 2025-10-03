@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     $stmt->execute([$rejection_reason, $_SESSION['user_id'], $reservation_id]);
                     
                     // E-Mail an Antragsteller senden
-                    $stmt = $db->prepare("SELECT * FROM reservations WHERE id = ?");
+                    $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
                     $stmt->execute([$reservation_id]);
                     $reservation = $stmt->fetch();
                     

@@ -70,11 +70,19 @@ class SimpleSMTP {
             $this->sendCommand("DATA");
             
             // E-Mail-Header und -Inhalt senden
-            // Header korrekt formatieren (keine Leerzeichen nach Doppelpunkt)
+            // Header korrekt formatieren (RFC 5322 konform)
             $from_name_clean = trim($this->from_name);
             $from_email_clean = trim($this->from_email);
             $to_clean = trim($to);
             $subject_clean = trim($subject);
+            
+            // Subject-Header für RFC 5322 konform machen
+            $subject_clean = str_replace(["\r", "\n"], "", $subject_clean);
+            $subject_clean = preg_replace('/\s+/', ' ', $subject_clean);
+            
+            // From-Name für RFC 5322 konform machen
+            $from_name_clean = str_replace(["\r", "\n"], "", $from_name_clean);
+            $from_name_clean = preg_replace('/\s+/', ' ', $from_name_clean);
             
             $email_data = "From: {$from_name_clean} <{$from_email_clean}>\r\n";
             $email_data .= "To: {$to_clean}\r\n";
@@ -84,6 +92,7 @@ class SimpleSMTP {
             $email_data .= "Content-Transfer-Encoding: 8bit\r\n";
             $email_data .= "X-Mailer: PHP/" . phpversion() . "\r\n";
             $email_data .= "X-Priority: 3\r\n";
+            $email_data .= "Message-ID: <" . uniqid() . "@" . $_SERVER['HTTP_HOST'] . ">\r\n";
             $email_data .= "\r\n";
             $email_data .= $message . "\r\n";
             $email_data .= ".\r\n";
