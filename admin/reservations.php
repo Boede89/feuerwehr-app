@@ -34,15 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                         $reservation['vehicle_name'],
                         $reservation['reason'],
                         $reservation['start_datetime'],
-                        $reservation['end_datetime']
+                        $reservation['end_datetime'],
+                        $reservation_id
                     );
-                    
-                    if ($event_id) {
-                        // Event ID in der Datenbank speichern
-                        $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?)");
-                        $title = $reservation['vehicle_name'] . ' - ' . $reservation['reason'];
-                        $stmt->execute([$reservation_id, $event_id, $title, $reservation['start_datetime'], $reservation['end_datetime']]);
-                    }
                 }
                 
                 // E-Mail an Antragsteller senden
