@@ -77,7 +77,7 @@ class SimpleSMTP {
         error_log("SMTP: $command -> $response");
         
         // Für EHLO-Kommando: Gmail sendet mehrere 250-Antworten
-        if ($command === "EHLO localhost" && strpos($response, '220') !== false) {
+        if ($command === "EHLO localhost" && (strpos($response, '220') !== false || strpos($response, '250-') === 0)) {
             do {
                 $response = fgets($this->connection, 512);
                 error_log("SMTP: EHLO (2) -> $response");

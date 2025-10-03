@@ -86,6 +86,14 @@ try {
     $response = fgets($connection, 512);
     echo "   EHLO (TLS): " . trim($response) . "\n";
     
+    // Gmail sendet wieder mehrere 250-Antworten nach TLS
+    if (strpos($response, '250-') === 0) {
+        do {
+            $response = fgets($connection, 512);
+            echo "   EHLO (TLS 2): " . trim($response) . "\n";
+        } while (strpos($response, '250-') === 0);
+    }
+    
     // AUTH LOGIN
     fwrite($connection, "AUTH LOGIN\r\n");
     $response = fgets($connection, 512);
