@@ -114,6 +114,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 
                 if (empty($errors)) {
                     $message = "Alle $success_count Reservierungen wurden erfolgreich eingereicht. Sie erhalten eine E-Mail, sobald über Ihre Anträge entschieden wurde.";
+                    // Weiterleitung zur Startseite nach 3 Sekunden
+                    $redirect_to_home = true;
                 } else {
                     $message = "$success_count Reservierungen wurden erfolgreich eingereicht. " . implode(' ', $errors);
                 }
@@ -368,6 +370,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         
         // Initiale Validierung für ersten Zeitraum
         setupTimeframeValidation(document.querySelector('.timeframe-row'));
+        
+        // Automatische Weiterleitung zur Startseite nach erfolgreicher Reservierung
+        <?php if (isset($redirect_to_home) && $redirect_to_home): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Nach 3 Sekunden zur Startseite weiterleiten
+            setTimeout(function() {
+                window.location.href = 'index.php';
+            }, 3000);
+            
+            // Countdown-Anzeige
+            let countdown = 3;
+            const messageElement = document.querySelector('.alert-success');
+            if (messageElement) {
+                const originalMessage = messageElement.innerHTML;
+                const countdownInterval = setInterval(function() {
+                    messageElement.innerHTML = originalMessage + '<br><small class="text-muted">Weiterleitung zur Startseite in ' + countdown + ' Sekunden...</small>';
+                    countdown--;
+                    
+                    if (countdown < 0) {
+                        clearInterval(countdownInterval);
+                    }
+                }, 1000);
+            }
+        });
+        <?php endif; ?>
     </script>
 </body>
 </html>
