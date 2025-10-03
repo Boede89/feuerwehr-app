@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 'smtp_host' => sanitize_input($_POST['smtp_host'] ?? ''),
                 'smtp_port' => sanitize_input($_POST['smtp_port'] ?? ''),
                 'smtp_username' => sanitize_input($_POST['smtp_username'] ?? ''),
-                'smtp_password' => $_POST['smtp_password'] ?? '',
+                'smtp_password' => trim($_POST['smtp_password'] ?? ''),
                 'smtp_encryption' => sanitize_input($_POST['smtp_encryption'] ?? ''),
                 'smtp_from_email' => sanitize_input($_POST['smtp_from_email'] ?? ''),
                 'smtp_from_name' => sanitize_input($_POST['smtp_from_name'] ?? ''),
