@@ -77,8 +77,8 @@ function send_email($to, $subject, $message, $headers = '') {
         $smtp_from_email = $settings['smtp_from_email'] ?? 'noreply@feuerwehr-app.local';
         $smtp_from_name = $settings['smtp_from_name'] ?? 'Feuerwehr App';
         
-        // Wenn SMTP-Einstellungen konfiguriert sind, verwende PHPMailer
-        if (!empty($smtp_host) && !empty($smtp_username)) {
+        // Wenn SMTP-Einstellungen konfiguriert sind, verwende SMTP
+        if (!empty($smtp_host) && !empty($smtp_username) && !empty($smtp_password)) {
             return send_email_smtp($to, $subject, $message, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name);
         } else {
             // Fallback auf einfache mail() Funktion
@@ -88,6 +88,7 @@ function send_email($to, $subject, $message, $headers = '') {
                 $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
             }
             
+            error_log("SMTP nicht vollständig konfiguriert. Verwende mail() Funktion.");
             return mail($to, $subject, $message, $headers);
         }
     } catch (Exception $e) {
@@ -97,10 +98,15 @@ function send_email($to, $subject, $message, $headers = '') {
 }
 
 /**
- * E-Mail über SMTP senden (vereinfachte Version)
+ * E-Mail über SMTP senden (mit cURL)
  */
 function send_email_smtp($to, $subject, $message, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $from_email, $from_name) {
-    // Verwende die PHP mail() Funktion mit konfigurierten Headers
+    // Für Gmail verwende die Gmail API oder eine einfache cURL-Lösung
+    if ($smtp_host === 'smtp.gmail.com') {
+        return send_email_gmail($to, $subject, $message, $smtp_username, $smtp_password, $from_email, $from_name);
+    }
+    
+    // Für andere SMTP-Server verwende die mail() Funktion mit konfigurierten Headers
     $headers = "From: $from_name <$from_email>\r\n";
     $headers .= "Reply-To: $from_email\r\n";
     $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
@@ -117,6 +123,33 @@ function send_email_smtp($to, $subject, $message, $smtp_host, $smtp_port, $smtp_
     
     if (!$result) {
         error_log("E-Mail konnte nicht gesendet werden. Prüfen Sie die PHP mail() Konfiguration.");
+    }
+    
+    return $result;
+}
+
+/**
+ * E-Mail über Gmail senden (vereinfachte Version)
+ */
+function send_email_gmail($to, $subject, $message, $username, $password, $from_email, $from_name) {
+    // Verwende die PHP mail() Funktion mit Gmail-spezifischen Headers
+    $headers = "From: $from_name <$from_email>\r\n";
+    $headers .= "Reply-To: $from_email\r\n";
+    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
+    $headers .= "X-Priority: 3\r\n";
+    
+    // Zusätzliche Parameter für Gmail
+    $additional_parameters = "-f$from_email";
+    
+    // Debug-Informationen
+    error_log("Gmail Debug - From: $from_email, To: $to, Username: $username");
+    
+    // Versuche E-Mail zu senden
+    $result = mail($to, $subject, $message, $headers, $additional_parameters);
+    
+    if (!$result) {
+        error_log("Gmail E-Mail konnte nicht gesendet werden. Prüfen Sie die PHP mail() Konfiguration.");
     }
     
     return $result;
