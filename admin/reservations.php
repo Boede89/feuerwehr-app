@@ -51,16 +51,50 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 $reservation = $stmt->fetch();
                 
                 if ($reservation) {
-                    $subject = "Fahrzeugreservierung genehmigt";
+                    $subject = "✅ Fahrzeugreservierung genehmigt - " . htmlspecialchars($reservation['vehicle_name']);
                     $message_content = "
-                    <h2>Ihre Fahrzeugreservierung wurde genehmigt</h2>
-                    <p>Ihr Antrag für die Reservierung wurde genehmigt.</p>
-                    <p><strong>Details:</strong></p>
-                    <ul>
-                        <li>Fahrzeug: " . htmlspecialchars($reservation['vehicle_name']) . "</li>
-                        <li>Von: " . format_datetime($reservation['start_datetime']) . "</li>
-                        <li>Bis: " . format_datetime($reservation['end_datetime']) . "</li>
-                    </ul>
+                    <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;'>
+                        <div style='background-color: #28a745; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;'>
+                            <h1 style='margin: 0; font-size: 24px;'>🚒 Reservierung genehmigt!</h1>
+                        </div>
+                        <div style='background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);'>
+                            <p style='font-size: 16px; color: #333; margin-bottom: 20px;'>Hallo " . htmlspecialchars($reservation['requester_name']) . ",</p>
+                            <p style='font-size: 16px; color: #333; margin-bottom: 25px;'>Ihr Antrag für die Fahrzeugreservierung wurde <strong style='color: #28a745;'>genehmigt</strong>!</p>
+                            
+                            <div style='background-color: #e8f5e8; border-left: 4px solid #28a745; padding: 20px; margin: 20px 0; border-radius: 4px;'>
+                                <h3 style='margin: 0 0 15px 0; color: #28a745; font-size: 18px;'>📋 Reservierungsdetails</h3>
+                                <table style='width: 100%; border-collapse: collapse;'>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555; width: 120px;'>🚛 Fahrzeug:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($reservation['vehicle_name']) . "</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>📅 Von:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . format_datetime($reservation['start_datetime']) . "</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>📅 Bis:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . format_datetime($reservation['end_datetime']) . "</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>📝 Grund:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($reservation['reason']) . "</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <div style='background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 4px; margin: 20px 0;'>
+                                <p style='margin: 0; color: #0c5460; font-size: 14px;'>
+                                    <strong>ℹ️ Hinweis:</strong> Diese Reservierung wurde automatisch in den Google Kalender eingetragen.
+                                </p>
+                            </div>
+                            
+                            <p style='font-size: 14px; color: #666; margin-top: 25px;'>
+                                Mit freundlichen Grüßen,<br>
+                                Ihr Feuerwehr-Team
+                            </p>
+                        </div>
+                    </div>
                     ";
                     send_email($reservation['requester_email'], $subject, $message_content);
                 }
@@ -83,11 +117,55 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     $reservation = $stmt->fetch();
                     
                     if ($reservation) {
-                        $subject = "Fahrzeugreservierung abgelehnt";
+                        $subject = "❌ Fahrzeugreservierung abgelehnt - " . htmlspecialchars($reservation['vehicle_name']);
                         $message_content = "
-                        <h2>Ihre Fahrzeugreservierung wurde abgelehnt</h2>
-                        <p>Ihr Antrag für die Reservierung wurde leider abgelehnt.</p>
-                        <p><strong>Grund:</strong> " . htmlspecialchars($rejection_reason) . "</p>
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;'>
+                            <div style='background-color: #dc3545; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;'>
+                                <h1 style='margin: 0; font-size: 24px;'>🚒 Reservierung abgelehnt</h1>
+                            </div>
+                            <div style='background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);'>
+                                <p style='font-size: 16px; color: #333; margin-bottom: 20px;'>Hallo " . htmlspecialchars($reservation['requester_name']) . ",</p>
+                                <p style='font-size: 16px; color: #333; margin-bottom: 25px;'>Ihr Antrag für die Fahrzeugreservierung wurde leider <strong style='color: #dc3545;'>abgelehnt</strong>.</p>
+                                
+                                <div style='background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 20px; margin: 20px 0; border-radius: 4px;'>
+                                    <h3 style='margin: 0 0 15px 0; color: #dc3545; font-size: 18px;'>📋 Reservierungsdetails</h3>
+                                    <table style='width: 100%; border-collapse: collapse;'>
+                                        <tr>
+                                            <td style='padding: 8px 0; font-weight: bold; color: #555; width: 120px;'>🚛 Fahrzeug:</td>
+                                            <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($reservation['vehicle_name']) . "</td>
+                                        </tr>
+                                        <tr>
+                                            <td style='padding: 8px 0; font-weight: bold; color: #555;'>📅 Von:</td>
+                                            <td style='padding: 8px 0; color: #333;'>" . format_datetime($reservation['start_datetime']) . "</td>
+                                        </tr>
+                                        <tr>
+                                            <td style='padding: 8px 0; font-weight: bold; color: #555;'>📅 Bis:</td>
+                                            <td style='padding: 8px 0; color: #333;'>" . format_datetime($reservation['end_datetime']) . "</td>
+                                        </tr>
+                                        <tr>
+                                            <td style='padding: 8px 0; font-weight: bold; color: #555;'>📝 Grund:</td>
+                                            <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($reservation['reason']) . "</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                
+                                <div style='background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 4px; margin: 20px 0;'>
+                                    <h4 style='margin: 0 0 10px 0; color: #721c24; font-size: 16px;'>❌ Ablehnungsgrund:</h4>
+                                    <p style='margin: 0; color: #721c24; font-size: 14px;'>" . htmlspecialchars($rejection_reason) . "</p>
+                                </div>
+                                
+                                <div style='background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 4px; margin: 20px 0;'>
+                                    <p style='margin: 0; color: #0c5460; font-size: 14px;'>
+                                        <strong>💡 Tipp:</strong> Sie können gerne einen neuen Antrag mit einem anderen Zeitraum stellen.
+                                    </p>
+                                </div>
+                                
+                                <p style='font-size: 14px; color: #666; margin-top: 25px;'>
+                                    Mit freundlichen Grüßen,<br>
+                                    Ihr Feuerwehr-Team
+                                </p>
+                            </div>
+                        </div>
                         ";
                         send_email($reservation['requester_email'], $subject, $message_content);
                     }

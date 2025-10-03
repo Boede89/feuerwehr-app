@@ -96,15 +96,60 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 
                 if (!empty($admin_emails)) {
-                    $subject = "Neue Fahrzeugreservierung - " . $selectedVehicle['name'];
+                    $subject = "🔔 Neue Fahrzeugreservierung - " . htmlspecialchars($selectedVehicle['name']);
                     $message_content = "
-                    <h2>Neue Fahrzeugreservierung</h2>
-                    <p><strong>Fahrzeug:</strong> " . htmlspecialchars($selectedVehicle['name']) . "</p>
-                    <p><strong>Antragsteller:</strong> " . htmlspecialchars($requester_name) . "</p>
-                    <p><strong>E-Mail:</strong> " . htmlspecialchars($requester_email) . "</p>
-                    <p><strong>Grund:</strong> " . htmlspecialchars($reason) . "</p>
-                    <p><strong>Anzahl Zeiträume:</strong> $success_count</p>
-                    <p><a href='" . $_SERVER['HTTP_HOST'] . "/admin/reservations.php'>Antrag bearbeiten</a></p>
+                    <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;'>
+                        <div style='background-color: #007bff; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;'>
+                            <h1 style='margin: 0; font-size: 24px;'>🔔 Neue Reservierung eingegangen</h1>
+                        </div>
+                        <div style='background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);'>
+                            <p style='font-size: 16px; color: #333; margin-bottom: 25px;'>Ein neuer Antrag für eine Fahrzeugreservierung ist eingegangen und wartet auf Ihre Bearbeitung.</p>
+                            
+                            <div style='background-color: #e3f2fd; border-left: 4px solid #007bff; padding: 20px; margin: 20px 0; border-radius: 4px;'>
+                                <h3 style='margin: 0 0 15px 0; color: #007bff; font-size: 18px;'>📋 Antragsdetails</h3>
+                                <table style='width: 100%; border-collapse: collapse;'>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555; width: 120px;'>🚛 Fahrzeug:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($selectedVehicle['name']) . "</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>👤 Antragsteller:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($requester_name) . "</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>📧 E-Mail:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($requester_email) . "</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>📝 Grund:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($reason) . "</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>📅 Zeiträume:</td>
+                                        <td style='padding: 8px 0; color: #333;'>$success_count Zeitraum(e) beantragt</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <div style='background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin: 20px 0;'>
+                                <p style='margin: 0; color: #856404; font-size: 14px;'>
+                                    <strong>⏰ Wichtig:</strong> Bitte bearbeiten Sie diesen Antrag zeitnah, damit der Antragsteller eine schnelle Rückmeldung erhält.
+                                </p>
+                            </div>
+                            
+                            <div style='text-align: center; margin: 25px 0;'>
+                                <a href='http://" . $_SERVER['HTTP_HOST'] . "/admin/reservations.php' 
+                                   style='background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>
+                                    🔗 Antrag bearbeiten
+                                </a>
+                            </div>
+                            
+                            <p style='font-size: 14px; color: #666; margin-top: 25px;'>
+                                Mit freundlichen Grüßen,<br>
+                                Ihr Feuerwehr-System
+                            </p>
+                        </div>
+                    </div>
                     ";
                     
                     foreach ($admin_emails as $admin_email) {
