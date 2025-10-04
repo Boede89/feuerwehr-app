@@ -304,9 +304,66 @@ function log_activity($user_id, $action, $details = '') {
  * Google Kalender API - Konflikte prüfen
  */
 function check_calendar_conflicts($vehicle_name, $start_datetime, $end_datetime) {
-    // Temporär deaktiviert - verhindert Hängen der App
-    // TODO: Implementiere echte Google Calendar API-Abfrage später
-    return [];
+    global $db;
+    
+    try {
+        // Setze aggressive Timeouts
+        set_time_limit(60);
+        ini_set('default_socket_timeout', 30);
+        ini_set('max_execution_time', 60);
+        
+        // Google Calendar Einstellungen laden
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
+        $stmt->execute();
+        $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $auth_type = $settings['google_calendar_auth_type'] ?? 'service_account';
+        $calendar_id = $settings['google_calendar_id'] ?? 'primary';
+
+        if ($auth_type === 'service_account') {
+            $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
+            if (class_exists('GoogleCalendarServiceAccount') && !empty($service_account_json)) {
+                $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
+                $events = $google_calendar->getEvents($start_datetime, $end_datetime);
+                $conflicts = [];
+                if ($events && is_array($events)) {
+                    foreach ($events as $event) {
+                        if (isset($event['summary']) && stripos($event['summary'], $vehicle_name) !== false) {
+                            $conflicts[] = [
+                                'title' => $event['summary'],
+                                'start' => $event['start']['dateTime'] ?? $event['start']['date'],
+                                'end' => $event['end']['dateTime'] ?? $event['end']['date']
+                            ];
+                        }
+                    }
+                }
+                return $conflicts;
+            }
+        } else {
+            $api_key = $settings['google_calendar_api_key'] ?? '';
+            if (class_exists('GoogleCalendar') && !empty($api_key)) {
+                $google_calendar = new GoogleCalendar($api_key, $calendar_id);
+                $events = $google_calendar->getEvents($start_datetime, $end_datetime);
+                $conflicts = [];
+                if ($events && is_array($events)) {
+                    foreach ($events as $event) {
+                        if (isset($event['summary']) && stripos($event['summary'], $vehicle_name) !== false) {
+                            $conflicts[] = [
+                                'title' => $event['summary'],
+                                'start' => $event['start']['dateTime'] ?? $event['start']['date'],
+                                'end' => $event['end']['dateTime'] ?? $event['end']['date']
+                            ];
+                        }
+                    }
+                }
+                return $conflicts;
+            }
+        }
+        return [];
+    } catch (Exception $e) {
+        error_log('Google Calendar Konfliktprüfung Fehler: ' . $e->getMessage());
+        return [];
+    }
 }
 
 /**
@@ -367,8 +424,10 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
         $title = $vehicle_name . ' - ' . $reason;
         $description = "Fahrzeugreservierung über Feuerwehr App\nFahrzeug: $vehicle_name\nGrund: $reason\nOrt: " . ($location ?? 'Nicht angegeben');
         
-        // Setze Timeout für die API-Anfrage
-        set_time_limit(30); // 30 Sekunden Timeout
+        // Setze aggressive Timeouts für die API-Anfrage
+        set_time_limit(120); // 120 Sekunden Timeout
+        ini_set('default_socket_timeout', 60); // 60 Sekunden Socket-Timeout
+        ini_set('max_execution_time', 120); // 120 Sekunden Max Execution Time
         
         // Event erstellen
         $event_id = $google_calendar->createEvent($title, $start_datetime, $end_datetime, $description);
