@@ -43,9 +43,10 @@ if (isset($_POST['vehicle_data'])) {
     $selectedVehicle = $_SESSION['selected_vehicle'];
     echo '<script>console.log("✅ Fahrzeug aus Session geladen:", ' . json_encode($selectedVehicle) . ');</script>';
 } else {
-    // Kein Fahrzeug ausgewählt, zurück zur Auswahl
+    // Kein Fahrzeug ausgewählt, zeige Fehlermeldung und Weiterleitung
     echo '<script>console.log("❌ Kein Fahrzeug ausgewählt - Weiterleitung zur Fahrzeugauswahl");</script>';
-    redirect('vehicle-selection.php');
+    $error = "Bitte wählen Sie zuerst ein Fahrzeug aus.";
+    echo '<script>setTimeout(function() { window.location.href = "vehicle-selection.php"; }, 3000);</script>';
 }
 
 // Formular verarbeiten
@@ -291,7 +292,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                         <h3 class="mb-0">
                             <i class="fas fa-truck"></i> Fahrzeug Reservierung
                         </h3>
-                        <p class="text-muted mb-0">Ausgewähltes Fahrzeug: <strong><?php echo htmlspecialchars($selectedVehicle['name']); ?></strong></p>
+                        <p class="text-muted mb-0">Ausgewähltes Fahrzeug: <strong><?php echo isset($selectedVehicle['name']) ? htmlspecialchars($selectedVehicle['name']) : 'Kein Fahrzeug ausgewählt'; ?></strong></p>
                     </div>
                     <div class="card-body p-4">
                         <?php if ($message): ?>
@@ -307,13 +308,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             <input type="hidden" name="vehicle_data" value="<?php echo htmlspecialchars(json_encode($selectedVehicle)); ?>">
                             
                             <!-- Fahrzeug-Info -->
+                            <?php if (isset($selectedVehicle['name'])): ?>
                             <div class="alert alert-info">
                                 <h6><i class="fas fa-truck"></i> Ausgewähltes Fahrzeug</h6>
                                 <p class="mb-0">
                                     <strong><?php echo htmlspecialchars($selectedVehicle['name']); ?></strong><br>
-                                    <small><?php echo htmlspecialchars($selectedVehicle['description']); ?></small>
+                                    <small><?php echo htmlspecialchars($selectedVehicle['description'] ?? ''); ?></small>
                                 </p>
                             </div>
+                            <?php else: ?>
+                            <div class="alert alert-warning">
+                                <h6><i class="fas fa-exclamation-triangle"></i> Kein Fahrzeug ausgewählt</h6>
+                                <p class="mb-0">Bitte wählen Sie zuerst ein Fahrzeug aus der Fahrzeugauswahl aus.</p>
+                                <a href="vehicle-selection.php" class="btn btn-primary btn-sm mt-2">
+                                    <i class="fas fa-truck"></i> Fahrzeug auswählen
+                                </a>
+                            </div>
+                            <?php endif; ?>
                             
                             <div class="row">
                                 <div class="col-md-6 mb-3">
@@ -375,9 +386,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                                 <a href="vehicle-selection.php" class="btn btn-outline-secondary me-md-2">
                                     <i class="fas fa-arrow-left"></i> Fahrzeug ändern
                                 </a>
+                                <?php if (isset($selectedVehicle['name'])): ?>
                                 <button type="submit" name="submit_reservation" class="btn btn-primary">
                                     <i class="fas fa-paper-plane"></i> Reservierung beantragen
                                 </button>
+                                <?php else: ?>
+                                <button type="button" class="btn btn-primary" disabled>
+                                    <i class="fas fa-paper-plane"></i> Bitte wählen Sie zuerst ein Fahrzeug
+                                </button>
+                                <?php endif; ?>
                             </div>
                         </form>
                     </div>
