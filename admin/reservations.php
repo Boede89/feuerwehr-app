@@ -302,8 +302,8 @@ try {
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th>ID</th>
                                             <th>Fahrzeug</th>
+                                            <th>Grund</th>
                                             <th>Zeitraum</th>
                                             <th>Status</th>
                                             <th>Aktionen</th>
@@ -313,11 +313,13 @@ try {
                                         <?php foreach ($reservations as $reservation): ?>
                                             <tr>
                                                 <td>
-                                                    <span class="badge bg-secondary">#<?php echo $reservation['id']; ?></span>
-                                                </td>
-                                                <td>
                                                     <i class="fas fa-truck text-primary"></i>
                                                     <?php echo htmlspecialchars($reservation['vehicle_name']); ?>
+                                                </td>
+                                                <td>
+                                                    <span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($reservation['reason']); ?>">
+                                                        <?php echo htmlspecialchars($reservation['reason']); ?>
+                                                    </span>
                                                 </td>
                                                 <td>
                                                     <div>
@@ -357,7 +359,7 @@ try {
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <div class="d-flex gap-2">
+                                                    <div class="d-grid gap-1">
                                                         <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
                                                             <i class="fas fa-info-circle"></i> Details
                                                         </button>
@@ -367,11 +369,11 @@ try {
                                                                 <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
                                                                 <input type="hidden" name="action" value="approve">
                                                                 <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                                                                <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Reservierung genehmigen?')">
+                                                                <button type="submit" class="btn btn-success btn-sm w-100" onclick="return confirm('Reservierung genehmigen?')">
                                                                     <i class="fas fa-check"></i> Genehmigen
                                                                 </button>
                                                             </form>
-                                                            <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $reservation['id']; ?>">
+                                                            <button type="button" class="btn btn-danger btn-sm w-100" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $reservation['id']; ?>">
                                                                 <i class="fas fa-times"></i> Ablehnen
                                                             </button>
                                                         <?php elseif (in_array($reservation['status'], ['approved', 'rejected'])): ?>
@@ -379,7 +381,7 @@ try {
                                                                 <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
                                                                 <input type="hidden" name="action" value="delete">
                                                                 <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                                                                <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Reservierung wirklich löschen?')">
+                                                                <button type="submit" class="btn btn-outline-danger btn-sm w-100" onclick="return confirm('Reservierung wirklich löschen?')">
                                                                     <i class="fas fa-trash"></i> Löschen
                                                                 </button>
                                                             </form>
