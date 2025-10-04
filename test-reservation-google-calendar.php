@@ -142,67 +142,86 @@ try {
 // Test 4: Mit echter Reservierung testen
 echo "<h2>4. Test mit echter Reservierung</h2>";
 
-// Test-Reservierung erstellen
+// Prüfe ob Fahrzeuge existieren
 try {
+    $stmt = $db->prepare("SELECT id, name FROM vehicles WHERE is_active = 1 LIMIT 1");
+    $stmt->execute();
+    $vehicle = $stmt->fetch();
+    
+    if (!$vehicle) {
+        echo "<p style='color: orange;'>⚠️ Keine aktiven Fahrzeuge in der Datenbank gefunden. Erstelle ein Test-Fahrzeug...</p>";
+        
+        // Test-Fahrzeug erstellen
+        $stmt = $db->prepare("INSERT INTO vehicles (name, type, description, capacity, is_active) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute(['Test Fahrzeug', 'LKW', 'Test Fahrzeug für Google Calendar Integration', 8, 1]);
+        $vehicle_id = $db->lastInsertId();
+        $vehicle_name = 'Test Fahrzeug';
+        
+        echo "<p>✅ Test-Fahrzeug erstellt (ID: $vehicle_id)</p>";
+    } else {
+        $vehicle_id = $vehicle['id'];
+        $vehicle_name = $vehicle['name'];
+        echo "<p>✅ Fahrzeug gefunden: " . htmlspecialchars($vehicle_name) . " (ID: $vehicle_id)</p>";
+    }
+    
+    // Test-Reservierung erstellen
     $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, start_datetime, end_datetime, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'approved', NOW())");
-    $stmt->execute([1, 'Test Benutzer', 'test@example.com', 'Google Calendar Test Reservierung', $test_start, $test_end]);
+    $stmt->execute([$vehicle_id, 'Test Benutzer', 'test@example.com', 'Google Calendar Test Reservierung', $test_start, $test_end]);
     $test_reservation_id = $db->lastInsertId();
     
     echo "<p>✅ Test-Reservierung erstellt (ID: $test_reservation_id)</p>";
     
-    // Fahrzeug-Name holen
-    $stmt = $db->prepare("SELECT v.name FROM vehicles v WHERE v.id = 1");
-    $stmt->execute();
-    $vehicle_name = $stmt->fetchColumn();
+    echo "<p><strong>Fahrzeug:</strong> " . htmlspecialchars($vehicle_name) . "</p>";
     
-    if ($vehicle_name) {
-        echo "<p><strong>Fahrzeug:</strong> " . htmlspecialchars($vehicle_name) . "</p>";
+    // Google Calendar Event mit Reservierung erstellen
+    echo "<p><strong>Versuche Event mit Reservierung zu erstellen...</strong></p>";
+    
+    $event_id = create_google_calendar_event(
+        $vehicle_name,
+        'Google Calendar Test Reservierung',
+        $test_start,
+        $test_end,
+        $test_reservation_id
+    );
+    
+    if ($event_id) {
+        echo "<p style='color: green;'>✅ Event mit Reservierung erfolgreich erstellt! Event ID: " . htmlspecialchars($event_id) . "</p>";
         
-        // Google Calendar Event mit Reservierung erstellen
-        echo "<p><strong>Versuche Event mit Reservierung zu erstellen...</strong></p>";
+        // Event in der Datenbank prüfen
+        $stmt = $db->prepare("SELECT * FROM calendar_events WHERE reservation_id = ?");
+        $stmt->execute([$test_reservation_id]);
+        $event_record = $stmt->fetch();
         
-        $event_id = create_google_calendar_event(
-            $vehicle_name,
-            'Google Calendar Test Reservierung',
-            $test_start,
-            $test_end,
-            $test_reservation_id
-        );
-        
-        if ($event_id) {
-            echo "<p style='color: green;'>✅ Event mit Reservierung erfolgreich erstellt! Event ID: " . htmlspecialchars($event_id) . "</p>";
-            
-            // Event in der Datenbank prüfen
-            $stmt = $db->prepare("SELECT * FROM calendar_events WHERE reservation_id = ?");
-            $stmt->execute([$test_reservation_id]);
-            $event_record = $stmt->fetch();
-            
-            if ($event_record) {
-                echo "<p style='color: green;'>✅ Event in der Datenbank mit Reservierung verknüpft</p>";
-            } else {
-                echo "<p style='color: orange;'>⚠️ Event nicht in der Datenbank gefunden</p>";
-            }
-            
-            // Event löschen
-            try {
-                require_once 'includes/google_calendar_service_account.php';
-                $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
-                $google_calendar->deleteEvent($event_id);
-                echo "<p style='color: green;'>✅ Test Event gelöscht</p>";
-            } catch (Exception $e) {
-                echo "<p style='color: orange;'>⚠️ Fehler beim Löschen: " . htmlspecialchars($e->getMessage()) . "</p>";
-            }
+        if ($event_record) {
+            echo "<p style='color: green;'>✅ Event in der Datenbank mit Reservierung verknüpft</p>";
         } else {
-            echo "<p style='color: red;'>❌ Event mit Reservierung konnte nicht erstellt werden</p>";
+            echo "<p style='color: orange;'>⚠️ Event nicht in der Datenbank gefunden</p>";
+        }
+        
+        // Event löschen
+        try {
+            require_once 'includes/google_calendar_service_account.php';
+            $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
+            $google_calendar->deleteEvent($event_id);
+            echo "<p style='color: green;'>✅ Test Event gelöscht</p>";
+        } catch (Exception $e) {
+            echo "<p style='color: orange;'>⚠️ Fehler beim Löschen: " . htmlspecialchars($e->getMessage()) . "</p>";
         }
     } else {
-        echo "<p style='color: red;'>❌ Kein Fahrzeug mit ID 1 gefunden</p>";
+        echo "<p style='color: red;'>❌ Event mit Reservierung konnte nicht erstellt werden</p>";
     }
     
     // Test-Reservierung löschen
     $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
     $stmt->execute([$test_reservation_id]);
     echo "<p>✅ Test-Reservierung gelöscht</p>";
+    
+    // Test-Fahrzeug löschen (falls es erstellt wurde)
+    if (!isset($vehicle)) {
+        $stmt = $db->prepare("DELETE FROM vehicles WHERE id = ?");
+        $stmt->execute([$vehicle_id]);
+        echo "<p>✅ Test-Fahrzeug gelöscht</p>";
+    }
     
 } catch (Exception $e) {
     echo "<p style='color: red;'>❌ Fehler beim Test mit Reservierung: " . htmlspecialchars($e->getMessage()) . "</p>";
