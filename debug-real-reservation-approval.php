@@ -93,7 +93,27 @@ if (!empty($pending_reservations)) {
         // Simuliere die echte admin/reservations.php Logik
         $admin_user_id = $_SESSION['user_id'] ?? 1; // Fallback falls keine Session
         
-        // 1. Reservierung genehmigen
+        // 1. Prüfe ob Admin-Benutzer existiert
+        $stmt = $db->prepare("SELECT id FROM users WHERE is_admin = 1 LIMIT 1");
+        $stmt->execute();
+        $admin_user = $stmt->fetch();
+        
+        if (!$admin_user) {
+            echo "<p style='color: orange;'>⚠️ Kein Admin-Benutzer gefunden. Erstelle einen Test-Admin...</p>";
+            
+            // Test-Admin erstellen
+            $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, is_admin, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $password_hash = password_hash('test123', PASSWORD_DEFAULT);
+            $stmt->execute(['testadmin', 'admin@test.com', $password_hash, 'Test', 'Admin', 1, 1]);
+            $admin_user_id = $db->lastInsertId();
+            
+            echo "<p>✅ Test-Admin erstellt (ID: $admin_user_id)</p>";
+        } else {
+            $admin_user_id = $admin_user['id'];
+            echo "<p>✅ Admin-Benutzer gefunden (ID: $admin_user_id)</p>";
+        }
+        
+        // 2. Reservierung genehmigen
         $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$admin_user_id, $reservation_id]);
         
@@ -158,6 +178,13 @@ if (!empty($pending_reservations)) {
             }
         } else {
             echo "<p style='color: red;'>❌ Reservierung nicht gefunden</p>";
+        }
+        
+        // Test-Admin löschen (falls erstellt)
+        if (isset($admin_user_id) && $admin_user_id) {
+            $stmt = $db->prepare("DELETE FROM users WHERE id = ? AND username = 'testadmin'");
+            $stmt->execute([$admin_user_id]);
+            echo "<p>✅ Test-Admin gelöscht</p>";
         }
         
     } catch (Exception $e) {
