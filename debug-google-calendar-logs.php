@@ -62,6 +62,36 @@ try {
     // Schreibe Test-Log
     error_log('Debug Tool: Teste Google Calendar direkt - ' . date('Y-m-d H:i:s'));
     
+    // Teste verschiedene Logging-Methoden
+    echo "<h3>3. Teste Logging-Methoden</h3>";
+    
+    // Test 1: error_log
+    $test_log_1 = error_log('TEST ERROR_LOG: ' . date('Y-m-d H:i:s'));
+    echo "error_log() Rückgabe: " . ($test_log_1 ? 'true' : 'false') . "<br>";
+    
+    // Test 2: file_put_contents
+    $test_log_2 = file_put_contents('test.log', 'TEST FILE_PUT_CONTENTS: ' . date('Y-m-d H:i:s') . "\n", FILE_APPEND);
+    echo "file_put_contents() Rückgabe: " . ($test_log_2 !== false ? 'true (' . $test_log_2 . ' bytes)' : 'false') . "<br>";
+    
+    // Test 3: syslog
+    $test_log_3 = syslog(LOG_INFO, 'TEST SYSLOG: ' . date('Y-m-d H:i:s'));
+    echo "syslog() Rückgabe: " . ($test_log_3 ? 'true' : 'false') . "<br>";
+    
+    // Prüfe error_log Einstellungen
+    echo "<h4>PHP error_log Einstellungen:</h4>";
+    echo "error_log: " . ini_get('error_log') . "<br>";
+    echo "log_errors: " . (ini_get('log_errors') ? 'ON' : 'OFF') . "<br>";
+    echo "display_errors: " . (ini_get('display_errors') ? 'ON' : 'OFF') . "<br>";
+    echo "error_reporting: " . ini_get('error_reporting') . "<br>";
+    
+    // Prüfe ob test.log erstellt wurde
+    if (file_exists('test.log')) {
+        echo "✅ test.log erstellt - Inhalt: " . htmlspecialchars(file_get_contents('test.log')) . "<br>";
+        unlink('test.log'); // Aufräumen
+    } else {
+        echo "❌ test.log nicht erstellt<br>";
+    }
+    
     // Teste Google Calendar Einstellungen
     $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
     $stmt->execute();
