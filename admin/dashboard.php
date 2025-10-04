@@ -89,6 +89,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     if ($reservation) {
                         // Google Calendar Event wird separat erstellt
                         $message .= " Reservierung genehmigt. <a href='?action=create_calendar_event&reservation_id=" . $reservation['id'] . "' class='btn btn-sm btn-outline-primary'>Google Calendar Event erstellen</a>";
+                        
+                        // Füge die genehmigte Reservierung zu den ausstehenden hinzu, damit sie sichtbar bleibt
+                        $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+                        $stmt->execute([$reservation['id']]);
+                        $approved_reservation = $stmt->fetch();
+                        
+                        if ($approved_reservation) {
+                            // Füge zur Liste der ausstehenden Reservierungen hinzu (temporär)
+                            $pending_reservations[] = $approved_reservation;
+                        }
                     }
                 } catch (Exception $e) {
                     error_log('Google Calendar Event Fehler: ' . $e->getMessage());
