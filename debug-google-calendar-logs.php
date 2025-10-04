@@ -17,7 +17,9 @@ try {
         '/var/log/php_errors.log',
         '/tmp/php_errors.log',
         'error.log',
-        ini_get('error_log')
+        ini_get('error_log'),
+        '/var/log/apache2/access.log',
+        '/var/log/php.log'
     ];
     
     $log_found = false;
@@ -28,10 +30,11 @@ try {
             $lines = explode("\n", $log_content);
             $recent_lines = array_slice($lines, -50); // Letzte 50 Zeilen
             
-            echo "<h3>Letzte 50 Zeilen aus $log_path:</h3>";
+            echo "<h3>Letzte 100 Zeilen aus $log_path:</h3>";
             echo "<pre style='background: #f5f5f5; padding: 10px; border: 1px solid #ddd; max-height: 400px; overflow-y: auto;'>";
+            $recent_lines = array_slice($lines, -100); // Letzte 100 Zeilen
             foreach ($recent_lines as $line) {
-                if (strpos($line, 'Google Calendar') !== false) {
+                if (strpos($line, 'Google Calendar') !== false || strpos($line, 'Dashboard') !== false) {
                     echo "<strong style='color: red;'>" . htmlspecialchars($line) . "</strong>\n";
                 } else {
                     echo htmlspecialchars($line) . "\n";
@@ -55,6 +58,9 @@ try {
     require_once 'includes/functions.php';
     
     echo "✅ Funktionen geladen<br>";
+    
+    // Schreibe Test-Log
+    error_log('Debug Tool: Teste Google Calendar direkt - ' . date('Y-m-d H:i:s'));
     
     // Teste Google Calendar Einstellungen
     $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
