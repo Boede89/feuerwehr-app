@@ -50,17 +50,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                             
                             if ($event_id) {
                                 error_log("Google Calendar: Event erfolgreich erstellt - ID: $event_id");
+                                $message .= " Google Calendar Event wurde erstellt.";
                             } else {
                                 error_log("Google Calendar: Event konnte nicht erstellt werden");
+                                $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
                             }
                         } else {
                             error_log('Google Calendar: Funktion create_google_calendar_event nicht verfügbar');
+                            $message .= " Warnung: Google Calendar Funktion nicht verfügbar.";
                         }
                     } else {
                         error_log("Google Calendar: Reservierung #$reservation_id nicht gefunden");
+                        $message .= " Warnung: Reservierung nicht gefunden für Google Calendar.";
                     }
                 } catch (Exception $e) {
                     error_log('Google Calendar Fehler: ' . $e->getMessage());
+                    $message .= " Warnung: Google Calendar Fehler - " . $e->getMessage();
                 }
                 
                 // E-Mail an Antragsteller senden
