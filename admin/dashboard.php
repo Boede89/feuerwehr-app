@@ -130,6 +130,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                                     FILE_APPEND
                                 );
                                 
+                                // Teste ob create_google_calendar_event verfügbar ist
+                                if (function_exists('create_google_calendar_event')) {
+                                    file_put_contents('/tmp/dashboard_google_calendar.log', 
+                                        '[' . date('Y-m-d H:i:s') . '] Dashboard: create_google_calendar_event Funktion ist verfügbar' . PHP_EOL, 
+                                        FILE_APPEND
+                                    );
+                                } else {
+                                    file_put_contents('/tmp/dashboard_google_calendar.log', 
+                                        '[' . date('Y-m-d H:i:s') . '] Dashboard: create_google_calendar_event Funktion ist NICHT verfügbar' . PHP_EOL, 
+                                        FILE_APPEND
+                                    );
+                                }
+                                
+                                // Teste ob Google Calendar Klassen verfügbar sind
+                                if (class_exists('GoogleCalendarServiceAccount')) {
+                                    file_put_contents('/tmp/dashboard_google_calendar.log', 
+                                        '[' . date('Y-m-d H:i:s') . '] Dashboard: GoogleCalendarServiceAccount Klasse ist verfügbar' . PHP_EOL, 
+                                        FILE_APPEND
+                                    );
+                                } else {
+                                    file_put_contents('/tmp/dashboard_google_calendar.log', 
+                                        '[' . date('Y-m-d H:i:s') . '] Dashboard: GoogleCalendarServiceAccount Klasse ist NICHT verfügbar' . PHP_EOL, 
+                                        FILE_APPEND
+                                    );
+                                }
+                                
                                 if ($event_id) {
                                     $message .= " Google Calendar Event wurde erstellt.";
                                     echo '<script>console.log("✅ Google Calendar Event erfolgreich erstellt:", ' . json_encode($event_id) . ');</script>';
