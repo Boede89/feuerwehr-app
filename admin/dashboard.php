@@ -152,9 +152,9 @@ try {
                                             </div>
                                             
                                             <div class="d-grid">
-                                                <a href="reservations.php?id=<?php echo $reservation['id']; ?>" class="btn btn-primary">
+                                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
                                                     <i class="fas fa-edit"></i> Bearbeiten
-                                                </a>
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -193,9 +193,9 @@ try {
                                                         </span>
                                                     </td>
                                                     <td>
-                                                        <a href="reservations.php?id=<?php echo $reservation['id']; ?>" class="btn btn-sm btn-primary">
+                                                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
                                                             <i class="fas fa-edit"></i> Bearbeiten
-                                                        </a>
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             <?php endforeach; ?>
@@ -210,6 +210,103 @@ try {
 
         </div>
     </div>
+
+    <!-- Details-Modals -->
+    <?php foreach ($pending_reservations as $reservation): ?>
+        <div class="modal fade" id="detailsModal<?php echo $reservation['id']; ?>" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-info-circle"></i> Reservierungsdetails #<?php echo $reservation['id']; ?>
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-truck text-primary"></i> Fahrzeug</h6>
+                                <p><?php echo htmlspecialchars($reservation['vehicle_name']); ?></p>
+                                
+                                <h6><i class="fas fa-user text-info"></i> Antragsteller</h6>
+                                <p>
+                                    <strong><?php echo htmlspecialchars($reservation['requester_name']); ?></strong><br>
+                                    <small class="text-muted"><?php echo htmlspecialchars($reservation['requester_email']); ?></small>
+                                </p>
+                                
+                                <h6><i class="fas fa-calendar-alt text-success"></i> Zeitraum</h6>
+                                <p>
+                                    <strong>Von:</strong> <?php echo date('d.m.Y H:i', strtotime($reservation['start_datetime'])); ?><br>
+                                    <strong>Bis:</strong> <?php echo date('d.m.Y H:i', strtotime($reservation['end_datetime'])); ?>
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-clipboard-list text-warning"></i> Grund</h6>
+                                <p><?php echo htmlspecialchars($reservation['reason']); ?></p>
+                                
+                                <h6><i class="fas fa-map-marker-alt text-info"></i> Ort</h6>
+                                <p><?php echo htmlspecialchars($reservation['location'] ?? 'Nicht angegeben'); ?></p>
+                                
+                                <h6><i class="fas fa-info-circle text-secondary"></i> Status</h6>
+                                <p>
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-clock"></i> Ausstehend
+                                    </span>
+                                </p>
+                                
+                                <h6><i class="fas fa-clock text-muted"></i> Erstellt</h6>
+                                <p><small class="text-muted"><?php echo date('d.m.Y H:i', strtotime($reservation['created_at'])); ?></small></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <form method="POST" class="d-inline">
+                            <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                            <input type="hidden" name="action" value="approve">
+                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <button type="submit" class="btn btn-success" onclick="return confirm('Reservierung genehmigen?')">
+                                <i class="fas fa-check"></i> Genehmigen
+                            </button>
+                        </form>
+                        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $reservation['id']; ?>" data-bs-dismiss="modal">
+                            <i class="fas fa-times"></i> Ablehnen
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php endforeach; ?>
+
+    <!-- Ablehnungs-Modals für Dashboard -->
+    <?php foreach ($pending_reservations as $reservation): ?>
+        <div class="modal fade" id="rejectModal<?php echo $reservation['id']; ?>" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="POST">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Reservierung ablehnen</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Reservierung #<?php echo $reservation['id']; ?> - <?php echo htmlspecialchars($reservation['vehicle_name']); ?></p>
+                            <div class="mb-3">
+                                <label for="rejection_reason<?php echo $reservation['id']; ?>" class="form-label">Ablehnungsgrund</label>
+                                <textarea class="form-control" id="rejection_reason<?php echo $reservation['id']; ?>" name="rejection_reason" rows="3" required></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                            <button type="submit" class="btn btn-danger">Ablehnen</button>
+                        </div>
+                        <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                        <input type="hidden" name="action" value="reject">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    </form>
+                </div>
+            </div>
+        </div>
+    <?php endforeach; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
