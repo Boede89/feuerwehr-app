@@ -35,7 +35,7 @@ try {
             $recent_lines = array_slice($lines, -100); // Letzte 100 Zeilen
             $google_calendar_found = false;
             foreach ($recent_lines as $line) {
-                if (strpos($line, 'Google Calendar') !== false || strpos($line, 'Dashboard') !== false || strpos($line, 'TEST ERROR_LOG') !== false) {
+                if (strpos($line, 'Google Calendar') !== false || strpos($line, 'Dashboard') !== false || strpos($line, 'TEST ERROR_LOG') !== false || strpos($line, 'TEST DIRECT APPROVAL') !== false) {
                     echo "<strong style='color: red;'>" . htmlspecialchars($line) . "</strong>\n";
                     $google_calendar_found = true;
                 } else {
@@ -51,15 +51,15 @@ try {
             // Prüfe auch nach RESERVATIONS Einträgen
             $reservations_found = false;
             foreach ($recent_lines as $line) {
-                if (strpos($line, 'RESERVATIONS') !== false) {
-                    echo "<div style='color: green; font-weight: bold;'>✅ RESERVATIONS Einträge gefunden!</div>";
+                if (strpos($line, 'RESERVATIONS') !== false || strpos($line, 'TEST DIRECT APPROVAL') !== false) {
+                    echo "<div style='color: green; font-weight: bold;'>✅ RESERVATIONS oder TEST DIRECT APPROVAL Einträge gefunden!</div>";
                     $reservations_found = true;
                     break;
                 }
             }
             
             if (!$reservations_found) {
-                echo "<div style='color: red; font-weight: bold;'>❌ Keine RESERVATIONS Einträge gefunden - Reservierung wird nicht über Admin-Seiten genehmigt!</div>";
+                echo "<div style='color: red; font-weight: bold;'>❌ Keine RESERVATIONS oder TEST DIRECT APPROVAL Einträge gefunden - Reservierung wird nicht über Admin-Seiten genehmigt!</div>";
             }
             $log_found = true;
             break;
