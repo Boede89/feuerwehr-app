@@ -134,8 +134,24 @@ try {
         echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
     }
     
-    // 4. Aufräumen
-    echo "<h2>4. Aufräumen</h2>";
+    // 4. Kurz warten, damit das Event in der Datenbank gespeichert wird
+    echo "<h2>4. Warten auf Datenbank-Speicherung</h2>";
+    echo "<p>Warte 2 Sekunden, damit das Event in der Datenbank gespeichert wird...</p>";
+    sleep(2);
+    
+    // Prüfe nochmal ob Event in der Datenbank gespeichert wurde
+    $stmt = $db->prepare("SELECT * FROM calendar_events WHERE reservation_id = ?");
+    $stmt->execute([$test_reservation_id]);
+    $event_record = $stmt->fetch();
+    
+    if ($event_record) {
+        echo "<p style='color: green;'>✅ Event in der Datenbank gespeichert (nach Wartezeit)</p>";
+    } else {
+        echo "<p style='color: red;'>❌ Event immer noch nicht in der Datenbank</p>";
+    }
+    
+    // 5. Aufräumen
+    echo "<h2>5. Aufräumen</h2>";
     
     if (isset($event_id) && $event_id) {
         try {
