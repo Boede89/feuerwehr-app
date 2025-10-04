@@ -306,30 +306,30 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
         $auth_type = $settings['google_calendar_auth_type'] ?? 'service_account';
         $calendar_id = $settings['google_calendar_id'] ?? 'primary';
         
-                if ($auth_type === 'service_account') {
-                    // Service Account verwenden
-                    $service_account_file = $settings['google_calendar_service_account_file'] ?? '';
-                    $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
-                    
-                    // Prüfe ob Service Account Datei existiert
-                    if (file_exists('includes/google_calendar_service_account.php')) {
-                        // JSON-Inhalt hat Priorität über Datei
-                        if (!empty($service_account_json)) {
-                            // JSON-Inhalt verwenden
-                            require_once 'includes/google_calendar_service_account.php';
-                            $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
-                        } elseif (!empty($service_account_file) && file_exists($service_account_file)) {
-                            // Datei verwenden
-                            require_once 'includes/google_calendar_service_account.php';
-                            $google_calendar = new GoogleCalendarServiceAccount($service_account_file, $calendar_id, false);
-                        } else {
-                            error_log('Google Calendar Service Account nicht konfiguriert (weder Datei noch JSON-Inhalt)');
-                            return false;
-                        }
-                    } else {
-                        error_log('Google Calendar Service Account Datei nicht gefunden - Google Calendar deaktiviert');
-                        return false;
-                    }
+        if ($auth_type === 'service_account') {
+            // Service Account verwenden
+            $service_account_file = $settings['google_calendar_service_account_file'] ?? '';
+            $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
+            
+            // Prüfe ob Service Account Datei existiert
+            if (file_exists('includes/google_calendar_service_account.php')) {
+                // JSON-Inhalt hat Priorität über Datei
+                if (!empty($service_account_json)) {
+                    // JSON-Inhalt verwenden
+                    require_once 'includes/google_calendar_service_account.php';
+                    $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
+                } elseif (!empty($service_account_file) && file_exists($service_account_file)) {
+                    // Datei verwenden
+                    require_once 'includes/google_calendar_service_account.php';
+                    $google_calendar = new GoogleCalendarServiceAccount($service_account_file, $calendar_id, false);
+                } else {
+                    error_log('Google Calendar Service Account nicht konfiguriert (weder Datei noch JSON-Inhalt)');
+                    return false;
+                }
+            } else {
+                error_log('Google Calendar Service Account Datei nicht gefunden - Google Calendar deaktiviert');
+                return false;
+            }
         } else {
             // API Key verwenden (Fallback)
             $api_key = $settings['google_calendar_api_key'] ?? '';
