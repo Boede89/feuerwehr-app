@@ -35,14 +35,17 @@ echo 'console.log("Error:", ' . json_encode($error ?? '') . ');';
 echo 'console.log("POST Data:", ' . json_encode($_POST ?? []) . ');';
 echo '</script>';
 
-// Ausgewähltes Fahrzeug aus Session Storage laden (wird per JavaScript übertragen)
+// Ausgewähltes Fahrzeug aus POST-Daten laden
 if (isset($_POST['vehicle_data'])) {
     $selectedVehicle = json_decode($_POST['vehicle_data'], true);
+    echo '<script>console.log("✅ Fahrzeug aus POST-Daten geladen:", ' . json_encode($selectedVehicle) . ');</script>';
 } elseif (isset($_SESSION['selected_vehicle'])) {
     $selectedVehicle = $_SESSION['selected_vehicle'];
+    echo '<script>console.log("✅ Fahrzeug aus Session geladen:", ' . json_encode($selectedVehicle) . ');</script>';
 } else {
-    // JavaScript wird die Daten übertragen, daher erstmal weiterleiten
-    // Das JavaScript wird die Daten dann per POST übertragen
+    // Kein Fahrzeug ausgewählt, zurück zur Auswahl
+    echo '<script>console.log("❌ Kein Fahrzeug ausgewählt - Weiterleitung zur Fahrzeugauswahl");</script>';
+    redirect('vehicle-selection.php');
 }
 
 // Formular verarbeiten
@@ -107,20 +110,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     continue;
                 }
                 
-                // Reservierung speichern
-                try {
-                    // Kalender-Konflikte prüfen
-                    $conflicts = [];
-                    if (function_exists('check_calendar_conflicts')) {
-                        $conflicts = check_calendar_conflicts($selectedVehicle['name'], $start_datetime, $end_datetime);
-                    }
-                    
-                    $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode($conflicts)]);
-                    $success_count++;
-                } catch(PDOException $e) {
-                    $errors[] = "Zeitraum " . ($index + 1) . ": Fehler beim Speichern - " . $e->getMessage();
-                }
+        // Reservierung speichern
+        try {
+            // Kalender-Konflikte prüfen
+            $conflicts = [];
+            if (function_exists('check_calendar_conflicts')) {
+                $conflicts = check_calendar_conflicts($selectedVehicle['name'], $start_datetime, $end_datetime);
+                echo '<script>console.log("🔍 Kalender-Konflikte geprüft:", ' . json_encode($conflicts) . ');</script>';
+            }
+            
+            $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode($conflicts)]);
+            $success_count++;
+            echo '<script>console.log("✅ Reservierung gespeichert - Zeitraum " . ($index + 1) . "");</script>';
+        } catch(PDOException $e) {
+            $errors[] = "Zeitraum " . ($index + 1) . ": Fehler beim Speichern - " . $e->getMessage();
+            echo '<script>console.log("❌ Fehler beim Speichern - Zeitraum " . ($index + 1) . ":", ' . json_encode($e->getMessage()) . ');</script>';
+        }
             }
             
             if ($success_count > 0) {
