@@ -304,13 +304,8 @@ try {
                                         <tr>
                                             <th>ID</th>
                                             <th>Fahrzeug</th>
-                                            <th>Antragsteller</th>
-                                            <th>Grund</th>
-                                            <th>Ort</th>
                                             <th>Zeitraum</th>
                                             <th>Status</th>
-                                            <th>Genehmigt von</th>
-                                            <th>Erstellt</th>
                                             <th>Aktionen</th>
                                         </tr>
                                     </thead>
@@ -323,24 +318,6 @@ try {
                                                 <td>
                                                     <i class="fas fa-truck text-primary"></i>
                                                     <?php echo htmlspecialchars($reservation['vehicle_name']); ?>
-                                                </td>
-                                                <td>
-                                                    <div>
-                                                        <strong><?php echo htmlspecialchars($reservation['requester_name']); ?></strong>
-                                                        <br>
-                                                        <small class="text-muted"><?php echo htmlspecialchars($reservation['requester_email']); ?></small>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($reservation['reason']); ?>">
-                                                        <?php echo htmlspecialchars($reservation['reason']); ?>
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <i class="fas fa-map-marker-alt text-info"></i>
-                                                    <span class="text-truncate d-inline-block" style="max-width: 150px;" title="<?php echo htmlspecialchars($reservation['location'] ?? 'Nicht angegeben'); ?>">
-                                                        <?php echo htmlspecialchars($reservation['location'] ?? 'Nicht angegeben'); ?>
-                                                    </span>
                                                 </td>
                                                 <td>
                                                     <div>
@@ -380,23 +357,11 @@ try {
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <?php if ($reservation['first_name'] && $reservation['last_name']): ?>
-                                                        <?php echo htmlspecialchars($reservation['first_name'] . ' ' . $reservation['last_name']); ?>
-                                                        <br>
-                                                        <small class="text-muted">
-                                                            <?php echo date('d.m.Y H:i', strtotime($reservation['approved_at'])); ?>
-                                                        </small>
-                                                    <?php else: ?>
-                                                        <span class="text-muted">-</span>
-                                                    <?php endif; ?>
-                                                </td>
-                                                <td>
-                                                    <small class="text-muted">
-                                                        <?php echo date('d.m.Y H:i', strtotime($reservation['created_at'])); ?>
-                                                    </small>
-                                                </td>
-                                                <td>
-                                                    <div class="btn-group" role="group">
+                                                    <div class="d-flex gap-2">
+                                                        <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
+                                                            <i class="fas fa-info-circle"></i> Details
+                                                        </button>
+                                                        
                                                         <?php if ($reservation['status'] == 'pending'): ?>
                                                             <form method="POST" class="d-inline">
                                                                 <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
@@ -418,8 +383,6 @@ try {
                                                                     <i class="fas fa-trash"></i> Löschen
                                                                 </button>
                                                             </form>
-                                                        <?php else: ?>
-                                                            <span class="text-muted">Keine Aktionen</span>
                                                         <?php endif; ?>
                                                     </div>
                                                 </td>
@@ -434,6 +397,92 @@ try {
             </div>
         </div>
     </div>
+
+    <!-- Details-Modals -->
+    <?php foreach ($reservations as $reservation): ?>
+        <div class="modal fade" id="detailsModal<?php echo $reservation['id']; ?>" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-info-circle"></i> Reservierungsdetails #<?php echo $reservation['id']; ?>
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-truck text-primary"></i> Fahrzeug</h6>
+                                <p><?php echo htmlspecialchars($reservation['vehicle_name']); ?></p>
+                                
+                                <h6><i class="fas fa-user text-info"></i> Antragsteller</h6>
+                                <p>
+                                    <strong><?php echo htmlspecialchars($reservation['requester_name']); ?></strong><br>
+                                    <small class="text-muted"><?php echo htmlspecialchars($reservation['requester_email']); ?></small>
+                                </p>
+                                
+                                <h6><i class="fas fa-calendar-alt text-success"></i> Zeitraum</h6>
+                                <p>
+                                    <strong>Von:</strong> <?php echo date('d.m.Y H:i', strtotime($reservation['start_datetime'])); ?><br>
+                                    <strong>Bis:</strong> <?php echo date('d.m.Y H:i', strtotime($reservation['end_datetime'])); ?>
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-clipboard-list text-warning"></i> Grund</h6>
+                                <p><?php echo htmlspecialchars($reservation['reason']); ?></p>
+                                
+                                <h6><i class="fas fa-map-marker-alt text-info"></i> Ort</h6>
+                                <p><?php echo htmlspecialchars($reservation['location'] ?? 'Nicht angegeben'); ?></p>
+                                
+                                <h6><i class="fas fa-info-circle text-secondary"></i> Status</h6>
+                                <p>
+                                    <?php
+                                    $status_class = '';
+                                    $status_icon = '';
+                                    $status_text = '';
+                                    switch ($reservation['status']) {
+                                        case 'pending':
+                                            $status_class = 'bg-warning';
+                                            $status_icon = 'fas fa-clock';
+                                            $status_text = 'Ausstehend';
+                                            break;
+                                        case 'approved':
+                                            $status_class = 'bg-success';
+                                            $status_icon = 'fas fa-check';
+                                            $status_text = 'Genehmigt';
+                                            break;
+                                        case 'rejected':
+                                            $status_class = 'bg-danger';
+                                            $status_icon = 'fas fa-times';
+                                            $status_text = 'Abgelehnt';
+                                            break;
+                                    }
+                                    ?>
+                                    <span class="badge <?php echo $status_class; ?>">
+                                        <i class="<?php echo $status_icon; ?>"></i> <?php echo $status_text; ?>
+                                    </span>
+                                </p>
+                                
+                                <?php if ($reservation['first_name'] && $reservation['last_name']): ?>
+                                    <h6><i class="fas fa-user-shield text-secondary"></i> Genehmigt von</h6>
+                                    <p>
+                                        <?php echo htmlspecialchars($reservation['first_name'] . ' ' . $reservation['last_name']); ?><br>
+                                        <small class="text-muted"><?php echo date('d.m.Y H:i', strtotime($reservation['approved_at'])); ?></small>
+                                    </p>
+                                <?php endif; ?>
+                                
+                                <h6><i class="fas fa-clock text-muted"></i> Erstellt</h6>
+                                <p><small class="text-muted"><?php echo date('d.m.Y H:i', strtotime($reservation['created_at'])); ?></small></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php endforeach; ?>
 
     <!-- Ablehnungs-Modals -->
     <?php foreach ($reservations as $reservation): ?>
