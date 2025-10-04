@@ -3,6 +3,10 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
+// Google Calendar Klassen explizit laden
+require_once '../includes/google_calendar_service_account.php';
+require_once '../includes/google_calendar.php';
+
 // Session-Fix für die App
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     // Lade Admin-Benutzer aus der Datenbank
