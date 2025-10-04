@@ -341,7 +341,12 @@ try {
                         </h6>
                     </div>
                     <div class="card-body">
-                        <?php if (empty($pending_reservations)): ?>
+                        <?php 
+                        // Debug: Logge pending_reservations im HTML-Bereich
+                        error_log('Dashboard HTML - pending_reservations count: ' . count($pending_reservations));
+                        error_log('Dashboard HTML - pending_reservations empty: ' . (empty($pending_reservations) ? 'JA' : 'NEIN'));
+                        
+                        if (empty($pending_reservations)): ?>
                             <div class="text-center py-5">
                                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
                                 <h5 class="text-muted">Keine ausstehenden Anträge</h5>
