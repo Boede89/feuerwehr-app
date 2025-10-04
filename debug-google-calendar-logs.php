@@ -30,9 +30,9 @@ try {
             $lines = explode("\n", $log_content);
             $recent_lines = array_slice($lines, -50); // Letzte 50 Zeilen
             
-            echo "<h3>Letzte 100 Zeilen aus $log_path:</h3>";
+            echo "<h3>Letzte 200 Zeilen aus $log_path:</h3>";
             echo "<pre style='background: #f5f5f5; padding: 10px; border: 1px solid #ddd; max-height: 400px; overflow-y: auto;'>";
-            $recent_lines = array_slice($lines, -100); // Letzte 100 Zeilen
+            $recent_lines = array_slice($lines, -200); // Letzte 200 Zeilen
             $google_calendar_found = false;
             foreach ($recent_lines as $line) {
                 if (strpos($line, 'Google Calendar') !== false || strpos($line, 'Dashboard') !== false || strpos($line, 'TEST ERROR_LOG') !== false || strpos($line, 'TEST DIRECT APPROVAL') !== false) {
@@ -45,7 +45,7 @@ try {
             echo "</pre>";
             
             if (!$google_calendar_found) {
-                echo "<div style='color: orange; font-weight: bold;'>⚠️ Keine Google Calendar oder Dashboard Einträge in den letzten 100 Zeilen gefunden</div>";
+                echo "<div style='color: orange; font-weight: bold;'>⚠️ Keine Google Calendar oder Dashboard Einträge in den letzten 200 Zeilen gefunden</div>";
             }
             
             // Prüfe auch nach RESERVATIONS Einträgen
