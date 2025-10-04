@@ -23,6 +23,18 @@ $message = '';
 $error = '';
 $selectedVehicle = null;
 
+// Browser Console Logging für Debugging
+echo '<script>';
+echo 'console.log("🔍 Reservation Page Debug");';
+echo 'console.log("Zeitstempel:", new Date().toLocaleString());';
+echo 'console.log("Session user_id:", ' . json_encode($_SESSION['user_id'] ?? 'nicht gesetzt') . ');';
+echo 'console.log("Session role:", ' . json_encode($_SESSION['role'] ?? 'nicht gesetzt') . ');';
+echo 'console.log("Selected Vehicle:", ' . json_encode($selectedVehicle ?? 'nicht gesetzt') . ');';
+echo 'console.log("Message:", ' . json_encode($message ?? '') . ');';
+echo 'console.log("Error:", ' . json_encode($error ?? '') . ');';
+echo 'console.log("POST Data:", ' . json_encode($_POST ?? []) . ');';
+echo '</script>';
+
 // Ausgewähltes Fahrzeug aus Session Storage laden (wird per JavaScript übertragen)
 if (isset($_POST['vehicle_data'])) {
     $selectedVehicle = json_decode($_POST['vehicle_data'], true);

@@ -40,6 +40,16 @@ if (!has_admin_access()) {
 $message = '';
 $error = '';
 
+// Browser Console Logging für Debugging
+echo '<script>';
+echo 'console.log("🔍 Admin Reservations Debug");';
+echo 'console.log("Zeitstempel:", new Date().toLocaleString());';
+echo 'console.log("Session user_id:", ' . json_encode($_SESSION['user_id'] ?? 'nicht gesetzt') . ');';
+echo 'console.log("Session role:", ' . json_encode($_SESSION['role'] ?? 'nicht gesetzt') . ');';
+echo 'console.log("Message:", ' . json_encode($message ?? '') . ');';
+echo 'console.log("Error:", ' . json_encode($error ?? '') . ');';
+echo '</script>';
+
 
 // Status ändern
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
