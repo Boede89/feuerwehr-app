@@ -124,6 +124,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                                     FILE_APPEND
                                 );
                                 
+                                // Detailliertes Logging für Debugging
+                                file_put_contents('/tmp/dashboard_google_calendar.log', 
+                                    '[' . date('Y-m-d H:i:s') . '] Dashboard: Parameter - vehicle_name=' . $reservation['vehicle_name'] . ', reason=' . $reservation['reason'] . ', start=' . $reservation['start_datetime'] . ', end=' . $reservation['end_datetime'] . ', reservation_id=' . $reservation['id'] . ', location=' . ($reservation['location'] ?? 'null') . PHP_EOL, 
+                                    FILE_APPEND
+                                );
+                                
                                 if ($event_id) {
                                     $message .= " Google Calendar Event wurde erstellt.";
                                     echo '<script>console.log("✅ Google Calendar Event erfolgreich erstellt:", ' . json_encode($event_id) . ');</script>';
