@@ -102,12 +102,14 @@ try {
         
         // Schreibe Test-Log
         error_log('TEST DIRECT APPROVAL: Starte direkte Genehmigung für ID: ' . $test_reservation['id']);
+        echo "<p>🔍 Schreibe Test-Log für direkte Genehmigung...</p>";
         
         // Genehmige direkt
         $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $test_reservation['id']]);
         
         error_log('TEST DIRECT APPROVAL: Reservierung genehmigt - ID: ' . $test_reservation['id']);
+        echo "<p>✅ Reservierung genehmigt - ID: " . $test_reservation['id'] . "</p>";
         
         // Google Calendar Event erstellen
         $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
@@ -116,9 +118,11 @@ try {
         
         if ($reservation) {
             error_log('TEST DIRECT APPROVAL: Reservierung für Google Calendar geladen - ID: ' . $reservation['id']);
+            echo "<p>🔍 Reservierung für Google Calendar geladen - ID: " . $reservation['id'] . "</p>";
             
             if (function_exists('create_google_calendar_event')) {
                 error_log('TEST DIRECT APPROVAL: create_google_calendar_event Funktion verfügbar');
+                echo "<p>✅ create_google_calendar_event Funktion verfügbar</p>";
                 
                 $event_id = create_google_calendar_event(
                     $reservation['vehicle_name'],
@@ -130,6 +134,7 @@ try {
                 );
                 
                 error_log('TEST DIRECT APPROVAL: create_google_calendar_event Rückgabe: ' . ($event_id ? $event_id : 'false'));
+                echo "<p>🔍 create_google_calendar_event Rückgabe: " . ($event_id ? $event_id : 'false') . "</p>";
                 
                 if ($event_id) {
                     echo "<p style='color: green;'>✅ Google Calendar Event erfolgreich erstellt! Event ID: " . $event_id . "</p>";
