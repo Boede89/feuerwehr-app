@@ -125,45 +125,83 @@ try {
                                 </a>
                             </div>
                         <?php else: ?>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Fahrzeug</th>
-                                            <th>Antragsteller</th>
-                                            <th>E-Mail</th>
-                                            <th>Datum/Zeit</th>
-                                            <th>Grund</th>
-                                            <th>Aktion</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($pending_reservations as $reservation): ?>
+                            <!-- Mobile-optimierte Karten-Ansicht -->
+                            <div class="d-md-none">
+                                <?php foreach ($pending_reservations as $reservation): ?>
+                                    <div class="card mb-3">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="card-title mb-0">
+                                                    <i class="fas fa-truck text-primary"></i>
+                                                    <?php echo htmlspecialchars($reservation['vehicle_name']); ?>
+                                                </h6>
+                                            </div>
+                                            
+                                            <div class="mb-2">
+                                                <i class="fas fa-calendar-alt text-success"></i>
+                                                <strong><?php echo format_datetime($reservation['start_datetime'], 'd.m.Y'); ?></strong>
+                                                <small class="text-muted">
+                                                    <?php echo format_datetime($reservation['start_datetime'], 'H:i'); ?> - 
+                                                    <?php echo format_datetime($reservation['end_datetime'], 'H:i'); ?>
+                                                </small>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <i class="fas fa-clipboard-list text-warning"></i>
+                                                <span><?php echo htmlspecialchars($reservation['reason']); ?></span>
+                                            </div>
+                                            
+                                            <div class="d-grid">
+                                                <a href="reservations.php?id=<?php echo $reservation['id']; ?>" class="btn btn-primary">
+                                                    <i class="fas fa-edit"></i> Bearbeiten
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            
+                            <!-- Desktop-Tabellen-Ansicht -->
+                            <div class="d-none d-md-block">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
                                             <tr>
-                                                <td>
-                                                    <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($reservation['requester_name']); ?></td>
-                                                <td><?php echo htmlspecialchars($reservation['requester_email']); ?></td>
-                                                <td>
-                                                    <strong><?php echo format_datetime($reservation['start_datetime'], 'd.m.Y'); ?></strong><br>
-                                                    <small class="text-muted">
-                                                        <?php echo format_datetime($reservation['start_datetime'], 'H:i'); ?> - 
-                                                        <?php echo format_datetime($reservation['end_datetime'], 'H:i'); ?>
-                                                    </small>
-                                                </td>
-                                                <td>
-                                                    <small><?php echo htmlspecialchars($reservation['reason']); ?></small>
-                                                </td>
-                                                <td>
-                                                    <a href="reservations.php?id=<?php echo $reservation['id']; ?>" class="btn btn-sm btn-primary">
-                                                        <i class="fas fa-edit"></i> Bearbeiten
-                                                    </a>
-                                                </td>
+                                                <th>Fahrzeug</th>
+                                                <th>Datum/Zeit</th>
+                                                <th>Grund</th>
+                                                <th>Aktion</th>
                                             </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($pending_reservations as $reservation): ?>
+                                                <tr>
+                                                    <td>
+                                                        <i class="fas fa-truck text-primary"></i>
+                                                        <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
+                                                    </td>
+                                                    <td>
+                                                        <strong><?php echo format_datetime($reservation['start_datetime'], 'd.m.Y'); ?></strong><br>
+                                                        <small class="text-muted">
+                                                            <?php echo format_datetime($reservation['start_datetime'], 'H:i'); ?> - 
+                                                            <?php echo format_datetime($reservation['end_datetime'], 'H:i'); ?>
+                                                        </small>
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($reservation['reason']); ?>">
+                                                            <?php echo htmlspecialchars($reservation['reason']); ?>
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <a href="reservations.php?id=<?php echo $reservation['id']; ?>" class="btn btn-sm btn-primary">
+                                                            <i class="fas fa-edit"></i> Bearbeiten
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         <?php endif; ?>
                     </div>
