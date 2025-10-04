@@ -40,6 +40,43 @@ if (!has_admin_access()) {
 $message = '';
 $error = '';
 
+// GET-Verarbeitung für Google Calendar Event
+if ($_SERVER['REQUEST_METHOD'] == 'GET' && isset($_GET['action']) && $_GET['action'] == 'create_calendar_event') {
+    $reservation_id = (int)$_GET['reservation_id'];
+    
+    try {
+        $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+        $stmt->execute([$reservation_id]);
+        $reservation = $stmt->fetch();
+        
+        if ($reservation) {
+            if (function_exists('create_google_calendar_event')) {
+                $event_id = create_google_calendar_event(
+                    $reservation['vehicle_name'],
+                    $reservation['reason'],
+                    $reservation['start_datetime'],
+                    $reservation['end_datetime'],
+                    $reservation['id'],
+                    $reservation['location']
+                );
+                
+                if ($event_id) {
+                    $message = "Google Calendar Event erfolgreich erstellt! Event ID: $event_id";
+                } else {
+                    $error = "Google Calendar Event konnte nicht erstellt werden.";
+                }
+            } else {
+                $error = "Google Calendar Funktion ist nicht verfügbar.";
+            }
+        } else {
+            $error = "Reservierung nicht gefunden.";
+        }
+    } catch (Exception $e) {
+        error_log('Google Calendar Event Fehler: ' . $e->getMessage());
+        $error = "Fehler beim Erstellen des Google Calendar Events: " . $e->getMessage();
+    }
+}
+
 // Status ändern
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     $reservation_id = (int)$_POST['reservation_id'];
@@ -564,6 +601,11 @@ try {
                                 <i class="fas fa-times"></i> Ablehnen
                             </button>
                         <?php elseif (in_array($reservation['status'], ['approved', 'rejected'])): ?>
+                            <?php if ($reservation['status'] == 'approved'): ?>
+                                <a href="?action=create_calendar_event&reservation_id=<?php echo $reservation['id']; ?>" class="btn btn-outline-primary">
+                                    <i class="fas fa-calendar-plus"></i> Google Calendar Event erstellen
+                                </a>
+                            <?php endif; ?>
                             <form method="POST" class="d-inline">
                                 <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
                                 <input type="hidden" name="action" value="delete">
