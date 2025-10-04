@@ -412,30 +412,53 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             console.log('SessionStorage selectedVehicle:', selectedVehicle);
             
             if (selectedVehicle) {
-                const vehicleData = JSON.parse(selectedVehicle);
-                console.log('✅ Fahrzeug aus SessionStorage geladen:', vehicleData);
-                
-                // Fahrzeug-Daten in verstecktes Feld übertragen
-                const vehicleDataInput = document.querySelector('input[name="vehicle_data"]');
-                if (vehicleDataInput) {
-                    vehicleDataInput.value = JSON.stringify(vehicleData);
-                    console.log('✅ Fahrzeug-Daten in Formular übertragen');
-                }
-                
-                // Fahrzeug-Info anzeigen
-                const vehicleInfo = document.querySelector('.alert-info p');
-                if (vehicleInfo) {
-                    vehicleInfo.innerHTML = `
-                        <strong>${vehicleData.name}</strong><br>
-                        <small>${vehicleData.description}</small>
-                    `;
-                    console.log('✅ Fahrzeug-Info angezeigt');
-                }
-                
-                // Seite neu laden um PHP-Variable zu setzen
-                if (!document.querySelector('input[name="vehicle_data"]').value) {
-                    console.log('🔄 Lade Seite neu um Fahrzeug zu setzen...');
-                    window.location.reload();
+                try {
+                    const vehicleData = JSON.parse(selectedVehicle);
+                    console.log('✅ Fahrzeug aus SessionStorage geladen:', vehicleData);
+                    
+                    // Fahrzeug-Daten in verstecktes Feld übertragen
+                    const vehicleDataInput = document.querySelector('input[name="vehicle_data"]');
+                    if (vehicleDataInput) {
+                        vehicleDataInput.value = JSON.stringify(vehicleData);
+                        console.log('✅ Fahrzeug-Daten in Formular übertragen:', vehicleDataInput.value);
+                    } else {
+                        console.log('❌ Verstecktes Feld vehicle_data nicht gefunden');
+                    }
+                    
+                    // Fahrzeug-Info anzeigen
+                    const vehicleInfo = document.querySelector('.alert-info p');
+                    if (vehicleInfo) {
+                        vehicleInfo.innerHTML = `
+                            <strong>${vehicleData.name}</strong><br>
+                            <small>${vehicleData.description}</small>
+                        `;
+                        console.log('✅ Fahrzeug-Info angezeigt');
+                    } else {
+                        console.log('❌ Fahrzeug-Info Element nicht gefunden');
+                    }
+                    
+                    // Prüfe ob PHP das Fahrzeug erkannt hat
+                    const phpVehicleName = document.querySelector('.card-header p strong').textContent;
+                    console.log('🔍 PHP Fahrzeug-Name:', phpVehicleName);
+                    
+                    if (phpVehicleName === 'Kein Fahrzeug ausgewählt') {
+                        console.log('🔄 PHP hat Fahrzeug nicht erkannt - Lade Seite neu...');
+                        // Formular mit Fahrzeug-Daten absenden
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = 'reservation.php';
+                        
+                        const vehicleInput = document.createElement('input');
+                        vehicleInput.type = 'hidden';
+                        vehicleInput.name = 'vehicle_data';
+                        vehicleInput.value = JSON.stringify(vehicleData);
+                        form.appendChild(vehicleInput);
+                        
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+                } catch (e) {
+                    console.log('❌ Fehler beim Parsen der Fahrzeug-Daten:', e);
                 }
             } else {
                 console.log('❌ Kein Fahrzeug in SessionStorage gefunden');

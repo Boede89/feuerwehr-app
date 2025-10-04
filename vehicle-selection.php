@@ -139,6 +139,8 @@ try {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function selectVehicle(vehicleId, vehicleName, description) {
+            console.log('🔍 Fahrzeug ausgewählt:', {id: vehicleId, name: vehicleName, description: description});
+            
             // Fahrzeugdaten in Session Storage speichern
             const vehicleData = {
                 id: vehicleId,
@@ -147,8 +149,14 @@ try {
             };
             
             sessionStorage.setItem('selectedVehicle', JSON.stringify(vehicleData));
+            console.log('✅ Fahrzeug in SessionStorage gespeichert:', vehicleData);
+            
+            // Prüfe ob SessionStorage funktioniert
+            const stored = sessionStorage.getItem('selectedVehicle');
+            console.log('🔍 SessionStorage Inhalt:', stored);
             
             // Weiterleitung zur Reservierungsseite
+            console.log('🔄 Weiterleitung zu reservation.php...');
             window.location.href = 'reservation.php';
         }
         
