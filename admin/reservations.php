@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             
             $message = "Reservierung erfolgreich genehmigt.";
             
-            // Google Calendar Event erstellen (optional)
+            // Google Calendar Event erstellen
             try {
                 $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
                 $stmt->execute([$reservation_id]);
@@ -46,6 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 if ($reservation) {
                     // Prüfe ob Google Calendar Funktion verfügbar ist
                     if (function_exists('create_google_calendar_event')) {
+                        error_log("Google Calendar: Versuche Event für Reservierung #$reservation_id zu erstellen");
+                        
                         $event_id = create_google_calendar_event(
                             $reservation['vehicle_name'],
                             $reservation['reason'],
@@ -53,13 +55,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                             $reservation['end_datetime'],
                             $reservation_id
                         );
+                        
+                        if ($event_id) {
+                            error_log("Google Calendar: Event erfolgreich erstellt - ID: $event_id");
+                        } else {
+                            error_log("Google Calendar: Event konnte nicht erstellt werden");
+                        }
                     } else {
-                        error_log('Google Calendar Funktion nicht verfügbar');
+                        error_log('Google Calendar: Funktion create_google_calendar_event nicht verfügbar');
                     }
+                } else {
+                    error_log("Google Calendar: Reservierung #$reservation_id nicht gefunden");
                 }
             } catch (Exception $e) {
-                // Google Calendar Fehler ignorieren
+                // Google Calendar Fehler loggen
                 error_log('Google Calendar Fehler: ' . $e->getMessage());
+                error_log('Google Calendar Stack Trace: ' . $e->getTraceAsString());
             }
             
             // E-Mail an Antragsteller senden
