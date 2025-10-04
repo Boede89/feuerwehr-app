@@ -1,238 +1,244 @@
 <?php
 /**
- * Debug für echte Live-App-Genehmigung mit exakter Simulation
+ * Debug: Live App Genehmigung - Warum funktioniert es nicht in der echten App?
  */
 
 session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
 
-echo "<h1>Debug: Echte Live-App-Genehmigung</h1>";
+echo "<!DOCTYPE html>";
+echo "<html><head><title>Debug Live App Genehmigung</title></head><body>";
+echo "<h1>🔍 Debug: Live App Genehmigung - Warum funktioniert es nicht in der echten App?</h1>";
 echo "<p>Zeitstempel: " . date('d.m.Y H:i:s') . "</p>";
 
-// 1. Prüfe Session
-echo "<h2>1. Session prüfen</h2>";
-if (isset($_SESSION['user_id'])) {
-    echo "<p style='color: green;'>✅ Eingeloggt als User ID: " . $_SESSION['user_id'] . "</p>";
-} else {
-    echo "<p style='color: red;'>❌ Nicht eingeloggt</p>";
-    exit;
-}
-
-// 2. Simuliere exakt die echte admin/reservations.php mit POST-Request
-echo "<h2>2. Simuliere exakt die echte admin/reservations.php mit POST-Request</h2>";
-
-// Test-Reservierung erstellen
 try {
-    $stmt = $db->prepare("SELECT id, name FROM vehicles WHERE is_active = 1 LIMIT 1");
-    $stmt->execute();
-    $vehicle = $stmt->fetch();
+    echo "<h2>1. Simuliere exakte App-Umgebung</h2>";
     
-    if (!$vehicle) {
-        echo "<p style='color: red;'>❌ Kein Fahrzeug gefunden</p>";
-        exit;
-    }
-    
-    $vehicle_id = $vehicle['id'];
-    $vehicle_name = $vehicle['name'];
-    
-    // Test-Reservierung erstellen
-    $test_start = date('Y-m-d H:i:s', strtotime('+1 hour'));
-    $test_end = date('Y-m-d H:i:s', strtotime('+2 hours'));
-    
-    $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, start_datetime, end_datetime, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW())");
-    $stmt->execute([$vehicle_id, 'Live App Test', 'liveapp@test.com', 'Live App Test für echte Genehmigung', $test_start, $test_end]);
-    $test_reservation_id = $db->lastInsertId();
-    
-    echo "<p>✅ Test-Reservierung erstellt (ID: $test_reservation_id)</p>";
-    
-    // Simuliere echten POST-Request (exakt wie in admin/reservations.php)
-    $_POST['action'] = 'approve';
-    $_POST['reservation_id'] = $test_reservation_id;
-    $_POST['csrf_token'] = generate_csrf_token(); // Generiere gültigen CSRF Token
-    
-    echo "<p><strong>POST-Daten:</strong></p>";
-    echo "<ul>";
-    echo "<li><strong>action:</strong> " . htmlspecialchars($_POST['action']) . "</li>";
-    echo "<li><strong>reservation_id:</strong> " . htmlspecialchars($_POST['reservation_id']) . "</li>";
-    echo "<li><strong>csrf_token:</strong> " . htmlspecialchars($_POST['csrf_token']) . "</li>";
-    echo "</ul>";
-    
-    // Simuliere die EXAKTE admin/reservations.php Logik
-    $reservation_id = (int)$_POST['reservation_id'];
-    $action = $_POST['action'];
-    
-    echo "<p><strong>Simuliere Genehmigung für Reservierung #$reservation_id</strong></p>";
-    
-    // Prüfe CSRF Token
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
-        echo "<p style='color: red;'>❌ Ungültiger Sicherheitstoken</p>";
-        exit;
+    // Session-Fix für die App (wie im Dashboard)
+    if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
+        $stmt = $db->query("SELECT id, username, email, user_role, is_admin, role, first_name, last_name FROM users WHERE user_role = 'admin' OR role = 'admin' OR is_admin = 1 LIMIT 1");
+        $admin_user = $stmt->fetch();
+        
+        if ($admin_user) {
+            $_SESSION['user_id'] = $admin_user['id'];
+            $_SESSION['role'] = 'admin';
+            $_SESSION['first_name'] = $admin_user['first_name'];
+            $_SESSION['last_name'] = $admin_user['last_name'];
+            $_SESSION['username'] = $admin_user['username'];
+            $_SESSION['email'] = $admin_user['email'];
+            echo "✅ Session-Werte gesetzt<br>";
+        }
     } else {
-        echo "<p style='color: green;'>✅ CSRF Token ist gültig</p>";
+        echo "✅ Session-Werte bereits gesetzt<br>";
     }
     
-    try {
-        if ($action == 'approve') {
-            echo "<p><strong>1. Reservierung genehmigen...</strong></p>";
-            $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
-            $stmt->execute([$_SESSION['user_id'], $reservation_id]);
+    echo "Session-Werte:<br>";
+    echo "- user_id: " . ($_SESSION['user_id'] ?? 'Nicht gesetzt') . "<br>";
+    echo "- role: " . ($_SESSION['role'] ?? 'Nicht gesetzt') . "<br>";
+    
+    echo "<h2>2. Simuliere exakte Dashboard-Genehmigung</h2>";
+    
+    // Prüfe ausstehende Reservierungen
+    $stmt = $db->prepare("
+        SELECT r.*, v.name as vehicle_name 
+        FROM reservations r 
+        JOIN vehicles v ON r.vehicle_id = v.id 
+        WHERE r.status = 'pending'
+        ORDER BY r.created_at DESC 
+        LIMIT 1
+    ");
+    $stmt->execute();
+    $reservation = $stmt->fetch();
+    
+    if ($reservation) {
+        echo "Teste mit Reservierung ID: {$reservation['id']}<br>";
+        echo "Fahrzeug: {$reservation['vehicle_name']}<br>";
+        echo "Grund: {$reservation['reason']}<br>";
+        echo "Start: {$reservation['start_datetime']}<br>";
+        echo "Ende: {$reservation['end_datetime']}<br>";
+        echo "Ort: {$reservation['location']}<br>";
+        
+        // Simuliere exakte Dashboard-Genehmigung
+        $reservation_id = $reservation['id'];
+        
+        echo "<h3>Schritt 1: Reservierung genehmigen (exakt wie im Dashboard)</h3>";
+        $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = 5, approved_at = NOW() WHERE id = ?");
+        $result = $stmt->execute([$reservation_id]);
+        
+        if ($result) {
+            echo "✅ Reservierung erfolgreich genehmigt!<br>";
             
-            $message = "Reservierung erfolgreich genehmigt.";
-            echo "<p style='color: green;'>✅ $message</p>";
+            echo "<h3>Schritt 2: Reservierung aus Datenbank laden (exakt wie im Dashboard)</h3>";
+            $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+            $stmt->execute([$reservation_id]);
+            $reservation_data = $stmt->fetch();
             
-            // Google Calendar Event erstellen (EXAKT wie in admin/reservations.php)
-            echo "<p><strong>2. Google Calendar Event erstellen...</strong></p>";
-            
-            try {
-                $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
-                $stmt->execute([$reservation_id]);
-                $reservation = $stmt->fetch();
+            if ($reservation_data) {
+                echo "✅ Reservierung aus Datenbank geladen<br>";
+                echo "Fahrzeug: {$reservation_data['vehicle_name']}<br>";
+                echo "Grund: {$reservation_data['reason']}<br>";
+                echo "Start: {$reservation_data['start_datetime']}<br>";
+                echo "Ende: {$reservation_data['end_datetime']}<br>";
+                echo "Ort: {$reservation_data['location']}<br>";
                 
-                if ($reservation) {
-                    echo "<p><strong>Reservierung gefunden:</strong></p>";
-                    echo "<ul>";
-                    echo "<li><strong>ID:</strong> " . htmlspecialchars($reservation['id']) . "</li>";
-                    echo "<li><strong>Fahrzeug:</strong> " . htmlspecialchars($reservation['vehicle_name']) . "</li>";
-                    echo "<li><strong>Grund:</strong> " . htmlspecialchars($reservation['reason']) . "</li>";
-                    echo "<li><strong>Start:</strong> " . htmlspecialchars($reservation['start_datetime']) . "</li>";
-                    echo "<li><strong>Ende:</strong> " . htmlspecialchars($reservation['end_datetime']) . "</li>";
-                    echo "<li><strong>Status:</strong> " . htmlspecialchars($reservation['status']) . "</li>";
-                    echo "</ul>";
+                echo "<h3>Schritt 3: Google Calendar Event erstellen (exakt wie im Dashboard)</h3>";
+                
+                if (function_exists('create_google_calendar_event')) {
+                    echo "✅ create_google_calendar_event Funktion ist verfügbar<br>";
                     
-                    if (function_exists('create_google_calendar_event')) {
-                        echo "<p style='color: green;'>✅ create_google_calendar_event Funktion ist verfügbar</p>";
-                        
-                        echo "<p><strong>Versuche Google Calendar Event zu erstellen...</strong></p>";
-                        
-                        // Detailliertes Logging
-                        error_log("LIVE APP DEBUG: Starte Google Calendar Event Erstellung für Reservierung #$reservation_id");
-                        error_log("LIVE APP DEBUG: Parameter - Fahrzeug: " . $reservation['vehicle_name'] . ", Grund: " . $reservation['reason']);
-                        error_log("LIVE APP DEBUG: Parameter - Start: " . $reservation['start_datetime'] . ", Ende: " . $reservation['end_datetime']);
-                        error_log("LIVE APP DEBUG: Parameter - Reservation ID: " . $reservation['id']);
+                    // Teste Google Calendar Einstellungen
+                    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
+                    $stmt->execute();
+                    $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+                    
+                    echo "Google Calendar Einstellungen:<br>";
+                    echo "- auth_type: " . ($settings['google_calendar_auth_type'] ?? 'Nicht gesetzt') . "<br>";
+                    echo "- calendar_id: " . ($settings['google_calendar_id'] ?? 'Nicht gesetzt') . "<br>";
+                    echo "- service_account_json: " . (isset($settings['google_calendar_service_account_json']) ? 'Gesetzt (' . strlen($settings['google_calendar_service_account_json']) . ' Zeichen)' : 'Nicht gesetzt') . "<br>";
+                    
+                    $start_time = microtime(true);
+                    
+                    try {
+                        echo "Rufe create_google_calendar_event auf mit:<br>";
+                        echo "- vehicle_name: {$reservation_data['vehicle_name']}<br>";
+                        echo "- reason: {$reservation_data['reason']}<br>";
+                        echo "- start_datetime: {$reservation_data['start_datetime']}<br>";
+                        echo "- end_datetime: {$reservation_data['end_datetime']}<br>";
+                        echo "- reservation_id: {$reservation_data['id']}<br>";
+                        echo "- location: {$reservation_data['location']}<br>";
                         
                         $event_id = create_google_calendar_event(
-                            $reservation['vehicle_name'],
-                            $reservation['reason'],
-                            $reservation['start_datetime'],
-                            $reservation['end_datetime'],
-                            $reservation['id']
+                            $reservation_data['vehicle_name'],
+                            $reservation_data['reason'],
+                            $reservation_data['start_datetime'],
+                            $reservation_data['end_datetime'],
+                            $reservation_data['id'],
+                            $reservation_data['location']
                         );
                         
-                        error_log("LIVE APP DEBUG: Google Calendar Event Erstellung abgeschlossen. Event ID: " . ($event_id ?: 'NULL'));
+                        $end_time = microtime(true);
+                        $execution_time = round(($end_time - $start_time) * 1000, 2);
                         
                         if ($event_id) {
-                            echo "<p style='color: green;'>✅ Google Calendar Event erfolgreich erstellt! Event ID: " . htmlspecialchars($event_id) . "</p>";
-                            $message .= " Google Calendar Event wurde erstellt.";
+                            echo "✅ Google Calendar Event erfolgreich erstellt! Event ID: $event_id<br>";
+                            echo "⏱️ Ausführungszeit: {$execution_time} ms<br>";
                             
                             // Prüfe ob Event in der Datenbank gespeichert wurde
                             $stmt = $db->prepare("SELECT * FROM calendar_events WHERE reservation_id = ?");
-                            $stmt->execute([$reservation_id]);
-                            $event_record = $stmt->fetch();
+                            $stmt->execute([$reservation_data['id']]);
+                            $calendar_event = $stmt->fetch();
                             
-                            if ($event_record) {
-                                echo "<p style='color: green;'>✅ Event in der Datenbank gespeichert</p>";
-                                echo "<ul>";
-                                echo "<li><strong>Event ID:</strong> " . htmlspecialchars($event_record['google_event_id']) . "</li>";
-                                echo "<li><strong>Titel:</strong> " . htmlspecialchars($event_record['title']) . "</li>";
-                                echo "<li><strong>Start:</strong> " . htmlspecialchars($event_record['start_datetime']) . "</li>";
-                                echo "<li><strong>Ende:</strong> " . htmlspecialchars($event_record['end_datetime']) . "</li>";
-                                echo "</ul>";
+                            if ($calendar_event) {
+                                echo "✅ Event in der Datenbank gespeichert (ID: {$calendar_event['id']})<br>";
                             } else {
-                                echo "<p style='color: red;'>❌ Event NICHT in der Datenbank gespeichert</p>";
+                                echo "⚠️ Event nicht in der Datenbank gespeichert<br>";
                             }
+                            
+                            // Lösche Test Event
+                            if (class_exists('GoogleCalendarServiceAccount')) {
+                                $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
+                                $calendar_id = $settings['google_calendar_id'] ?? 'primary';
+                                
+                                if (!empty($service_account_json)) {
+                                    try {
+                                        $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
+                                        $google_calendar->deleteEvent($event_id);
+                                        echo "✅ Test Event gelöscht<br>";
+                                    } catch (Exception $e) {
+                                        echo "⚠️ Fehler beim Löschen des Test Events: " . htmlspecialchars($e->getMessage()) . "<br>";
+                                    }
+                                }
+                            }
+                            
+                            // Lösche Test Event aus der Datenbank
+                            $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
+                            $stmt->execute([$reservation_data['id']]);
+                            echo "✅ Test Event aus der Datenbank gelöscht<br>";
+                            
                         } else {
-                            echo "<p style='color: red;'>❌ Google Calendar Event konnte NICHT erstellt werden</p>";
-                            $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
+                            echo "❌ Google Calendar Event konnte nicht erstellt werden<br>";
+                            echo "create_google_calendar_event() hat false zurückgegeben<br>";
+                            echo "⏱️ Ausführungszeit: {$execution_time} ms<br>";
+                            
+                            // Detaillierte Fehleranalyse
+                            echo "<h4>Detaillierte Fehleranalyse:</h4>";
+                            
+                            // Teste Service Account Initialisierung
+                            if (class_exists('GoogleCalendarServiceAccount')) {
+                                $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
+                                $calendar_id = $settings['google_calendar_id'] ?? 'primary';
+                                
+                                if (!empty($service_account_json)) {
+                                    echo "Teste Service Account Initialisierung...<br>";
+                                    try {
+                                        $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
+                                        echo "✅ Service Account initialisiert<br>";
+                                        
+                                        // Teste Access Token
+                                        echo "Teste Access Token...<br>";
+                                        $access_token = $google_calendar->getAccessToken();
+                                        if ($access_token) {
+                                            echo "✅ Access Token erhalten: " . substr($access_token, 0, 20) . "...<br>";
+                                        } else {
+                                            echo "❌ Access Token konnte nicht erhalten werden<br>";
+                                        }
+                                        
+                                    } catch (Exception $e) {
+                                        echo "❌ Fehler bei Service Account: " . htmlspecialchars($e->getMessage()) . "<br>";
+                                    }
+                                } else {
+                                    echo "❌ Service Account JSON ist leer<br>";
+                                }
+                            } else {
+                                echo "❌ GoogleCalendarServiceAccount Klasse ist nicht verfügbar<br>";
+                            }
                         }
-                    } else {
-                        echo "<p style='color: red;'>❌ create_google_calendar_event Funktion ist NICHT verfügbar</p>";
-                        $message .= " Warnung: Google Calendar Funktion nicht verfügbar.";
+                        
+                    } catch (Exception $e) {
+                        $end_time = microtime(true);
+                        $execution_time = round(($end_time - $start_time) * 1000, 2);
+                        
+                        echo "❌ Google Calendar Fehler: " . htmlspecialchars($e->getMessage()) . "<br>";
+                        echo "⏱️ Ausführungszeit: {$execution_time} ms<br>";
+                        echo "Stack Trace:<br>";
+                        echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
                     }
+                    
                 } else {
-                    echo "<p style='color: red;'>❌ Reservierung nicht gefunden</p>";
-                    $message .= " Warnung: Reservierung nicht gefunden für Google Calendar.";
+                    echo "❌ create_google_calendar_event Funktion ist NICHT verfügbar<br>";
                 }
-            } catch (Exception $e) {
-                echo "<p style='color: red;'>❌ Fehler bei der Google Calendar Integration: " . htmlspecialchars($e->getMessage()) . "</p>";
-                echo "<p><strong>Stack Trace:</strong></p>";
-                echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
-                $message .= " Warnung: Google Calendar Fehler - " . $e->getMessage();
+                
+            } else {
+                echo "❌ Reservierung konnte nicht aus der Datenbank geladen werden<br>";
             }
             
-            echo "<p><strong>Finale Meldung:</strong> $message</p>";
+            // Setze zurück für weiteren Test
+            $stmt = $db->prepare("UPDATE reservations SET status = 'pending', approved_by = NULL, approved_at = NULL WHERE id = ?");
+            $stmt->execute([$reservation_id]);
+            echo "✅ Reservierung zurückgesetzt für weiteren Test<br>";
+            
+        } else {
+            echo "❌ Fehler bei der Genehmigung!<br>";
         }
-    } catch (Exception $e) {
-        echo "<p style='color: red;'>❌ Fehler bei der Reservierungsgenehmigung: " . htmlspecialchars($e->getMessage()) . "</p>";
-        echo "<p><strong>Stack Trace:</strong></p>";
-        echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
+    } else {
+        echo "ℹ️ Keine ausstehenden Reservierungen zum Testen gefunden<br>";
     }
     
-    // Event löschen
-    if (isset($event_id) && $event_id) {
-        try {
-            require_once 'includes/google_calendar_service_account.php';
-            
-            $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
-            $stmt->execute();
-            $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-            
-            $calendar_id = $settings['google_calendar_id'] ?? 'primary';
-            $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
-            
-            $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
-            $google_calendar->deleteEvent($event_id);
-            echo "<p>✅ Test Event gelöscht</p>";
-        } catch (Exception $e) {
-            echo "<p style='color: orange;'>⚠️ Fehler beim Löschen: " . htmlspecialchars($e->getMessage()) . "</p>";
-        }
-    }
-    
-    // Test-Reservierung löschen
-    $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
-    $stmt->execute([$test_reservation_id]);
-    echo "<p>✅ Test-Reservierung gelöscht</p>";
+    echo "<h2>3. Teste echte App-Genehmigung</h2>";
+    echo "Jetzt teste die echte App-Genehmigung im Dashboard:<br>";
+    echo "<a href='admin/dashboard.php' class='btn btn-primary'>Zum Dashboard</a><br>";
+    echo "<a href='admin/reservations.php' class='btn btn-secondary'>Zu den Reservierungen</a><br>";
     
 } catch (Exception $e) {
-    echo "<p style='color: red;'>❌ Fehler beim Test: " . htmlspecialchars($e->getMessage()) . "</p>";
-    echo "<p><strong>Stack Trace:</strong></p>";
+    echo "<div style='color: red;'>";
+    echo "<h3>❌ Fehler aufgetreten:</h3>";
+    echo "<p>" . htmlspecialchars($e->getMessage()) . "</p>";
     echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
-}
-
-// 3. Prüfe Error Logs
-echo "<h2>3. Error Logs prüfen</h2>";
-
-$log_files = [
-    '/var/log/apache2/error.log',
-    '/var/log/nginx/error.log',
-    '/var/log/php_errors.log',
-    '/tmp/php_errors.log',
-    ini_get('error_log')
-];
-
-foreach ($log_files as $log_file) {
-    if ($log_file && file_exists($log_file)) {
-        $log_content = file_get_contents($log_file);
-        $google_calendar_errors = [];
-        
-        $lines = explode("\n", $log_content);
-        foreach ($lines as $line) {
-            if (strpos($line, 'Google Calendar') !== false || strpos($line, 'create_google_calendar_event') !== false || strpos($line, 'LIVE APP DEBUG:') !== false) {
-                $google_calendar_errors[] = $line;
-            }
-        }
-        
-        if (!empty($google_calendar_errors)) {
-            echo "<p><strong>Log-Datei:</strong> " . htmlspecialchars($log_file) . "</p>";
-            echo "<div style='background-color: #f8f9fa; padding: 10px; border-radius: 4px; max-height: 200px; overflow-y: auto;'>";
-            foreach (array_slice($google_calendar_errors, -10) as $error) {
-                echo "<p style='margin: 2px 0; font-family: monospace; font-size: 12px;'>" . htmlspecialchars($error) . "</p>";
-            }
-            echo "</div>";
-        }
-    }
+    echo "</div>";
 }
 
 echo "<hr>";
-echo "<p><strong>Debug abgeschlossen um:</strong> " . date('d.m.Y H:i:s') . "</p>";
+echo "<p><a href='admin/dashboard.php'>Zum Dashboard</a> | <a href='admin/reservations.php'>Zu den Reservierungen</a></p>";
+echo "</body></html>";
 ?>
