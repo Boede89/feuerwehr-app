@@ -81,8 +81,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 
                 // Reservierung speichern
                 try {
-                    $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime]);
+                    // Kalender-Konflikte prüfen
+                    $conflicts = [];
+                    if (function_exists('check_calendar_conflicts')) {
+                        $conflicts = check_calendar_conflicts($selectedVehicle['name'], $start_datetime, $end_datetime);
+                    }
+                    
+                    $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode($conflicts)]);
                     $success_count++;
                 } catch(PDOException $e) {
                     $errors[] = "Zeitraum " . ($index + 1) . ": Fehler beim Speichern - " . $e->getMessage();
