@@ -157,16 +157,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
 }
 
 try {
-    // Nur offene Anträge (ausstehend)
+    // Alle Reservierungen (ausstehend + bearbeitet)
     $stmt = $db->prepare("
         SELECT r.*, v.name as vehicle_name
         FROM reservations r
         JOIN vehicles v ON r.vehicle_id = v.id
-        WHERE r.status = 'pending'
         ORDER BY r.created_at DESC
     ");
     $stmt->execute();
-    $pending_reservations = $stmt->fetchAll();
+    $all_reservations = $stmt->fetchAll();
+    
+    // Trenne in ausstehend und bearbeitet
+    $pending_reservations = array_filter($all_reservations, function($r) {
+        return $r['status'] === 'pending';
+    });
+    
+    $processed_reservations = array_filter($all_reservations, function($r) {
+        return in_array($r['status'], ['approved', 'rejected']);
+    });
     
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Reservierungen: " . $e->getMessage();
@@ -422,11 +430,128 @@ try {
                 </div>
             </div>
 
+            <!-- Bearbeitete Anträge -->
+            <div class="col-12 mb-4">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h6 class="m-0 font-weight-bold text-success">
+                            <i class="fas fa-check-circle"></i> Bearbeitete Anträge (<?php echo count($processed_reservations); ?>)
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <?php if (empty($processed_reservations)): ?>
+                            <div class="text-center py-3">
+                                <i class="fas fa-info-circle fa-2x text-muted mb-2"></i>
+                                <p class="text-muted mb-0">Noch keine bearbeiteten Anträge</p>
+                            </div>
+                        <?php else: ?>
+                            <!-- Mobile-optimierte Karten-Ansicht -->
+                            <div class="d-md-none">
+                                <?php foreach ($processed_reservations as $reservation): ?>
+                                    <div class="card mb-3">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="card-title mb-0">
+                                                    <i class="fas fa-truck text-primary"></i>
+                                                    <?php echo htmlspecialchars($reservation['vehicle_name']); ?>
+                                                </h6>
+                                                <span class="badge <?php echo $reservation['status'] === 'approved' ? 'bg-success' : 'bg-danger'; ?>">
+                                                    <?php echo $reservation['status'] === 'approved' ? 'Genehmigt' : 'Abgelehnt'; ?>
+                                                </span>
+                                            </div>
+                                            
+                                            <div class="mb-2">
+                                                <i class="fas fa-calendar-alt text-success"></i>
+                                                <strong><?php echo format_datetime($reservation['start_datetime'], 'd.m.Y'); ?></strong>
+                                                <small class="text-muted">
+                                                    <?php echo format_datetime($reservation['start_datetime'], 'H:i'); ?> - 
+                                                    <?php echo format_datetime($reservation['end_datetime'], 'H:i'); ?>
+                                                </small>
+                                            </div>
+                                            
+                                            <div class="mb-2">
+                                                <i class="fas fa-user text-info"></i>
+                                                <span><?php echo htmlspecialchars($reservation['requester_name']); ?></span>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <i class="fas fa-clipboard-list text-warning"></i>
+                                                <span><?php echo htmlspecialchars($reservation['reason']); ?></span>
+                                            </div>
+                                            
+                                            <div class="d-grid">
+                                                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
+                                                    <i class="fas fa-eye"></i> Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            
+                            <!-- Desktop-Tabellen-Ansicht -->
+                            <div class="d-none d-md-block">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                        <tr>
+                                            <th>Fahrzeug</th>
+                                            <th>Antragsteller</th>
+                                            <th>Datum/Zeit</th>
+                                            <th>Grund</th>
+                                            <th>Status</th>
+                                            <th>Aktion</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($processed_reservations as $reservation): ?>
+                                                <tr>
+                                                    <td>
+                                                        <i class="fas fa-truck text-primary"></i>
+                                                        <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
+                                                    </td>
+                                                    <td>
+                                                        <i class="fas fa-user text-info"></i>
+                                                        <?php echo htmlspecialchars($reservation['requester_name']); ?>
+                                                    </td>
+                                                    <td>
+                                                        <strong><?php echo format_datetime($reservation['start_datetime'], 'd.m.Y'); ?></strong><br>
+                                                        <small class="text-muted">
+                                                            <?php echo format_datetime($reservation['start_datetime'], 'H:i'); ?> - 
+                                                            <?php echo format_datetime($reservation['end_datetime'], 'H:i'); ?>
+                                                        </small>
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($reservation['reason']); ?>">
+                                                            <?php echo htmlspecialchars($reservation['reason']); ?>
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge <?php echo $reservation['status'] === 'approved' ? 'bg-success' : 'bg-danger'; ?>">
+                                                            <?php echo $reservation['status'] === 'approved' ? 'Genehmigt' : 'Abgelehnt'; ?>
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
+                                                            <i class="fas fa-eye"></i> Details
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
-    <!-- Details-Modals -->
-    <?php foreach ($pending_reservations as $reservation): ?>
+    <!-- Details-Modals für alle Reservierungen -->
+    <?php foreach ($all_reservations as $reservation): ?>
         <div class="modal fade" id="detailsModal<?php echo $reservation['id']; ?>" tabindex="-1">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
@@ -495,17 +620,25 @@ try {
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <form method="POST" class="d-inline">
-                            <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
-                            <input type="hidden" name="action" value="approve">
-                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                            <button type="submit" class="btn btn-success" onclick="return confirm('Reservierung genehmigen?')">
-                                <i class="fas fa-check"></i> Genehmigen
+                        <?php if ($reservation['status'] === 'pending'): ?>
+                            <!-- Nur für ausstehende Reservierungen: Genehmigen/Ablehnen -->
+                            <form method="POST" class="d-inline">
+                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                                <input type="hidden" name="action" value="approve">
+                                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                <button type="submit" class="btn btn-success" onclick="return confirm('Reservierung genehmigen?')">
+                                    <i class="fas fa-check"></i> Genehmigen
+                                </button>
+                            </form>
+                            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $reservation['id']; ?>" data-bs-dismiss="modal">
+                                <i class="fas fa-times"></i> Ablehnen
                             </button>
-                        </form>
-                        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $reservation['id']; ?>" data-bs-dismiss="modal">
-                            <i class="fas fa-times"></i> Ablehnen
-                        </button>
+                        <?php else: ?>
+                            <!-- Für bearbeitete Reservierungen: Nur Details -->
+                            <span class="badge <?php echo $reservation['status'] === 'approved' ? 'bg-success' : 'bg-danger'; ?> fs-6">
+                                <?php echo $reservation['status'] === 'approved' ? 'Genehmigt' : 'Abgelehnt'; ?>
+                            </span>
+                        <?php endif; ?>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
                     </div>
                 </div>
@@ -513,7 +646,7 @@ try {
         </div>
     <?php endforeach; ?>
 
-    <!-- Ablehnungs-Modals für Dashboard -->
+    <!-- Ablehnungs-Modals für Dashboard (nur ausstehende) -->
     <?php foreach ($pending_reservations as $reservation): ?>
         <div class="modal fade" id="rejectModal<?php echo $reservation['id']; ?>" tabindex="-1">
             <div class="modal-dialog">
