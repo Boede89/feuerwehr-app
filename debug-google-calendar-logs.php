@@ -47,6 +47,20 @@ try {
             if (!$google_calendar_found) {
                 echo "<div style='color: orange; font-weight: bold;'>⚠️ Keine Google Calendar oder Dashboard Einträge in den letzten 100 Zeilen gefunden</div>";
             }
+            
+            // Prüfe auch nach RESERVATIONS Einträgen
+            $reservations_found = false;
+            foreach ($recent_lines as $line) {
+                if (strpos($line, 'RESERVATIONS') !== false) {
+                    echo "<div style='color: green; font-weight: bold;'>✅ RESERVATIONS Einträge gefunden!</div>";
+                    $reservations_found = true;
+                    break;
+                }
+            }
+            
+            if (!$reservations_found) {
+                echo "<div style='color: red; font-weight: bold;'>❌ Keine RESERVATIONS Einträge gefunden - Reservierung wird nicht über Admin-Seiten genehmigt!</div>";
+            }
             $log_found = true;
             break;
         }
@@ -67,6 +81,7 @@ try {
     
     // Schreibe Test-Log
     error_log('Debug Tool: Teste Google Calendar direkt - ' . date('Y-m-d H:i:s'));
+    error_log('TEST RESERVATIONS: Teste ob Reservations-Logging funktioniert - ' . date('Y-m-d H:i:s'));
     
     // Teste verschiedene Logging-Methoden
     echo "<h3>3. Teste Logging-Methoden</h3>";
