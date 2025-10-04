@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                             $reservation['reason'],
                             $reservation['start_datetime'],
                             $reservation['end_datetime'],
-                            $reservation_id
+                            $reservation['id']
                         );
                         
                         if ($event_id) {
