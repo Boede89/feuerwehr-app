@@ -304,76 +304,9 @@ function log_activity($user_id, $action, $details = '') {
  * Google Kalender API - Konflikte prüfen
  */
 function check_calendar_conflicts($vehicle_name, $start_datetime, $end_datetime) {
-    global $db;
-    
-    try {
-        // Google Calendar Einstellungen laden
-        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
-        $stmt->execute();
-        $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-
-        $auth_type = $settings['google_calendar_auth_type'] ?? 'service_account';
-        $calendar_id = $settings['google_calendar_id'] ?? 'primary';
-
-        if ($auth_type === 'service_account') {
-            // Service Account verwenden
-            $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
-
-            if (class_exists('GoogleCalendarServiceAccount') && !empty($service_account_json)) {
-                $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
-                
-                // Events im Zeitraum abrufen
-                $events = $google_calendar->getEvents($start_datetime, $end_datetime);
-                
-                $conflicts = [];
-                if ($events && is_array($events)) {
-                    foreach ($events as $event) {
-                        // Prüfe ob der Event-Titel das Fahrzeug enthält
-                        if (isset($event['summary']) && stripos($event['summary'], $vehicle_name) !== false) {
-                            $conflicts[] = [
-                                'title' => $event['summary'],
-                                'start' => $event['start']['dateTime'] ?? $event['start']['date'],
-                                'end' => $event['end']['dateTime'] ?? $event['end']['date']
-                            ];
-                        }
-                    }
-                }
-                
-                return $conflicts;
-            }
-        } else {
-            // API Key verwenden (Fallback)
-            $api_key = $settings['google_calendar_api_key'] ?? '';
-
-            if (class_exists('GoogleCalendar') && !empty($api_key)) {
-                $google_calendar = new GoogleCalendar($api_key, $calendar_id);
-                
-                // Events im Zeitraum abrufen
-                $events = $google_calendar->getEvents($start_datetime, $end_datetime);
-                
-                $conflicts = [];
-                if ($events && is_array($events)) {
-                    foreach ($events as $event) {
-                        // Prüfe ob der Event-Titel das Fahrzeug enthält
-                        if (isset($event['summary']) && stripos($event['summary'], $vehicle_name) !== false) {
-                            $conflicts[] = [
-                                'title' => $event['summary'],
-                                'start' => $event['start']['dateTime'] ?? $event['start']['date'],
-                                'end' => $event['end']['dateTime'] ?? $event['end']['date']
-                            ];
-                        }
-                    }
-                }
-                
-                return $conflicts;
-            }
-        }
-        
-        return [];
-    } catch (Exception $e) {
-        error_log('Google Calendar Konfliktprüfung Fehler: ' . $e->getMessage());
-        return [];
-    }
+    // Temporär deaktiviert - verhindert Hängen der App
+    // TODO: Implementiere echte Google Calendar API-Abfrage später
+    return [];
 }
 
 /**
