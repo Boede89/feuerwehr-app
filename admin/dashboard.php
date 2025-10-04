@@ -55,15 +55,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 $message = "Reservierung erfolgreich genehmigt.";
                 
                 // Google Calendar Event erstellen
+                echo '<script>console.log("🔍 Starte Google Calendar Event Erstellung...");</script>';
                 try {
                     $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
                     $stmt->execute([$reservation_id]);
                     $reservation = $stmt->fetch();
                     
                     if ($reservation) {
+                        echo '<script>console.log("✅ Reservierung für Google Calendar geladen:", ' . json_encode($reservation) . ');</script>';
+                        
                         // Google Calendar Event sofort erstellen
                         if (function_exists('create_google_calendar_event')) {
+                            echo '<script>console.log("✅ create_google_calendar_event Funktion verfügbar");</script>';
                             try {
+                                echo '<script>console.log("🔍 Rufe create_google_calendar_event auf...");</script>';
                                 $event_id = create_google_calendar_event(
                                     $reservation['vehicle_name'],
                                     $reservation['reason'],
@@ -75,20 +80,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                                 
                                 if ($event_id) {
                                     $message .= " Google Calendar Event wurde erstellt.";
+                                    echo '<script>console.log("✅ Google Calendar Event erfolgreich erstellt:", ' . json_encode($event_id) . ');</script>';
                                 } else {
                                     $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
+                                    echo '<script>console.log("❌ Google Calendar Event konnte nicht erstellt werden - Funktion gab false zurück");</script>';
                                 }
                             } catch (Exception $e) {
                                 error_log('Google Calendar Event Fehler in Dashboard: ' . $e->getMessage());
                                 $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden. Fehler: " . $e->getMessage();
+                                echo '<script>console.log("❌ Google Calendar Event Fehler:", ' . json_encode($e->getMessage()) . ');</script>';
                             }
                         } else {
                             $message .= " Warnung: Google Calendar Funktion nicht verfügbar.";
+                            echo '<script>console.log("❌ create_google_calendar_event Funktion nicht verfügbar");</script>';
                         }
+                    } else {
+                        $message .= " Warnung: Reservierung nicht gefunden für Google Calendar.";
+                        echo '<script>console.log("❌ Reservierung nicht gefunden für Google Calendar");</script>';
                     }
                 } catch (Exception $e) {
                     error_log('Google Calendar Event Fehler: ' . $e->getMessage());
                     $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
+                    echo '<script>console.log("❌ Google Calendar Exception:", ' . json_encode($e->getMessage()) . ');</script>';
                 }
                 
             } elseif ($action == 'reject') {
