@@ -53,20 +53,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     if ($reservation) {
                         // Google Calendar Event sofort erstellen
                         if (function_exists('create_google_calendar_event')) {
-                            $event_id = create_google_calendar_event(
-                                $reservation['vehicle_name'],
-                                $reservation['reason'],
-                                $reservation['start_datetime'],
-                                $reservation['end_datetime'],
-                                $reservation['id'],
-                                $reservation['location']
-                            );
-                            
-                            if ($event_id) {
-                                $message .= " Google Calendar Event wurde erstellt.";
-                            } else {
-                                $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
+                            try {
+                                $event_id = create_google_calendar_event(
+                                    $reservation['vehicle_name'],
+                                    $reservation['reason'],
+                                    $reservation['start_datetime'],
+                                    $reservation['end_datetime'],
+                                    $reservation['id'],
+                                    $reservation['location']
+                                );
+                                
+                                if ($event_id) {
+                                    $message .= " Google Calendar Event wurde erstellt.";
+                                } else {
+                                    $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
+                                }
+                            } catch (Exception $e) {
+                                error_log('Google Calendar Event Fehler in Dashboard: ' . $e->getMessage());
+                                $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden. Fehler: " . $e->getMessage();
                             }
+                        } else {
+                            $message .= " Warnung: Google Calendar Funktion nicht verfügbar.";
                         }
                     }
                 } catch (Exception $e) {
