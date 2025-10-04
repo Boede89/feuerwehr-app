@@ -187,6 +187,50 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 } else {
                     $error = "Nur bearbeitete Reservierungen (genehmigt/abgelehnt) können gelöscht werden.";
                 }
+            } elseif ($action == 'create_calendar_event') {
+                // Manueller Google Calendar Event erstellen
+                try {
+                    $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+                    $stmt->execute([$reservation_id]);
+                    $reservation = $stmt->fetch();
+                    
+                    if ($reservation) {
+                        if (function_exists('create_google_calendar_event')) {
+                            error_log("MANUAL CALENDAR: Versuche Event für Reservierung #$reservation_id zu erstellen");
+                            error_log("MANUAL CALENDAR: Parameter - Fahrzeug: " . $reservation['vehicle_name'] . ", Grund: " . $reservation['reason']);
+                            error_log("MANUAL CALENDAR: Parameter - Start: " . $reservation['start_datetime'] . ", Ende: " . $reservation['end_datetime']);
+                            error_log("MANUAL CALENDAR: Parameter - Reservation ID: " . $reservation['id']);
+                            
+                            $event_id = create_google_calendar_event(
+                                $reservation['vehicle_name'],
+                                $reservation['reason'],
+                                $reservation['start_datetime'],
+                                $reservation['end_datetime'],
+                                $reservation['id']
+                            );
+                            
+                            error_log("MANUAL CALENDAR: Google Calendar Event Erstellung abgeschlossen. Event ID: " . ($event_id ?: 'NULL'));
+                            
+                            if ($event_id) {
+                                error_log("MANUAL CALENDAR: Google Calendar: Event erfolgreich erstellt - ID: $event_id");
+                                $message = "Google Calendar Event wurde manuell erstellt.";
+                            } else {
+                                error_log("MANUAL CALENDAR: Google Calendar: Event konnte nicht erstellt werden");
+                                $error = "Google Calendar Event konnte nicht erstellt werden.";
+                            }
+                        } else {
+                            error_log('MANUAL CALENDAR: Funktion create_google_calendar_event nicht verfügbar');
+                            $error = "Google Calendar Funktion nicht verfügbar.";
+                        }
+                    } else {
+                        error_log("MANUAL CALENDAR: Reservierung #$reservation_id nicht gefunden");
+                        $error = "Reservierung nicht gefunden.";
+                    }
+                } catch (Exception $e) {
+                    error_log('MANUAL CALENDAR: Google Calendar Fehler: ' . $e->getMessage());
+                    error_log('MANUAL CALENDAR: Google Calendar Stack Trace: ' . $e->getTraceAsString());
+                    $error = "Google Calendar Fehler - " . $e->getMessage();
+                }
             }
         } catch(PDOException $e) {
             $error = "Fehler beim Verarbeiten der Reservierung: " . $e->getMessage();
@@ -410,6 +454,14 @@ try {
                                                                 <i class="fas fa-times"></i> Ablehnen
                                                             </button>
                                                         <?php elseif (in_array($reservation['status'], ['approved', 'rejected'])): ?>
+                                                            <form method="POST" class="d-inline">
+                                                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                                                                <input type="hidden" name="action" value="create_calendar_event">
+                                                                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                                                <button type="submit" class="btn btn-outline-primary btn-sm" title="Google Calendar Event erstellen">
+                                                                    <i class="fas fa-calendar-plus"></i> Google Calendar
+                                                                </button>
+                                                            </form>
                                                             <form method="POST" class="d-inline">
                                                                 <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
                                                                 <input type="hidden" name="action" value="delete">
