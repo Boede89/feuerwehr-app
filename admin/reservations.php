@@ -7,6 +7,14 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
+// Debug: Prüfe ob Google Calendar Funktionen verfügbar sind
+if (!function_exists('create_google_calendar_event')) {
+    error_log('ADMIN RESERVATIONS: create_google_calendar_event Funktion nicht verfügbar');
+}
+if (!class_exists('GoogleCalendarServiceAccount')) {
+    error_log('ADMIN RESERVATIONS: GoogleCalendarServiceAccount Klasse nicht verfügbar');
+}
+
 // Nur für eingeloggte Benutzer mit Admin-Zugriff
 if (!has_admin_access()) {
     redirect('../login.php');
@@ -38,7 +46,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     
                     if ($reservation) {
                         if (function_exists('create_google_calendar_event')) {
-                            error_log("Google Calendar: Versuche Event für Reservierung #$reservation_id zu erstellen");
+                            error_log("ADMIN RESERVATIONS: Google Calendar: Versuche Event für Reservierung #$reservation_id zu erstellen");
+                            error_log("ADMIN RESERVATIONS: Parameter - Fahrzeug: " . $reservation['vehicle_name'] . ", Grund: " . $reservation['reason']);
+                            error_log("ADMIN RESERVATIONS: Parameter - Start: " . $reservation['start_datetime'] . ", Ende: " . $reservation['end_datetime']);
+                            error_log("ADMIN RESERVATIONS: Parameter - Reservation ID: " . $reservation['id']);
                             
                             $event_id = create_google_calendar_event(
                                 $reservation['vehicle_name'],
@@ -48,15 +59,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                                 $reservation['id']
                             );
                             
+                            error_log("ADMIN RESERVATIONS: Google Calendar Event Erstellung abgeschlossen. Event ID: " . ($event_id ?: 'NULL'));
+                            
                             if ($event_id) {
-                                error_log("Google Calendar: Event erfolgreich erstellt - ID: $event_id");
+                                error_log("ADMIN RESERVATIONS: Google Calendar: Event erfolgreich erstellt - ID: $event_id");
                                 $message .= " Google Calendar Event wurde erstellt.";
                             } else {
-                                error_log("Google Calendar: Event konnte nicht erstellt werden");
+                                error_log("ADMIN RESERVATIONS: Google Calendar: Event konnte nicht erstellt werden");
                                 $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
                             }
                         } else {
-                            error_log('Google Calendar: Funktion create_google_calendar_event nicht verfügbar');
+                            error_log('ADMIN RESERVATIONS: Google Calendar: Funktion create_google_calendar_event nicht verfügbar');
                             $message .= " Warnung: Google Calendar Funktion nicht verfügbar.";
                         }
                     } else {
@@ -64,7 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                         $message .= " Warnung: Reservierung nicht gefunden für Google Calendar.";
                     }
                 } catch (Exception $e) {
-                    error_log('Google Calendar Fehler: ' . $e->getMessage());
+                    error_log('ADMIN RESERVATIONS: Google Calendar Fehler: ' . $e->getMessage());
+                    error_log('ADMIN RESERVATIONS: Google Calendar Stack Trace: ' . $e->getTraceAsString());
                     $message .= " Warnung: Google Calendar Fehler - " . $e->getMessage();
                 }
                 
