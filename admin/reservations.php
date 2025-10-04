@@ -62,20 +62,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     } else {
         try {
             if ($action == 'approve') {
+                error_log('=== RESERVATIONS: Starte Genehmigung für Reservierung ID: ' . $reservation_id . ' ===');
+                
                 $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
                 $stmt->execute([$_SESSION['user_id'], $reservation_id]);
+                
+                error_log('Reservations: Reservierung genehmigt - ID: ' . $reservation_id . ', approved_by: ' . $_SESSION['user_id']);
                 
                 $message = "Reservierung erfolgreich genehmigt.";
                 
                 // Google Calendar Event erstellen
+                error_log('=== RESERVATIONS: Starte Google Calendar Event Erstellung ===');
                 try {
                     $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
                     $stmt->execute([$reservation_id]);
                     $reservation = $stmt->fetch();
                     
                     if ($reservation) {
+                        error_log('Reservations: Reservierung für Google Calendar geladen - ID: ' . $reservation['id'] . ', Fahrzeug: ' . $reservation['vehicle_name']);
+                        
                         if (function_exists('create_google_calendar_event')) {
+                            error_log('Reservations: create_google_calendar_event Funktion verfügbar');
                             try {
+                                error_log('Reservations: Rufe create_google_calendar_event auf...');
+                                
                                 $event_id = create_google_calendar_event(
                                     $reservation['vehicle_name'],
                                     $reservation['reason'],
@@ -84,6 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                                     $reservation['id'],
                                     $reservation['location'] ?? null
                                 );
+                                
+                                error_log('Reservations: create_google_calendar_event Rückgabe: ' . ($event_id ? $event_id : 'false'));
                                 
                                 if ($event_id) {
                                     $message .= " Google Calendar Event wurde erstellt.";
@@ -96,9 +108,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                             }
                         } else {
                             $message .= " Warnung: Google Calendar Funktion nicht verfügbar.";
+                            error_log('Reservations: create_google_calendar_event Funktion NICHT verfügbar');
                         }
                     } else {
                         $message .= " Warnung: Reservierung nicht gefunden für Google Calendar.";
+                        error_log('Reservations: Reservierung nicht gefunden für Google Calendar');
                     }
                 } catch (Exception $e) {
                     error_log('ADMIN RESERVATIONS: Google Calendar Fehler: ' . $e->getMessage());
