@@ -303,7 +303,7 @@ function log_activity($user_id, $action, $details = '') {
 /**
  * Google Kalender API - Event erstellen
  */
-function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $end_datetime, $reservation_id = null) {
+function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $end_datetime, $reservation_id = null, $location = null) {
     global $db;
     
     try {
@@ -354,8 +354,8 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
             }
         }
         
-        $title = $vehicle_name . ' - ' . $reason;
-        $description = "Fahrzeugreservierung über Feuerwehr App\nFahrzeug: $vehicle_name\nGrund: $reason";
+    $title = $vehicle_name . ' - ' . $reason;
+    $description = "Fahrzeugreservierung über Feuerwehr App\nFahrzeug: $vehicle_name\nGrund: $reason\nOrt: " . ($location ?? 'Nicht angegeben');
         
         $event_id = $google_calendar->createEvent($title, $start_datetime, $end_datetime, $description);
         

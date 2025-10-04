@@ -52,7 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                                 $reservation['reason'],
                                 $reservation['start_datetime'],
                                 $reservation['end_datetime'],
-                                $reservation['id']
+                                $reservation['id'],
+                                $reservation['location'] ?? null
                             );
                             
                             if ($event_id) {
@@ -85,6 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                         <p>Ihre Fahrzeugreservierung wurde genehmigt.</p>
                         <p><strong>Fahrzeug:</strong> " . htmlspecialchars($reservation['vehicle_name']) . "</p>
                         <p><strong>Grund:</strong> " . htmlspecialchars($reservation['reason']) . "</p>
+                        <p><strong>Ort:</strong> " . htmlspecialchars($reservation['location'] ?? 'Nicht angegeben') . "</p>
                         <p><strong>Von:</strong> " . htmlspecialchars($reservation['start_datetime']) . "</p>
                         <p><strong>Bis:</strong> " . htmlspecialchars($reservation['end_datetime']) . "</p>
                         <p>Vielen Dank für Ihre Reservierung!</p>
@@ -122,6 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                             <p>Ihre Fahrzeugreservierung wurde leider abgelehnt.</p>
                             <p><strong>Fahrzeug:</strong> " . htmlspecialchars($reservation['vehicle_name']) . "</p>
                             <p><strong>Grund:</strong> " . htmlspecialchars($reservation['reason']) . "</p>
+                            <p><strong>Ort:</strong> " . htmlspecialchars($reservation['location'] ?? 'Nicht angegeben') . "</p>
                             <p><strong>Von:</strong> " . htmlspecialchars($reservation['start_datetime']) . "</p>
                             <p><strong>Bis:</strong> " . htmlspecialchars($reservation['end_datetime']) . "</p>
                             <p><strong>Ablehnungsgrund:</strong> " . htmlspecialchars($rejection_reason) . "</p>
@@ -303,6 +306,7 @@ try {
                                             <th>Fahrzeug</th>
                                             <th>Antragsteller</th>
                                             <th>Grund</th>
+                                            <th>Ort</th>
                                             <th>Zeitraum</th>
                                             <th>Status</th>
                                             <th>Genehmigt von</th>
@@ -330,6 +334,12 @@ try {
                                                 <td>
                                                     <span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($reservation['reason']); ?>">
                                                         <?php echo htmlspecialchars($reservation['reason']); ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <i class="fas fa-map-marker-alt text-info"></i>
+                                                    <span class="text-truncate d-inline-block" style="max-width: 150px;" title="<?php echo htmlspecialchars($reservation['location'] ?? 'Nicht angegeben'); ?>">
+                                                        <?php echo htmlspecialchars($reservation['location'] ?? 'Nicht angegeben'); ?>
                                                     </span>
                                                 </td>
                                                 <td>
