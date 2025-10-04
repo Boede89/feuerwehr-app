@@ -28,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         $requester_name = sanitize_input($_POST['requester_name'] ?? '');
         $requester_email = sanitize_input($_POST['requester_email'] ?? '');
         $reason = sanitize_input($_POST['reason'] ?? '');
+        $location = sanitize_input($_POST['location'] ?? '');
         
         // Mehrere Datum/Zeit-Paare verarbeiten
         $date_times = [];
@@ -46,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         }
         
         // Validierung
-        if (empty($requester_name) || empty($requester_email) || empty($reason) || empty($date_times)) {
+        if (empty($requester_name) || empty($requester_email) || empty($reason) || empty($location) || empty($date_times)) {
             $error = "Bitte füllen Sie alle Felder aus und geben Sie mindestens einen Zeitraum an.";
         } elseif (!validate_email($requester_email)) {
             $error = "Bitte geben Sie eine gültige E-Mail-Adresse ein.";
@@ -80,8 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 
                 // Reservierung speichern
                 try {
-                    $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $start_datetime, $end_datetime]);
+                    $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime]);
                     $success_count++;
                 } catch(PDOException $e) {
                     $errors[] = "Zeitraum " . ($index + 1) . ": Fehler beim Speichern - " . $e->getMessage();
@@ -293,6 +294,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                                 <input type="text" class="form-control" id="reason" name="reason" 
                                        value="<?php echo htmlspecialchars($_POST['reason'] ?? ''); ?>" 
                                        placeholder="z.B. Übung, Einsatz, Veranstaltung" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="location" class="form-label">Ort der Reservierung *</label>
+                                <input type="text" class="form-control" id="location" name="location" 
+                                       value="<?php echo htmlspecialchars($_POST['location'] ?? ''); ?>" 
+                                       placeholder="z.B. Feuerwehrhaus, Übungsplatz, Veranstaltungsort" required>
                             </div>
                             
                             <!-- Zeiträume -->
