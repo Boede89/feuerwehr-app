@@ -167,7 +167,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     echo '<script>console.log("❌ Unerwarteter Fehler - Zeitraum " . ($index + 1) . ":", ' . json_encode($e->getMessage()) . ');</script>';
                 }
             }
-            }
             
             if ($success_count > 0) {
                 echo '<script>console.log("✅ Reservierungen erfolgreich gespeichert - Sende E-Mails");</script>';
