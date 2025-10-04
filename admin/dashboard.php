@@ -240,7 +240,16 @@ try {
     
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Reservierungen: " . $e->getMessage();
+    // Setze leere Arrays bei Fehler
+    $all_reservations = [];
+    $pending_reservations = [];
+    $processed_reservations = [];
 }
+
+// Debug: Logge Variablen vor HTML-Ausgabe
+error_log('Dashboard vor HTML - all_reservations: ' . count($all_reservations));
+error_log('Dashboard vor HTML - pending_reservations: ' . count($pending_reservations));
+error_log('Dashboard vor HTML - processed_reservations: ' . count($processed_reservations));
 ?>
 <!DOCTYPE html>
 <html lang="de">
