@@ -7,6 +7,21 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
+// Debug: Lade Google Calendar Klassen explizit
+if (file_exists('../includes/google_calendar_service_account.php')) {
+    require_once '../includes/google_calendar_service_account.php';
+    echo "<script>console.log('ADMIN RESERVATIONS: GoogleCalendarServiceAccount Klasse explizit geladen');</script>";
+} else {
+    echo "<script>console.error('ADMIN RESERVATIONS: GoogleCalendarServiceAccount Datei nicht gefunden');</script>";
+}
+
+if (file_exists('../includes/google_calendar.php')) {
+    require_once '../includes/google_calendar.php';
+    echo "<script>console.log('ADMIN RESERVATIONS: GoogleCalendar Klasse explizit geladen');</script>";
+} else {
+    echo "<script>console.error('ADMIN RESERVATIONS: GoogleCalendar Datei nicht gefunden');</script>";
+}
+
 // Debug: Prüfe ob Google Calendar Funktionen verfügbar sind
 if (!function_exists('create_google_calendar_event')) {
     error_log('ADMIN RESERVATIONS: create_google_calendar_event Funktion nicht verfügbar');
