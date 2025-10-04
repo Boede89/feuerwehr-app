@@ -13,6 +13,10 @@ try {
     require_once 'config/database.php';
     echo "✅ Datenbank-Verbindung erfolgreich<br>";
     
+    echo "<h2>1.5. Lade functions.php explizit</h2>";
+    require_once 'includes/functions.php';
+    echo "✅ includes/functions.php geladen<br>";
+    
     echo "<h2>2. Reservierungen-Tabelle prüfen</h2>";
     $stmt = $db->query("DESCRIBE reservations");
     $columns = $stmt->fetchAll();
