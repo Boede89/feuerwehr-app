@@ -111,52 +111,52 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             $errors = [];
             
             foreach ($date_times as $index => $dt) {
-                echo '<script>console.log("🔍 Verarbeite Zeitraum " . ($index + 1) . ":", ' . json_encode($dt) . ');</script>';
+                // Debug: Verarbeite Zeitraum
                 
                 $start_datetime = $dt['start'];
                 $end_datetime = $dt['end'];
                 
                 if (!validate_datetime($start_datetime) || !validate_datetime($end_datetime)) {
                     $errors[] = "Zeitraum " . ($index + 1) . ": Bitte geben Sie gültige Datum und Uhrzeit ein.";
-                    echo '<script>console.log("❌ Zeitraum " . ($index + 1) . " - Ungültiges Datum/Zeit-Format");</script>';
+                    // Debug: Ungültiges Datum/Zeit-Format
                     continue;
                 }
                 
                 if (strtotime($start_datetime) >= strtotime($end_datetime)) {
                     $errors[] = "Zeitraum " . ($index + 1) . ": Das Enddatum muss nach dem Startdatum liegen.";
-                    echo '<script>console.log("❌ Zeitraum " . ($index + 1) . " - Enddatum vor Startdatum");</script>';
+                    // Debug: Enddatum vor Startdatum
                     continue;
                 }
                 
                 if (strtotime($start_datetime) < time()) {
                     $errors[] = "Zeitraum " . ($index + 1) . ": Das Startdatum darf nicht in der Vergangenheit liegen.";
-                    echo '<script>console.log("❌ Zeitraum " . ($index + 1) . " - Startdatum in der Vergangenheit");</script>';
+                    // Debug: Startdatum in der Vergangenheit
                     continue;
                 }
                 
-                echo '<script>console.log("🔍 Prüfe Fahrzeug-Konflikte für Zeitraum " . ($index + 1) . "...");</script>';
+                // Debug: Prüfe Fahrzeug-Konflikte
                 if (check_vehicle_conflict($vehicle_id, $start_datetime, $end_datetime)) {
                     $errors[] = "Zeitraum " . ($index + 1) . ": Das ausgewählte Fahrzeug ist in diesem Zeitraum bereits reserviert.";
-                    echo '<script>console.log("❌ Zeitraum " . ($index + 1) . " - Fahrzeug bereits reserviert");</script>';
+                    // Debug: Fahrzeug bereits reserviert
                     continue;
                 }
                 
-                echo '<script>console.log("✅ Zeitraum " . ($index + 1) . " - Validierung erfolgreich");</script>';
+                // Debug: Validierung erfolgreich
                 
                 // Reservierung speichern
-                echo '<script>console.log("🔍 Speichere Reservierung für Zeitraum " . ($index + 1) . "...");</script>';
+                // Debug: Speichere Reservierung
                 try {
-                    echo '<script>console.log("🔍 Führe Datenbank-Insert aus...");</script>';
+                    // Debug: Führe Datenbank-Insert aus
                     $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                     $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([])]);
                     $success_count++;
-                    echo '<script>console.log("✅ Reservierung gespeichert - Zeitraum " . ($index + 1) . "");</script>';
+                    // Debug: Reservierung gespeichert
                 } catch(PDOException $e) {
                     $errors[] = "Zeitraum " . ($index + 1) . ": Fehler beim Speichern - " . $e->getMessage();
-                    echo '<script>console.log("❌ Fehler beim Speichern - Zeitraum " . ($index + 1) . ":", ' . json_encode($e->getMessage()) . ');</script>';
+                    // Debug: Fehler beim Speichern
                 } catch(Exception $e) {
                     $errors[] = "Zeitraum " . ($index + 1) . ": Unerwarteter Fehler - " . $e->getMessage();
-                    echo '<script>console.log("❌ Unerwarteter Fehler - Zeitraum " . ($index + 1) . ":", ' . json_encode($e->getMessage()) . ');</script>';
+                    // Debug: Unerwarteter Fehler
                 }
             }
             
