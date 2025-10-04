@@ -107,7 +107,7 @@ try {
 
         <div class="row">
             <!-- Offene Anträge -->
-            <div class="col-lg-8 mb-4">
+            <div class="col-12 mb-4">
                 <div class="card shadow">
                     <div class="card-header">
                         <h6 class="m-0 font-weight-bold text-warning">
@@ -170,52 +170,6 @@ try {
                 </div>
             </div>
 
-            <!-- Schnellzugriff -->
-            <div class="col-lg-4 mb-4">
-                <div class="card shadow">
-                    <div class="card-header">
-                        <h6 class="m-0 font-weight-bold text-primary">
-                            <i class="fas fa-bolt"></i> Schnellzugriff
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-grid gap-2">
-                            <a href="reservations.php" class="btn btn-outline-primary">
-                                <i class="fas fa-calendar-check"></i> Alle Reservierungen
-                            </a>
-                            <a href="reservations.php?status=pending" class="btn btn-outline-warning">
-                                <i class="fas fa-clock"></i> Nur Offene Anträge
-                            </a>
-                            <a href="reservations.php?status=approved" class="btn btn-outline-success">
-                                <i class="fas fa-check-circle"></i> Genehmigte Anträge
-                            </a>
-                            <a href="reservations.php?status=rejected" class="btn btn-outline-danger">
-                                <i class="fas fa-times-circle"></i> Abgelehnte Anträge
-                            </a>
-                        </div>
-                        
-                        <hr>
-                        
-                        <div class="text-center">
-                            <h6 class="text-muted mb-3">Statistik</h6>
-                            <div class="row text-center">
-                                <div class="col-4">
-                                    <div class="h4 text-warning"><?php echo count($pending_reservations); ?></div>
-                                    <small class="text-muted">Offen</small>
-                                </div>
-                                <div class="col-4">
-                                    <div class="h4 text-success">-</div>
-                                    <small class="text-muted">Genehmigt</small>
-                                </div>
-                                <div class="col-4">
-                                    <div class="h4 text-danger">-</div>
-                                    <small class="text-muted">Abgelehnt</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
