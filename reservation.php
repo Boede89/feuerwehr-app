@@ -146,17 +146,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 // Reservierung speichern
                 echo '<script>console.log("🔍 Speichere Reservierung für Zeitraum " . ($index + 1) . "...");</script>';
                 try {
-                    // Kalender-Konflikte prüfen
-                    $conflicts = [];
-                    if (function_exists('check_calendar_conflicts')) {
-                        echo '<script>console.log("🔍 Prüfe Kalender-Konflikte...");</script>';
-                        $conflicts = check_calendar_conflicts($selectedVehicle['name'], $start_datetime, $end_datetime);
-                        echo '<script>console.log("🔍 Kalender-Konflikte geprüft:", ' . json_encode($conflicts) . ');</script>';
-                    }
-                    
                     echo '<script>console.log("🔍 Führe Datenbank-Insert aus...");</script>';
                     $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode($conflicts)]);
+                    $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([])]);
                     $success_count++;
                     echo '<script>console.log("✅ Reservierung gespeichert - Zeitraum " . ($index + 1) . "");</script>';
                 } catch(PDOException $e) {
