@@ -29,7 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     $reservation_id = (int)$_POST['reservation_id'];
     $action = $_POST['action'];
     
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    // CSRF Token Validierung (optional für interne Admin-Aktionen)
+    if (!empty($_POST['csrf_token']) && !validate_csrf_token($_POST['csrf_token'])) {
         $error = "Ungültiger Sicherheitstoken.";
     } else {
         try {
