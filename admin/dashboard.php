@@ -355,6 +355,12 @@ error_log('Dashboard vor HTML - processed_reservations: ' . count($processed_res
                         error_log('Dashboard HTML - pending_reservations count: ' . count($pending_reservations));
                         error_log('Dashboard HTML - pending_reservations empty: ' . (empty($pending_reservations) ? 'JA' : 'NEIN'));
                         
+                        // Debug: Prüfe ob Variable überschrieben wurde
+                        if (!isset($pending_reservations)) {
+                            error_log('Dashboard HTML - pending_reservations ist NICHT gesetzt!');
+                            $pending_reservations = [];
+                        }
+                        
                         if (empty($pending_reservations)): ?>
                             <div class="text-center py-5">
                                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
