@@ -9,6 +9,70 @@ if (!can_approve_reservations()) {
 }
 
 $error = '';
+$message = '';
+
+// POST-Verarbeitung für Genehmigung/Ablehnung
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
+    $reservation_id = (int)$_POST['reservation_id'];
+    $action = $_POST['action'];
+    
+    // CSRF Token Validierung (optional für interne Admin-Aktionen)
+    if (!empty($_POST['csrf_token']) && !validate_csrf_token($_POST['csrf_token'])) {
+        $error = "Ungültiger Sicherheitstoken.";
+    } else {
+        try {
+            if ($action == 'approve') {
+                $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
+                $stmt->execute([$_SESSION['user_id'], $reservation_id]);
+                
+                $message = "Reservierung erfolgreich genehmigt.";
+                
+                // Google Calendar Event erstellen
+                try {
+                    $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+                    $stmt->execute([$reservation_id]);
+                    $reservation = $stmt->fetch();
+                    
+                    if ($reservation) {
+                        if (function_exists('create_google_calendar_event')) {
+                            $event_id = create_google_calendar_event(
+                                $reservation['vehicle_name'],
+                                $reservation['reason'],
+                                $reservation['start_datetime'],
+                                $reservation['end_datetime'],
+                                $reservation_id,
+                                $reservation['location']
+                            );
+                            
+                            if ($event_id) {
+                                $message .= " Google Calendar Event wurde erstellt.";
+                            } else {
+                                $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
+                            }
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log('Google Calendar Event Fehler: ' . $e->getMessage());
+                    $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
+                }
+                
+            } elseif ($action == 'reject') {
+                $rejection_reason = sanitize_input($_POST['rejection_reason'] ?? '');
+                
+                if (empty($rejection_reason)) {
+                    $error = "Bitte geben Sie einen Ablehnungsgrund an.";
+                } else {
+                    $stmt = $db->prepare("UPDATE reservations SET status = 'rejected', rejection_reason = ?, approved_by = ?, approved_at = NOW() WHERE id = ?");
+                    $stmt->execute([$rejection_reason, $_SESSION['user_id'], $reservation_id]);
+                    
+                    $message = "Reservierung erfolgreich abgelehnt.";
+                }
+            }
+        } catch(PDOException $e) {
+            $error = "Fehler beim Verarbeiten der Reservierung: " . $e->getMessage();
+        }
+    }
+}
 
 try {
     // Nur offene Anträge (ausstehend)
@@ -99,8 +163,18 @@ try {
                     <small class="text-muted">Willkommen zurück, <?php echo htmlspecialchars($_SESSION['first_name']); ?>!</small>
                 </h1>
                 
+                <?php if ($message): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($message); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                <?php endif; ?>
+                
                 <?php if ($error): ?>
-                    <?php echo show_error($error); ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>
@@ -156,19 +230,31 @@ try {
                                                 <span><?php echo htmlspecialchars($reservation['reason']); ?></span>
                                             </div>
                                             
-                                            <?php if (!empty($reservation['calendar_conflicts'])): ?>
-                                                <?php $conflicts = json_decode($reservation['calendar_conflicts'], true); ?>
-                                                <?php if (!empty($conflicts)): ?>
-                                                    <div class="mb-3">
-                                                        <i class="fas fa-exclamation-triangle text-danger"></i>
-                                                        <small class="text-danger">
-                                                            <strong>Kalender-Konflikt!</strong><br>
-                                                            <?php foreach ($conflicts as $conflict): ?>
-                                                                • <?php echo htmlspecialchars($conflict['title']); ?><br>
-                                                            <?php endforeach; ?>
-                                                        </small>
-                                                    </div>
-                                                <?php endif; ?>
+                                            <?php 
+                                            // Prüfe Kalender-Konflikte
+                                            $conflicts = [];
+                                            if (function_exists('check_calendar_conflicts')) {
+                                                $conflicts = check_calendar_conflicts($reservation['vehicle_name'], $reservation['start_datetime'], $reservation['end_datetime']);
+                                            }
+                                            ?>
+                                            <?php if (!empty($conflicts)): ?>
+                                                <div class="mb-3">
+                                                    <i class="fas fa-exclamation-triangle text-danger"></i>
+                                                    <small class="text-danger">
+                                                        <strong>Kalender-Konflikt!</strong><br>
+                                                        <?php foreach ($conflicts as $conflict): ?>
+                                                            • <?php echo htmlspecialchars($conflict['title']); ?><br>
+                                                        <?php endforeach; ?>
+                                                    </small>
+                                                </div>
+                                            <?php else: ?>
+                                                <div class="mb-3">
+                                                    <i class="fas fa-check-circle text-success"></i>
+                                                    <small class="text-success">
+                                                        <strong>Kein Kalender-Konflikt</strong><br>
+                                                        Zeitraum ist frei
+                                                    </small>
+                                                </div>
                                             <?php endif; ?>
                                             
                                             <div class="d-grid">
@@ -216,17 +302,26 @@ try {
                                                         <span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($reservation['reason']); ?>">
                                                             <?php echo htmlspecialchars($reservation['reason']); ?>
                                                         </span>
-                                                        <?php if (!empty($reservation['calendar_conflicts'])): ?>
-                                                            <?php $conflicts = json_decode($reservation['calendar_conflicts'], true); ?>
-                                                            <?php if (!empty($conflicts)): ?>
-                                                                <br><small class="text-danger">
-                                                                    <i class="fas fa-exclamation-triangle"></i> 
-                                                                    Kalender-Konflikt: <?php echo htmlspecialchars($conflicts[0]['title']); ?>
-                                                                    <?php if (count($conflicts) > 1): ?>
-                                                                        (+<?php echo count($conflicts) - 1; ?> weitere)
-                                                                    <?php endif; ?>
-                                                                </small>
-                                                            <?php endif; ?>
+                                                        <?php 
+                                                        // Prüfe Kalender-Konflikte
+                                                        $conflicts = [];
+                                                        if (function_exists('check_calendar_conflicts')) {
+                                                            $conflicts = check_calendar_conflicts($reservation['vehicle_name'], $reservation['start_datetime'], $reservation['end_datetime']);
+                                                        }
+                                                        ?>
+                                                        <?php if (!empty($conflicts)): ?>
+                                                            <br><small class="text-danger">
+                                                                <i class="fas fa-exclamation-triangle"></i> 
+                                                                Kalender-Konflikt: <?php echo htmlspecialchars($conflicts[0]['title']); ?>
+                                                                <?php if (count($conflicts) > 1): ?>
+                                                                    (+<?php echo count($conflicts) - 1; ?> weitere)
+                                                                <?php endif; ?>
+                                                            </small>
+                                                        <?php else: ?>
+                                                            <br><small class="text-success">
+                                                                <i class="fas fa-check-circle"></i> 
+                                                                Kein Konflikt
+                                                            </small>
                                                         <?php endif; ?>
                                                     </td>
                                                     <td>
