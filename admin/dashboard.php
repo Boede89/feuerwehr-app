@@ -146,6 +146,11 @@ try {
                                                 </small>
                                             </div>
                                             
+                                            <div class="mb-2">
+                                                <i class="fas fa-user text-info"></i>
+                                                <span><?php echo htmlspecialchars($reservation['requester_name']); ?></span>
+                                            </div>
+                                            
                                             <div class="mb-3">
                                                 <i class="fas fa-clipboard-list text-warning"></i>
                                                 <span><?php echo htmlspecialchars($reservation['reason']); ?></span>
@@ -166,12 +171,13 @@ try {
                                 <div class="table-responsive">
                                     <table class="table table-hover">
                                         <thead>
-                                            <tr>
-                                                <th>Fahrzeug</th>
-                                                <th>Datum/Zeit</th>
-                                                <th>Grund</th>
-                                                <th>Aktion</th>
-                                            </tr>
+                                        <tr>
+                                            <th>Fahrzeug</th>
+                                            <th>Antragsteller</th>
+                                            <th>Datum/Zeit</th>
+                                            <th>Grund</th>
+                                            <th>Aktion</th>
+                                        </tr>
                                         </thead>
                                         <tbody>
                                             <?php foreach ($pending_reservations as $reservation): ?>
@@ -179,6 +185,10 @@ try {
                                                     <td>
                                                         <i class="fas fa-truck text-primary"></i>
                                                         <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
+                                                    </td>
+                                                    <td>
+                                                        <i class="fas fa-user text-info"></i>
+                                                        <?php echo htmlspecialchars($reservation['requester_name']); ?>
                                                     </td>
                                                     <td>
                                                         <strong><?php echo format_datetime($reservation['start_datetime'], 'd.m.Y'); ?></strong><br>
