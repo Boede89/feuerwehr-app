@@ -40,42 +40,6 @@ if (!has_admin_access()) {
 $message = '';
 $error = '';
 
-// GET-Verarbeitung für Google Calendar Event
-if ($_SERVER['REQUEST_METHOD'] == 'GET' && isset($_GET['action']) && $_GET['action'] == 'create_calendar_event') {
-    $reservation_id = (int)$_GET['reservation_id'];
-    
-    try {
-        $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
-        $stmt->execute([$reservation_id]);
-        $reservation = $stmt->fetch();
-        
-        if ($reservation) {
-            if (function_exists('create_google_calendar_event')) {
-                $event_id = create_google_calendar_event(
-                    $reservation['vehicle_name'],
-                    $reservation['reason'],
-                    $reservation['start_datetime'],
-                    $reservation['end_datetime'],
-                    $reservation['id'],
-                    $reservation['location']
-                );
-                
-                if ($event_id) {
-                    $message = "Google Calendar Event erfolgreich erstellt! Event ID: $event_id";
-                } else {
-                    $error = "Google Calendar Event konnte nicht erstellt werden.";
-                }
-            } else {
-                $error = "Google Calendar Funktion ist nicht verfügbar.";
-            }
-        } else {
-            $error = "Reservierung nicht gefunden.";
-        }
-    } catch (Exception $e) {
-        error_log('Google Calendar Event Fehler: ' . $e->getMessage());
-        $error = "Fehler beim Erstellen des Google Calendar Events: " . $e->getMessage();
-    }
-}
 
 // Status ändern
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
@@ -200,36 +164,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 $reservation = $stmt->fetch();
                 
                 if ($reservation && in_array($reservation['status'], ['approved', 'rejected'])) {
-                    // Google Calendar Event löschen falls vorhanden
-                    try {
-                        $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
-                        $stmt->execute([$reservation_id]);
-                        $event = $stmt->fetch();
-                        
-                        if ($event && $event['google_event_id']) {
-                            require_once '../includes/google_calendar_service_account.php';
-                            
-                            $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
-                            $stmt->execute();
-                            $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-                            
-                            $calendar_id = $settings['google_calendar_id'] ?? 'primary';
-                            $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
-                            
-                            if (!empty($service_account_json)) {
-                                $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
-                                $google_calendar->deleteEvent($event['google_event_id']);
-                            }
-                        }
-                    } catch (Exception $e) {
-                        error_log('Google Calendar Lösch-Fehler: ' . $e->getMessage());
-                    }
-                    
-                    // Reservierung löschen
+                    // Reservierung löschen (Google Calendar Event bleibt erhalten)
                     $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
                     $stmt->execute([$reservation_id]);
                     
-                    $message = "Reservierung wurde gelöscht.";
+                    // Calendar Event Eintrag aus der Datenbank löschen (Google Calendar Event bleibt erhalten)
+                    $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
+                    $stmt->execute([$reservation_id]);
+                    
+                    $message = "Reservierung wurde gelöscht. Google Calendar Event bleibt erhalten.";
                     log_activity($_SESSION['user_id'], 'reservation_deleted', "Reservierung #$reservation_id gelöscht");
                 } else {
                     $error = "Nur bearbeitete Reservierungen (genehmigt/abgelehnt) können gelöscht werden.";
@@ -601,11 +544,6 @@ try {
                                 <i class="fas fa-times"></i> Ablehnen
                             </button>
                         <?php elseif (in_array($reservation['status'], ['approved', 'rejected'])): ?>
-                            <?php if ($reservation['status'] == 'approved'): ?>
-                                <a href="?action=create_calendar_event&reservation_id=<?php echo $reservation['id']; ?>" class="btn btn-outline-primary">
-                                    <i class="fas fa-calendar-plus"></i> Google Calendar Event erstellen
-                                </a>
-                            <?php endif; ?>
                             <form method="POST" class="d-inline">
                                 <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
                                 <input type="hidden" name="action" value="delete">
