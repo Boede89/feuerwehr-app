@@ -228,6 +228,16 @@ try {
         return in_array($r['status'], ['approved', 'rejected']);
     });
     
+    // Debug: Logge die Reservierungen
+    error_log('Dashboard Debug - Alle Reservierungen: ' . count($all_reservations));
+    error_log('Dashboard Debug - Ausstehende Reservierungen: ' . count($pending_reservations));
+    error_log('Dashboard Debug - Bearbeitete Reservierungen: ' . count($processed_reservations));
+    
+    // Debug: Logge Status der Reservierungen
+    foreach ($all_reservations as $res) {
+        error_log('Dashboard Debug - Reservierung ID ' . $res['id'] . ' Status: ' . $res['status']);
+    }
+    
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Reservierungen: " . $e->getMessage();
 }
