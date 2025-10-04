@@ -128,12 +128,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     log_activity($_SESSION['user_id'], 'reservation_rejected', "Reservierung #$reservation_id abgelehnt");
                 }
             } elseif ($action == 'delete') {
-                // Prüfe ob Reservierung gelöscht werden kann
+                // Prüfe ob Reservierung gelöscht werden kann (nur bearbeitete)
                 $stmt = $db->prepare("SELECT status FROM reservations WHERE id = ?");
                 $stmt->execute([$reservation_id]);
                 $reservation = $stmt->fetch();
                 
-                if ($reservation && $reservation['status'] == 'pending') {
+                if ($reservation && in_array($reservation['status'], ['approved', 'rejected'])) {
                     // Google Calendar Event löschen falls vorhanden
                     try {
                         $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
@@ -166,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     $message = "Reservierung wurde gelöscht.";
                     log_activity($_SESSION['user_id'], 'reservation_deleted', "Reservierung #$reservation_id gelöscht");
                 } else {
-                    $error = "Nur ausstehende Reservierungen können gelöscht werden.";
+                    $error = "Nur bearbeitete Reservierungen (genehmigt/abgelehnt) können gelöscht werden.";
                 }
             }
         } catch(PDOException $e) {
@@ -336,24 +336,28 @@ try {
                                                     <?php
                                                     $status_class = '';
                                                     $status_icon = '';
+                                                    $status_text = '';
                                                     switch ($reservation['status']) {
                                                         case 'pending':
                                                             $status_class = 'bg-warning';
                                                             $status_icon = 'fas fa-clock';
+                                                            $status_text = 'Ausstehend';
                                                             break;
                                                         case 'approved':
                                                             $status_class = 'bg-success';
                                                             $status_icon = 'fas fa-check';
+                                                            $status_text = 'Genehmigt';
                                                             break;
                                                         case 'rejected':
                                                             $status_class = 'bg-danger';
                                                             $status_icon = 'fas fa-times';
+                                                            $status_text = 'Abgelehnt';
                                                             break;
                                                     }
                                                     ?>
                                                     <span class="badge <?php echo $status_class; ?>">
                                                         <i class="<?php echo $status_icon; ?>"></i>
-                                                        <?php echo ucfirst($reservation['status']); ?>
+                                                        <?php echo $status_text; ?>
                                                     </span>
                                                 </td>
                                                 <td>
@@ -386,12 +390,13 @@ try {
                                                             <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $reservation['id']; ?>">
                                                                 <i class="fas fa-times"></i> Ablehnen
                                                             </button>
+                                                        <?php elseif (in_array($reservation['status'], ['approved', 'rejected'])): ?>
                                                             <form method="POST" class="d-inline">
                                                                 <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
                                                                 <input type="hidden" name="action" value="delete">
                                                                 <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                                                                 <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Reservierung wirklich löschen?')">
-                                                                    <i class="fas fa-trash"></i>
+                                                                    <i class="fas fa-trash"></i> Löschen
                                                                 </button>
                                                             </form>
                                                         <?php else: ?>
