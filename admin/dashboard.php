@@ -56,10 +56,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 
                 // Google Calendar Event erstellen
                 echo '<script>console.log("🔍 Starte Google Calendar Event Erstellung...");</script>';
+                error_log('=== DASHBOARD: Starte Google Calendar Event Erstellung ===');
+                
                 try {
                     $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
                     $stmt->execute([$reservation_id]);
                     $reservation = $stmt->fetch();
+                    
+                    error_log('Dashboard: Reservierung geladen - ID: ' . ($reservation['id'] ?? 'null') . ', Fahrzeug: ' . ($reservation['vehicle_name'] ?? 'null'));
                     
                     if ($reservation) {
                         echo '<script>console.log("✅ Reservierung für Google Calendar geladen:", ' . json_encode($reservation) . ');</script>';
@@ -67,8 +71,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                         // Google Calendar Event sofort erstellen
                         if (function_exists('create_google_calendar_event')) {
                             echo '<script>console.log("✅ create_google_calendar_event Funktion verfügbar");</script>';
+                            error_log('Dashboard: create_google_calendar_event Funktion verfügbar');
+                            
                             try {
                                 echo '<script>console.log("🔍 Rufe create_google_calendar_event auf...");</script>';
+                                error_log('Dashboard: Rufe create_google_calendar_event auf...');
                                 
                                 // Debug: Prüfe Parameter
                                 error_log('Dashboard Google Calendar Debug - Parameter:');
@@ -88,6 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                                     $reservation['location'] ?? null
                                 );
                                 
+                                error_log('Dashboard: create_google_calendar_event Rückgabe: ' . ($event_id ? $event_id : 'false'));
+                                
                                 if ($event_id) {
                                     $message .= " Google Calendar Event wurde erstellt.";
                                     echo '<script>console.log("✅ Google Calendar Event erfolgreich erstellt:", ' . json_encode($event_id) . ');</script>';
@@ -103,16 +112,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                         } else {
                             $message .= " Warnung: Google Calendar Funktion nicht verfügbar.";
                             echo '<script>console.log("❌ create_google_calendar_event Funktion nicht verfügbar");</script>';
+                            error_log('Dashboard: create_google_calendar_event Funktion NICHT verfügbar');
                         }
                     } else {
                         $message .= " Warnung: Reservierung nicht gefunden für Google Calendar.";
                         echo '<script>console.log("❌ Reservierung nicht gefunden für Google Calendar");</script>';
+                        error_log('Dashboard: Reservierung nicht gefunden für Google Calendar');
                     }
                 } catch (Exception $e) {
                     error_log('Google Calendar Event Fehler: ' . $e->getMessage());
                     $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
                     echo '<script>console.log("❌ Google Calendar Exception:", ' . json_encode($e->getMessage()) . ');</script>';
                 }
+                
+                error_log('=== DASHBOARD: Google Calendar Event Erstellung beendet ===');
                 
             } elseif ($action == 'reject') {
                 $rejection_reason = sanitize_input($_POST['rejection_reason'] ?? '');
