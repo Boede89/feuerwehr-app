@@ -27,6 +27,43 @@ if (!can_approve_reservations()) {
 $error = '';
 $message = '';
 
+// GET-Verarbeitung für Google Calendar Event
+if ($_SERVER['REQUEST_METHOD'] == 'GET' && isset($_GET['action']) && $_GET['action'] == 'create_calendar_event') {
+    $reservation_id = (int)$_GET['reservation_id'];
+    
+    try {
+        $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+        $stmt->execute([$reservation_id]);
+        $reservation = $stmt->fetch();
+        
+        if ($reservation) {
+            if (function_exists('create_google_calendar_event')) {
+                $event_id = create_google_calendar_event(
+                    $reservation['vehicle_name'],
+                    $reservation['reason'],
+                    $reservation['start_datetime'],
+                    $reservation['end_datetime'],
+                    $reservation['id'],
+                    $reservation['location']
+                );
+                
+                if ($event_id) {
+                    $message = "Google Calendar Event erfolgreich erstellt! Event ID: $event_id";
+                } else {
+                    $error = "Google Calendar Event konnte nicht erstellt werden.";
+                }
+            } else {
+                $error = "Google Calendar Funktion ist nicht verfügbar.";
+            }
+        } else {
+            $error = "Reservierung nicht gefunden.";
+        }
+    } catch (Exception $e) {
+        error_log('Google Calendar Event Fehler: ' . $e->getMessage());
+        $error = "Fehler beim Erstellen des Google Calendar Events: " . $e->getMessage();
+    }
+}
+
 // POST-Verarbeitung für Genehmigung/Ablehnung
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     $reservation_id = (int)$_POST['reservation_id'];
@@ -50,22 +87,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     $reservation = $stmt->fetch();
                     
                     if ($reservation) {
-                        if (function_exists('create_google_calendar_event')) {
-                            $event_id = create_google_calendar_event(
-                                $reservation['vehicle_name'],
-                                $reservation['reason'],
-                                $reservation['start_datetime'],
-                                $reservation['end_datetime'],
-                                $reservation['id'],
-                                $reservation['location']
-                            );
-                            
-                            if ($event_id) {
-                                $message .= " Google Calendar Event wurde erstellt.";
-                            } else {
-                                $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
-                            }
-                        }
+                        // Google Calendar Event wird separat erstellt
+                        $message .= " Reservierung genehmigt. <a href='?action=create_calendar_event&reservation_id=" . $reservation['id'] . "' class='btn btn-sm btn-outline-primary'>Google Calendar Event erstellen</a>";
                     }
                 } catch (Exception $e) {
                     error_log('Google Calendar Event Fehler: ' . $e->getMessage());
@@ -479,55 +502,90 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <script>
-        // Debug-Logging für Dashboard
-        console.log('🔍 Admin Dashboard geladen');
-        console.log('Zeitstempel:', new Date().toLocaleString('de-DE'));
+<script>
+    // Debug-Logging für Dashboard
+    console.log('🔍 Admin Dashboard geladen');
+    console.log('Zeitstempel:', new Date().toLocaleString('de-DE'));
+    
+    // Prüfe PHP-Funktionen
+    <?php if (function_exists('check_calendar_conflicts')): ?>
+        console.log('✅ check_calendar_conflicts Funktion verfügbar');
+    <?php else: ?>
+        console.error('❌ check_calendar_conflicts Funktion NICHT verfügbar');
+    <?php endif; ?>
+    
+    <?php if (function_exists('create_google_calendar_event')): ?>
+        console.log('✅ create_google_calendar_event Funktion verfügbar');
+    <?php else: ?>
+        console.error('❌ create_google_calendar_event Funktion NICHT verfügbar');
+    <?php endif; ?>
+    
+    // Prüfe ausstehende Reservierungen
+    console.log('Anzahl ausstehende Reservierungen:', <?php echo count($pending_reservations); ?>);
+    
+    // Prüfe Google Calendar Einstellungen
+    <?php
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
+    $stmt->execute();
+    $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    ?>
+    console.log('Google Calendar Einstellungen:', {
+        auth_type: '<?php echo $settings['google_calendar_auth_type'] ?? 'Nicht gesetzt'; ?>',
+        calendar_id: '<?php echo $settings['google_calendar_id'] ?? 'Nicht gesetzt'; ?>',
+        service_account_json: '<?php echo isset($settings['google_calendar_service_account_json']) ? 'Gesetzt (' . strlen($settings['google_calendar_service_account_json']) . ' Zeichen)' : 'Nicht gesetzt'; ?>'
+    });
+    
+    // Event-Listener für Formulare
+    document.addEventListener('DOMContentLoaded', function() {
+        const forms = document.querySelectorAll('form[method="POST"]');
+        console.log('Anzahl Formulare:', forms.length);
         
-        // Prüfe PHP-Funktionen
-        <?php if (function_exists('check_calendar_conflicts')): ?>
-            console.log('✅ check_calendar_conflicts Funktion verfügbar');
-        <?php else: ?>
-            console.error('❌ check_calendar_conflicts Funktion NICHT verfügbar');
-        <?php endif; ?>
-        
-        <?php if (function_exists('create_google_calendar_event')): ?>
-            console.log('✅ create_google_calendar_event Funktion verfügbar');
-        <?php else: ?>
-            console.error('❌ create_google_calendar_event Funktion NICHT verfügbar');
-        <?php endif; ?>
-        
-        // Prüfe ausstehende Reservierungen
-        console.log('Anzahl ausstehende Reservierungen:', <?php echo count($pending_reservations); ?>);
-        
-        // Event-Listener für Formulare
-        document.addEventListener('DOMContentLoaded', function() {
-            const forms = document.querySelectorAll('form[method="POST"]');
-            console.log('Anzahl Formulare:', forms.length);
-            
-            forms.forEach(function(form, index) {
-                form.addEventListener('submit', function(e) {
-                    const action = form.querySelector('input[name="action"]').value;
-                    const reservationId = form.querySelector('input[name="reservation_id"]').value;
-                    console.log('Dashboard Formular abgesendet:', {
-                        action: action,
-                        reservationId: reservationId,
-                        formIndex: index
-                    });
+        forms.forEach(function(form, index) {
+            form.addEventListener('submit', function(e) {
+                const action = form.querySelector('input[name="action"]').value;
+                const reservationId = form.querySelector('input[name="reservation_id"]').value;
+                console.log('Dashboard Formular abgesendet:', {
+                    action: action,
+                    reservationId: reservationId,
+                    formIndex: index
                 });
             });
         });
         
-        // Prüfe Modals
-        const modals = document.querySelectorAll('.modal');
-        console.log('Anzahl Modals:', modals.length);
+        // Event-Listener für Google Calendar Buttons
+        const calendarButtons = document.querySelectorAll('a[href*="create_calendar_event"]');
+        console.log('Anzahl Google Calendar Buttons:', calendarButtons.length);
         
-        modals.forEach(function(modal, index) {
-            modal.addEventListener('show.bs.modal', function() {
-                const modalId = modal.id;
-                console.log('Dashboard Modal geöffnet:', modalId);
+        calendarButtons.forEach(function(button, index) {
+            button.addEventListener('click', function(e) {
+                const href = this.href;
+                const reservationId = href.match(/reservation_id=(\d+)/)?.[1];
+                console.log('Google Calendar Button geklickt:', {
+                    href: href,
+                    reservationId: reservationId,
+                    buttonIndex: index
+                });
             });
         });
-    </script>
+    });
+    
+    // Prüfe Modals
+    const modals = document.querySelectorAll('.modal');
+    console.log('Anzahl Modals:', modals.length);
+    
+    modals.forEach(function(modal, index) {
+        modal.addEventListener('show.bs.modal', function() {
+            const modalId = modal.id;
+            console.log('Dashboard Modal geöffnet:', modalId);
+        });
+    });
+    
+    // Prüfe URL-Parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('action') && urlParams.get('action') === 'create_calendar_event') {
+        const reservationId = urlParams.get('reservation_id');
+        console.log('Google Calendar Event wird erstellt für Reservierung:', reservationId);
+    }
+</script>
 </body>
 </html>
