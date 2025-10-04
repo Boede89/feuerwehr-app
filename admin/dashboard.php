@@ -156,6 +156,21 @@ try {
                                                 <span><?php echo htmlspecialchars($reservation['reason']); ?></span>
                                             </div>
                                             
+                                            <?php if (!empty($reservation['calendar_conflicts'])): ?>
+                                                <?php $conflicts = json_decode($reservation['calendar_conflicts'], true); ?>
+                                                <?php if (!empty($conflicts)): ?>
+                                                    <div class="mb-3">
+                                                        <i class="fas fa-exclamation-triangle text-danger"></i>
+                                                        <small class="text-danger">
+                                                            <strong>Kalender-Konflikt!</strong><br>
+                                                            <?php foreach ($conflicts as $conflict): ?>
+                                                                • <?php echo htmlspecialchars($conflict['title']); ?><br>
+                                                            <?php endforeach; ?>
+                                                        </small>
+                                                    </div>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                            
                                             <div class="d-grid">
                                                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
                                                     <i class="fas fa-edit"></i> Bearbeiten
@@ -201,6 +216,18 @@ try {
                                                         <span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($reservation['reason']); ?>">
                                                             <?php echo htmlspecialchars($reservation['reason']); ?>
                                                         </span>
+                                                        <?php if (!empty($reservation['calendar_conflicts'])): ?>
+                                                            <?php $conflicts = json_decode($reservation['calendar_conflicts'], true); ?>
+                                                            <?php if (!empty($conflicts)): ?>
+                                                                <br><small class="text-danger">
+                                                                    <i class="fas fa-exclamation-triangle"></i> 
+                                                                    Kalender-Konflikt: <?php echo htmlspecialchars($conflicts[0]['title']); ?>
+                                                                    <?php if (count($conflicts) > 1): ?>
+                                                                        (+<?php echo count($conflicts) - 1; ?> weitere)
+                                                                    <?php endif; ?>
+                                                                </small>
+                                                            <?php endif; ?>
+                                                        <?php endif; ?>
                                                     </td>
                                                     <td>
                                                         <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
@@ -266,6 +293,27 @@ try {
                                 
                                 <h6><i class="fas fa-clock text-muted"></i> Erstellt</h6>
                                 <p><small class="text-muted"><?php echo date('d.m.Y H:i', strtotime($reservation['created_at'])); ?></small></p>
+                                
+                                <?php if (!empty($reservation['calendar_conflicts'])): ?>
+                                    <?php $conflicts = json_decode($reservation['calendar_conflicts'], true); ?>
+                                    <?php if (!empty($conflicts)): ?>
+                                        <h6><i class="fas fa-exclamation-triangle text-danger"></i> Kalender-Konflikte</h6>
+                                        <div class="alert alert-warning">
+                                            <strong>Warnung:</strong> Für dieses Fahrzeug existieren bereits Kalender-Einträge im beantragten Zeitraum:
+                                            <ul class="mb-0 mt-2">
+                                                <?php foreach ($conflicts as $conflict): ?>
+                                                    <li>
+                                                        <strong><?php echo htmlspecialchars($conflict['title']); ?></strong><br>
+                                                        <small class="text-muted">
+                                                            <?php echo date('d.m.Y H:i', strtotime($conflict['start'])); ?> - 
+                                                            <?php echo date('d.m.Y H:i', strtotime($conflict['end'])); ?>
+                                                        </small>
+                                                    </li>
+                                                <?php endforeach; ?>
+                                            </ul>
+                                        </div>
+                                    <?php endif; ?>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
