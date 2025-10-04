@@ -97,6 +97,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                                 error_log('reservation_id: ' . $reservation['id']);
                                 error_log('location: ' . ($reservation['location'] ?? 'null'));
                                 
+                                echo '<script>console.log("🔍 Google Calendar Parameter:", {';
+                                echo 'vehicle_name: ' . json_encode($reservation['vehicle_name']) . ',';
+                                echo 'reason: ' . json_encode($reservation['reason']) . ',';
+                                echo 'start_datetime: ' . json_encode($reservation['start_datetime']) . ',';
+                                echo 'end_datetime: ' . json_encode($reservation['end_datetime']) . ',';
+                                echo 'reservation_id: ' . json_encode($reservation['id']) . ',';
+                                echo 'location: ' . json_encode($reservation['location'] ?? 'null');
+                                echo '});</script>';
+                                
                                 $event_id = create_google_calendar_event(
                                     $reservation['vehicle_name'],
                                     $reservation['reason'],
@@ -107,6 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                                 );
                                 
                                 error_log('Dashboard: create_google_calendar_event Rückgabe: ' . ($event_id ? $event_id : 'false'));
+                                echo '<script>console.log("🔍 create_google_calendar_event Rückgabe:", ' . json_encode($event_id ? $event_id : 'false') . ');</script>';
                                 
                                 if ($event_id) {
                                     $message .= " Google Calendar Event wurde erstellt.";
