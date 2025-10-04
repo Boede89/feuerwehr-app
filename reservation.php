@@ -39,6 +39,12 @@ echo '</script>';
 if (isset($_POST['vehicle_data'])) {
     $selectedVehicle = json_decode($_POST['vehicle_data'], true);
     echo '<script>console.log("✅ Fahrzeug aus POST-Daten geladen:", ' . json_encode($selectedVehicle) . ');</script>';
+    
+    // Prüfe ob Fahrzeug korrekt geladen wurde
+    if (!$selectedVehicle || !isset($selectedVehicle['id'])) {
+        echo '<script>console.log("❌ Fahrzeug-Daten sind unvollständig:", ' . json_encode($selectedVehicle) . ');</script>';
+        $error = "Fehler beim Laden der Fahrzeug-Daten. Bitte wählen Sie erneut ein Fahrzeug aus.";
+    }
 } elseif (isset($_SESSION['selected_vehicle'])) {
     $selectedVehicle = $_SESSION['selected_vehicle'];
     echo '<script>console.log("✅ Fahrzeug aus Session geladen:", ' . json_encode($selectedVehicle) . ');</script>';
@@ -51,16 +57,28 @@ if (isset($_POST['vehicle_data'])) {
 
 // Formular verarbeiten
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation'])) {
+    echo '<script>console.log("🔍 Formular wird verarbeitet...");</script>';
+    
     $csrf_token = $_POST['csrf_token'] ?? '';
     
     if (!validate_csrf_token($csrf_token)) {
         $error = "Ungültiger Sicherheitstoken. Bitte versuchen Sie es erneut.";
+        echo '<script>console.log("❌ CSRF Token ungültig");</script>';
     } else {
-        $vehicle_id = $selectedVehicle['id'];
-        $requester_name = sanitize_input($_POST['requester_name'] ?? '');
-        $requester_email = sanitize_input($_POST['requester_email'] ?? '');
-        $reason = sanitize_input($_POST['reason'] ?? '');
-        $location = sanitize_input($_POST['location'] ?? '');
+        echo '<script>console.log("✅ CSRF Token gültig");</script>';
+        
+        // Prüfe ob Fahrzeug verfügbar ist
+        if (!isset($selectedVehicle['id'])) {
+            $error = "Fahrzeug-Daten sind nicht verfügbar. Bitte wählen Sie erneut ein Fahrzeug aus.";
+            echo '<script>console.log("❌ Fahrzeug-ID nicht verfügbar");</script>';
+        } else {
+            $vehicle_id = $selectedVehicle['id'];
+            $requester_name = sanitize_input($_POST['requester_name'] ?? '');
+            $requester_email = sanitize_input($_POST['requester_email'] ?? '');
+            $reason = sanitize_input($_POST['reason'] ?? '');
+            $location = sanitize_input($_POST['location'] ?? '');
+            
+            echo '<script>console.log("✅ Formular-Daten geladen:", {vehicle_id: ' . $vehicle_id . ', requester_name: "' . $requester_name . '", reason: "' . $reason . '"});</script>';
         
         // Mehrere Datum/Zeit-Paare verarbeiten
         $date_times = [];
@@ -231,6 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             } else {
                 $error = "Keine Reservierungen konnten gespeichert werden. " . implode(' ', $errors);
             }
+        }
         }
     }
 }
