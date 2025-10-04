@@ -177,6 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 } else {
                     $error = "Nur bearbeitete Reservierungen (genehmigt/abgelehnt) können gelöscht werden.";
                 }
+            }
         } catch(PDOException $e) {
             $error = "Fehler beim Verarbeiten der Reservierung: " . $e->getMessage();
         }
