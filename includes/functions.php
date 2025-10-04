@@ -374,8 +374,13 @@ function check_calendar_conflicts($vehicle_name, $start_datetime, $end_datetime)
 function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $end_datetime, $reservation_id = null, $location = null) {
     global $db;
     
+    // Sofortiges Logging am Anfang
+    error_log('=== Google Calendar Event Start ===');
+    error_log('Parameter: vehicle_name=' . $vehicle_name . ', reason=' . $reason . ', start=' . $start_datetime . ', end=' . $end_datetime . ', reservation_id=' . $reservation_id . ', location=' . ($location ?? 'null'));
+    
     try {
         // Google Calendar Einstellungen laden
+        error_log('Google Calendar: Lade Einstellungen...');
         $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
         $stmt->execute();
         $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
@@ -383,19 +388,26 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
         $auth_type = $settings['google_calendar_auth_type'] ?? 'service_account';
         $calendar_id = $settings['google_calendar_id'] ?? 'primary';
         
+        error_log('Google Calendar: Einstellungen geladen - auth_type=' . $auth_type . ', calendar_id=' . $calendar_id);
+        
         if ($auth_type === 'service_account') {
             // Service Account verwenden
             $service_account_file = $settings['google_calendar_service_account_file'] ?? '';
             $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
             
+            error_log('Google Calendar: Service Account - file=' . (!empty($service_account_file) ? 'gesetzt' : 'leer') . ', json=' . (!empty($service_account_json) ? 'gesetzt' : 'leer'));
+            
             // Prüfe ob Service Account Klasse verfügbar ist
             if (class_exists('GoogleCalendarServiceAccount')) {
+                error_log('Google Calendar: Service Account Klasse verfügbar');
                 // JSON-Inhalt hat Priorität über Datei
                 if (!empty($service_account_json)) {
                     // JSON-Inhalt verwenden
+                    error_log('Google Calendar: Verwende JSON-Inhalt');
                     $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
                 } elseif (!empty($service_account_file) && file_exists($service_account_file)) {
                     // Datei verwenden
+                    error_log('Google Calendar: Verwende Datei');
                     $google_calendar = new GoogleCalendarServiceAccount($service_account_file, $calendar_id, false);
                 } else {
                     error_log('Google Calendar Service Account nicht konfiguriert (weder Datei noch JSON-Inhalt)');
@@ -426,6 +438,8 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
         $title = $vehicle_name . ' - ' . $reason;
         $description = "Fahrzeugreservierung über Feuerwehr App\nFahrzeug: $vehicle_name\nGrund: $reason\nOrt: " . ($location ?? 'Nicht angegeben');
         
+        error_log('Google Calendar: Event-Details - title=' . $title . ', description=' . $description);
+        
         // Setze aggressive Timeouts für die API-Anfrage
         set_time_limit(120); // 120 Sekunden Timeout
         ini_set('default_socket_timeout', 60); // 60 Sekunden Socket-Timeout
@@ -447,9 +461,11 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
             }
         }
         
+        error_log('=== Google Calendar Event Ende - Erfolg: ' . ($event_id ? 'JA' : 'NEIN') . ' ===');
         return $event_id;
     } catch (Exception $e) {
         error_log('Google Calendar Fehler: ' . $e->getMessage());
+        error_log('=== Google Calendar Event Ende - Fehler ===');
         return false;
     }
 }
