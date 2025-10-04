@@ -363,9 +363,14 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
             }
         }
         
-    $title = $vehicle_name . ' - ' . $reason;
-    $description = "Fahrzeugreservierung über Feuerwehr App\nFahrzeug: $vehicle_name\nGrund: $reason\nOrt: " . ($location ?? 'Nicht angegeben');
+        // Event-Details erstellen
+        $title = $vehicle_name . ' - ' . $reason;
+        $description = "Fahrzeugreservierung über Feuerwehr App\nFahrzeug: $vehicle_name\nGrund: $reason\nOrt: " . ($location ?? 'Nicht angegeben');
         
+        // Setze Timeout für die API-Anfrage
+        set_time_limit(30); // 30 Sekunden Timeout
+        
+        // Event erstellen
         $event_id = $google_calendar->createEvent($title, $start_datetime, $end_datetime, $description);
         
         if ($event_id && $reservation_id) {
