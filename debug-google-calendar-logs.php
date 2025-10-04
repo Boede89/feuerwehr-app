@@ -12,12 +12,12 @@ try {
     
     // Prüfe verschiedene mögliche error_log Pfade
     $log_paths = [
+        ini_get('error_log'), // Priorität: Aktuelle PHP error_log Einstellung
+        '/var/log/php_errors.log',
         '/var/log/apache2/error.log',
         '/var/log/nginx/error.log',
-        '/var/log/php_errors.log',
         '/tmp/php_errors.log',
         'error.log',
-        ini_get('error_log'),
         '/var/log/apache2/access.log',
         '/var/log/php.log'
     ];
@@ -33,14 +33,20 @@ try {
             echo "<h3>Letzte 100 Zeilen aus $log_path:</h3>";
             echo "<pre style='background: #f5f5f5; padding: 10px; border: 1px solid #ddd; max-height: 400px; overflow-y: auto;'>";
             $recent_lines = array_slice($lines, -100); // Letzte 100 Zeilen
+            $google_calendar_found = false;
             foreach ($recent_lines as $line) {
-                if (strpos($line, 'Google Calendar') !== false || strpos($line, 'Dashboard') !== false) {
+                if (strpos($line, 'Google Calendar') !== false || strpos($line, 'Dashboard') !== false || strpos($line, 'TEST ERROR_LOG') !== false) {
                     echo "<strong style='color: red;'>" . htmlspecialchars($line) . "</strong>\n";
+                    $google_calendar_found = true;
                 } else {
                     echo htmlspecialchars($line) . "\n";
                 }
             }
             echo "</pre>";
+            
+            if (!$google_calendar_found) {
+                echo "<div style='color: orange; font-weight: bold;'>⚠️ Keine Google Calendar oder Dashboard Einträge in den letzten 100 Zeilen gefunden</div>";
+            }
             $log_found = true;
             break;
         }
