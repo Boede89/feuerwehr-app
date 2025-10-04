@@ -187,17 +187,50 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Reservierungen laden
+// Filter-Parameter
+$filter = $_GET['filter'] ?? 'processed'; // Standard: nur bearbeitete Anträge
+
+// Reservierungen laden basierend auf Filter
 $reservations = [];
 try {
-    $stmt = $db->prepare("
+    $where_clause = "";
+    $params = [];
+    
+    switch ($filter) {
+        case 'all':
+            // Alle Reservierungen
+            $where_clause = "";
+            break;
+        case 'pending':
+            // Nur ausstehende
+            $where_clause = "WHERE r.status = 'pending'";
+            break;
+        case 'approved':
+            // Nur genehmigte
+            $where_clause = "WHERE r.status = 'approved'";
+            break;
+        case 'rejected':
+            // Nur abgelehnte
+            $where_clause = "WHERE r.status = 'rejected'";
+            break;
+        case 'processed':
+        default:
+            // Nur bearbeitete (genehmigt + abgelehnt)
+            $where_clause = "WHERE r.status IN ('approved', 'rejected')";
+            break;
+    }
+    
+    $sql = "
         SELECT r.*, v.name as vehicle_name, u.first_name, u.last_name
         FROM reservations r 
         JOIN vehicles v ON r.vehicle_id = v.id 
         LEFT JOIN users u ON r.approved_by = u.id
+        $where_clause
         ORDER BY r.created_at DESC
-    ");
-    $stmt->execute();
+    ";
+    
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
     $reservations = $stmt->fetchAll();
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Reservierungen: " . $e->getMessage();
@@ -269,9 +302,32 @@ try {
     <div class="container-fluid mt-4">
         <div class="row">
             <div class="col-12">
-                <h1 class="h3 mb-4">
-                    <i class="fas fa-calendar-check"></i> Reservierungen verwalten
-                </h1>
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h1 class="h3 mb-3">
+                            <i class="fas fa-calendar-check"></i> Reservierungen verwalten
+                        </h1>
+                        
+                        <!-- Filter-Buttons -->
+                        <div class="btn-group w-100" role="group">
+                            <a href="?filter=processed" class="btn <?php echo $filter === 'processed' ? 'btn-primary' : 'btn-outline-primary'; ?>">
+                                <i class="fas fa-check-circle"></i> <span class="d-none d-sm-inline">Bearbeitet</span>
+                            </a>
+                            <a href="?filter=all" class="btn <?php echo $filter === 'all' ? 'btn-primary' : 'btn-outline-primary'; ?>">
+                                <i class="fas fa-list"></i> <span class="d-none d-sm-inline">Alle</span>
+                            </a>
+                            <a href="?filter=pending" class="btn <?php echo $filter === 'pending' ? 'btn-primary' : 'btn-outline-primary'; ?>">
+                                <i class="fas fa-clock"></i> <span class="d-none d-sm-inline">Offen</span>
+                            </a>
+                            <a href="?filter=approved" class="btn <?php echo $filter === 'approved' ? 'btn-primary' : 'btn-outline-primary'; ?>">
+                                <i class="fas fa-check"></i> <span class="d-none d-sm-inline">Genehmigt</span>
+                            </a>
+                            <a href="?filter=rejected" class="btn <?php echo $filter === 'rejected' ? 'btn-primary' : 'btn-outline-primary'; ?>">
+                                <i class="fas fa-times"></i> <span class="d-none d-sm-inline">Abgelehnt</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
                 
                 <?php if ($message): ?>
                     <?php echo show_success($message); ?>
@@ -288,7 +344,18 @@ try {
                 <div class="card">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="fas fa-list"></i> Alle Reservierungen
+                            <i class="fas fa-list"></i> 
+                            <?php
+                            $filter_names = [
+                                'all' => 'Alle Reservierungen',
+                                'pending' => 'Ausstehende Reservierungen',
+                                'approved' => 'Genehmigte Reservierungen',
+                                'rejected' => 'Abgelehnte Reservierungen',
+                                'processed' => 'Bearbeitete Reservierungen'
+                            ];
+                            echo $filter_names[$filter] ?? 'Reservierungen';
+                            ?>
+                            <span class="badge bg-secondary ms-2"><?php echo count($reservations); ?></span>
                         </h5>
                     </div>
                     <div class="card-body">
