@@ -10,9 +10,15 @@ require_once '../includes/functions.php';
 // Debug: Prüfe ob Google Calendar Funktionen verfügbar sind
 if (!function_exists('create_google_calendar_event')) {
     error_log('ADMIN RESERVATIONS: create_google_calendar_event Funktion nicht verfügbar');
+    echo "<script>console.warn('ADMIN RESERVATIONS: create_google_calendar_event Funktion nicht verfügbar');</script>";
+} else {
+    echo "<script>console.log('ADMIN RESERVATIONS: create_google_calendar_event Funktion ist verfügbar');</script>";
 }
 if (!class_exists('GoogleCalendarServiceAccount')) {
     error_log('ADMIN RESERVATIONS: GoogleCalendarServiceAccount Klasse nicht verfügbar');
+    echo "<script>console.warn('ADMIN RESERVATIONS: GoogleCalendarServiceAccount Klasse nicht verfügbar');</script>";
+} else {
+    echo "<script>console.log('ADMIN RESERVATIONS: GoogleCalendarServiceAccount Klasse ist verfügbar');</script>";
 }
 
 // Nur für eingeloggte Benutzer mit Admin-Zugriff
@@ -64,9 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                             if ($event_id) {
                                 error_log("ADMIN RESERVATIONS: Google Calendar: Event erfolgreich erstellt - ID: $event_id");
                                 $message .= " Google Calendar Event wurde erstellt.";
+                                echo "<script>console.log('ADMIN RESERVATIONS: Google Calendar Event erfolgreich erstellt - ID: $event_id');</script>";
                             } else {
                                 error_log("ADMIN RESERVATIONS: Google Calendar: Event konnte nicht erstellt werden");
                                 $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
+                                echo "<script>console.log('ADMIN RESERVATIONS: Google Calendar Event konnte nicht erstellt werden');</script>";
                             }
                         } else {
                             error_log('ADMIN RESERVATIONS: Google Calendar: Funktion create_google_calendar_event nicht verfügbar');
@@ -80,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     error_log('ADMIN RESERVATIONS: Google Calendar Fehler: ' . $e->getMessage());
                     error_log('ADMIN RESERVATIONS: Google Calendar Stack Trace: ' . $e->getTraceAsString());
                     $message .= " Warnung: Google Calendar Fehler - " . $e->getMessage();
+                    echo "<script>console.error('ADMIN RESERVATIONS: Google Calendar Fehler: " . addslashes($e->getMessage()) . "');</script>";
                 }
                 
                 // E-Mail an Antragsteller senden
@@ -214,9 +223,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                             if ($event_id) {
                                 error_log("MANUAL CALENDAR: Google Calendar: Event erfolgreich erstellt - ID: $event_id");
                                 $message = "Google Calendar Event wurde manuell erstellt.";
+                                echo "<script>console.log('MANUAL CALENDAR: Google Calendar Event erfolgreich erstellt - ID: $event_id');</script>";
                             } else {
                                 error_log("MANUAL CALENDAR: Google Calendar: Event konnte nicht erstellt werden");
                                 $error = "Google Calendar Event konnte nicht erstellt werden.";
+                                echo "<script>console.log('MANUAL CALENDAR: Google Calendar Event konnte nicht erstellt werden');</script>";
                             }
                         } else {
                             error_log('MANUAL CALENDAR: Funktion create_google_calendar_event nicht verfügbar');
@@ -230,6 +241,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     error_log('MANUAL CALENDAR: Google Calendar Fehler: ' . $e->getMessage());
                     error_log('MANUAL CALENDAR: Google Calendar Stack Trace: ' . $e->getTraceAsString());
                     $error = "Google Calendar Fehler - " . $e->getMessage();
+                    echo "<script>console.error('MANUAL CALENDAR: Google Calendar Fehler: " . addslashes($e->getMessage()) . "');</script>";
                 }
             }
         } catch(PDOException $e) {
