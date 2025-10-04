@@ -96,12 +96,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             $i++;
         }
         
+        echo '<script>console.log("🔍 Zeiträume gefunden:", ' . count($date_times) . ');</script>';
+        
         // Validierung
         if (empty($requester_name) || empty($requester_email) || empty($reason) || empty($location) || empty($date_times)) {
             $error = "Bitte füllen Sie alle Felder aus und geben Sie mindestens einen Zeitraum an.";
+            echo '<script>console.log("❌ Validierung fehlgeschlagen - Felder unvollständig");</script>';
         } elseif (!validate_email($requester_email)) {
             $error = "Bitte geben Sie eine gültige E-Mail-Adresse ein.";
+            echo '<script>console.log("❌ Validierung fehlgeschlagen - E-Mail ungültig");</script>';
         } else {
+            echo '<script>console.log("✅ Validierung erfolgreich - Starte Reservierung-Speicherung");</script>';
             $success_count = 0;
             $errors = [];
             
@@ -149,11 +154,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             }
             
             if ($success_count > 0) {
+                echo '<script>console.log("✅ Reservierungen erfolgreich gespeichert - Sende E-Mails");</script>';
+                
                 // E-Mail an Admins und Genehmiger mit aktivierten Benachrichtigungen senden
                 $admin_emails = [];
-                $stmt = $db->prepare("SELECT email FROM users WHERE user_role IN ('admin', 'approver') AND is_active = 1 AND email_notifications = 1");
-                $stmt->execute();
-                $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                try {
+                    $stmt = $db->prepare("SELECT email FROM users WHERE user_role IN ('admin', 'approver') AND is_active = 1 AND email_notifications = 1");
+                    $stmt->execute();
+                    $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    echo '<script>console.log("🔍 Admin-E-Mails gefunden:", ' . count($admin_emails) . ');</script>';
+                } catch (Exception $e) {
+                    echo '<script>console.log("❌ Fehler beim Laden der Admin-E-Mails:", ' . json_encode($e->getMessage()) . ');</script>';
+                }
                 
                 if (!empty($admin_emails)) {
                     // Alle Zeiträume für diesen Antrag laden
@@ -241,13 +253,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 
                 if (empty($errors)) {
                     $message = "Alle $success_count Reservierungen wurden erfolgreich eingereicht. Sie erhalten eine E-Mail, sobald über Ihre Anträge entschieden wurde.";
+                    echo '<script>console.log("✅ Erfolgreiche Reservierung - Weiterleitung zur Startseite");</script>';
                     // Weiterleitung zur Startseite nach 3 Sekunden
                     $redirect_to_home = true;
                 } else {
                     $message = "$success_count Reservierungen wurden erfolgreich eingereicht. " . implode(' ', $errors);
+                    echo '<script>console.log("⚠️ Teilweise erfolgreiche Reservierung mit Fehlern");</script>';
                 }
             } else {
                 $error = "Keine Reservierungen konnten gespeichert werden. " . implode(' ', $errors);
+                echo '<script>console.log("❌ Keine Reservierungen gespeichert");</script>';
             }
         }
         }
