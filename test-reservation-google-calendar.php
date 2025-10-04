@@ -144,8 +144,8 @@ echo "<h2>4. Test mit echter Reservierung</h2>";
 
 // Test-Reservierung erstellen
 try {
-    $stmt = $db->prepare("INSERT INTO reservations (user_id, vehicle_id, reason, start_datetime, end_datetime, status, created_at) VALUES (?, ?, ?, ?, ?, 'approved', NOW())");
-    $stmt->execute([1, 1, 'Google Calendar Test Reservierung', $test_start, $test_end]);
+    $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, start_datetime, end_datetime, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'approved', NOW())");
+    $stmt->execute([1, 'Test Benutzer', 'test@example.com', 'Google Calendar Test Reservierung', $test_start, $test_end]);
     $test_reservation_id = $db->lastInsertId();
     
     echo "<p>✅ Test-Reservierung erstellt (ID: $test_reservation_id)</p>";
