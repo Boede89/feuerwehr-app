@@ -118,6 +118,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                                 error_log('Dashboard: create_google_calendar_event Rückgabe: ' . ($event_id ? $event_id : 'false'));
                                 echo '<script>console.log("🔍 create_google_calendar_event Rückgabe:", ' . json_encode($event_id ? $event_id : 'false') . ');</script>';
                                 
+                                // Zusätzliches Logging in /tmp für Debugging
+                                file_put_contents('/tmp/dashboard_google_calendar.log', 
+                                    '[' . date('Y-m-d H:i:s') . '] Dashboard: create_google_calendar_event Rückgabe: ' . ($event_id ? $event_id : 'false') . PHP_EOL, 
+                                    FILE_APPEND
+                                );
+                                
                                 if ($event_id) {
                                     $message .= " Google Calendar Event wurde erstellt.";
                                     echo '<script>console.log("✅ Google Calendar Event erfolgreich erstellt:", ' . json_encode($event_id) . ');</script>';
