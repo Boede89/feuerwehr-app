@@ -367,5 +367,56 @@ try {
     <?php endforeach; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Debug-Logging für Dashboard
+        console.log('🔍 Admin Dashboard geladen');
+        console.log('Zeitstempel:', new Date().toLocaleString('de-DE'));
+        
+        // Prüfe PHP-Funktionen
+        <?php if (function_exists('check_calendar_conflicts')): ?>
+            console.log('✅ check_calendar_conflicts Funktion verfügbar');
+        <?php else: ?>
+            console.error('❌ check_calendar_conflicts Funktion NICHT verfügbar');
+        <?php endif; ?>
+        
+        <?php if (function_exists('create_google_calendar_event')): ?>
+            console.log('✅ create_google_calendar_event Funktion verfügbar');
+        <?php else: ?>
+            console.error('❌ create_google_calendar_event Funktion NICHT verfügbar');
+        <?php endif; ?>
+        
+        // Prüfe ausstehende Reservierungen
+        console.log('Anzahl ausstehende Reservierungen:', <?php echo count($pending_reservations); ?>);
+        
+        // Event-Listener für Formulare
+        document.addEventListener('DOMContentLoaded', function() {
+            const forms = document.querySelectorAll('form[method="POST"]');
+            console.log('Anzahl Formulare:', forms.length);
+            
+            forms.forEach(function(form, index) {
+                form.addEventListener('submit', function(e) {
+                    const action = form.querySelector('input[name="action"]').value;
+                    const reservationId = form.querySelector('input[name="reservation_id"]').value;
+                    console.log('Dashboard Formular abgesendet:', {
+                        action: action,
+                        reservationId: reservationId,
+                        formIndex: index
+                    });
+                });
+            });
+        });
+        
+        // Prüfe Modals
+        const modals = document.querySelectorAll('.modal');
+        console.log('Anzahl Modals:', modals.length);
+        
+        modals.forEach(function(modal, index) {
+            modal.addEventListener('show.bs.modal', function() {
+                const modalId = modal.id;
+                console.log('Dashboard Modal geöffnet:', modalId);
+            });
+        });
+    </script>
 </body>
 </html>
