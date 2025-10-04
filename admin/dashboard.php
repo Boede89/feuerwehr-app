@@ -250,6 +250,20 @@ try {
 error_log('Dashboard vor HTML - all_reservations: ' . count($all_reservations));
 error_log('Dashboard vor HTML - pending_reservations: ' . count($pending_reservations));
 error_log('Dashboard vor HTML - processed_reservations: ' . count($processed_reservations));
+
+// Debug: Prüfe ob Variablen korrekt gesetzt sind
+if (!isset($all_reservations)) {
+    error_log('Dashboard vor HTML - all_reservations ist NICHT gesetzt!');
+    $all_reservations = [];
+}
+if (!isset($pending_reservations)) {
+    error_log('Dashboard vor HTML - pending_reservations ist NICHT gesetzt!');
+    $pending_reservations = [];
+}
+if (!isset($processed_reservations)) {
+    error_log('Dashboard vor HTML - processed_reservations ist NICHT gesetzt!');
+    $processed_reservations = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
