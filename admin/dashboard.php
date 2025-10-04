@@ -40,17 +40,28 @@ echo '</script>';
 
 // POST-Verarbeitung für Genehmigung/Ablehnung
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
+    error_log('=== DASHBOARD: POST Request empfangen ===');
+    error_log('POST Data: ' . print_r($_POST, true));
+    
     $reservation_id = (int)$_POST['reservation_id'];
     $action = $_POST['action'];
+    
+    error_log('Dashboard: Action: ' . $action . ', Reservation ID: ' . $reservation_id);
     
     // CSRF Token Validierung (optional für interne Admin-Aktionen)
     if (!empty($_POST['csrf_token']) && !validate_csrf_token($_POST['csrf_token'])) {
         $error = "Ungültiger Sicherheitstoken.";
+        error_log('Dashboard: CSRF Token ungültig');
     } else {
+        error_log('Dashboard: CSRF Token validiert oder nicht vorhanden');
         try {
             if ($action == 'approve') {
+                error_log('=== DASHBOARD: Starte Genehmigung für Reservierung ID: ' . $reservation_id . ' ===');
+                
                 $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
                 $stmt->execute([$_SESSION['user_id'], $reservation_id]);
+                
+                error_log('Dashboard: Reservierung genehmigt - ID: ' . $reservation_id . ', approved_by: ' . $_SESSION['user_id']);
                 
                 $message = "Reservierung erfolgreich genehmigt.";
                 
