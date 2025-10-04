@@ -35,7 +35,7 @@ echo 'console.log("Error:", ' . json_encode($error ?? '') . ');';
 echo 'console.log("POST Data:", ' . json_encode($_POST ?? []) . ');';
 echo '</script>';
 
-// Ausgewähltes Fahrzeug aus POST-Daten laden
+// Ausgewähltes Fahrzeug aus POST-Daten oder Session laden
 if (isset($_POST['vehicle_data'])) {
     $selectedVehicle = json_decode($_POST['vehicle_data'], true);
     echo '<script>console.log("✅ Fahrzeug aus POST-Daten geladen:", ' . json_encode($selectedVehicle) . ');</script>';
@@ -44,7 +44,7 @@ if (isset($_POST['vehicle_data'])) {
     echo '<script>console.log("✅ Fahrzeug aus Session geladen:", ' . json_encode($selectedVehicle) . ');</script>';
 } else {
     // Kein Fahrzeug ausgewählt, zeige Fehlermeldung und Weiterleitung
-    echo '<script>console.log("❌ Kein Fahrzeug ausgewählt - Weiterleitung zur Fahrzeugauswahl");</script>';
+    echo '<script>console.log("❌ Kein Fahrzeug ausgewählt - Prüfe SessionStorage");</script>';
     $error = "Bitte wählen Sie zuerst ein Fahrzeug aus.";
     echo '<script>setTimeout(function() { window.location.href = "vehicle-selection.php"; }, 3000);</script>';
 }
@@ -407,10 +407,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
     <script>
         // Fahrzeugdaten aus Session Storage laden und übertragen
         window.addEventListener('load', function() {
+            console.log('🔍 Lade Fahrzeug aus SessionStorage...');
             const selectedVehicle = sessionStorage.getItem('selectedVehicle');
+            console.log('SessionStorage selectedVehicle:', selectedVehicle);
+            
             if (selectedVehicle) {
                 const vehicleData = JSON.parse(selectedVehicle);
-                document.querySelector('input[name="vehicle_data"]').value = JSON.stringify(vehicleData);
+                console.log('✅ Fahrzeug aus SessionStorage geladen:', vehicleData);
+                
+                // Fahrzeug-Daten in verstecktes Feld übertragen
+                const vehicleDataInput = document.querySelector('input[name="vehicle_data"]');
+                if (vehicleDataInput) {
+                    vehicleDataInput.value = JSON.stringify(vehicleData);
+                    console.log('✅ Fahrzeug-Daten in Formular übertragen');
+                }
                 
                 // Fahrzeug-Info anzeigen
                 const vehicleInfo = document.querySelector('.alert-info p');
@@ -419,8 +429,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                         <strong>${vehicleData.name}</strong><br>
                         <small>${vehicleData.description}</small>
                     `;
+                    console.log('✅ Fahrzeug-Info angezeigt');
+                }
+                
+                // Seite neu laden um PHP-Variable zu setzen
+                if (!document.querySelector('input[name="vehicle_data"]').value) {
+                    console.log('🔄 Lade Seite neu um Fahrzeug zu setzen...');
+                    window.location.reload();
                 }
             } else {
+                console.log('❌ Kein Fahrzeug in SessionStorage gefunden');
                 // Kein Fahrzeug ausgewählt, zurück zur Auswahl
                 window.location.href = 'vehicle-selection.php';
             }
