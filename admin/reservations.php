@@ -298,39 +298,17 @@ try {
                                 <p class="text-muted">Keine Reservierungen gefunden.</p>
                             </div>
                         <?php else: ?>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Fahrzeug</th>
-                                            <th>Grund</th>
-                                            <th>Zeitraum</th>
-                                            <th>Status</th>
-                                            <th>Aktionen</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($reservations as $reservation): ?>
-                                            <tr>
-                                                <td>
-                                                    <i class="fas fa-truck text-primary"></i>
-                                                    <?php echo htmlspecialchars($reservation['vehicle_name']); ?>
-                                                </td>
-                                                <td>
-                                                    <span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($reservation['reason']); ?>">
-                                                        <?php echo htmlspecialchars($reservation['reason']); ?>
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div>
-                                                        <i class="fas fa-play text-success"></i>
-                                                        <?php echo date('d.m.Y H:i', strtotime($reservation['start_datetime'])); ?>
-                                                        <br>
-                                                        <i class="fas fa-stop text-danger"></i>
-                                                        <?php echo date('d.m.Y H:i', strtotime($reservation['end_datetime'])); ?>
-                                                    </div>
-                                                </td>
-                                                <td>
+                            <!-- Karten-Ansicht für alle Geräte -->
+                            <div class="row">
+                                <?php foreach ($reservations as $reservation): ?>
+                                    <div class="col-lg-6 col-xl-4 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <h6 class="card-title mb-0">
+                                                        <i class="fas fa-truck text-primary"></i>
+                                                        <?php echo htmlspecialchars($reservation['vehicle_name']); ?>
+                                                    </h6>
                                                     <?php
                                                     $status_class = '';
                                                     $status_icon = '';
@@ -354,44 +332,33 @@ try {
                                                     }
                                                     ?>
                                                     <span class="badge <?php echo $status_class; ?>">
-                                                        <i class="<?php echo $status_icon; ?>"></i>
-                                                        <?php echo $status_text; ?>
+                                                        <i class="<?php echo $status_icon; ?>"></i> <?php echo $status_text; ?>
                                                     </span>
-                                                </td>
-                                                <td>
-                                                    <div class="d-grid gap-1">
-                                                        <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
-                                                            <i class="fas fa-info-circle"></i> Details
-                                                        </button>
-                                                        
-                                                        <?php if ($reservation['status'] == 'pending'): ?>
-                                                            <form method="POST" class="d-inline">
-                                                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
-                                                                <input type="hidden" name="action" value="approve">
-                                                                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                                                                <button type="submit" class="btn btn-success btn-sm w-100" onclick="return confirm('Reservierung genehmigen?')">
-                                                                    <i class="fas fa-check"></i> Genehmigen
-                                                                </button>
-                                                            </form>
-                                                            <button type="button" class="btn btn-danger btn-sm w-100" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $reservation['id']; ?>">
-                                                                <i class="fas fa-times"></i> Ablehnen
-                                                            </button>
-                                                        <?php elseif (in_array($reservation['status'], ['approved', 'rejected'])): ?>
-                                                            <form method="POST" class="d-inline">
-                                                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
-                                                                <input type="hidden" name="action" value="delete">
-                                                                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                                                                <button type="submit" class="btn btn-outline-danger btn-sm w-100" onclick="return confirm('Reservierung wirklich löschen?')">
-                                                                    <i class="fas fa-trash"></i> Löschen
-                                                                </button>
-                                                            </form>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
+                                                </div>
+                                                
+                                                <div class="mb-2">
+                                                    <i class="fas fa-calendar-alt text-success"></i>
+                                                    <strong><?php echo date('d.m.Y', strtotime($reservation['start_datetime'])); ?></strong>
+                                                    <small class="text-muted">
+                                                        <?php echo date('H:i', strtotime($reservation['start_datetime'])); ?> - 
+                                                        <?php echo date('H:i', strtotime($reservation['end_datetime'])); ?>
+                                                    </small>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <i class="fas fa-clipboard-list text-warning"></i>
+                                                    <span><?php echo htmlspecialchars($reservation['reason']); ?></span>
+                                                </div>
+                                                
+                                                <div class="d-grid">
+                                                    <button type="button" class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
+                                                        <i class="fas fa-info-circle"></i> Details anzeigen
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -479,6 +446,28 @@ try {
                         </div>
                     </div>
                     <div class="modal-footer">
+                        <?php if ($reservation['status'] == 'pending'): ?>
+                            <form method="POST" class="d-inline">
+                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                                <input type="hidden" name="action" value="approve">
+                                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                <button type="submit" class="btn btn-success" onclick="return confirm('Reservierung genehmigen?')">
+                                    <i class="fas fa-check"></i> Genehmigen
+                                </button>
+                            </form>
+                            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $reservation['id']; ?>" data-bs-dismiss="modal">
+                                <i class="fas fa-times"></i> Ablehnen
+                            </button>
+                        <?php elseif (in_array($reservation['status'], ['approved', 'rejected'])): ?>
+                            <form method="POST" class="d-inline">
+                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Reservierung wirklich löschen?')">
+                                    <i class="fas fa-trash"></i> Löschen
+                                </button>
+                            </form>
+                        <?php endif; ?>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
                     </div>
                 </div>
