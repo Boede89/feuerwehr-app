@@ -432,12 +432,19 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
         ini_set('max_execution_time', 120); // 120 Sekunden Max Execution Time
         
         // Event erstellen
+        error_log('Google Calendar: Versuche Event zu erstellen - Titel: ' . $title . ', Start: ' . $start_datetime . ', Ende: ' . $end_datetime);
         $event_id = $google_calendar->createEvent($title, $start_datetime, $end_datetime, $description);
+        error_log('Google Calendar: createEvent Rückgabe: ' . ($event_id ? $event_id : 'false'));
         
         if ($event_id && $reservation_id) {
             // Event ID in der Datenbank speichern
-            $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$reservation_id, $event_id, $title, $start_datetime, $end_datetime]);
+            try {
+                $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$reservation_id, $event_id, $title, $start_datetime, $end_datetime]);
+                error_log('Google Calendar: Event in Datenbank gespeichert - ID: ' . $event_id);
+            } catch (Exception $e) {
+                error_log('Google Calendar: Fehler beim Speichern in Datenbank: ' . $e->getMessage());
+            }
         }
         
         return $event_id;
