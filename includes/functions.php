@@ -417,6 +417,128 @@ function delete_google_calendar_event($event_id) {
 }
 
 /**
+ * Intelligente Google Calendar Event-Erstellung bei Genehmigung
+ * Prüft ob bereits ein Event mit gleichem Zeitraum/Grund existiert und erweitert den Titel
+ */
+function create_or_update_google_calendar_event($vehicle_name, $reason, $start_datetime, $end_datetime, $reservation_id, $location = null) {
+    global $db;
+    
+    error_log('=== Intelligente Google Calendar Event-Erstellung ===');
+    error_log('Parameter: vehicle_name=' . $vehicle_name . ', reason=' . $reason . ', start=' . $start_datetime . ', end=' . $end_datetime . ', reservation_id=' . $reservation_id);
+    
+    try {
+        // Prüfe ob bereits ein Event mit gleichem Zeitraum und Grund existiert
+        $stmt = $db->prepare("
+            SELECT ce.google_event_id, ce.title 
+            FROM calendar_events ce 
+            JOIN reservations r ON ce.reservation_id = r.id 
+            WHERE r.start_datetime = ? AND r.end_datetime = ? AND r.reason = ? AND r.status = 'approved'
+            LIMIT 1
+        ");
+        $stmt->execute([$start_datetime, $end_datetime, $reason]);
+        $existing_event = $stmt->fetch();
+        
+        if ($existing_event) {
+            // Event existiert bereits - erweitere den Titel
+            error_log('Bestehendes Event gefunden: ' . $existing_event['google_event_id']);
+            
+            // Prüfe ob das Fahrzeug bereits im Titel steht
+            $current_title = $existing_event['title'];
+            if (stripos($current_title, $vehicle_name) === false) {
+                // Fahrzeug noch nicht im Titel - füge es hinzu
+                $new_title = $current_title . ', ' . $vehicle_name;
+                
+                // Aktualisiere den Google Calendar Event
+                $update_success = update_google_calendar_event_title($existing_event['google_event_id'], $new_title);
+                
+                if ($update_success) {
+                    // Aktualisiere alle betroffenen calendar_events Einträge
+                    $stmt = $db->prepare("UPDATE calendar_events SET title = ? WHERE google_event_id = ?");
+                    $stmt->execute([$new_title, $existing_event['google_event_id']]);
+                    
+                    // Speichere die neue Reservierung mit der bestehenden Google Event ID
+                    $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                    $stmt->execute([$reservation_id, $existing_event['google_event_id'], $new_title, $start_datetime, $end_datetime]);
+                    
+                    error_log('Event-Titel erfolgreich erweitert: ' . $new_title);
+                    return $existing_event['google_event_id'];
+                } else {
+                    error_log('Fehler beim Aktualisieren des Event-Titels');
+                    return false;
+                }
+            } else {
+                // Fahrzeug bereits im Titel - nur calendar_events Eintrag hinzufügen
+                $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                $stmt->execute([$reservation_id, $existing_event['google_event_id'], $current_title, $start_datetime, $end_datetime]);
+                
+                error_log('Fahrzeug bereits im Titel - nur calendar_events Eintrag hinzugefügt');
+                return $existing_event['google_event_id'];
+            }
+        } else {
+            // Kein Event existiert - erstelle neues
+            error_log('Kein bestehendes Event gefunden - erstelle neues');
+            $title = $vehicle_name . ' - ' . $reason;
+            
+            $google_event_id = create_google_calendar_event($title, $reason, $start_datetime, $end_datetime, $reservation_id, $location);
+            
+            if ($google_event_id) {
+                // Speichere in calendar_events
+                $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                $stmt->execute([$reservation_id, $google_event_id, $title, $start_datetime, $end_datetime]);
+            }
+            
+            return $google_event_id;
+        }
+        
+    } catch (Exception $e) {
+        error_log('Fehler bei intelligenter Google Calendar Event-Erstellung: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Google Calendar Event Titel aktualisieren
+ */
+function update_google_calendar_event_title($google_event_id, $new_title) {
+    try {
+        // Google Calendar Einstellungen laden
+        global $db;
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
+        $stmt->execute();
+        $settings = [];
+        while ($row = $stmt->fetch()) {
+            $settings[$row['setting_key']] = $row['setting_value'];
+        }
+        
+        $auth_type = $settings['google_calendar_auth_type'] ?? 'service_account';
+        $calendar_id = $settings['google_calendar_id'] ?? 'primary';
+        
+        if ($auth_type === 'service_account') {
+            $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
+            if (class_exists('GoogleCalendarServiceAccount') && !empty($service_account_json)) {
+                $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
+                
+                // Hole das bestehende Event
+                $event = $google_calendar->getEvent($google_event_id);
+                if ($event) {
+                    // Aktualisiere den Titel
+                    $event['summary'] = $new_title;
+                    
+                    // Update das Event
+                    $result = $google_calendar->updateEvent($google_event_id, $event);
+                    return $result !== false;
+                }
+            }
+        }
+        
+        return false;
+    } catch (Exception $e) {
+        error_log('Fehler beim Aktualisieren des Google Calendar Event-Titels: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * Google Kalender API - Event erstellen
  */
 function create_google_calendar_event($title, $reason, $start_datetime, $end_datetime, $reservation_id = null, $location = null) {

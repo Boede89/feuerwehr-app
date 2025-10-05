@@ -51,9 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     $stmt->execute([$reservation_id]);
                     $reservation = $stmt->fetch();
                     
-                    if ($reservation && function_exists('create_google_calendar_event')) {
-                        $event_id = create_google_calendar_event(
-                            $reservation['vehicle_name'] . ' - ' . $reservation['reason'],
+                    if ($reservation && function_exists('create_or_update_google_calendar_event')) {
+                        $event_id = create_or_update_google_calendar_event(
+                            $reservation['vehicle_name'],
                             $reservation['reason'],
                             $reservation['start_datetime'],
                             $reservation['end_datetime'],

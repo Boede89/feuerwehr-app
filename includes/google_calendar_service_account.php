@@ -660,5 +660,53 @@ class GoogleCalendarServiceAccount {
         
         return json_decode($response, true);
     }
+    
+    /**
+     * Event aktualisieren
+     * @param string $eventId Event ID
+     * @param array $eventData Event-Daten
+     * @return bool
+     */
+    public function updateEvent($eventId, $eventData) {
+        try {
+            $accessToken = $this->getAccessToken();
+            if (!$accessToken) {
+                error_log('Kein Access Token für Event-Update verfügbar');
+                return false;
+            }
+            
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, 'https://www.googleapis.com/calendar/v3/calendars/' . urlencode($this->calendarId) . '/events/' . urlencode($eventId));
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($eventData));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $accessToken,
+                'Content-Type: application/json'
+            ]);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+            
+            if ($error) {
+                error_log('cURL Fehler beim Event-Update: ' . $error);
+                return false;
+            }
+            
+            if ($httpCode === 200) {
+                error_log('Event erfolgreich aktualisiert: ' . $eventId);
+                return true;
+            } else {
+                error_log('Fehler beim Event-Update: HTTP ' . $httpCode . ' - ' . $response);
+                return false;
+            }
+            
+        } catch (Exception $e) {
+            error_log('Exception beim Event-Update: ' . $e->getMessage());
+            return false;
+        }
+    }
 }
 ?>
