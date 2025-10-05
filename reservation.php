@@ -297,7 +297,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                         $appUrlValue = '';
                     }
                     $baseUrl = rtrim($appUrlValue !== '' ? $appUrlValue : ('http://' . $_SERVER['HTTP_HOST']), '/');
-                    $manageUrl = $baseUrl . '/admin/reservations.php';
+                    $manageUrl = $baseUrl . '/admin/dashboard.php';
 
                     $message_content = "
                     <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;'>
