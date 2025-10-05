@@ -60,11 +60,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                             $reservation['id'],
                             $reservation['location'] ?? null
                         );
-                        
+
                         if ($event_id) {
                             $message = "Reservierung erfolgreich genehmigt und in Google Calendar eingetragen.";
                         } else {
-                            $message = "Reservierung genehmigt, aber Google Calendar Event konnte nicht erstellt werden.";
+                            // Zusätzliche Diagnose und Fallback-Neuversuch mit direkter Erstellung
+                            error_log('DASHBOARD APPROVE: create_or_update_google_calendar_event fehlgeschlagen für Reservierung ' . $reservation['id']);
+                            if (function_exists('create_google_calendar_event')) {
+                                $direct_title = $reservation['vehicle_name'] . ' - ' . $reservation['reason'];
+                                error_log('DASHBOARD APPROVE: Versuche direkten Neuversuch mit create_google_calendar_event: title=' . $direct_title);
+                                $retry_event_id = create_google_calendar_event(
+                                    $direct_title,
+                                    $reservation['reason'],
+                                    $reservation['start_datetime'],
+                                    $reservation['end_datetime'],
+                                    $reservation['id'],
+                                    $reservation['location'] ?? null
+                                );
+                                if ($retry_event_id) {
+                                    $message = "Reservierung erfolgreich genehmigt und in Google Calendar eingetragen.";
+                                    $event_id = $retry_event_id;
+                                } else {
+                                    error_log('DASHBOARD APPROVE: create_google_calendar_event Fallback ebenfalls fehlgeschlagen für Reservierung ' . $reservation['id']);
+                                    $message = "Reservierung genehmigt, aber Google Calendar Event konnte nicht erstellt werden.";
+                                }
+                            } else {
+                                error_log('DASHBOARD APPROVE: create_google_calendar_event Funktion nicht verfügbar');
+                                $message = "Reservierung genehmigt, aber Google Calendar Event konnte nicht erstellt werden.";
+                            }
                         }
                     } else {
                         $message = "Reservierung genehmigt.";
