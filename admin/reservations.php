@@ -97,6 +97,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             error_log('Keine calendar_events Verknüpfungen für reservation_id=' . $reservation_id);
         }
 
+        // Fallback: Versuche anhand Titel/Zeitraum im Kalender zu löschen
+        // Hole Reservierungsdaten
+        $stmt = $db->prepare("SELECT v.name as vehicle_name, r.reason, r.start_datetime, r.end_datetime FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+        $stmt->execute([$reservation_id]);
+        $res = $stmt->fetch();
+        if ($res) {
+            $title = ($res['vehicle_name'] ?? '') . ' - ' . ($res['reason'] ?? '');
+            if (function_exists('delete_google_calendar_event_by_hint')) {
+                $hintOk = delete_google_calendar_event_by_hint($title, $res['start_datetime'], $res['end_datetime']);
+                if ($hintOk) {
+                    error_log('Kalender-Event per Fallback (Hint) entfernt für Reservation ' . $reservation_id);
+                }
+            }
+        }
+
         // Lokale Verknüpfungen entfernen
         $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
         $stmt->execute([$reservation_id]);

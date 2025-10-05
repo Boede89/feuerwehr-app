@@ -439,6 +439,59 @@ function delete_google_calendar_event($event_id) {
 }
 
 /**
+ * Google Calendar Event per Titel/Zeitraum finden und löschen (Fallback)
+ */
+function delete_google_calendar_event_by_hint($title, $start_datetime, $end_datetime) {
+    global $db;
+    try {
+        // Einstellungen laden
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
+        $stmt->execute();
+        $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $auth_type = $settings['google_calendar_auth_type'] ?? 'service_account';
+        $calendar_id = $settings['google_calendar_id'] ?? 'primary';
+        $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
+
+        if ($auth_type !== 'service_account' || empty($service_account_json)) {
+            error_log('GC DELETE HINT: Service Account nicht konfiguriert, breche ab');
+            return false;
+        }
+
+        $svc = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
+        // Hole Events im Zeitraum (kleines Pufferfenster von +/- 10 Minuten)
+        $start = date('c', strtotime($start_datetime) - 600);
+        $end = date('c', strtotime($end_datetime) + 600);
+        $events = $svc->getEvents($start, $end);
+        if (!$events || !is_array($events)) {
+            error_log('GC DELETE HINT: Keine Events im Zeitraum gefunden');
+            return false;
+        }
+
+        $deletedAny = false;
+        foreach ($events as $event) {
+            $summary = $event['summary'] ?? '';
+            $eid = $event['id'] ?? '';
+            if (!$eid) continue;
+            // Match: exakter Titel oder enthält den Titel vorn (z. B. zusammengeführte Fahrzeuge)
+            if ($summary === $title || stripos($summary, $title) !== false) {
+                $ok = $svc->deleteEvent($eid);
+                if ($ok) {
+                    error_log('GC DELETE HINT: Event per Hint gelöscht: ' . $eid . ' (' . $summary . ')');
+                    $deletedAny = true;
+                } else {
+                    error_log('GC DELETE HINT: Löschen per Hint fehlgeschlagen: ' . $eid . ' (' . $summary . ')');
+                }
+            }
+        }
+        return $deletedAny;
+    } catch (Exception $e) {
+        error_log('GC DELETE HINT: Exception: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * Intelligente Google Calendar Event-Erstellung bei Genehmigung
  * Prüft ob bereits ein Event mit gleichem Zeitraum/Grund existiert und erweitert den Titel
  */
