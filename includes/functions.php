@@ -502,6 +502,9 @@ function create_or_update_google_calendar_event($vehicle_name, $reason, $start_d
  * Google Calendar Event Titel aktualisieren
  */
 function update_google_calendar_event_title($google_event_id, $new_title) {
+    error_log('=== update_google_calendar_event_title Start ===');
+    error_log('Parameter: google_event_id=' . $google_event_id . ', new_title=' . $new_title);
+    
     try {
         // Google Calendar Einstellungen laden
         global $db;
@@ -515,27 +518,42 @@ function update_google_calendar_event_title($google_event_id, $new_title) {
         $auth_type = $settings['google_calendar_auth_type'] ?? 'service_account';
         $calendar_id = $settings['google_calendar_id'] ?? 'primary';
         
+        error_log('update_google_calendar_event_title: auth_type=' . $auth_type . ', calendar_id=' . $calendar_id);
+        
         if ($auth_type === 'service_account') {
             $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
             if (class_exists('GoogleCalendarServiceAccount') && !empty($service_account_json)) {
+                error_log('update_google_calendar_event_title: Erstelle GoogleCalendarServiceAccount');
                 $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
                 
                 // Hole das bestehende Event
+                error_log('update_google_calendar_event_title: Hole Event ' . $google_event_id);
                 $event = $google_calendar->getEvent($google_event_id);
                 if ($event) {
+                    error_log('update_google_calendar_event_title: Event gefunden, aktueller Titel: ' . ($event['summary'] ?? 'N/A'));
                     // Aktualisiere den Titel
                     $event['summary'] = $new_title;
                     
                     // Update das Event
+                    error_log('update_google_calendar_event_title: Update Event mit neuem Titel: ' . $new_title);
                     $result = $google_calendar->updateEvent($google_event_id, $event);
+                    error_log('update_google_calendar_event_title: Update Ergebnis: ' . ($result ? 'TRUE' : 'FALSE'));
                     return $result !== false;
+                } else {
+                    error_log('update_google_calendar_event_title: Event nicht gefunden');
                 }
+            } else {
+                error_log('update_google_calendar_event_title: GoogleCalendarServiceAccount nicht verfügbar oder Service Account JSON leer');
             }
+        } else {
+            error_log('update_google_calendar_event_title: Auth Type ist nicht service_account: ' . $auth_type);
         }
         
+        error_log('update_google_calendar_event_title: Rückgabe FALSE');
         return false;
     } catch (Exception $e) {
         error_log('Fehler beim Aktualisieren des Google Calendar Event-Titels: ' . $e->getMessage());
+        error_log('update_google_calendar_event_title: Exception Stack Trace: ' . $e->getTraceAsString());
         return false;
     }
 }
