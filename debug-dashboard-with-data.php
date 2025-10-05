@@ -34,10 +34,9 @@ echo "<h1>🔍 Dashboard Debug mit echten Daten</h1>";
 // Lade Reservierungen
 try {
     $stmt = $db->prepare("
-        SELECT r.*, v.name as vehicle_name, u.first_name, u.last_name, u.email as requester_email
+        SELECT r.*, v.name as vehicle_name, r.requester_name, r.requester_email
         FROM reservations r 
         JOIN vehicles v ON r.vehicle_id = v.id 
-        JOIN users u ON r.user_id = u.id 
         WHERE r.status = 'pending' 
         ORDER BY r.created_at DESC
     ");
@@ -52,7 +51,7 @@ try {
         echo "<h3>Test-Reservierung #{$test_reservation['id']}</h3>";
         echo "<ul>";
         echo "<li><strong>Fahrzeug:</strong> " . htmlspecialchars($test_reservation['vehicle_name']) . "</li>";
-        echo "<li><strong>Antragsteller:</strong> " . htmlspecialchars($test_reservation['first_name'] . ' ' . $test_reservation['last_name']) . "</li>";
+        echo "<li><strong>Antragsteller:</strong> " . htmlspecialchars($test_reservation['requester_name']) . "</li>";
         echo "<li><strong>Start:</strong> " . $test_reservation['start_datetime'] . "</li>";
         echo "<li><strong>Ende:</strong> " . $test_reservation['end_datetime'] . "</li>";
         echo "</ul>";
@@ -74,7 +73,7 @@ try {
         echo "</div>";
         echo "<div class='modal-body'>";
         echo "<p><strong>Fahrzeug:</strong> " . htmlspecialchars($test_reservation['vehicle_name']) . "</p>";
-        echo "<p><strong>Antragsteller:</strong> " . htmlspecialchars($test_reservation['first_name'] . ' ' . $test_reservation['last_name']) . "</p>";
+        echo "<p><strong>Antragsteller:</strong> " . htmlspecialchars($test_reservation['requester_name']) . "</p>";
         echo "<p><strong>E-Mail:</strong> " . htmlspecialchars($test_reservation['requester_email']) . "</p>";
         echo "<p><strong>Start:</strong> " . date('d.m.Y H:i', strtotime($test_reservation['start_datetime'])) . "</p>";
         echo "<p><strong>Ende:</strong> " . date('d.m.Y H:i', strtotime($test_reservation['end_datetime'])) . "</p>";

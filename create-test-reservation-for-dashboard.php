@@ -87,10 +87,9 @@ try {
     echo "<h2>3. Alle ausstehenden Reservierungen</h2>";
     
     $stmt = $db->prepare("
-        SELECT r.*, v.name as vehicle_name, u.first_name, u.last_name 
+        SELECT r.*, v.name as vehicle_name, r.requester_name, r.requester_email
         FROM reservations r 
         JOIN vehicles v ON r.vehicle_id = v.id 
-        JOIN users u ON r.user_id = u.id 
         WHERE r.status = 'pending' 
         ORDER BY r.created_at DESC
     ");
@@ -104,7 +103,7 @@ try {
             echo "<tr>";
             echo "<td>" . $reservation['id'] . "</td>";
             echo "<td>" . htmlspecialchars($reservation['vehicle_name']) . "</td>";
-            echo "<td>" . htmlspecialchars($reservation['first_name'] . ' ' . $reservation['last_name']) . "</td>";
+            echo "<td>" . htmlspecialchars($reservation['requester_name']) . "</td>";
             echo "<td>" . $reservation['start_datetime'] . "</td>";
             echo "<td>" . $reservation['end_datetime'] . "</td>";
             echo "<td>" . htmlspecialchars($reservation['reason']) . "</td>";
