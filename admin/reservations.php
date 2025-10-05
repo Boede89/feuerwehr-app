@@ -411,15 +411,7 @@ try {
                                                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
                                                                 <i class="fas fa-eye"></i> Details
                                                             </button>
-                                                            <form method="POST" action="delete-calendar-event.php" class="d-inline" onsubmit="return confirm('Nur Google-Kalender-Eintrag löschen? Die Reservierung bleibt bestehen.');">
-                                                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
-                                                                <button type="submit" class="btn btn-sm btn-outline-warning">
-                                                                    <i class="fas fa-calendar-xmark"></i> Nur Kalender löschen
-                                                                </button>
-                                                            </form>
-                                                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $reservation['id']; ?>">
-                                                                <i class="fas fa-trash"></i> Löschen
-                                                            </button>
+                                                            
                                                             <form method="POST" class="d-inline" onsubmit="return confirm('Komplett löschen? Zuerst aus Google Kalender, dann aus der Datenbank. Dieser Vorgang kann nicht rückgängig gemacht werden.');">
                                                                 <input type="hidden" name="action" value="delete_complete">
                                                                 <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
@@ -506,36 +498,7 @@ try {
         </div>
     <?php endforeach; ?>
 
-    <!-- Lösch-Modals -->
-    <?php foreach ($reservations as $reservation): ?>
-        <div class="modal fade" id="deleteModal<?php echo $reservation['id']; ?>" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <form method="POST">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Reservierung löschen</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <p>Möchten Sie die Reservierung #<?php echo $reservation['id']; ?> wirklich löschen?</p>
-                            <p><strong>Fahrzeug:</strong> <?php echo htmlspecialchars($reservation['vehicle_name']); ?></p>
-                            <p><strong>Antragsteller:</strong> <?php echo htmlspecialchars($reservation['requester_name']); ?></p>
-                            <div class="alert alert-warning">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                <strong>Hinweis:</strong> Der Google Calendar Eintrag bleibt erhalten.
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                            <button type="submit" class="btn btn-danger">Löschen</button>
-                        </div>
-                        <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
-                        <input type="hidden" name="action" value="delete">
-                    </form>
-                </div>
-            </div>
-        </div>
-    <?php endforeach; ?>
+    <!-- Lösch-Modals entfernt: nur noch 'Komplett löschen' vorhanden -->
 
     <!-- Modal: Termine übertragen -->
     <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
