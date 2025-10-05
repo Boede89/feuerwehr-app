@@ -241,9 +241,14 @@ if (isset($_POST['test_email_btn'])) {
                         <h5 class="card-title"><i class="fas fa-gear"></i> Globale Einstellungen</h5>
                         <p class="text-muted">SMTP, Google Calendar, App-weite Optionen und Benutzerverwaltung.</p>
                         <div class="mt-auto">
-                            <a class="btn btn-secondary" href="settings-global.php">
-                                <i class="fas fa-wrench"></i> Öffnen
-                            </a>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a class="btn btn-secondary" href="settings-global.php">
+                                    <i class="fas fa-wrench"></i> Öffnen
+                                </a>
+                                <a class="btn btn-outline-primary" href="settings-backup.php">
+                                    <i class="fas fa-shield-halved"></i> Sicherung & Wiederherstellung
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
