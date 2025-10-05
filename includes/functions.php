@@ -413,11 +413,20 @@ function delete_google_calendar_event($event_id) {
             error_log("GC DELETE: deleteEventDirectly fehlgeschlagen, fallback auf deleteEvent: $event_id");
         }
         
-        // Fallback: Standard-Löschmethode
+        // Fallback: Standard-Löschmethode mit tolerantem Fehlerhandling
         $result = $calendar_service->deleteEvent($event_id);
         if ($result) {
             error_log("GC DELETE: deleteEvent erfolgreich: $event_id");
             return true;
+        }
+        // Manche Bibliotheken geben false zurück, wenn das Event bereits nicht mehr existiert
+        // Behandle 404/410 logisch als Erfolg: Event ist nicht mehr im Kalender
+        if (method_exists($calendar_service, 'getLastErrorCode')) {
+            $code = $calendar_service->getLastErrorCode();
+            if (in_array($code, [404, 410], true)) {
+                error_log("GC DELETE: Event bereits weg (HTTP $code): $event_id -> behandle als Erfolg");
+                return true;
+            }
         }
         
         error_log("GC DELETE: Beide Löschmethoden fehlgeschlagen für $event_id");
