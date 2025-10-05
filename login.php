@@ -10,6 +10,11 @@ if (is_logged_in()) {
 
 $error = '';
 
+// Prüfe ob Zugriff verweigert wurde
+if (isset($_GET['error']) && $_GET['error'] === 'access_denied') {
+    $error = "Zugriff verweigert. Sie müssen als Administrator angemeldet sein, um das Dashboard zu verwenden.";
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = sanitize_input($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
