@@ -360,36 +360,12 @@ try {
                                 <h6><i class="fas fa-clock text-muted"></i> Erstellt</h6>
                                 <p><small class="text-muted"><?php echo date('d.m.Y H:i', strtotime($modal_reservation['created_at'])); ?></small></p>
                                 
-                                <?php 
-                                // Prüfe Kalender-Konflikte
-                                $conflicts = [];
-                                if (function_exists('check_calendar_conflicts')) {
-                                    $conflicts = check_calendar_conflicts($modal_reservation['vehicle_name'], $modal_reservation['start_datetime'], $modal_reservation['end_datetime']);
-                                }
-                                ?>
-                                
-                                <?php if (!empty($conflicts)): ?>
-                                    <h6><i class="fas fa-exclamation-triangle text-danger"></i> Kalender-Konflikte</h6>
-                                    <div class="alert alert-warning">
-                                        <strong>Warnung:</strong> Für dieses Fahrzeug existieren bereits Kalender-Einträge im beantragten Zeitraum:
-                                        <ul class="mb-0 mt-2">
-                                            <?php foreach ($conflicts as $conflict): ?>
-                                                <li>
-                                                    <strong><?php echo htmlspecialchars($conflict['title']); ?></strong><br>
-                                                    <small class="text-muted">
-                                                        <?php echo date('d.m.Y H:i', strtotime($conflict['start'])); ?> - 
-                                                        <?php echo date('d.m.Y H:i', strtotime($conflict['end'])); ?>
-                                                    </small>
-                                                </li>
-                                            <?php endforeach; ?>
-                                        </ul>
-                                    </div>
-                                <?php else: ?>
-                                    <h6><i class="fas fa-check-circle text-success"></i> Kalender-Status</h6>
-                                    <div class="alert alert-success">
-                                        <strong>Kein Konflikt:</strong> Der beantragte Zeitraum ist frei.
-                                    </div>
-                                <?php endif; ?>
+                                <h6><i class="fas fa-calendar-check text-info"></i> Kalender-Prüfung</h6>
+                                <div id="calendar-check-<?php echo $modal_reservation['id']; ?>">
+                                    <button type="button" class="btn btn-outline-info btn-sm" onclick="checkCalendarConflicts(<?php echo $modal_reservation['id']; ?>, '<?php echo htmlspecialchars($modal_reservation['vehicle_name']); ?>', '<?php echo $modal_reservation['start_datetime']; ?>', '<?php echo $modal_reservation['end_datetime']; ?>')">
+                                        <i class="fas fa-search"></i> Kalender-Konflikte prüfen
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -447,5 +423,52 @@ try {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function checkCalendarConflicts(reservationId, vehicleName, startDateTime, endDateTime) {
+            const container = document.getElementById('calendar-check-' + reservationId);
+            
+            // Zeige Lade-Status
+            container.innerHTML = '<button class="btn btn-outline-info btn-sm" disabled><i class="fas fa-spinner fa-spin"></i> Prüfe Kalender...</button>';
+            
+            // AJAX-Anfrage an den Server
+            fetch('check-calendar-conflicts.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    vehicle_name: vehicleName,
+                    start_datetime: startDateTime,
+                    end_datetime: endDateTime
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.conflicts && data.conflicts.length > 0) {
+                        // Konflikte gefunden
+                        let conflictsHtml = '<div class="alert alert-warning mt-2"><strong>Warnung:</strong> Für dieses Fahrzeug existieren bereits Kalender-Einträge:<ul class="mb-0 mt-2">';
+                        data.conflicts.forEach(conflict => {
+                            conflictsHtml += '<li><strong>' + conflict.title + '</strong><br><small class="text-muted">' + 
+                                new Date(conflict.start).toLocaleString('de-DE') + ' - ' + 
+                                new Date(conflict.end).toLocaleString('de-DE') + '</small></li>';
+                        });
+                        conflictsHtml += '</ul></div>';
+                        container.innerHTML = conflictsHtml;
+                    } else {
+                        // Kein Konflikt
+                        container.innerHTML = '<div class="alert alert-success mt-2"><strong>Kein Konflikt:</strong> Der beantragte Zeitraum ist frei.</div>';
+                    }
+                } else {
+                    // Fehler
+                    container.innerHTML = '<div class="alert alert-danger mt-2"><strong>Fehler:</strong> ' + (data.error || 'Kalender-Prüfung fehlgeschlagen') + '</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                container.innerHTML = '<div class="alert alert-danger mt-2"><strong>Fehler:</strong> Verbindung zum Server fehlgeschlagen</div>';
+            });
+        }
+    </script>
 </body>
 </html>
