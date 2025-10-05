@@ -484,18 +484,33 @@ try {
                     const targetModalId = this.getAttribute('data-bs-target');
                     const reservationId = targetModalId.replace('#detailsModal', '');
                     
+                    console.log('🔍 Details-Button geklickt, Modal ID:', targetModalId);
+                    console.log('Reservierungs-ID:', reservationId);
+                    
                     // Starte Kalender-Prüfung automatisch nach Modal-Öffnung
                     setTimeout(function() {
                         // Hole die Reservierungsdaten aus dem Modal
                         const modal = document.querySelector(targetModalId);
                         if (modal) {
-                            const vehicleName = modal.querySelector('[data-vehicle-name]')?.getAttribute('data-vehicle-name') || '';
-                            const startDateTime = modal.querySelector('[data-start-datetime]')?.getAttribute('data-start-datetime') || '';
-                            const endDateTime = modal.querySelector('[data-end-datetime]')?.getAttribute('data-end-datetime') || '';
+                            const vehicleName = modal.getAttribute('data-vehicle-name') || '';
+                            const startDateTime = modal.getAttribute('data-start-datetime') || '';
+                            const endDateTime = modal.getAttribute('data-end-datetime') || '';
+                            
+                            console.log('📊 Modal-Daten:', { vehicleName, startDateTime, endDateTime });
                             
                             if (vehicleName && startDateTime && endDateTime) {
+                                console.log('✅ Starte Kalender-Prüfung...');
                                 checkCalendarConflicts(reservationId, vehicleName, startDateTime, endDateTime);
+                            } else {
+                                console.error('❌ Modal-Daten unvollständig');
+                                // Fallback: Zeige Fehler
+                                const container = document.getElementById('calendar-check-' + reservationId);
+                                if (container) {
+                                    container.innerHTML = '<div class="alert alert-danger mt-2"><strong>Fehler:</strong> Reservierungsdaten konnten nicht geladen werden.</div>';
+                                }
                             }
+                        } else {
+                            console.error('❌ Modal nicht gefunden:', targetModalId);
                         }
                     }, 500); // Kurze Verzögerung damit Modal vollständig geöffnet ist
                 });
