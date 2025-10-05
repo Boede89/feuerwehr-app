@@ -328,6 +328,11 @@ function check_calendar_conflicts($vehicle_name, $start_datetime, $end_datetime)
                 $conflicts = [];
                 if ($events && is_array($events)) {
                     foreach ($events as $event) {
+                        // Ignoriere stornierte Events (cancelled)
+                        if (isset($event['status']) && $event['status'] === 'cancelled') {
+                            continue;
+                        }
+                        
                         // Prüfe nur Events, die das exakte Fahrzeug enthalten (nicht andere Fahrzeuge)
                         if (isset($event['summary']) && stripos($event['summary'], $vehicle_name) !== false) {
                             $conflicts[] = [

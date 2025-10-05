@@ -230,6 +230,7 @@ class GoogleCalendarServiceAccount {
         $deleted = $this->deleteEvent($eventId);
         
         if ($deleted) {
+            error_log("Event erfolgreich gelöscht (normal): $eventId");
             return true;
         }
         
@@ -237,11 +238,15 @@ class GoogleCalendarServiceAccount {
         try {
             $event = $this->getEvent($eventId);
             
-            // Wenn das Event existiert und "cancelled" ist, versuche es erneut zu löschen
+            // Wenn das Event existiert und "cancelled" ist, betrachte es als erfolgreich gelöscht
             if (isset($event['status']) && $event['status'] === 'cancelled') {
-                error_log("Event ist cancelled, versuche erneutes Löschen: $eventId");
-                
-                // Warte kurz und versuche es erneut
+                error_log("Event ist cancelled - betrachte als erfolgreich gelöscht: $eventId");
+                return true; // Stornierte Events sind praktisch gelöscht
+            }
+            
+            // Wenn das Event noch aktiv ist, versuche es erneut zu löschen
+            if (isset($event['status']) && $event['status'] === 'confirmed') {
+                error_log("Event ist noch aktiv, versuche erneutes Löschen: $eventId");
                 sleep(1);
                 return $this->deleteEvent($eventId);
             }
@@ -255,6 +260,34 @@ class GoogleCalendarServiceAccount {
         }
         
         return false;
+    }
+    
+    /**
+     * Prüfe ob Event wirklich gelöscht ist (ignoriert stornierte Events)
+     * @param string $eventId Event ID
+     * @return bool true wenn gelöscht oder storniert
+     */
+    public function isEventDeleted($eventId) {
+        try {
+            $event = $this->getEvent($eventId);
+            
+            // Wenn das Event existiert und "cancelled" ist, betrachte es als gelöscht
+            if (isset($event['status']) && $event['status'] === 'cancelled') {
+                return true;
+            }
+            
+            // Wenn das Event noch aktiv ist, ist es nicht gelöscht
+            return false;
+            
+        } catch (Exception $e) {
+            // Event existiert nicht mehr (404) = erfolgreich gelöscht
+            if (strpos($e->getMessage(), '404') !== false) {
+                return true;
+            }
+            
+            // Andere Fehler = nicht sicher ob gelöscht
+            return false;
+        }
     }
     
     /**
