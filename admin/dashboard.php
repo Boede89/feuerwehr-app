@@ -431,7 +431,7 @@ try {
             container.innerHTML = '<button class="btn btn-outline-info btn-sm" disabled><i class="fas fa-spinner fa-spin"></i> Prüfe Kalender...</button>';
             
             // AJAX-Anfrage an den Server
-            fetch('check-calendar-conflicts.php', {
+            fetch('check-calendar-conflicts-simple.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
