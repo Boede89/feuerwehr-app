@@ -49,8 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                     $error = 'Bitte alle Passwortfelder ausfüllen.';
                 } elseif ($new_password !== $confirm_password) {
                     $error = 'Neue Passwörter stimmen nicht überein.';
-                } elseif (strlen($new_password) < 8) {
-                    $error = 'Das neue Passwort muss mindestens 8 Zeichen lang sein.';
+                } elseif (strlen($new_password) < 4) {
+                    $error = 'Das neue Passwort muss mindestens 4 Zeichen lang sein.';
                 } elseif (!verify_password($current_password, $user['password_hash'])) {
                     $error = 'Aktuelles Passwort ist falsch.';
                 } else {
@@ -127,12 +127,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                             <input class="form-control" type="password" name="current_password" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Neues Passwort (min. 8 Zeichen)</label>
-                            <input class="form-control" type="password" name="new_password" minlength="8" required>
+                            <label class="form-label">Neues Passwort (min. 4 Zeichen)</label>
+                            <input class="form-control" type="password" name="new_password" minlength="4" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Neues Passwort bestätigen</label>
-                            <input class="form-control" type="password" name="confirm_password" minlength="8" required>
+                            <input class="form-control" type="password" name="confirm_password" minlength="4" required>
                         </div>
                         <input type="hidden" name="action" value="update_password">
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
