@@ -484,9 +484,10 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
         
         // Event-Details erstellen
         $title = $vehicle_name . ' - ' . $reason;
-        $description = $location ?? 'Nicht angegeben';
+        $description = ''; // Keine Beschreibung mehr
+        $event_location = $location ?? 'Nicht angegeben';
         
-        error_log('Google Calendar: Event-Details - title=' . $title . ', description=' . $description);
+        error_log('Google Calendar: Event-Details - title=' . $title . ', location=' . $event_location);
         
         // Setze aggressive Timeouts für die API-Anfrage
         set_time_limit(120); // 120 Sekunden Timeout
@@ -494,8 +495,8 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
         ini_set('max_execution_time', 120); // 120 Sekunden Max Execution Time
         
         // Event erstellen
-        error_log('Google Calendar: Versuche Event zu erstellen - Titel: ' . $title . ', Start: ' . $start_datetime . ', Ende: ' . $end_datetime);
-        $event_id = $google_calendar->createEvent($title, $start_datetime, $end_datetime, $description);
+        error_log('Google Calendar: Versuche Event zu erstellen - Titel: ' . $title . ', Start: ' . $start_datetime . ', Ende: ' . $end_datetime . ', Ort: ' . $event_location);
+        $event_id = $google_calendar->createEvent($title, $start_datetime, $end_datetime, $description, $event_location);
         error_log('Google Calendar: createEvent Rückgabe: ' . ($event_id ? $event_id : 'false'));
         
         if ($event_id && $reservation_id) {
