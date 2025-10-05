@@ -450,7 +450,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             <?php echo show_error($error); ?>
                         <?php endif; ?>
                         
-                        <form method="POST" action="">
+                        <form method="POST" action="" id="reservationForm">
                             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                             <input type="hidden" name="vehicle_data" value="<?php echo htmlspecialchars(json_encode($selectedVehicle)); ?>">
                             
@@ -577,8 +577,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
     <script>
         // Sofortiges Bestätigungs-Modal + Submit-Sperre, um Doppel-Submits zu verhindern
         document.addEventListener('DOMContentLoaded', function() {
-            // Versuche das Hauptformular gezielt zu finden (nicht das Konflikt-Modal-Form)
-            const form = document.querySelector('form[action=""], form[action="reservation.php"], main form');
+            // Hauptformular gezielt per ID holen (robuster gegen andere Formulare)
+            const form = document.getElementById('reservationForm');
             const submitBtn = document.getElementById('submitReservationBtn');
             if (!form || !submitBtn) return;
 
@@ -665,11 +665,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             }
 
             submitBtn.addEventListener('click', function(e) {
+                console.log('🟦 Submit-Button geklickt');
                 if (alreadySubmitting) {
+                    console.log('🟨 Bereits im Submit-Vorgang, verhindere Doppel-Submit');
                     e.preventDefault();
                     return false;
                 }
                 if (!form.checkValidity()) {
+                    console.log('🟥 HTML5-Validierung fehlgeschlagen');
                     e.preventDefault();
                     form.reportValidity && form.reportValidity();
                     return false;
@@ -678,6 +681,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 e.preventDefault();
                 alreadySubmitting = true;
                 lockButton();
+                console.log('🟩 Zeige Pending-Overlay');
                 showPendingModal();
                 // Verzögerung erhöhen, damit das Modal sicher gerendert wird
                 setTimeout(function(){ form.submit(); }, 200);
@@ -685,14 +689,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
 
             // Zusätzlich: falls das Formular aus anderen Gründen submitted wird (Enter-Taste), UI auch sperren
             form.addEventListener('submit', function(ev){
+                console.log('🟦 Form submit Event');
                 if (alreadySubmitting) return;
                 if (!form.checkValidity()) {
+                    console.log('🟥 HTML5-Validierung im submit-Event fehlgeschlagen');
                     ev.preventDefault();
                     form.reportValidity && form.reportValidity();
                     return;
                 }
                 alreadySubmitting = true;
                 lockButton();
+                console.log('🟩 Zeige Pending-Overlay (submit-Event)');
                 showPendingModal();
             });
         });
