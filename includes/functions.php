@@ -432,7 +432,7 @@ function create_or_update_google_calendar_event($vehicle_name, $reason, $start_d
             SELECT ce.google_event_id, ce.title 
             FROM calendar_events ce 
             JOIN reservations r ON ce.reservation_id = r.id 
-            WHERE r.start_datetime = ? AND r.end_datetime = ? AND r.reason = ? AND r.status = 'approved'
+            WHERE r.start_datetime = ? AND r.end_datetime = ? AND r.reason = ?
             LIMIT 1
         ");
         $stmt->execute([$start_datetime, $end_datetime, $reason]);
