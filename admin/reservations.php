@@ -34,30 +34,39 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         
         if ($reservation && in_array($reservation['status'], ['approved', 'rejected'])) {
             // Hole Google Calendar Event ID vor dem Löschen
-            $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
+            $stmt = $db->prepare("SELECT google_event_id, start_datetime, end_datetime, title FROM calendar_events WHERE reservation_id = ?");
             $stmt->execute([$reservation_id]);
             $calendar_event = $stmt->fetch();
-            
-            // Lösche aus Google Calendar (nur wenn Event ID vorhanden)
-            $google_deleted = false;
-            if ($calendar_event && !empty($calendar_event['google_event_id'])) {
-                $google_deleted = delete_google_calendar_event($calendar_event['google_event_id']);
-                if ($google_deleted) {
-                    error_log("Google Calendar Event gelöscht: " . $calendar_event['google_event_id']);
-                } else {
-                    error_log("Fehler beim Löschen des Google Calendar Events: " . $calendar_event['google_event_id']);
-                }
-            }
-            
-            // Lösche aus lokaler Datenbank
+
+            // Zuerst die lokale Verknüpfung löschen
             $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
             $stmt->execute([$reservation_id]);
+
+            // Wenn es eine Google Event ID gibt, prüfen ob noch weitere Verknüpfungen existieren
+            if ($calendar_event && !empty($calendar_event['google_event_id'])) {
+                $google_event_id = $calendar_event['google_event_id'];
+                $stmt = $db->prepare("SELECT COUNT(*) FROM calendar_events WHERE google_event_id = ?");
+                $stmt->execute([$google_event_id]);
+                $remaining_links = (int)$stmt->fetchColumn();
+
+                if ($remaining_links === 0) {
+                    // Nur löschen, wenn keine weitere Reservierung dieses Event nutzt
+                    $google_deleted = delete_google_calendar_event($google_event_id);
+                    if ($google_deleted) {
+                        error_log("RESERVATIONS DELETE: Google Calendar Event endgültig gelöscht: " . $google_event_id);
+                    } else {
+                        error_log("RESERVATIONS DELETE: Google Calendar Event konnte nicht gelöscht werden: " . $google_event_id);
+                    }
+                } else {
+                    error_log("RESERVATIONS DELETE: Google Event nicht gelöscht, es existieren noch " . $remaining_links . " weitere Verknüpfung(en) für " . $google_event_id);
+                }
+            }
             
             $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
             $stmt->execute([$reservation_id]);
             
-                // Erfolgreiche Löschung - Google Calendar wird automatisch behandelt
-                $message = "Reservierung erfolgreich gelöscht (sowohl aus Datenbank als auch Google Calendar). <strong>Hinweis:</strong> Der Google Calendar Eintrag wird als 'storniert' markiert und ist nicht mehr sichtbar.";
+                // Erfolgreiche Löschung - Google Calendar wurde ggf. gelöscht, wenn keine Verknüpfungen mehr bestanden
+                $message = "Reservierung erfolgreich gelöscht. Falls keine weiteren Reservierungen an diesem Termin hängen, wurde der Google Calendar Eintrag entfernt.";
         } else {
             $error = "Nur bearbeitete Reservierungen können gelöscht werden.";
         }
