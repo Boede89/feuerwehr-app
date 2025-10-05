@@ -702,7 +702,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                         console.log('❌ Verstecktes Feld vehicle_data nicht gefunden');
                     }
                     
-                    // Fahrzeug-Info anzeigen
+                    // Fahrzeug-Info anzeigen (nur falls Element existiert)
                     const vehicleInfo = document.querySelector('.alert-info p');
                     if (vehicleInfo) {
                         vehicleInfo.innerHTML = `
@@ -710,8 +710,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             <small>${vehicleData.description}</small>
                         `;
                         console.log('✅ Fahrzeug-Info angezeigt');
-                    } else {
-                        console.log('❌ Fahrzeug-Info Element nicht gefunden');
                     }
                     
                     // Prüfe ob PHP das Fahrzeug erkannt hat
