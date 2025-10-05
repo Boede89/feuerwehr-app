@@ -577,40 +577,68 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
     <script>
         // Sofortiges Bestätigungs-Modal + Submit-Sperre, um Doppel-Submits zu verhindern
         document.addEventListener('DOMContentLoaded', function() {
-            const form = document.querySelector('form');
+            // Versuche das Hauptformular gezielt zu finden (nicht das Konflikt-Modal-Form)
+            const form = document.querySelector('form[action=""], form[action="reservation.php"], main form');
             const submitBtn = document.getElementById('submitReservationBtn');
             if (!form || !submitBtn) return;
 
             let alreadySubmitting = false;
+
+            function showPendingModal() {
+                const pendingModalEl = document.getElementById('submitPendingModal');
+                if (!pendingModalEl) return;
+                try {
+                    if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+                        const pendingModal = new window.bootstrap.Modal(pendingModalEl, { backdrop: 'static', keyboard: false });
+                        pendingModal.show();
+                    } else {
+                        // Fallback ohne Bootstrap-Objekt
+                        pendingModalEl.classList.add('show');
+                        pendingModalEl.style.display = 'block';
+                        pendingModalEl.removeAttribute('aria-hidden');
+                    }
+                } catch (err) {
+                    // Letzter Fallback
+                    pendingModalEl.classList.add('show');
+                    pendingModalEl.style.display = 'block';
+                }
+            }
+
+            function lockButton() {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Wird gesendet...';
+            }
 
             submitBtn.addEventListener('click', function(e) {
                 if (alreadySubmitting) {
                     e.preventDefault();
                     return false;
                 }
-                // HTML5 Validierung ausführen
                 if (!form.checkValidity()) {
-                    // Browser zeigt Validierungsfehler an
                     e.preventDefault();
                     form.reportValidity && form.reportValidity();
                     return false;
                 }
-
-                // Verhindere Standard-Submit, um zuerst UI-Zustand zu setzen
+                // Erst UI, dann absenden
                 e.preventDefault();
                 alreadySubmitting = true;
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Wird gesendet...';
+                lockButton();
+                showPendingModal();
+                // Minimale Verzögerung, damit das Modal gerendert wird
+                setTimeout(function(){ form.submit(); }, 50);
+            });
 
-                // Bestätigungs-Modal anzeigen
-                const pendingModalEl = document.getElementById('submitPendingModal');
-                if (pendingModalEl) {
-                    const pendingModal = new bootstrap.Modal(pendingModalEl, { backdrop: 'static', keyboard: false });
-                    pendingModal.show();
+            // Zusätzlich: falls das Formular aus anderen Gründen submitted wird (Enter-Taste), UI auch sperren
+            form.addEventListener('submit', function(ev){
+                if (alreadySubmitting) return;
+                if (!form.checkValidity()) {
+                    ev.preventDefault();
+                    form.reportValidity && form.reportValidity();
+                    return;
                 }
-
-                // Jetzt Formular absenden
-                form.submit();
+                alreadySubmitting = true;
+                lockButton();
+                showPendingModal();
             });
         });
         // Fahrzeugdaten aus Session Storage laden und übertragen
