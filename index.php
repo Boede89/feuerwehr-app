@@ -66,7 +66,6 @@ require_once 'includes/functions.php';
                     <h1 class="display-4 text-primary">
                         <i class="fas fa-fire"></i> <?php echo htmlspecialchars($appDisplayName); ?>
                     </h1>
-                    <p class="lead">Verwalten Sie Ihre Feuerwehrressourcen effizient</p>
                 </div>
 
                 <div class="row g-4">
@@ -106,7 +105,7 @@ require_once 'includes/functions.php';
 
     <footer class="bg-light mt-5 py-4">
         <div class="container text-center">
-            <p class="text-muted mb-0">&copy; 2024 Feuerwehr App. Alle Rechte vorbehalten.</p>
+            <p class="text-muted mb-0">&copy; 2025 Boedes Feuerwehr App&nbsp;&nbsp;Version: 1.0&nbsp;&nbsp;Alle Rechte vorbehalten</p>
         </div>
     </footer>
 
