@@ -372,13 +372,30 @@ function check_calendar_conflicts($vehicle_name, $start_datetime, $end_datetime)
  * Google Calendar Event löschen
  */
 function delete_google_calendar_event($event_id) {
+    global $db;
+    
     try {
         if (!class_exists('GoogleCalendarServiceAccount')) {
             error_log('GoogleCalendarServiceAccount Klasse nicht verfügbar');
             return false;
         }
         
-        $calendar_service = new GoogleCalendarServiceAccount();
+        // Lade Google Calendar Einstellungen (wie bei create_google_calendar_event)
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
+        $stmt->execute();
+        $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        
+        $auth_type = $settings['google_calendar_auth_type'] ?? 'service_account';
+        $calendar_id = $settings['google_calendar_id'] ?? 'primary';
+        $service_account_json = $settings['google_calendar_service_account'] ?? '';
+        
+        if (empty($service_account_json)) {
+            error_log('Google Calendar Service Account JSON nicht gefunden');
+            return false;
+        }
+        
+        // Erstelle GoogleCalendarServiceAccount mit korrekten Parametern
+        $calendar_service = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
         $result = $calendar_service->deleteEvent($event_id);
         
         if ($result) {
