@@ -3,13 +3,14 @@
  * Allgemeine Funktionen für die Feuerwehr App
  */
 
-// Google Calendar Klassen laden
-if (file_exists('includes/google_calendar_service_account.php')) {
-    require_once 'includes/google_calendar_service_account.php';
+// Google Calendar Klassen laden (pfadsicher relativ zu diesem Verzeichnis)
+$gc_sa_path = __DIR__ . '/google_calendar_service_account.php';
+$gc_api_path = __DIR__ . '/google_calendar.php';
+if (file_exists($gc_sa_path)) {
+    require_once $gc_sa_path;
 }
-
-if (file_exists('includes/google_calendar.php')) {
-    require_once 'includes/google_calendar.php';
+if (file_exists($gc_api_path)) {
+    require_once $gc_api_path;
 }
 
 /**
