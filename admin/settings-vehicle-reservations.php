@@ -40,9 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'vehicle_transfer_text' => trim((string)($_POST['vehicle_transfer_text'] ?? '')),
             ];
 
+            // Persistieren: Upsert je Einstellung
+            $stmtUpsert = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
             foreach ($veh as $k => $v) {
-                $stmt = $db->prepare('UPDATE settings SET setting_value = ? WHERE setting_key = ?');
-                $stmt->execute([$v, $k]);
+                $stmtUpsert->execute([$k, $v]);
             }
 
             $db->commit();
