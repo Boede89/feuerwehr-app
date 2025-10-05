@@ -75,6 +75,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     }
 }
 
+// Nur aus Google Kalender löschen (Kalender-Event entfernen, Reservierung behalten)
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'delete_calendar_event') {
+    $reservation_id = (int)$_POST['reservation_id'];
+    try {
+        // Kalender-Verknüpfung laden
+        $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
+        $stmt->execute([$reservation_id]);
+        $calendar_event = $stmt->fetch();
+
+        if ($calendar_event && !empty($calendar_event['google_event_id'])) {
+            // Versuche Google Event zu löschen
+            if (function_exists('delete_google_calendar_event')) {
+                $ok = delete_google_calendar_event($calendar_event['google_event_id']);
+                if (!$ok) {
+                    // nicht kritisch, wir entfernen trotzdem die Verknüpfung lokal
+                    error_log('Kalender-Event konnte nicht via API gelöscht werden: ' . $calendar_event['google_event_id']);
+                }
+            }
+        }
+
+        // Lokale Verknüpfung entfernen
+        $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
+        $stmt->execute([$reservation_id]);
+
+        $message = 'Kalender-Eintrag (Google) wurde entfernt. Die Reservierung bleibt erhalten.';
+    } catch (Exception $e) {
+        $error = 'Fehler beim Entfernen des Kalender-Eintrags: ' . $e->getMessage();
+    }
+}
+
 // Nur bearbeitete Reservierungen laden
 try {
     $sql = "
@@ -309,6 +339,13 @@ try {
                                                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
                                                                 <i class="fas fa-eye"></i> Details
                                                             </button>
+                                                            <form method="POST" class="d-inline" onsubmit="return confirm('Nur Google-Kalender-Eintrag löschen? Die Reservierung bleibt bestehen.');">
+                                                                <input type="hidden" name="action" value="delete_calendar_event">
+                                                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-outline-warning">
+                                                                    <i class="fas fa-calendar-xmark"></i> Nur Kalender löschen
+                                                                </button>
+                                                            </form>
                                                             <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $reservation['id']; ?>">
                                                                 <i class="fas fa-trash"></i> Löschen
                                                             </button>
