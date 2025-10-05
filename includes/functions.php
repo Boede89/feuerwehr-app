@@ -403,18 +403,8 @@ function delete_google_calendar_event($event_id) {
         // Erstelle GoogleCalendarServiceAccount mit korrekten Parametern
         $calendar_service = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
         
-        // Bevorzugt: direkte Lösch-Methode versuchen
-        if (method_exists($calendar_service, 'deleteEventDirectly')) {
-            error_log("GC DELETE: Versuche deleteEventDirectly für $event_id");
-            $direct = $calendar_service->deleteEventDirectly($event_id);
-            if ($direct) {
-                error_log("GC DELETE: deleteEventDirectly erfolgreich: $event_id");
-                return true;
-            }
-            error_log("GC DELETE: deleteEventDirectly fehlgeschlagen, fallback auf deleteEvent: $event_id");
-        }
-        
-        // Fallback: Standard-Löschmethode mit tolerantem Fehlerhandling
+        // Verwende die öffentliche deleteEvent Methode
+        error_log("GC DELETE: Versuche deleteEvent für $event_id");
         $result = $calendar_service->deleteEvent($event_id);
         if ($result) {
             error_log("GC DELETE: deleteEvent erfolgreich: $event_id");
@@ -464,6 +454,11 @@ function delete_google_calendar_event_by_hint($title, $start_datetime, $end_date
         }
         $svc = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
         // Hole Events im Zeitraum (kleines Pufferfenster von +/- 10 Minuten)
+        // Prüfe, ob die Service-Account-Klasse das Listen von Events unterstützt
+        if (!method_exists($svc, 'getEvents')) {
+            error_log('GC DELETE HINT: getEvents() nicht verfügbar in GoogleCalendarServiceAccount – Fallback übersprungen');
+            return false;
+        }
         $start = date('c', strtotime($start_datetime) - 600);
         $end = date('c', strtotime($end_datetime) + 600);
         $events = $svc->getEvents($start, $end);
