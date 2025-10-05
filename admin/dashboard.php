@@ -64,28 +64,70 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                         if ($event_id) {
                             $message = "Reservierung erfolgreich genehmigt und in Google Calendar eingetragen.";
                         } else {
-                            // Zusätzliche Diagnose und Fallback-Neuversuch mit direkter Erstellung
+                            // Intelligenter Fallback: vorhandenes Event finden und Titel erweitern, erst dann Neu-Erstellung
                             error_log('DASHBOARD APPROVE: create_or_update_google_calendar_event fehlgeschlagen für Reservierung ' . $reservation['id']);
-                            if (function_exists('create_google_calendar_event')) {
-                                $direct_title = $reservation['vehicle_name'] . ' - ' . $reservation['reason'];
-                                error_log('DASHBOARD APPROVE: Versuche direkten Neuversuch mit create_google_calendar_event: title=' . $direct_title);
-                                $retry_event_id = create_google_calendar_event(
-                                    $direct_title,
-                                    $reservation['reason'],
-                                    $reservation['start_datetime'],
-                                    $reservation['end_datetime'],
-                                    $reservation['id'],
-                                    $reservation['location'] ?? null
-                                );
-                                if ($retry_event_id) {
+
+                            try {
+                                // 1) Suche vorhandenes Event mit gleichem Zeitraum + Grund
+                                $stmt = $db->prepare("SELECT ce.google_event_id, ce.title FROM calendar_events ce JOIN reservations r ON ce.reservation_id = r.id WHERE r.start_datetime = ? AND r.end_datetime = ? AND r.reason = ? LIMIT 1");
+                                $stmt->execute([$reservation['start_datetime'], $reservation['end_datetime'], $reservation['reason']]);
+                                $existing = $stmt->fetch();
+
+                                if ($existing && !empty($existing['google_event_id'])) {
+                                    $currentTitle = $existing['title'] ?? '';
+                                    $needsAppend = stripos($currentTitle, $reservation['vehicle_name']) === false;
+                                    $newTitle = $needsAppend ? ($currentTitle ? ($currentTitle . ', ' . $reservation['vehicle_name']) : ($reservation['vehicle_name'] . ' - ' . $reservation['reason'])) : $currentTitle;
+
+                                    // 2) Falls nötig, Titel im Google Kalender aktualisieren
+                                    if ($needsAppend && function_exists('update_google_calendar_event_title')) {
+                                        $updateOk = update_google_calendar_event_title($existing['google_event_id'], $newTitle);
+                                        if ($updateOk) {
+                                            // 3) Lokale Titel aktualisieren
+                                            $stmt = $db->prepare("UPDATE calendar_events SET title = ? WHERE google_event_id = ?");
+                                            $stmt->execute([$newTitle, $existing['google_event_id']]);
+                                        } else {
+                                            error_log('DASHBOARD APPROVE: update_google_calendar_event_title fehlgeschlagen für ' . $existing['google_event_id']);
+                                        }
+                                    }
+
+                                    // 4) Verknüpfung für diese Reservierung in calendar_events sicherstellen
+                                    $stmt = $db->prepare("SELECT id FROM calendar_events WHERE reservation_id = ?");
+                                    $stmt->execute([$reservation['id']]);
+                                    $existsLink = $stmt->fetch();
+                                    if (!$existsLink) {
+                                        $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                                        $stmt->execute([$reservation['id'], $existing['google_event_id'], $newTitle, $reservation['start_datetime'], $reservation['end_datetime']]);
+                                    }
+
+                                    $event_id = $existing['google_event_id'];
                                     $message = "Reservierung erfolgreich genehmigt und in Google Calendar eingetragen.";
-                                    $event_id = $retry_event_id;
                                 } else {
-                                    error_log('DASHBOARD APPROVE: create_google_calendar_event Fallback ebenfalls fehlgeschlagen für Reservierung ' . $reservation['id']);
-                                    $message = "Reservierung genehmigt, aber Google Calendar Event konnte nicht erstellt werden.";
+                                    // 5) Kein vorhandenes Event gefunden: als letzter Schritt neu erstellen
+                                    if (function_exists('create_google_calendar_event')) {
+                                        $direct_title = $reservation['vehicle_name'] . ' - ' . $reservation['reason'];
+                                        error_log('DASHBOARD APPROVE: Kein vorhandenes Event gefunden – versuche create_google_calendar_event: title=' . $direct_title);
+                                        $retry_event_id = create_google_calendar_event(
+                                            $direct_title,
+                                            $reservation['reason'],
+                                            $reservation['start_datetime'],
+                                            $reservation['end_datetime'],
+                                            $reservation['id'],
+                                            $reservation['location'] ?? null
+                                        );
+                                        if ($retry_event_id) {
+                                            $message = "Reservierung erfolgreich genehmigt und in Google Calendar eingetragen.";
+                                            $event_id = $retry_event_id;
+                                        } else {
+                                            error_log('DASHBOARD APPROVE: create_google_calendar_event Fallback ebenfalls fehlgeschlagen für Reservierung ' . $reservation['id']);
+                                            $message = "Reservierung genehmigt, aber Google Calendar Event konnte nicht erstellt werden.";
+                                        }
+                                    } else {
+                                        error_log('DASHBOARD APPROVE: create_google_calendar_event Funktion nicht verfügbar');
+                                        $message = "Reservierung genehmigt, aber Google Calendar Event konnte nicht erstellt werden.";
+                                    }
                                 }
-                            } else {
-                                error_log('DASHBOARD APPROVE: create_google_calendar_event Funktion nicht verfügbar');
+                            } catch (Exception $ex) {
+                                error_log('DASHBOARD APPROVE: Fallback-Exception: ' . $ex->getMessage());
                                 $message = "Reservierung genehmigt, aber Google Calendar Event konnte nicht erstellt werden.";
                             }
                         }
