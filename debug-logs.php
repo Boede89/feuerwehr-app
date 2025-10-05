@@ -4,7 +4,8 @@
  * So können wir die Google Calendar Lösch-Logs definitiv sehen
  */
 
-require_once 'includes/functions.php';
+// Datenbankverbindung herstellen
+require_once 'config/database.php';
 
 // Erstelle Log-Tabelle falls sie nicht existiert
 function create_debug_logs_table() {
