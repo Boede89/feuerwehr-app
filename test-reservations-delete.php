@@ -58,9 +58,9 @@ try {
         echo "<p style='color: green;'>✅ Google Calendar Event erstellt: $google_event_id</p>";
         
         // Speichere Event ID in der Datenbank
-        $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, created_at) VALUES (?, ?, ?, NOW())");
+        $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
         $title = $vehicle_name . ' - ' . $reason;
-        $stmt->execute([$reservation_id, $google_event_id, $title]);
+        $stmt->execute([$reservation_id, $google_event_id, $title, $start_datetime, $end_datetime]);
         
         echo "<p style='color: green;'>✅ Event ID in Datenbank gespeichert</p>";
         
