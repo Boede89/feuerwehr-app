@@ -10,6 +10,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+require_once '../config/database.php';
+require_once '../includes/functions.php';
+
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     echo json_encode(['success' => false, 'error' => 'Nicht angemeldet']);
@@ -23,9 +26,6 @@ if (!can_approve_reservations()) {
         exit;
     }
 }
-
-require_once '../config/database.php';
-require_once '../includes/functions.php';
 require_once '../includes/google_calendar_service_account.php';
 require_once '../includes/google_calendar.php';
 
