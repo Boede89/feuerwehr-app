@@ -924,6 +924,30 @@ function remove_vehicle_from_calendar_event($google_event_id, $vehicle_name) {
             return false;
         }
         
+        // Prüfen, ob nach der Entfernung noch Fahrzeuge im Titel vorhanden sind
+        // Titelformat erwartet: "Fahrzeugliste - Grund"
+        $parts = explode(' - ', $new_title, 2);
+        $vehicle_part_after = trim($parts[0] ?? '');
+        $hasVehiclesLeft = $vehicle_part_after !== '';
+
+        if (!$hasVehiclesLeft) {
+            // Kein Fahrzeug mehr im Titel -> gesamten Kalendereintrag löschen
+            error_log("REMOVE VEHICLE: Keine Fahrzeuge mehr im Titel – lösche komplettes Event $google_event_id");
+            $deleted = $google_calendar->deleteEvent($google_event_id);
+            if ($deleted) {
+                try {
+                    // Alle Verknüpfungen auf dieses Event entfernen
+                    $stmt = $db->prepare("DELETE FROM calendar_events WHERE google_event_id = ?");
+                    $stmt->execute([$google_event_id]);
+                } catch (Exception $e) {
+                    error_log('REMOVE VEHICLE: Fehler beim Entfernen der DB-Verknüpfungen: ' . $e->getMessage());
+                }
+                return true;
+            }
+            error_log("REMOVE VEHICLE: Löschen des Events fehlgeschlagen");
+            return false;
+        }
+
         error_log("REMOVE VEHICLE: Neuer Titel: $new_title");
         
         // Event aktualisieren
