@@ -126,6 +126,57 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     }
 }
 
+// Komplett löschen: erst Google-Kalender-Eintrag(e) löschen, danach Reservierung + Verknüpfungen entfernen
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'delete_complete') {
+    try {
+        $reservation_id = (int)($_POST['reservation_id'] ?? 0);
+        if ($reservation_id <= 0) {
+            throw new Exception('Ungültige Reservierungs-ID');
+        }
+
+        // 1) Verknüpfte Google-Event-IDs laden und löschen (hart, unabhängig von weiteren Verknüpfungen)
+        $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
+        $stmt->execute([$reservation_id]);
+        $eventIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if (!empty($eventIds)) {
+            foreach ($eventIds as $geid) {
+                if (!empty($geid) && function_exists('delete_google_calendar_event')) {
+                    $ok = delete_google_calendar_event($geid);
+                    if (!$ok) {
+                        error_log('DELETE-COMPLETE: Kalender-Event konnte nicht via API gelöscht werden: ' . $geid);
+                    }
+                }
+            }
+        } else {
+            // Fallback: Versuch per Titel/Zeitraum
+            try {
+                $stmt = $db->prepare('SELECT v.name as vehicle_name, r.reason, r.start_datetime, r.end_datetime FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?');
+                $stmt->execute([$reservation_id]);
+                $res = $stmt->fetch();
+                if ($res && function_exists('delete_google_calendar_event_by_hint')) {
+                    $title = ($res['vehicle_name'] ?? '') . ' - ' . ($res['reason'] ?? '');
+                    delete_google_calendar_event_by_hint($title, $res['start_datetime'], $res['end_datetime']);
+                }
+            } catch (Exception $ie) {
+                error_log('DELETE-COMPLETE: Fallback-Query Fehler: ' . $ie->getMessage());
+            }
+        }
+
+        // 2) Lokale Verknüpfungen entfernen
+        $stmt = $db->prepare('DELETE FROM calendar_events WHERE reservation_id = ?');
+        $stmt->execute([$reservation_id]);
+
+        // 3) Reservierung entfernen
+        $stmt = $db->prepare('DELETE FROM reservations WHERE id = ?');
+        $stmt->execute([$reservation_id]);
+
+        $message = 'Reservierung und zugehörige Kalender-Einträge wurden vollständig gelöscht.';
+    } catch (Exception $e) {
+        $error = 'Fehler beim vollständigen Löschen: ' . $e->getMessage();
+    }
+}
+
 // Nur bearbeitete Reservierungen laden
 try {
     $sql = "
@@ -369,6 +420,13 @@ try {
                                                             <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $reservation['id']; ?>">
                                                                 <i class="fas fa-trash"></i> Löschen
                                                             </button>
+                                                            <form method="POST" class="d-inline" onsubmit="return confirm('Komplett löschen? Zuerst aus Google Kalender, dann aus der Datenbank. Dieser Vorgang kann nicht rückgängig gemacht werden.');">
+                                                                <input type="hidden" name="action" value="delete_complete">
+                                                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-danger">
+                                                                    <i class="fas fa-trash-can"></i> Komplett löschen
+                                                                </button>
+                                                            </form>
                                                         </div>
                                                     </td>
                                                 </tr>
