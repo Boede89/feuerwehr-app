@@ -11,6 +11,10 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
+// Google Calendar Klassen explizit laden
+require_once '../includes/google_calendar_service_account.php';
+require_once '../includes/google_calendar.php';
+
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header("Location: ../login.php");
@@ -34,12 +38,42 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     $reservation_id = (int)$_POST['reservation_id'];
     $action = $_POST['action'];
     
-    try {
-        if ($action == 'approve') {
-            $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
-            $stmt->execute([$_SESSION['user_id'], $reservation_id]);
-            $message = "Reservierung erfolgreich genehmigt.";
-        } elseif ($action == 'reject') {
+        try {
+            if ($action == 'approve') {
+                // Reservierung genehmigen
+                $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
+                $stmt->execute([$_SESSION['user_id'], $reservation_id]);
+                
+                // Google Calendar Event erstellen
+                try {
+                    // Reservierungsdaten für Google Calendar laden
+                    $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+                    $stmt->execute([$reservation_id]);
+                    $reservation = $stmt->fetch();
+                    
+                    if ($reservation && function_exists('create_google_calendar_event')) {
+                        $event_id = create_google_calendar_event(
+                            $reservation['vehicle_name'],
+                            $reservation['reason'],
+                            $reservation['start_datetime'],
+                            $reservation['end_datetime'],
+                            $reservation['id'],
+                            $reservation['location'] ?? null
+                        );
+                        
+                        if ($event_id) {
+                            $message = "Reservierung erfolgreich genehmigt und in Google Calendar eingetragen.";
+                        } else {
+                            $message = "Reservierung genehmigt, aber Google Calendar Event konnte nicht erstellt werden.";
+                        }
+                    } else {
+                        $message = "Reservierung genehmigt.";
+                    }
+                } catch (Exception $e) {
+                    error_log('Google Calendar Fehler: ' . $e->getMessage());
+                    $message = "Reservierung genehmigt, aber Google Calendar Fehler: " . $e->getMessage();
+                }
+            } elseif ($action == 'reject') {
             $rejection_reason = sanitize_input($_POST['rejection_reason'] ?? '');
             if (!empty($rejection_reason)) {
                 $stmt = $db->prepare("UPDATE reservations SET status = 'rejected', rejection_reason = ?, approved_by = ?, approved_at = NOW() WHERE id = ?");
