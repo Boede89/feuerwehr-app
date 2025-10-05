@@ -592,15 +592,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                         const pendingModal = new window.bootstrap.Modal(pendingModalEl, { backdrop: 'static', keyboard: false });
                         pendingModal.show();
                     } else {
-                        // Fallback ohne Bootstrap-Objekt
-                        pendingModalEl.classList.add('show');
+                        // Fallback ohne Bootstrap-Objekt: eigene Backdrop hinzufügen
+                        let backdrop = document.getElementById('submitPendingBackdrop');
+                        if (!backdrop) {
+                            backdrop = document.createElement('div');
+                            backdrop.id = 'submitPendingBackdrop';
+                            backdrop.style.position = 'fixed';
+                            backdrop.style.inset = '0';
+                            backdrop.style.background = 'rgba(0,0,0,0.5)';
+                            backdrop.style.zIndex = '1050';
+                            document.body.appendChild(backdrop);
+                        }
                         pendingModalEl.style.display = 'block';
+                        pendingModalEl.style.zIndex = '1060';
+                        pendingModalEl.classList.add('show');
                         pendingModalEl.removeAttribute('aria-hidden');
                     }
                 } catch (err) {
                     // Letzter Fallback
-                    pendingModalEl.classList.add('show');
                     pendingModalEl.style.display = 'block';
+                    pendingModalEl.classList.add('show');
                 }
             }
 
@@ -624,8 +635,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 alreadySubmitting = true;
                 lockButton();
                 showPendingModal();
-                // Minimale Verzögerung, damit das Modal gerendert wird
-                setTimeout(function(){ form.submit(); }, 50);
+                // Verzögerung erhöhen, damit das Modal sicher gerendert wird
+                setTimeout(function(){ form.submit(); }, 200);
             });
 
             // Zusätzlich: falls das Formular aus anderen Gründen submitted wird (Enter-Taste), UI auch sperren
