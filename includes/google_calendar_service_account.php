@@ -207,9 +207,54 @@ class GoogleCalendarServiceAccount {
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
         curl_close($ch);
         
-        return $httpCode === 204;
+        // Log für Debugging
+        error_log("Google Calendar deleteEvent - Event ID: $eventId, HTTP Code: $httpCode, Response: $response, Error: $error");
+        
+        // HTTP 204 = erfolgreich gelöscht
+        // HTTP 410 = bereits gelöscht (auch als Erfolg betrachten)
+        return $httpCode === 204 || $httpCode === 410;
+    }
+    
+    /**
+     * Event vollständig löschen (auch stornierte Events)
+     * @param string $eventId Event ID
+     * @return bool
+     */
+    public function forceDeleteEvent($eventId) {
+        $accessToken = $this->getAccessToken();
+        
+        // Zuerst versuchen, das Event normal zu löschen
+        $deleted = $this->deleteEvent($eventId);
+        
+        if ($deleted) {
+            return true;
+        }
+        
+        // Falls das nicht funktioniert, prüfe ob das Event noch existiert
+        try {
+            $event = $this->getEvent($eventId);
+            
+            // Wenn das Event existiert und "cancelled" ist, versuche es erneut zu löschen
+            if (isset($event['status']) && $event['status'] === 'cancelled') {
+                error_log("Event ist cancelled, versuche erneutes Löschen: $eventId");
+                
+                // Warte kurz und versuche es erneut
+                sleep(1);
+                return $this->deleteEvent($eventId);
+            }
+            
+        } catch (Exception $e) {
+            // Event existiert nicht mehr (404) = erfolgreich gelöscht
+            if (strpos($e->getMessage(), '404') !== false) {
+                error_log("Event nicht gefunden (404) - erfolgreich gelöscht: $eventId");
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /**
