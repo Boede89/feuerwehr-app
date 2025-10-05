@@ -416,7 +416,7 @@ try {
                                                                 <input type="hidden" name="action" value="delete_complete">
                                                                 <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
                                                                 <button type="submit" class="btn btn-sm btn-danger">
-                                                                    <i class="fas fa-trash-can"></i> Komplett löschen
+                                                                    <i class="fas fa-trash-can"></i> Löschen
                                                                 </button>
                                                             </form>
                                                         </div>
