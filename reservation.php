@@ -288,6 +288,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                         $timeframes_html .= "</div>";
                     }
                     
+                    // Basis-URL für Links in E-Mails: bevorzugt aus Einstellungen 'app_url'
+                    try {
+                        $stmtApp = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_url'");
+                        $stmtApp->execute();
+                        $appUrlValue = trim((string)$stmtApp->fetchColumn());
+                    } catch (Exception $e) {
+                        $appUrlValue = '';
+                    }
+                    $baseUrl = rtrim($appUrlValue !== '' ? $appUrlValue : ('http://' . $_SERVER['HTTP_HOST']), '/');
+                    $manageUrl = $baseUrl . '/admin/reservations.php';
+
                     $message_content = "
                     <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;'>
                         <div style='background-color: #007bff; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;'>
@@ -332,19 +343,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             </div>
                             
                             <div style='text-align: center; margin: 25px 0;'>
-                                <?php
-                                    // Basis-URL für Links in E-Mails: bevorzugt aus Einstellungen 'app_url'
-                                    try {
-                                        $stmtApp = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_url'");
-                                        $stmtApp->execute();
-                                        $appUrlValue = trim((string)$stmtApp->fetchColumn());
-                                    } catch (Exception $e) {
-                                        $appUrlValue = '';
-                                    }
-                                    $baseUrl = rtrim($appUrlValue !== '' ? $appUrlValue : ('http://' . $_SERVER['HTTP_HOST']), '/');
-                                    $manageUrl = $baseUrl . '/admin/reservations.php';
-                                ?>
-                                <a href='<?php echo htmlspecialchars($manageUrl); ?>' 
+                                <a href='" . htmlspecialchars($manageUrl, ENT_QUOTES, 'UTF-8') . "' 
                                    style='background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>
                                     🔗 Antrag bearbeiten
                                 </a>
