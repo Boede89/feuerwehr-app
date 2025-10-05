@@ -56,8 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
             $stmt->execute([$reservation_id]);
             
-            // Erfolgreiche Löschung - Google Calendar wird automatisch behandelt
-            $message = "Reservierung erfolgreich gelöscht (sowohl aus Datenbank als auch Google Calendar).";
+                // Erfolgreiche Löschung - Google Calendar wird automatisch behandelt
+                $message = "Reservierung erfolgreich gelöscht (sowohl aus Datenbank als auch Google Calendar). <strong>Hinweis:</strong> Der Google Calendar Eintrag wird als 'storniert' markiert und ist nicht mehr sichtbar.";
         } else {
             $error = "Nur bearbeitete Reservierungen können gelöscht werden.";
         }
