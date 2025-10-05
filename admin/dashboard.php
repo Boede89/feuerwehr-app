@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     
                     if ($reservation && function_exists('create_google_calendar_event')) {
                         $event_id = create_google_calendar_event(
-                            $reservation['vehicle_name'],
+                            $reservation['vehicle_name'] . ' - ' . $reservation['reason'],
                             $reservation['reason'],
                             $reservation['start_datetime'],
                             $reservation['end_datetime'],
