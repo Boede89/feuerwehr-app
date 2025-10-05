@@ -677,6 +677,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         document.addEventListener('DOMContentLoaded', function() {
             const conflictModal = new bootstrap.Modal(document.getElementById('conflictModal'));
             conflictModal.show();
+            
+            // Event Listener für "Antrag abbrechen" Button
+            document.getElementById('cancelReservationBtn').addEventListener('click', function() {
+                // Modal schließen
+                conflictModal.hide();
+                // Nach kurzer Verzögerung zur Startseite weiterleiten
+                setTimeout(function() {
+                    window.location.href = 'index.php';
+                }, 300);
+            });
         });
         <?php endif; ?>
     </script>
@@ -741,7 +751,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             <i class="fas fa-exclamation-triangle"></i> Antrag trotzdem versenden
                         </button>
                     </form>
-                    <button type="button" class="btn btn-secondary" onclick="window.location.href='index.php'">
+                    <button type="button" id="cancelReservationBtn" class="btn btn-secondary">
                         <i class="fas fa-times"></i> Antrag abbrechen
                     </button>
                 </div>
