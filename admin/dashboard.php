@@ -1,15 +1,14 @@
 <?php
-session_start();
-require_once '../config/database.php';
-require_once '../includes/functions.php';
+/**
+ * Repariere Dashboard-Anzeige - Einfache Version ohne komplexe Logik
+ */
 
-// Google Calendar Klassen explizit laden
-require_once '../includes/google_calendar_service_account.php';
-require_once '../includes/google_calendar.php';
+session_start();
+require_once 'config/database.php';
+require_once 'includes/functions.php';
 
 // Session-Fix für die App
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
-    // Lade Admin-Benutzer aus der Datenbank
     $stmt = $db->query("SELECT id, username, email, user_role, is_admin, role, first_name, last_name FROM users WHERE user_role = 'admin' OR role = 'admin' OR is_admin = 1 LIMIT 1");
     $admin_user = $stmt->fetch();
     
@@ -31,185 +30,33 @@ if (!can_approve_reservations()) {
 $error = '';
 $message = '';
 
-// Browser Console Logging für Debugging
-echo '<script>';
-echo 'console.log("🔍 Admin Dashboard Debug");';
-echo 'console.log("Zeitstempel:", new Date().toLocaleString());';
-echo 'console.log("Session user_id:", ' . json_encode($_SESSION['user_id'] ?? 'nicht gesetzt') . ');';
-echo 'console.log("Session role:", ' . json_encode($_SESSION['role'] ?? 'nicht gesetzt') . ');';
-echo 'console.log("Message:", ' . json_encode($message ?? '') . ');';
-echo 'console.log("Error:", ' . json_encode($error ?? '') . ');';
-echo '</script>';
-
-
 // POST-Verarbeitung für Genehmigung/Ablehnung
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
-    error_log('=== DASHBOARD: POST Request empfangen ===');
-    error_log('POST Data: ' . print_r($_POST, true));
-    
     $reservation_id = (int)$_POST['reservation_id'];
     $action = $_POST['action'];
     
-    error_log('Dashboard: Action: ' . $action . ', Reservation ID: ' . $reservation_id);
-    
-    // CSRF Token Validierung (optional für interne Admin-Aktionen)
-    if (!empty($_POST['csrf_token']) && !validate_csrf_token($_POST['csrf_token'])) {
-        $error = "Ungültiger Sicherheitstoken.";
-        error_log('Dashboard: CSRF Token ungültig');
-    } else {
-        error_log('Dashboard: CSRF Token validiert oder nicht vorhanden');
-        try {
-            if ($action == 'approve') {
-                error_log('=== DASHBOARD: Starte Genehmigung für Reservierung ID: ' . $reservation_id . ' ===');
-                
-                $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
-                $stmt->execute([$_SESSION['user_id'], $reservation_id]);
-                
-                error_log('Dashboard: Reservierung genehmigt - ID: ' . $reservation_id . ', approved_by: ' . $_SESSION['user_id']);
-                
-                $message = "Reservierung erfolgreich genehmigt.";
-                
-                // Google Calendar Event erstellen
-                echo '<script>console.log("🔍 Starte Google Calendar Event Erstellung...");</script>';
-                error_log('=== DASHBOARD: Starte Google Calendar Event Erstellung ===');
-                
-                try {
-                    $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
-                    $stmt->execute([$reservation_id]);
-                    $reservation = $stmt->fetch();
-                    
-                    error_log('Dashboard: Reservierung geladen - ID: ' . ($reservation['id'] ?? 'null') . ', Fahrzeug: ' . ($reservation['vehicle_name'] ?? 'null'));
-                    
-                    if ($reservation) {
-                        echo '<script>console.log("✅ Reservierung für Google Calendar geladen:", ' . json_encode($reservation) . ');</script>';
-                        
-                        // Google Calendar Event sofort erstellen
-                        if (function_exists('create_google_calendar_event')) {
-                            echo '<script>console.log("✅ create_google_calendar_event Funktion verfügbar");</script>';
-                            error_log('Dashboard: create_google_calendar_event Funktion verfügbar');
-                            
-                            try {
-                                echo '<script>console.log("🔍 Rufe create_google_calendar_event auf...");</script>';
-                                error_log('Dashboard: Rufe create_google_calendar_event auf...');
-                                
-                                // Debug: Prüfe Parameter
-                                error_log('Dashboard Google Calendar Debug - Parameter:');
-                                error_log('vehicle_name: ' . $reservation['vehicle_name']);
-                                error_log('reason: ' . $reservation['reason']);
-                                error_log('start_datetime: ' . $reservation['start_datetime']);
-                                error_log('end_datetime: ' . $reservation['end_datetime']);
-                                error_log('reservation_id: ' . $reservation['id']);
-                                error_log('location: ' . ($reservation['location'] ?? 'null'));
-                                
-                                echo '<script>console.log("🔍 Google Calendar Parameter:", {';
-                                echo 'vehicle_name: ' . json_encode($reservation['vehicle_name']) . ',';
-                                echo 'reason: ' . json_encode($reservation['reason']) . ',';
-                                echo 'start_datetime: ' . json_encode($reservation['start_datetime']) . ',';
-                                echo 'end_datetime: ' . json_encode($reservation['end_datetime']) . ',';
-                                echo 'reservation_id: ' . json_encode($reservation['id']) . ',';
-                                echo 'location: ' . json_encode($reservation['location'] ?? 'null');
-                                echo '});</script>';
-                                
-                                $event_id = create_google_calendar_event(
-                                    $reservation['vehicle_name'],
-                                    $reservation['reason'],
-                                    $reservation['start_datetime'],
-                                    $reservation['end_datetime'],
-                                    $reservation['id'],
-                                    $reservation['location'] ?? null
-                                );
-                                
-                                error_log('Dashboard: create_google_calendar_event Rückgabe: ' . ($event_id ? $event_id : 'false'));
-                                echo '<script>console.log("🔍 create_google_calendar_event Rückgabe:", ' . json_encode($event_id ? $event_id : 'false') . ');</script>';
-                                
-                                // Zusätzliches Logging in /tmp für Debugging
-                                file_put_contents('/tmp/dashboard_google_calendar.log', 
-                                    '[' . date('Y-m-d H:i:s') . '] Dashboard: create_google_calendar_event Rückgabe: ' . ($event_id ? $event_id : 'false') . PHP_EOL, 
-                                    FILE_APPEND
-                                );
-                                
-                                // Detailliertes Logging für Debugging
-                                file_put_contents('/tmp/dashboard_google_calendar.log', 
-                                    '[' . date('Y-m-d H:i:s') . '] Dashboard: Parameter - vehicle_name=' . $reservation['vehicle_name'] . ', reason=' . $reservation['reason'] . ', start=' . $reservation['start_datetime'] . ', end=' . $reservation['end_datetime'] . ', reservation_id=' . $reservation['id'] . ', location=' . ($reservation['location'] ?? 'null') . PHP_EOL, 
-                                    FILE_APPEND
-                                );
-                                
-                                // Teste ob create_google_calendar_event verfügbar ist
-                                if (function_exists('create_google_calendar_event')) {
-                                    file_put_contents('/tmp/dashboard_google_calendar.log', 
-                                        '[' . date('Y-m-d H:i:s') . '] Dashboard: create_google_calendar_event Funktion ist verfügbar' . PHP_EOL, 
-                                        FILE_APPEND
-                                    );
-                                } else {
-                                    file_put_contents('/tmp/dashboard_google_calendar.log', 
-                                        '[' . date('Y-m-d H:i:s') . '] Dashboard: create_google_calendar_event Funktion ist NICHT verfügbar' . PHP_EOL, 
-                                        FILE_APPEND
-                                    );
-                                }
-                                
-                                // Teste ob Google Calendar Klassen verfügbar sind
-                                if (class_exists('GoogleCalendarServiceAccount')) {
-                                    file_put_contents('/tmp/dashboard_google_calendar.log', 
-                                        '[' . date('Y-m-d H:i:s') . '] Dashboard: GoogleCalendarServiceAccount Klasse ist verfügbar' . PHP_EOL, 
-                                        FILE_APPEND
-                                    );
-                                } else {
-                                    file_put_contents('/tmp/dashboard_google_calendar.log', 
-                                        '[' . date('Y-m-d H:i:s') . '] Dashboard: GoogleCalendarServiceAccount Klasse ist NICHT verfügbar' . PHP_EOL, 
-                                        FILE_APPEND
-                                    );
-                                }
-                                
-                                if ($event_id) {
-                                    $message .= " Google Calendar Event wurde erstellt.";
-                                    echo '<script>console.log("✅ Google Calendar Event erfolgreich erstellt:", ' . json_encode($event_id) . ');</script>';
-                                } else {
-                                    $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
-                                    echo '<script>console.log("❌ Google Calendar Event konnte nicht erstellt werden - Funktion gab false zurück");</script>';
-                                }
-                            } catch (Exception $e) {
-                                error_log('Google Calendar Event Fehler in Dashboard: ' . $e->getMessage());
-                                $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden. Fehler: " . $e->getMessage();
-                                echo '<script>console.log("❌ Google Calendar Event Fehler:", ' . json_encode($e->getMessage()) . ');</script>';
-                            }
-                        } else {
-                            $message .= " Warnung: Google Calendar Funktion nicht verfügbar.";
-                            echo '<script>console.log("❌ create_google_calendar_event Funktion nicht verfügbar");</script>';
-                            error_log('Dashboard: create_google_calendar_event Funktion NICHT verfügbar');
-                        }
-                    } else {
-                        $message .= " Warnung: Reservierung nicht gefunden für Google Calendar.";
-                        echo '<script>console.log("❌ Reservierung nicht gefunden für Google Calendar");</script>';
-                        error_log('Dashboard: Reservierung nicht gefunden für Google Calendar');
-                    }
-                } catch (Exception $e) {
-                    error_log('Google Calendar Event Fehler: ' . $e->getMessage());
-                    $message .= " Warnung: Google Calendar Event konnte nicht erstellt werden.";
-                    echo '<script>console.log("❌ Google Calendar Exception:", ' . json_encode($e->getMessage()) . ');</script>';
-                }
-                
-                error_log('=== DASHBOARD: Google Calendar Event Erstellung beendet ===');
-                
-            } elseif ($action == 'reject') {
-                $rejection_reason = sanitize_input($_POST['rejection_reason'] ?? '');
-                
-                if (empty($rejection_reason)) {
-                    $error = "Bitte geben Sie einen Ablehnungsgrund an.";
-                } else {
-                    $stmt = $db->prepare("UPDATE reservations SET status = 'rejected', rejection_reason = ?, approved_by = ?, approved_at = NOW() WHERE id = ?");
-                    $stmt->execute([$rejection_reason, $_SESSION['user_id'], $reservation_id]);
-                    
-                    $message = "Reservierung erfolgreich abgelehnt.";
-                }
+    try {
+        if ($action == 'approve') {
+            $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
+            $stmt->execute([$_SESSION['user_id'], $reservation_id]);
+            $message = "Reservierung erfolgreich genehmigt.";
+        } elseif ($action == 'reject') {
+            $rejection_reason = sanitize_input($_POST['rejection_reason'] ?? '');
+            if (!empty($rejection_reason)) {
+                $stmt = $db->prepare("UPDATE reservations SET status = 'rejected', rejection_reason = ?, approved_by = ?, approved_at = NOW() WHERE id = ?");
+                $stmt->execute([$rejection_reason, $_SESSION['user_id'], $reservation_id]);
+                $message = "Reservierung erfolgreich abgelehnt.";
+            } else {
+                $error = "Bitte geben Sie einen Ablehnungsgrund an.";
             }
-        } catch(PDOException $e) {
-            $error = "Fehler beim Verarbeiten der Reservierung: " . $e->getMessage();
         }
+    } catch(PDOException $e) {
+        $error = "Fehler beim Verarbeiten der Reservierung: " . $e->getMessage();
     }
 }
 
+// Reservierungen laden
 try {
-    // Alle Reservierungen (ausstehend + bearbeitet)
     $stmt = $db->prepare("
         SELECT r.*, v.name as vehicle_name
         FROM reservations r
@@ -219,7 +66,6 @@ try {
     $stmt->execute();
     $all_reservations = $stmt->fetchAll();
     
-    // Trenne in ausstehend und bearbeitet
     $pending_reservations = array_filter($all_reservations, function($r) {
         return $r['status'] === 'pending';
     });
@@ -228,40 +74,10 @@ try {
         return in_array($r['status'], ['approved', 'rejected']);
     });
     
-    // Debug: Logge die Reservierungen
-    error_log('Dashboard Debug - Alle Reservierungen: ' . count($all_reservations));
-    error_log('Dashboard Debug - Ausstehende Reservierungen: ' . count($pending_reservations));
-    error_log('Dashboard Debug - Bearbeitete Reservierungen: ' . count($processed_reservations));
-    
-    // Debug: Logge Status der Reservierungen
-    foreach ($all_reservations as $res) {
-        error_log('Dashboard Debug - Reservierung ID ' . $res['id'] . ' Status: ' . $res['status']);
-    }
-    
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Reservierungen: " . $e->getMessage();
-    // Setze leere Arrays bei Fehler
     $all_reservations = [];
     $pending_reservations = [];
-    $processed_reservations = [];
-}
-
-// Debug: Logge Variablen vor HTML-Ausgabe
-error_log('Dashboard vor HTML - all_reservations: ' . count($all_reservations));
-error_log('Dashboard vor HTML - pending_reservations: ' . count($pending_reservations));
-error_log('Dashboard vor HTML - processed_reservations: ' . count($processed_reservations));
-
-// Debug: Prüfe ob Variablen korrekt gesetzt sind
-if (!isset($all_reservations)) {
-    error_log('Dashboard vor HTML - all_reservations ist NICHT gesetzt!');
-    $all_reservations = [];
-}
-if (!isset($pending_reservations)) {
-    error_log('Dashboard vor HTML - pending_reservations ist NICHT gesetzt!');
-    $pending_reservations = [];
-}
-if (!isset($processed_reservations)) {
-    error_log('Dashboard vor HTML - processed_reservations ist NICHT gesetzt!');
     $processed_reservations = [];
 }
 ?>
@@ -273,7 +89,6 @@ if (!isset($processed_reservations)) {
     <title>Dashboard - Feuerwehr App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="../assets/css/style.css" rel="stylesheet">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -281,51 +96,10 @@ if (!isset($processed_reservations)) {
             <a class="navbar-brand" href="../index.php">
                 <i class="fas fa-fire"></i> Feuerwehr App
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="dashboard.php">
-                            <i class="fas fa-tachometer-alt"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="reservations.php">
-                            <i class="fas fa-calendar-check"></i> Reservierungen
-                        </a>
-                    </li>
-                    <?php if (has_admin_access()): ?>
-                    <li class="nav-item">
-                        <a class="nav-link" href="vehicles.php">
-                            <i class="fas fa-truck"></i> Fahrzeuge
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="users.php">
-                            <i class="fas fa-users"></i> Benutzer
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="settings.php">
-                            <i class="fas fa-cog"></i> Einstellungen
-                        </a>
-                    </li>
-                    <?php endif; ?>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="profile.php"><i class="fas fa-user-edit"></i> Profil</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="../logout.php"><i class="fas fa-sign-out-alt"></i> Abmelden</a></li>
-                        </ul>
-                    </li>
-                </ul>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="../logout.php">
+                    <i class="fas fa-sign-out-alt"></i> Abmelden
+                </a>
             </div>
         </div>
     </nav>
@@ -364,100 +138,16 @@ if (!isset($processed_reservations)) {
                         </h6>
                     </div>
                     <div class="card-body">
-                        <?php 
-                        // Debug: Logge pending_reservations im HTML-Bereich
-                        error_log('Dashboard HTML - pending_reservations count: ' . count($pending_reservations));
-                        error_log('Dashboard HTML - pending_reservations empty: ' . (empty($pending_reservations) ? 'JA' : 'NEIN'));
-                        
-                        // Debug: Prüfe ob Variable überschrieben wurde
-                        if (!isset($pending_reservations)) {
-                            error_log('Dashboard HTML - pending_reservations ist NICHT gesetzt!');
-                            $pending_reservations = [];
-                        }
-                        
-                        if (empty($pending_reservations)): ?>
+                        <?php if (empty($pending_reservations)): ?>
                             <div class="text-center py-5">
                                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
                                 <h5 class="text-muted">Keine ausstehenden Anträge</h5>
                                 <p class="text-muted">Alle Anträge wurden bearbeitet.</p>
-                                <a href="reservations.php" class="btn btn-primary">
-                                    <i class="fas fa-calendar-check"></i> Alle Reservierungen anzeigen
-                                </a>
                             </div>
                         <?php else: ?>
-                            <!-- Mobile-optimierte Karten-Ansicht -->
-                            <div class="d-md-none">
-                                <?php foreach ($pending_reservations as $reservation): ?>
-                                    <div class="card mb-3">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <h6 class="card-title mb-0">
-                                                    <i class="fas fa-truck text-primary"></i>
-                                                    <?php echo htmlspecialchars($reservation['vehicle_name']); ?>
-                                                </h6>
-                                            </div>
-                                            
-                                            <div class="mb-2">
-                                                <i class="fas fa-calendar-alt text-success"></i>
-                                                <strong><?php echo format_datetime($reservation['start_datetime'], 'd.m.Y'); ?></strong>
-                                                <small class="text-muted">
-                                                    <?php echo format_datetime($reservation['start_datetime'], 'H:i'); ?> - 
-                                                    <?php echo format_datetime($reservation['end_datetime'], 'H:i'); ?>
-                                                </small>
-                                            </div>
-                                            
-                                            <div class="mb-2">
-                                                <i class="fas fa-user text-info"></i>
-                                                <span><?php echo htmlspecialchars($reservation['requester_name']); ?></span>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <i class="fas fa-clipboard-list text-warning"></i>
-                                                <span><?php echo htmlspecialchars($reservation['reason']); ?></span>
-                                            </div>
-                                            
-                                            <?php 
-                                            // Prüfe Kalender-Konflikte
-                                            $conflicts = [];
-                                            if (function_exists('check_calendar_conflicts')) {
-                                                $conflicts = check_calendar_conflicts($reservation['vehicle_name'], $reservation['start_datetime'], $reservation['end_datetime']);
-                                            }
-                                            ?>
-                                            <?php if (!empty($conflicts)): ?>
-                                                <div class="mb-3">
-                                                    <i class="fas fa-exclamation-triangle text-danger"></i>
-                                                    <small class="text-danger">
-                                                        <strong>Kalender-Konflikt!</strong><br>
-                                                        <?php foreach ($conflicts as $conflict): ?>
-                                                            • <?php echo htmlspecialchars($conflict['title']); ?><br>
-                                                        <?php endforeach; ?>
-                                                    </small>
-                                                </div>
-                                            <?php else: ?>
-                                                <div class="mb-3">
-                                                    <i class="fas fa-check-circle text-success"></i>
-                                                    <small class="text-success">
-                                                        <strong>Kein Kalender-Konflikt</strong><br>
-                                                        Zeitraum ist frei
-                                                    </small>
-                                                </div>
-                                            <?php endif; ?>
-                                            
-                                            <div class="d-grid">
-                                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
-                                                    <i class="fas fa-edit"></i> Bearbeiten
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                            
-                            <!-- Desktop-Tabellen-Ansicht -->
-                            <div class="d-none d-md-block">
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
                                         <tr>
                                             <th>Fahrzeug</th>
                                             <th>Antragsteller</th>
@@ -465,61 +155,46 @@ if (!isset($processed_reservations)) {
                                             <th>Grund</th>
                                             <th>Aktion</th>
                                         </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($pending_reservations as $reservation): ?>
-                                                <tr>
-                                                    <td>
-                                                        <i class="fas fa-truck text-primary"></i>
-                                                        <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
-                                                    </td>
-                                                    <td>
-                                                        <i class="fas fa-user text-info"></i>
-                                                        <?php echo htmlspecialchars($reservation['requester_name']); ?>
-                                                    </td>
-                                                    <td>
-                                                        <strong><?php echo format_datetime($reservation['start_datetime'], 'd.m.Y'); ?></strong><br>
-                                                        <small class="text-muted">
-                                                            <?php echo format_datetime($reservation['start_datetime'], 'H:i'); ?> - 
-                                                            <?php echo format_datetime($reservation['end_datetime'], 'H:i'); ?>
-                                                        </small>
-                                                    </td>
-                                                    <td>
-                                                        <span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($reservation['reason']); ?>">
-                                                            <?php echo htmlspecialchars($reservation['reason']); ?>
-                                                        </span>
-                                                        <?php 
-                                                        // Prüfe Kalender-Konflikte
-                                                        $conflicts = [];
-                                                        if (function_exists('check_calendar_conflicts')) {
-                                                            $conflicts = check_calendar_conflicts($reservation['vehicle_name'], $reservation['start_datetime'], $reservation['end_datetime']);
-                                                        }
-                                                        ?>
-                                                        <?php if (!empty($conflicts)): ?>
-                                                            <br><small class="text-danger">
-                                                                <i class="fas fa-exclamation-triangle"></i> 
-                                                                Kalender-Konflikt: <?php echo htmlspecialchars($conflicts[0]['title']); ?>
-                                                                <?php if (count($conflicts) > 1): ?>
-                                                                    (+<?php echo count($conflicts) - 1; ?> weitere)
-                                                                <?php endif; ?>
-                                                            </small>
-                                                        <?php else: ?>
-                                                            <br><small class="text-success">
-                                                                <i class="fas fa-check-circle"></i> 
-                                                                Kein Konflikt
-                                                            </small>
-                                                        <?php endif; ?>
-                                                    </td>
-                                                    <td>
-                                                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
-                                                            <i class="fas fa-edit"></i> Bearbeiten
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($pending_reservations as $reservation): ?>
+                                            <tr>
+                                                <td>
+                                                    <i class="fas fa-truck text-primary"></i>
+                                                    <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
+                                                </td>
+                                                <td>
+                                                    <i class="fas fa-user text-info"></i>
+                                                    <?php echo htmlspecialchars($reservation['requester_name']); ?>
+                                                </td>
+                                                <td>
+                                                    <strong><?php echo date('d.m.Y', strtotime($reservation['start_datetime'])); ?></strong><br>
+                                                    <small class="text-muted">
+                                                        <?php echo date('H:i', strtotime($reservation['start_datetime'])); ?> - 
+                                                        <?php echo date('H:i', strtotime($reservation['end_datetime'])); ?>
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    <span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($reservation['reason']); ?>">
+                                                        <?php echo htmlspecialchars($reservation['reason']); ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <form method="POST" class="d-inline">
+                                                        <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                                                        <input type="hidden" name="action" value="approve">
+                                                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Reservierung genehmigen?')">
+                                                            <i class="fas fa-check"></i> Genehmigen
                                                         </button>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
+                                                    </form>
+                                                    <button type="button" class="btn btn-sm btn-danger" onclick="rejectReservation(<?php echo $reservation['id']; ?>)">
+                                                        <i class="fas fa-times"></i> Ablehnen
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -541,302 +216,91 @@ if (!isset($processed_reservations)) {
                                 <p class="text-muted mb-0">Noch keine bearbeiteten Anträge</p>
                             </div>
                         <?php else: ?>
-                            <!-- Mobile-optimierte Karten-Ansicht -->
-                            <div class="d-md-none">
-                                <?php foreach ($processed_reservations as $reservation): ?>
-                                    <div class="card mb-3">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <h6 class="card-title mb-0">
-                                                    <i class="fas fa-truck text-primary"></i>
-                                                    <?php echo htmlspecialchars($reservation['vehicle_name']); ?>
-                                                </h6>
-                                                <span class="badge <?php echo $reservation['status'] === 'approved' ? 'bg-success' : 'bg-danger'; ?>">
-                                                    <?php echo $reservation['status'] === 'approved' ? 'Genehmigt' : 'Abgelehnt'; ?>
-                                                </span>
-                                            </div>
-                                            
-                                            <div class="mb-2">
-                                                <i class="fas fa-calendar-alt text-success"></i>
-                                                <strong><?php echo format_datetime($reservation['start_datetime'], 'd.m.Y'); ?></strong>
-                                                <small class="text-muted">
-                                                    <?php echo format_datetime($reservation['start_datetime'], 'H:i'); ?> - 
-                                                    <?php echo format_datetime($reservation['end_datetime'], 'H:i'); ?>
-                                                </small>
-                                            </div>
-                                            
-                                            <div class="mb-2">
-                                                <i class="fas fa-user text-info"></i>
-                                                <span><?php echo htmlspecialchars($reservation['requester_name']); ?></span>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <i class="fas fa-clipboard-list text-warning"></i>
-                                                <span><?php echo htmlspecialchars($reservation['reason']); ?></span>
-                                            </div>
-                                            
-                                            <div class="d-grid">
-                                                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
-                                                    <i class="fas fa-eye"></i> Details
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                            
-                            <!-- Desktop-Tabellen-Ansicht -->
-                            <div class="d-none d-md-block">
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
                                         <tr>
                                             <th>Fahrzeug</th>
                                             <th>Antragsteller</th>
                                             <th>Datum/Zeit</th>
                                             <th>Grund</th>
                                             <th>Status</th>
-                                            <th>Aktion</th>
                                         </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($processed_reservations as $reservation): ?>
-                                                <tr>
-                                                    <td>
-                                                        <i class="fas fa-truck text-primary"></i>
-                                                        <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
-                                                    </td>
-                                                    <td>
-                                                        <i class="fas fa-user text-info"></i>
-                                                        <?php echo htmlspecialchars($reservation['requester_name']); ?>
-                                                    </td>
-                                                    <td>
-                                                        <strong><?php echo format_datetime($reservation['start_datetime'], 'd.m.Y'); ?></strong><br>
-                                                        <small class="text-muted">
-                                                            <?php echo format_datetime($reservation['start_datetime'], 'H:i'); ?> - 
-                                                            <?php echo format_datetime($reservation['end_datetime'], 'H:i'); ?>
-                                                        </small>
-                                                    </td>
-                                                    <td>
-                                                        <span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($reservation['reason']); ?>">
-                                                            <?php echo htmlspecialchars($reservation['reason']); ?>
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge <?php echo $reservation['status'] === 'approved' ? 'bg-success' : 'bg-danger'; ?>">
-                                                            <?php echo $reservation['status'] === 'approved' ? 'Genehmigt' : 'Abgelehnt'; ?>
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
-                                                            <i class="fas fa-eye"></i> Details
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($processed_reservations as $reservation): ?>
+                                            <tr>
+                                                <td>
+                                                    <i class="fas fa-truck text-primary"></i>
+                                                    <strong><?php echo htmlspecialchars($reservation['vehicle_name']); ?></strong>
+                                                </td>
+                                                <td>
+                                                    <i class="fas fa-user text-info"></i>
+                                                    <?php echo htmlspecialchars($reservation['requester_name']); ?>
+                                                </td>
+                                                <td>
+                                                    <strong><?php echo date('d.m.Y', strtotime($reservation['start_datetime'])); ?></strong><br>
+                                                    <small class="text-muted">
+                                                        <?php echo date('H:i', strtotime($reservation['start_datetime'])); ?> - 
+                                                        <?php echo date('H:i', strtotime($reservation['end_datetime'])); ?>
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    <span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($reservation['reason']); ?>">
+                                                        <?php echo htmlspecialchars($reservation['reason']); ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge <?php echo $reservation['status'] === 'approved' ? 'bg-success' : 'bg-danger'; ?>">
+                                                        <?php echo $reservation['status'] === 'approved' ? 'Genehmigt' : 'Abgelehnt'; ?>
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
                             </div>
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
-
         </div>
     </div>
 
-    <!-- Details-Modals für alle Reservierungen -->
-    <?php foreach ($all_reservations as $reservation): ?>
-        <div class="modal fade" id="detailsModal<?php echo $reservation['id']; ?>" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
+    <!-- Ablehnungs-Modal -->
+    <div class="modal fade" id="rejectModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" id="rejectForm">
                     <div class="modal-header">
-                        <h5 class="modal-title">
-                            <i class="fas fa-info-circle"></i> Reservierungsdetails #<?php echo $reservation['id']; ?>
-                        </h5>
+                        <h5 class="modal-title">Reservierung ablehnen</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h6><i class="fas fa-truck text-primary"></i> Fahrzeug</h6>
-                                <p><?php echo htmlspecialchars($reservation['vehicle_name']); ?></p>
-                                
-                                <h6><i class="fas fa-user text-info"></i> Antragsteller</h6>
-                                <p>
-                                    <strong><?php echo htmlspecialchars($reservation['requester_name']); ?></strong><br>
-                                    <small class="text-muted"><?php echo htmlspecialchars($reservation['requester_email']); ?></small>
-                                </p>
-                                
-                                <h6><i class="fas fa-calendar-alt text-success"></i> Zeitraum</h6>
-                                <p>
-                                    <strong>Von:</strong> <?php echo date('d.m.Y H:i', strtotime($reservation['start_datetime'])); ?><br>
-                                    <strong>Bis:</strong> <?php echo date('d.m.Y H:i', strtotime($reservation['end_datetime'])); ?>
-                                </p>
-                            </div>
-                            <div class="col-md-6">
-                                <h6><i class="fas fa-clipboard-list text-warning"></i> Grund</h6>
-                                <p><?php echo htmlspecialchars($reservation['reason']); ?></p>
-                                
-                                <h6><i class="fas fa-map-marker-alt text-info"></i> Ort</h6>
-                                <p><?php echo htmlspecialchars($reservation['location'] ?? 'Nicht angegeben'); ?></p>
-                                
-                                <h6><i class="fas fa-info-circle text-secondary"></i> Status</h6>
-                                <p>
-                                    <span class="badge bg-warning">
-                                        <i class="fas fa-clock"></i> Ausstehend
-                                    </span>
-                                </p>
-                                
-                                <h6><i class="fas fa-clock text-muted"></i> Erstellt</h6>
-                                <p><small class="text-muted"><?php echo date('d.m.Y H:i', strtotime($reservation['created_at'])); ?></small></p>
-                                
-                                <?php if (!empty($reservation['calendar_conflicts'])): ?>
-                                    <?php $conflicts = json_decode($reservation['calendar_conflicts'], true); ?>
-                                    <?php if (!empty($conflicts)): ?>
-                                        <h6><i class="fas fa-exclamation-triangle text-danger"></i> Kalender-Konflikte</h6>
-                                        <div class="alert alert-warning">
-                                            <strong>Warnung:</strong> Für dieses Fahrzeug existieren bereits Kalender-Einträge im beantragten Zeitraum:
-                                            <ul class="mb-0 mt-2">
-                                                <?php foreach ($conflicts as $conflict): ?>
-                                                    <li>
-                                                        <strong><?php echo htmlspecialchars($conflict['title']); ?></strong><br>
-                                                        <small class="text-muted">
-                                                            <?php echo date('d.m.Y H:i', strtotime($conflict['start'])); ?> - 
-                                                            <?php echo date('d.m.Y H:i', strtotime($conflict['end'])); ?>
-                                                        </small>
-                                                    </li>
-                                                <?php endforeach; ?>
-                                            </ul>
-                                        </div>
-                                    <?php endif; ?>
-                                <?php endif; ?>
-                            </div>
+                        <p id="rejectReservationInfo"></p>
+                        <div class="mb-3">
+                            <label for="rejection_reason" class="form-label">Ablehnungsgrund</label>
+                            <textarea class="form-control" id="rejection_reason" name="rejection_reason" rows="3" required></textarea>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <?php if ($reservation['status'] === 'pending'): ?>
-                            <!-- Nur für ausstehende Reservierungen: Genehmigen/Ablehnen -->
-                            <form method="POST" class="d-inline">
-                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
-                                <input type="hidden" name="action" value="approve">
-                                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                                <button type="submit" class="btn btn-success" onclick="return confirm('Reservierung genehmigen?')">
-                                    <i class="fas fa-check"></i> Genehmigen
-                                </button>
-                            </form>
-                            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $reservation['id']; ?>" data-bs-dismiss="modal">
-                                <i class="fas fa-times"></i> Ablehnen
-                            </button>
-                        <?php else: ?>
-                            <!-- Für bearbeitete Reservierungen: Nur Details -->
-                            <span class="badge <?php echo $reservation['status'] === 'approved' ? 'bg-success' : 'bg-danger'; ?> fs-6">
-                                <?php echo $reservation['status'] === 'approved' ? 'Genehmigt' : 'Abgelehnt'; ?>
-                            </span>
-                        <?php endif; ?>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-danger">Ablehnen</button>
                     </div>
-                </div>
+                    <input type="hidden" name="reservation_id" id="rejectReservationId">
+                    <input type="hidden" name="action" value="reject">
+                </form>
             </div>
         </div>
-    <?php endforeach; ?>
-
-    <!-- Ablehnungs-Modals für Dashboard (nur ausstehende) -->
-    <?php foreach ($pending_reservations as $reservation): ?>
-        <div class="modal fade" id="rejectModal<?php echo $reservation['id']; ?>" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <form method="POST">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Reservierung ablehnen</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <p>Reservierung #<?php echo $reservation['id']; ?> - <?php echo htmlspecialchars($reservation['vehicle_name']); ?></p>
-                            <div class="mb-3">
-                                <label for="rejection_reason<?php echo $reservation['id']; ?>" class="form-label">Ablehnungsgrund</label>
-                                <textarea class="form-control" id="rejection_reason<?php echo $reservation['id']; ?>" name="rejection_reason" rows="3" required></textarea>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                            <button type="submit" class="btn btn-danger">Ablehnen</button>
-                        </div>
-                        <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
-                        <input type="hidden" name="action" value="reject">
-                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                    </form>
-                </div>
-            </div>
-        </div>
-    <?php endforeach; ?>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-<script>
-    // Debug-Logging für Dashboard
-    console.log('🔍 Admin Dashboard geladen');
-    console.log('Zeitstempel:', new Date().toLocaleString('de-DE'));
-    
-    // Prüfe PHP-Funktionen
-    <?php if (function_exists('check_calendar_conflicts')): ?>
-        console.log('✅ check_calendar_conflicts Funktion verfügbar');
-    <?php else: ?>
-        console.error('❌ check_calendar_conflicts Funktion NICHT verfügbar');
-    <?php endif; ?>
-    
-    <?php if (function_exists('create_google_calendar_event')): ?>
-        console.log('✅ create_google_calendar_event Funktion verfügbar');
-    <?php else: ?>
-        console.error('❌ create_google_calendar_event Funktion NICHT verfügbar');
-    <?php endif; ?>
-    
-    // Prüfe ausstehende Reservierungen
-    console.log('Anzahl ausstehende Reservierungen:', <?php echo count($pending_reservations); ?>);
-    
-    // Prüfe Google Calendar Einstellungen
-    <?php
-    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
-    $stmt->execute();
-    $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-    ?>
-    console.log('Google Calendar Einstellungen:', {
-        auth_type: '<?php echo $settings['google_calendar_auth_type'] ?? 'Nicht gesetzt'; ?>',
-        calendar_id: '<?php echo $settings['google_calendar_id'] ?? 'Nicht gesetzt'; ?>',
-        service_account_json: '<?php echo isset($settings['google_calendar_service_account_json']) ? 'Gesetzt (' . strlen($settings['google_calendar_service_account_json']) . ' Zeichen)' : 'Nicht gesetzt'; ?>'
-    });
-    
-    // Event-Listener für Formulare
-    document.addEventListener('DOMContentLoaded', function() {
-        const forms = document.querySelectorAll('form[method="POST"]');
-        console.log('Anzahl Formulare:', forms.length);
-        
-        forms.forEach(function(form, index) {
-            form.addEventListener('submit', function(e) {
-                const action = form.querySelector('input[name="action"]').value;
-                const reservationId = form.querySelector('input[name="reservation_id"]').value;
-                console.log('Dashboard Formular abgesendet:', {
-                    action: action,
-                    reservationId: reservationId,
-                    formIndex: index
-                });
-            });
-        });
-        
-    });
-    
-    // Prüfe Modals
-    const modals = document.querySelectorAll('.modal');
-    console.log('Anzahl Modals:', modals.length);
-    
-    modals.forEach(function(modal, index) {
-        modal.addEventListener('show.bs.modal', function() {
-            const modalId = modal.id;
-            console.log('Dashboard Modal geöffnet:', modalId);
-        });
-    });
-    
-</script>
+    <script>
+        function rejectReservation(reservationId) {
+            document.getElementById('rejectReservationId').value = reservationId;
+            document.getElementById('rejectReservationInfo').textContent = 'Reservierung #' + reservationId;
+            new bootstrap.Modal(document.getElementById('rejectModal')).show();
+        }
+    </script>
 </body>
 </html>
