@@ -487,13 +487,44 @@ function delete_google_calendar_event_by_hint($title, $start_datetime, $end_date
             } catch (Throwable $t) {}
             return false;
         }
-        $start = date('c', strtotime($start_datetime) - 600);
-        $end = date('c', strtotime($end_datetime) + 600);
-        // Suche mit Query (Titel) einschränken
-        $events = $svc->getEvents($start, $end, $title);
+        // Zeitfenster: großzügiger suchen (±24h), um Parser-/Zeitzonenabweichungen zu tolerieren
+        $timeWindowSeconds = 24 * 3600;
+        $start = date('c', strtotime($start_datetime) - $timeWindowSeconds);
+        $end = date('c', strtotime($end_datetime) + $timeWindowSeconds);
+
+        // Query-Strategien: 1) voller Titel, 2) nur Fahrzeugteil vor " - ", 3) nur Reason
+        $vehiclePart = trim(strtok($title, '-'));
+        $reasonPart = '';
+        if (strpos($title, '-') !== false) {
+            $parts = explode('-', $title, 2);
+            $vehiclePart = trim($parts[0]);
+            $reasonPart = trim($parts[1]);
+        }
+
+        $candidates = [];
+        $queries = array_values(array_unique(array_filter([$title, $vehiclePart, $reasonPart])));
+        foreach ($queries as $q) {
+            $result = $svc->getEvents($start, $end, $q);
+            if (is_array($result)) {
+                $candidates = array_merge($candidates, $result);
+                try {
+                    $stmtCnt = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+                    $stmtCnt->execute(['DEBUG', 'GC DELETE HINT: Query "' . $q . '" lieferte ' . count($result) . ' Treffer', 'delete_google_calendar_event_by_hint']);
+                } catch (Throwable $t) {}
+            }
+        }
+        // Duplikate nach Event-ID entfernen
+        $unique = [];
+        foreach ($candidates as $ev) {
+            $eid = $ev['id'] ?? null;
+            if ($eid && !isset($unique[$eid])) {
+                $unique[$eid] = $ev;
+            }
+        }
+        $events = array_values($unique);
         try {
             $stmtCnt = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
-            $stmtCnt->execute(['DEBUG', 'GC DELETE HINT: getEvents lieferte ' . (is_array($events) ? count($events) : -1) . ' Treffer', 'delete_google_calendar_event_by_hint']);
+            $stmtCnt->execute(['DEBUG', 'GC DELETE HINT: Gesamtkandidaten nach Merge: ' . count($events), 'delete_google_calendar_event_by_hint']);
         } catch (Throwable $t) {}
         if (!$events || !is_array($events)) {
             error_log('GC DELETE HINT: Keine Events im Zeitraum gefunden');
@@ -505,12 +536,30 @@ function delete_google_calendar_event_by_hint($title, $start_datetime, $end_date
         }
 
         $deletedAny = false;
+        $requestedStartTs = strtotime($start_datetime);
+        $requestedEndTs = strtotime($end_datetime);
+        $toleranceSeconds = 90 * 60; // 90 Minuten Toleranz
         foreach ($events as $event) {
             $summary = $event['summary'] ?? '';
             $eid = $event['id'] ?? '';
             if (!$eid) continue;
-            // Match: exakter Titel oder enthält den Titel vorn (z. B. zusammengeführte Fahrzeuge)
-            if ($summary === $title || stripos($summary, $title) !== false) {
+            // Zeit aus Event bestimmen
+            $evStart = $event['start']['dateTime'] ?? ($event['start']['date'] ?? null);
+            $evEnd = $event['end']['dateTime'] ?? ($event['end']['date'] ?? null);
+            $evStartTs = $evStart ? strtotime($evStart) : null;
+            $evEndTs = $evEnd ? strtotime($evEnd) : null;
+
+            // Heuristik: Titel-Match locker + Zeitliche Nähe
+            $titleMatches = (
+                $summary === $title ||
+                stripos($summary, $title) !== false ||
+                ($vehiclePart && stripos($summary, $vehiclePart) !== false)
+            );
+            $timeMatches = ($evStartTs && $evEndTs &&
+                abs($evStartTs - $requestedStartTs) <= $toleranceSeconds &&
+                abs($evEndTs - $requestedEndTs) <= $toleranceSeconds);
+
+            if ($titleMatches || $timeMatches) {
                 $ok = $svc->deleteEvent($eid);
                 if ($ok) {
                     error_log('GC DELETE HINT: Event per Hint gelöscht: ' . $eid . ' (' . $summary . ')');
