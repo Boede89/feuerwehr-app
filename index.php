@@ -50,9 +50,21 @@ require_once 'includes/functions.php';
     <main class="container mt-5">
         <div class="row justify-content-center">
             <div class="col-lg-8">
+                <?php
+                    // App Name aus den Einstellungen (nur hier auf der Startseite anzeigen)
+                    $appDisplayName = 'Feuerwehr App';
+                    try {
+                        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_name'");
+                        $stmt->execute();
+                        $val = trim((string)$stmt->fetchColumn());
+                        if ($val !== '') {
+                            $appDisplayName = $val;
+                        }
+                    } catch (Exception $e) { /* Fallback beibehalten */ }
+                ?>
                 <div class="text-center mb-5">
                     <h1 class="display-4 text-primary">
-                        <i class="fas fa-fire"></i> Feuerwehr App
+                        <i class="fas fa-fire"></i> <?php echo htmlspecialchars($appDisplayName); ?>
                     </h1>
                     <p class="lead">Verwalten Sie Ihre Feuerwehrressourcen effizient</p>
                 </div>
