@@ -557,7 +557,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                                     <i class="fas fa-arrow-left"></i> Fahrzeug ändern
                                 </a>
                                 <?php if (isset($selectedVehicle['name'])): ?>
-                                <button type="submit" name="submit_reservation" class="btn btn-primary">
+                                <button type="submit" name="submit_reservation" id="submitReservationBtn" class="btn btn-primary">
                                     <i class="fas fa-paper-plane"></i> Reservierung beantragen
                                 </button>
                                 <?php else: ?>
@@ -575,6 +575,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Sofortiges Bestätigungs-Modal + Submit-Sperre, um Doppel-Submits zu verhindern
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('form');
+            const submitBtn = document.getElementById('submitReservationBtn');
+            if (!form || !submitBtn) return;
+
+            form.addEventListener('submit', function(e) {
+                // Wenn dieses Submit nicht vom Konflikt-Modal (force_submit) kommt
+                if (!e.submitter || e.submitter.name !== 'force_submit_reservation') {
+                    // Button sofort deaktivieren und Ladezustand anzeigen
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Wird gesendet...';
+
+                    // Bestätigungs-Modal anzeigen, während der Server verarbeitet
+                    const pendingModalEl = document.getElementById('submitPendingModal');
+                    if (pendingModalEl) {
+                        const pendingModal = new bootstrap.Modal(pendingModalEl, { backdrop: 'static', keyboard: false });
+                        pendingModal.show();
+                    }
+                }
+            });
+        });
         // Fahrzeugdaten aus Session Storage laden und übertragen
         window.addEventListener('load', function() {
             console.log('🔍 Lade Fahrzeug aus SessionStorage...');
@@ -756,6 +778,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         <?php endif; ?>
     </script>
     
+    <!-- Sofortiges Bestätigungs-Modal beim Absenden -->
+    <div class="modal fade" id="submitPendingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-paper-plane"></i> Antrag wird gesendet</h5>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border text-primary me-3" role="status">
+                            <span class="visually-hidden">Laden...</span>
+                        </div>
+                        <div>
+                            <p class="mb-1">Ihr Antrag wird verarbeitet.</p>
+                            <small class="text-muted">Bitte warten Sie einen Moment. Sie werden danach automatisch weitergeleitet.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Konflikt-Modal -->
     <div class="modal fade" id="conflictModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-lg">
