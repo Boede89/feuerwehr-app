@@ -162,6 +162,62 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             } else {
                 $error = "Bitte geben Sie einen Ablehnungsgrund an.";
             }
+        } elseif ($action == 'approve_replace_conflict') {
+            // Konfliktreservierung löschen und aktuellen Antrag genehmigen
+            $conflict_reservation_id = isset($_POST['conflict_reservation_id']) ? (int)$_POST['conflict_reservation_id'] : 0;
+            if ($conflict_reservation_id <= 0) {
+                throw new Exception('Konflikt-Reservierungs-ID fehlt.');
+            }
+            
+            // Hole Daten der konfliktverursachenden Reservierung (für E-Mail)
+            $stmt = $db->prepare("SELECT r.*, v.name AS vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+            $stmt->execute([$conflict_reservation_id]);
+            $conflict_res = $stmt->fetch();
+            
+            if (!$conflict_res) {
+                throw new Exception('Konflikt-Reservierung nicht gefunden.');
+            }
+            
+            // Lösche die konfliktverursachende Reservierung
+            $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
+            $stmt->execute([$conflict_reservation_id]);
+            
+            // E-Mail an ursprünglichen Antragsteller senden
+            if (!empty($conflict_res['requester_email'])) {
+                $subject = 'Ihre Fahrzeugreservierung wurde storniert - ' . ($conflict_res['vehicle_name'] ?? 'Fahrzeug');
+                $message_html = '';
+                $message_html .= '<h2>Reservierung storniert</h2>';
+                $message_html .= '<p>Ihre bestehende Reservierung wurde storniert, da ein neuer Antrag priorisiert bearbeitet wurde.</p>';
+                $message_html .= '<p><strong>Fahrzeug:</strong> ' . htmlspecialchars($conflict_res['vehicle_name'] ?? '') . '</p>';
+                $message_html .= '<p><strong>Grund:</strong> ' . htmlspecialchars($conflict_res['reason'] ?? '') . '</p>';
+                $message_html .= '<p><strong>Zeitraum:</strong> ' . htmlspecialchars($conflict_res['start_datetime'] ?? '') . ' - ' . htmlspecialchars($conflict_res['end_datetime'] ?? '') . '</p>';
+                $message_html .= '<p>Bei Rückfragen wenden Sie sich bitte an die Verwaltung.</p>';
+                
+                try { send_email($conflict_res['requester_email'], $subject, $message_html); } catch (Exception $e) { /* still proceed */ }
+            }
+            
+            // Aktuelle Reservierung genehmigen (wie in 'approve')
+            $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
+            $stmt->execute([$_SESSION['user_id'], $reservation_id]);
+            
+            // Optional: Google Calendar Event für aktuelle Reservierung erstellen
+            try {
+                $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+                $stmt->execute([$reservation_id]);
+                $reservation = $stmt->fetch();
+                if ($reservation && function_exists('create_or_update_google_calendar_event')) {
+                    create_or_update_google_calendar_event(
+                        $reservation['vehicle_name'],
+                        $reservation['reason'],
+                        $reservation['start_datetime'],
+                        $reservation['end_datetime'],
+                        $reservation['id'],
+                        $reservation['location'] ?? null
+                    );
+                }
+            } catch (Exception $e) { /* ignore calendar errors for this action */ }
+            
+            $message = 'Konflikt gelöscht und aktueller Antrag genehmigt.';
         }
     } catch(PDOException $e) {
         $error = "Fehler beim Verarbeiten der Reservierung: " . $e->getMessage();
@@ -455,7 +511,7 @@ try {
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
+                        <div class="modal-footer">
                         <!-- Genehmigen/Ablehnen für ausstehende Reservierungen -->
                         <form method="POST" class="d-inline">
                             <input type="hidden" name="reservation_id" value="<?php echo $modal_reservation['id']; ?>">
@@ -464,6 +520,14 @@ try {
                                 <i class="fas fa-check"></i> Genehmigen
                             </button>
                         </form>
+                            <form method="POST" class="d-inline" id="approveReplaceForm<?php echo $modal_reservation['id']; ?>" onsubmit="return confirm('Konfliktreservierung löschen und aktuellen Antrag genehmigen?');">
+                                <input type="hidden" name="reservation_id" value="<?php echo $modal_reservation['id']; ?>">
+                                <input type="hidden" name="action" value="approve_replace_conflict">
+                                <input type="hidden" name="conflict_reservation_id" value="">
+                                <button type="submit" class="btn btn-warning" id="approveReplaceBtn<?php echo $modal_reservation['id']; ?>" disabled>
+                                    <i class="fas fa-exchange-alt"></i> Konflikt löschen & genehmigen
+                                </button>
+                            </form>
                         <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $modal_reservation['id']; ?>" data-bs-dismiss="modal">
                             <i class="fas fa-times"></i> Ablehnen
                         </button>
@@ -522,11 +586,11 @@ try {
             const textarea = modal.querySelector('textarea[name="rejection_reason"]');
             if (!textarea) return;
 
+            // JSON-Variante verwenden
             fetch('check-calendar-conflicts-simple.php', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                    action: 'check_one',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                     vehicle_name: vehicleName || '',
                     start_datetime: startDateTime || '',
                     end_datetime: endDateTime || ''
@@ -534,11 +598,10 @@ try {
             })
             .then(r => r.ok ? r.json() : null)
             .then(data => {
-                const hasConflictFlag = data && data.conflict === true;
                 const hasConflictsArray = data && data.success === true && Array.isArray(data.conflicts) && data.conflicts.length > 0;
                 if (hasConflictFlag || hasConflictsArray) {
                     if (!textarea.value.trim()) {
-                        textarea.value = 'Das Fahrzeug ist zu diesem Zeitraum bereits belegt.';
+                        textarea.value = 'Das Fahrzeug ist bereits belegt!';
                     }
                 }
             })
@@ -567,17 +630,33 @@ try {
                 if (data.success) {
                     if (data.conflicts && data.conflicts.length > 0) {
                         // Konflikte gefunden
-                        let conflictsHtml = '<div class="alert alert-warning mt-2"><strong>Warnung:</strong> Für dieses Fahrzeug existieren bereits Kalender-Einträge:<ul class="mb-0 mt-2">';
+                        let conflictsHtml = '<div class="alert alert-warning mt-2"><strong>Warnung:</strong> Für dieses Fahrzeug existieren bereits genehmigte Reservierungen:<ul class="mb-0 mt-2">';
                         data.conflicts.forEach(conflict => {
-                            conflictsHtml += '<li><strong>' + conflict.title + '</strong><br><small class="text-muted">' + 
+                            conflictsHtml += '<li data-conflict-id="' + (conflict.reservation_id || '') + '"><strong>' + conflict.title + '</strong><br><small class="text-muted">' + 
                                 new Date(conflict.start).toLocaleString('de-DE') + ' - ' + 
                                 new Date(conflict.end).toLocaleString('de-DE') + '</small></li>';
                         });
                         conflictsHtml += '</ul></div>';
                         container.innerHTML = conflictsHtml;
+                        // Falls vorhanden, setze die erste Konflikt-ID in das Formular des Replace-Buttons und aktiviere ihn
+                        try {
+                            const conflictId = data.conflicts[0] && data.conflicts[0].reservation_id ? String(data.conflicts[0].reservation_id) : '';
+                            const form = document.getElementById('approveReplaceForm' + reservationId);
+                            const btn = document.getElementById('approveReplaceBtn' + reservationId);
+                            if (form && btn && conflictId) {
+                                const hiddenInput = form.querySelector('input[name="conflict_reservation_id"]');
+                                if (hiddenInput) hiddenInput.value = conflictId;
+                                btn.disabled = false;
+                            }
+                        } catch (e) { /* ignore */ }
                     } else {
                         // Kein Konflikt
                         container.innerHTML = '<div class="alert alert-success mt-2"><strong>Kein Konflikt:</strong> Der beantragte Zeitraum ist frei.</div>';
+                        // Disable Replace-Button
+                        try {
+                            const btn = document.getElementById('approveReplaceBtn' + reservationId);
+                            if (btn) btn.disabled = true;
+                        } catch (e) { /* ignore */ }
                     }
                 } else {
                     // Fehler

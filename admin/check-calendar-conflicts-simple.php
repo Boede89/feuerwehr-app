@@ -44,18 +44,7 @@ try {
     $conflicts = [];
     
     // Prüfe andere Reservierungen für das gleiche Fahrzeug im gleichen Zeitraum
-    $stmt = $db->prepare("
-        SELECT id, requester_name, reason, start_datetime, end_datetime 
-        FROM reservations 
-        WHERE vehicle_id = (SELECT id FROM vehicles WHERE name = ?) 
-        AND status = 'approved' 
-        AND (
-            (start_datetime <= ? AND end_datetime >= ?) OR
-            (start_datetime <= ? AND end_datetime >= ?) OR
-            (start_datetime >= ? AND end_datetime <= ?)
-        )
-        AND id != ?
-    ");
+    $stmt = $db->prepare("\n        SELECT r.id, r.requester_name, r.requester_email, r.reason, r.start_datetime, r.end_datetime, v.id AS vehicle_id\n        FROM reservations r\n        JOIN vehicles v ON r.vehicle_id = v.id\n        WHERE v.name = ?\n        AND r.status = 'approved'\n        AND (\n            (r.start_datetime <= ? AND r.end_datetime >= ?) OR\n            (r.start_datetime <= ? AND r.end_datetime >= ?) OR\n            (r.start_datetime >= ? AND r.end_datetime <= ?)\n        )\n        AND r.id != ?\n    ");
     
     $stmt->execute([
         $vehicle_name, 
@@ -69,10 +58,13 @@ try {
     
     foreach ($existing_reservations as $reservation) {
         $conflicts[] = [
+            'reservation_id' => (int)$reservation['id'],
+            'vehicle_id' => (int)$reservation['vehicle_id'],
             'title' => $vehicle_name . ' - ' . $reservation['reason'],
             'start' => $reservation['start_datetime'],
             'end' => $reservation['end_datetime'],
-            'requester' => $reservation['requester_name']
+            'requester' => $reservation['requester_name'],
+            'requester_email' => $reservation['requester_email']
         ];
     }
     
