@@ -877,9 +877,10 @@ function create_google_calendar_event($title, $reason, $start_datetime, $end_dat
  * Entfernt ein Fahrzeug aus einem Google Calendar Event-Titel
  * @param string $google_event_id Google Event ID
  * @param string $vehicle_name Fahrzeugname zum Entfernen
+ * @param int $reservation_id Reservierungs-ID (für Löschung falls letztes Fahrzeug)
  * @return bool Erfolg
  */
-function remove_vehicle_from_calendar_event($google_event_id, $vehicle_name) {
+function remove_vehicle_from_calendar_event($google_event_id, $vehicle_name, $reservation_id = null) {
     global $db;
     
     try {
@@ -941,6 +942,12 @@ function remove_vehicle_from_calendar_event($google_event_id, $vehicle_name) {
                     // Alle Verknüpfungen auf dieses Event entfernen
                     $stmt = $db->prepare("DELETE FROM calendar_events WHERE google_event_id = ?");
                     $stmt->execute([$google_event_id]);
+                    
+                    // Auch die Reservierung selbst löschen, da sie nicht mehr im Kalender existiert
+                    $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
+                    $stmt->execute([$reservation_id]);
+                    error_log("REMOVE VEHICLE: Reservierung $reservation_id ebenfalls gelöscht");
+                    
                 } catch (Exception $e) {
                     error_log('REMOVE VEHICLE: Fehler beim Entfernen der DB-Verknüpfungen: ' . $e->getMessage());
                 }

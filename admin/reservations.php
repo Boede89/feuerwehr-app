@@ -153,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         }
 
         // Fahrzeug aus Kalendereintrag entfernen
-        $success = remove_vehicle_from_calendar_event($calendar_event['google_event_id'], $reservation['vehicle_name']);
+        $success = remove_vehicle_from_calendar_event($calendar_event['google_event_id'], $reservation['vehicle_name'], $reservation_id);
         
         if ($success) {
             $message = "Fahrzeug '{$reservation['vehicle_name']}' wurde aus dem Kalendereintrag entfernt.";
