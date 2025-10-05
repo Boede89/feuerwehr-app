@@ -10,7 +10,8 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 }
 
 // Prüfe ob Benutzer Einstellungen-Rechte hat
-if (!has_permission('settings')) {
+// Fallback auf alte Admin-Prüfung falls neue Permissions nicht verfügbar
+if (!has_permission('settings') && !has_admin_access()) {
     header("Location: ../login.php?error=access_denied");
     exit;
 }
