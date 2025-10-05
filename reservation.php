@@ -584,80 +584,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
 
             let alreadySubmitting = false;
 
-            function showPendingModal() {
-                // 1) Versuche Bootstrap-Modal
-                const pendingModalEl = document.getElementById('submitPendingModal');
-                if (pendingModalEl && window.bootstrap && typeof window.bootstrap.Modal === 'function') {
-                    try {
-                        const pendingModal = new window.bootstrap.Modal(pendingModalEl, { backdrop: 'static', keyboard: false });
-                        pendingModal.show();
-                        return;
-                    } catch (_) { /* ignore and fallback */ }
-                }
-
-                // 2) Framework-unabhängiger Vollbild-Overlay (robustester Fallback)
-                let overlay = document.getElementById('submitPendingOverlay');
-                if (!overlay) {
-                    overlay = document.createElement('div');
-                    overlay.id = 'submitPendingOverlay';
-                    overlay.setAttribute('role', 'dialog');
-                    overlay.setAttribute('aria-live', 'polite');
-                    overlay.style.position = 'fixed';
-                    overlay.style.inset = '0';
-                    overlay.style.background = 'rgba(0,0,0,0.55)';
-                    overlay.style.zIndex = '20000';
-                    overlay.style.display = 'flex';
-                    overlay.style.alignItems = 'center';
-                    overlay.style.justifyContent = 'center';
-
-                    const box = document.createElement('div');
-                    box.style.background = '#ffffff';
-                    box.style.borderRadius = '8px';
-                    box.style.boxShadow = '0 10px 24px rgba(0,0,0,0.25)';
-                    box.style.padding = '20px 24px';
-                    box.style.minWidth = '280px';
-                    box.style.maxWidth = '90vw';
-                    box.style.textAlign = 'left';
-
-                    const row = document.createElement('div');
-                    row.style.display = 'flex';
-                    row.style.alignItems = 'center';
-                    row.style.gap = '12px';
-
-                    const spinner = document.createElement('div');
-                    spinner.style.width = '1.25rem';
-                    spinner.style.height = '1.25rem';
-                    spinner.style.border = '0.2rem solid #0d6efd33';
-                    spinner.style.borderTopColor = '#0d6efd';
-                    spinner.style.borderRadius = '50%';
-                    spinner.style.animation = 'pendingSpin 0.8s linear infinite';
-
-                    const textWrap = document.createElement('div');
-                    const title = document.createElement('div');
-                    title.textContent = 'Antrag wird gesendet...';
-                    title.style.fontWeight = '600';
-                    const subtitle = document.createElement('div');
-                    subtitle.textContent = 'Bitte warten Sie einen Moment. Sie werden gleich weitergeleitet.';
-                    subtitle.style.fontSize = '0.9rem';
-                    subtitle.style.color = '#555';
-
-                    textWrap.appendChild(title);
-                    textWrap.appendChild(subtitle);
-                    row.appendChild(spinner);
-                    row.appendChild(textWrap);
-                    box.appendChild(row);
-                    overlay.appendChild(box);
-
-                    // Keyframes für Spinner
-                    const style = document.createElement('style');
-                    style.textContent = '@keyframes pendingSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
-                    document.head.appendChild(style);
-
-                    document.body.appendChild(overlay);
-                } else {
-                    overlay.style.display = 'flex';
-                }
-            }
+            function showPendingModal() { /* Modal deaktiviert */ }
 
             function lockButton() {
                 submitBtn.disabled = true;
@@ -681,10 +608,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 e.preventDefault();
                 alreadySubmitting = true;
                 lockButton();
-                console.log('🟩 Zeige Pending-Overlay');
-                showPendingModal();
-                // Verzögerung erhöhen, damit das Modal sicher gerendert wird
-                setTimeout(function(){ form.submit(); }, 200);
+                // Nur Button-Feedback, direkt absenden
+                form.submit();
             });
 
             // Zusätzlich: falls das Formular aus anderen Gründen submitted wird (Enter-Taste), UI auch sperren
@@ -699,8 +624,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 }
                 alreadySubmitting = true;
                 lockButton();
-                console.log('🟩 Zeige Pending-Overlay (submit-Event)');
-                showPendingModal();
+                // Nur Button-Feedback
             });
         });
         // Fahrzeugdaten aus Session Storage laden und übertragen
@@ -884,27 +808,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         <?php endif; ?>
     </script>
     
-    <!-- Sofortiges Bestätigungs-Modal beim Absenden -->
-    <div class="modal fade" id="submitPendingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-paper-plane"></i> Antrag wird gesendet</h5>
-                </div>
-                <div class="modal-body">
-                    <div class="d-flex align-items-center">
-                        <div class="spinner-border text-primary me-3" role="status">
-                            <span class="visually-hidden">Laden...</span>
-                        </div>
-                        <div>
-                            <p class="mb-1">Ihr Antrag wird verarbeitet.</p>
-                            <small class="text-muted">Bitte warten Sie einen Moment. Sie werden danach automatisch weitergeleitet.</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Pending-Modal entfernt: Button zeigt Status an -->
 
     <!-- Konflikt-Modal -->
     <div class="modal fade" id="conflictModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
