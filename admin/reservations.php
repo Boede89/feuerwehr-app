@@ -161,9 +161,14 @@ try {
     <div class="container-fluid mt-4">
         <div class="row">
             <div class="col-12">
-                <h1 class="h3 mb-3">
-                    <i class="fas fa-calendar-check"></i> Bearbeitete Reservierungen
-                </h1>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-calendar-check"></i> Bearbeitete Reservierungen
+                    </h1>
+                    <button type="button" class="btn btn-outline-primary" id="btnTransfer">
+                        <i class="fas fa-right-left"></i> Termine übertragen
+                    </button>
+                </div>
                 
                 <!-- Nur bearbeitete Reservierungen -->
                 <div class="text-center mb-4">
@@ -417,6 +422,74 @@ try {
         </div>
     <?php endforeach; ?>
 
+    <!-- Modal: Termine übertragen -->
+    <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-right-left"></i> Termine übertragen</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <?php
+                        $transferText = '';
+                        $transferUrl = '';
+                        try {
+                            $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('vehicle_transfer_text','vehicle_transfer_url')");
+                            $stmt->execute();
+                            while ($row = $stmt->fetch()) {
+                                if ($row['setting_key'] === 'vehicle_transfer_text') $transferText = $row['setting_value'];
+                                if ($row['setting_key'] === 'vehicle_transfer_url') $transferUrl = $row['setting_value'];
+                            }
+                        } catch (Exception $e) { }
+                    ?>
+                    <div class="mb-3">
+                        <label class="form-label">Text</label>
+                        <textarea class="form-control" id="transferText" rows="6" readonly><?php echo htmlspecialchars($transferText); ?></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary" id="btnCopyText"><i class="fas fa-copy"></i> In Zwischenablage</button>
+                        <a href="<?php echo htmlspecialchars($transferUrl); ?>" class="btn btn-success" id="btnGoLink" target="_blank"><i class="fas fa-arrow-right"></i> Weiter</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const btnTransfer = document.getElementById('btnTransfer');
+            const modalEl = document.getElementById('transferModal');
+            const transferModal = modalEl ? new bootstrap.Modal(modalEl) : null;
+            const btnCopy = document.getElementById('btnCopyText');
+            const ta = document.getElementById('transferText');
+
+            if (btnTransfer && transferModal) {
+                btnTransfer.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    transferModal.show();
+                });
+            }
+
+            if (btnCopy && ta) {
+                btnCopy.addEventListener('click', async function () {
+                    try {
+                        await navigator.clipboard.writeText(ta.value);
+                        btnCopy.classList.remove('btn-primary');
+                        btnCopy.classList.add('btn-success');
+                        btnCopy.innerHTML = '<i class="fas fa-check"></i> Kopiert';
+                        setTimeout(() => {
+                            btnCopy.classList.remove('btn-success');
+                            btnCopy.classList.add('btn-primary');
+                            btnCopy.innerHTML = '<i class="fas fa-copy"></i> In Zwischenablage';
+                        }, 1500);
+                    } catch (err) {
+                        alert('Kopieren fehlgeschlagen');
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>

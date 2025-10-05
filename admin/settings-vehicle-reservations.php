@@ -33,9 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $db->beginTransaction();
 
-            // Fahrzeugspezifische Settings (Beispiele, erweiterbar)
+            // Fahrzeugspezifische Settings (erweiterbar)
             $veh = [
                 'vehicle_sort_mode' => sanitize_input($_POST['vehicle_sort_mode'] ?? 'manual'),
+                'vehicle_transfer_url' => trim((string)($_POST['vehicle_transfer_url'] ?? '')),
+                'vehicle_transfer_text' => trim((string)($_POST['vehicle_transfer_text'] ?? '')),
             ];
 
             foreach ($veh as $k => $v) {
@@ -101,6 +103,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <div class="form-text">
                     Reihenfolge kann in der <a href="vehicles.php" target="_blank">Fahrzeugverwaltung</a> angepasst werden.
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="fas fa-right-left"></i> Termine übertragen</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Ziel-URL (Weiterleitung)</label>
+                    <input class="form-control" name="vehicle_transfer_url" placeholder="https://ziel.example.com/import" value="<?php echo htmlspecialchars($settings['vehicle_transfer_url'] ?? ''); ?>">
+                    <div class="form-text">Auf diese URL wird nach dem Kopieren weitergeleitet.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Text für Zwischenablage</label>
+                    <textarea class="form-control" rows="4" name="vehicle_transfer_text" placeholder="Hier den Standardtext eintragen..."><?php echo htmlspecialchars($settings['vehicle_transfer_text'] ?? ''); ?></textarea>
+                    <div class="form-text">Dieser Text erscheint im Fenster und kann per Button kopiert werden.</div>
                 </div>
             </div>
         </div>
