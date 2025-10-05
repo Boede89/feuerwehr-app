@@ -57,6 +57,17 @@ try {
     if ($google_event_id) {
         echo "<p style='color: green;'>✅ Google Calendar Event erstellt: $google_event_id</p>";
         
+        // Prüfe ob Event ID bereits existiert und lösche sie falls nötig
+        $stmt = $db->prepare("SELECT id FROM calendar_events WHERE google_event_id = ?");
+        $stmt->execute([$google_event_id]);
+        $existing_event = $stmt->fetch();
+        
+        if ($existing_event) {
+            echo "<p style='color: orange;'>⚠️ Event ID bereits in Datenbank vorhanden - lösche alte Einträge</p>";
+            $stmt = $db->prepare("DELETE FROM calendar_events WHERE google_event_id = ?");
+            $stmt->execute([$google_event_id]);
+        }
+        
         // Speichere Event ID in der Datenbank
         $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
         $title = $vehicle_name . ' - ' . $reason;
