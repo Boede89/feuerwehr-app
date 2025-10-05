@@ -635,6 +635,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     }
                 } catch (err) { console.warn('Warnung: vehicle_ids Ergänzung fehlgeschlagen', err); }
 
+                // Sicherstellen, dass der Server die Aktion erkennt (submit_reservation)
+                try {
+                    let submitHidden = form.querySelector('input[name="submit_reservation"]');
+                    if (!submitHidden) {
+                        submitHidden = document.createElement('input');
+                        submitHidden.type = 'hidden';
+                        submitHidden.name = 'submit_reservation';
+                        submitHidden.value = '1';
+                        form.appendChild(submitHidden);
+                    }
+                } catch (_) {}
+
                 // Erst UI, dann absenden
                 e.preventDefault();
                 alreadySubmitting = true;
@@ -653,6 +665,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     form.reportValidity && form.reportValidity();
                     return;
                 }
+                // Sicherstellen, dass der Server die Aktion erkennt (submit_reservation)
+                try {
+                    let submitHidden = form.querySelector('input[name="submit_reservation"]');
+                    if (!submitHidden) {
+                        submitHidden = document.createElement('input');
+                        submitHidden.type = 'hidden';
+                        submitHidden.name = 'submit_reservation';
+                        submitHidden.value = '1';
+                        form.appendChild(submitHidden);
+                    }
+                } catch (_) {}
+
                 alreadySubmitting = true;
                 lockButton();
                 // Nur Button-Feedback
