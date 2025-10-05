@@ -458,6 +458,10 @@ function delete_google_calendar_event_by_hint($title, $start_datetime, $end_date
             return false;
         }
 
+        if (!class_exists('GoogleCalendarServiceAccount')) {
+            error_log('GC DELETE HINT: GoogleCalendarServiceAccount Klasse nicht verfügbar');
+            return false;
+        }
         $svc = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
         // Hole Events im Zeitraum (kleines Pufferfenster von +/- 10 Minuten)
         $start = date('c', strtotime($start_datetime) - 600);
