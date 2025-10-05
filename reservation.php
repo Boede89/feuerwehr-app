@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservati
                 $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([])]);
                 
                 $message = "Reservierung wurde trotz Konflikt erfolgreich eingereicht. Bitte beachten Sie, dass es Überschneidungen mit anderen Reservierungen geben kann.";
-                echo '<script>setTimeout(function() { window.location.href = "vehicle-selection.php"; }, 3000);</script>';
+                echo '<script>setTimeout(function() { window.location.href = "index.php"; }, 3000);</script>';
             } catch(PDOException $e) {
                 $error = "Fehler beim Speichern der Reservierung: " . $e->getMessage();
             }
@@ -170,16 +170,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 
                 // Debug: Prüfe Fahrzeug-Konflikte
                 if (check_vehicle_conflict($vehicle_id, $start_datetime, $end_datetime)) {
-                    // Konflikt gefunden - zeige Modal mit Wahl
+                    // Konflikt gefunden - lade Details der bestehenden Reservierung
                     $conflict_found = true;
+                    
+                    // Lade Details der bestehenden Reservierung
+                    $stmt = $db->prepare("
+                        SELECT r.*, v.name as vehicle_name 
+                        FROM reservations r 
+                        JOIN vehicles v ON r.vehicle_id = v.id 
+                        WHERE r.vehicle_id = ? 
+                        AND r.status = 'approved' 
+                        AND ((r.start_datetime <= ? AND r.end_datetime > ?) 
+                             OR (r.start_datetime < ? AND r.end_datetime >= ?) 
+                             OR (r.start_datetime >= ? AND r.end_datetime <= ?))
+                        LIMIT 1
+                    ");
+                    $stmt->execute([
+                        $vehicle_id, 
+                        $start_datetime, $start_datetime,
+                        $end_datetime, $end_datetime,
+                        $start_datetime, $end_datetime
+                    ]);
+                    $existing_reservation = $stmt->fetch();
+                    
                     $conflict_timeframe = [
                         'index' => $index + 1,
                         'start' => $start_datetime,
                         'end' => $end_datetime,
                         'vehicle_id' => $vehicle_id,
-                        'vehicle_name' => $selectedVehicle['name']
+                        'vehicle_name' => $selectedVehicle['name'],
+                        'existing_reservation' => $existing_reservation
                     ];
-                    // Debug: Fahrzeug bereits reserviert - zeige Modal
+                    // Debug: Fahrzeug bereits reserviert - zeige Modal mit Details
                     break; // Stoppe die Verarbeitung und zeige Modal
                 }
                 
@@ -672,9 +694,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     <div class="alert alert-warning">
                         <h6><strong>Konflikt erkannt!</strong></h6>
                         <p>Das ausgewählte Fahrzeug <strong><?php echo htmlspecialchars($conflict_timeframe['vehicle_name']); ?></strong> ist bereits für den gewünschten Zeitraum reserviert:</p>
-                        <ul class="mb-0">
-                            <li><strong>Zeitraum:</strong> <?php echo date('d.m.Y H:i', strtotime($conflict_timeframe['start'])); ?> - <?php echo date('d.m.Y H:i', strtotime($conflict_timeframe['end'])); ?></li>
-                        </ul>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-calendar-alt text-danger"></i> Ihr gewünschter Zeitraum:</h6>
+                                <p class="mb-2">
+                                    <strong><?php echo date('d.m.Y H:i', strtotime($conflict_timeframe['start'])); ?> - <?php echo date('d.m.Y H:i', strtotime($conflict_timeframe['end'])); ?></strong>
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-exclamation-triangle text-warning"></i> Bereits reserviert:</h6>
+                                <?php if ($conflict_timeframe['existing_reservation']): ?>
+                                    <p class="mb-1">
+                                        <strong>Zeitraum:</strong> <?php echo date('d.m.Y H:i', strtotime($conflict_timeframe['existing_reservation']['start_datetime'])); ?> - <?php echo date('d.m.Y H:i', strtotime($conflict_timeframe['existing_reservation']['end_datetime'])); ?>
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>Antragsteller:</strong> <?php echo htmlspecialchars($conflict_timeframe['existing_reservation']['requester_name']); ?>
+                                    </p>
+                                    <p class="mb-0">
+                                        <strong>Grund:</strong> <?php echo htmlspecialchars($conflict_timeframe['existing_reservation']['reason']); ?>
+                                    </p>
+                                <?php else: ?>
+                                    <p class="mb-0 text-muted">Details der bestehenden Reservierung konnten nicht geladen werden.</p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
                     </div>
                     
                     <p>Möchten Sie den Antrag trotzdem einreichen? Der Administrator wird über den Konflikt informiert und kann entscheiden, ob beide Reservierungen möglich sind.</p>
@@ -697,7 +741,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             <i class="fas fa-exclamation-triangle"></i> Antrag trotzdem versenden
                         </button>
                     </form>
-                    <button type="button" class="btn btn-secondary" onclick="window.location.href='reservation.php'">
+                    <button type="button" class="btn btn-secondary" onclick="window.location.href='index.php'">
                         <i class="fas fa-times"></i> Antrag abbrechen
                     </button>
                 </div>
