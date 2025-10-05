@@ -277,48 +277,6 @@ try {
                 </div>
             </div>
 
-            <!-- Schnellzugriff -->
-            <div class="col-12 mb-4">
-                <div class="card shadow">
-                    <div class="card-header">
-                        <h6 class="m-0 font-weight-bold text-info">
-                            <i class="fas fa-tachometer-alt"></i> Schnellzugriff
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-3 col-sm-6 mb-3">
-                                <a href="reservations.php" class="btn btn-outline-primary w-100">
-                                    <i class="fas fa-calendar-check fa-2x d-block mb-2"></i>
-                                    <strong>Alle Reservierungen</strong><br>
-                                    <small class="text-muted">Verwalten Sie alle Reservierungen</small>
-                                </a>
-                            </div>
-                            <div class="col-md-3 col-sm-6 mb-3">
-                                <a href="vehicles.php" class="btn btn-outline-success w-100">
-                                    <i class="fas fa-truck fa-2x d-block mb-2"></i>
-                                    <strong>Fahrzeuge</strong><br>
-                                    <small class="text-muted">Fahrzeugverwaltung</small>
-                                </a>
-                            </div>
-                            <div class="col-md-3 col-sm-6 mb-3">
-                                <a href="users.php" class="btn btn-outline-warning w-100">
-                                    <i class="fas fa-users fa-2x d-block mb-2"></i>
-                                    <strong>Benutzer</strong><br>
-                                    <small class="text-muted">Benutzerverwaltung</small>
-                                </a>
-                            </div>
-                            <div class="col-md-3 col-sm-6 mb-3">
-                                <a href="settings.php" class="btn btn-outline-secondary w-100">
-                                    <i class="fas fa-cog fa-2x d-block mb-2"></i>
-                                    <strong>Einstellungen</strong><br>
-                                    <small class="text-muted">App-Konfiguration</small>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
