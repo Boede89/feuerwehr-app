@@ -708,5 +708,52 @@ class GoogleCalendarServiceAccount {
             return false;
         }
     }
+
+    /**
+     * Events im Zeitraum abrufen (für Fallback-Suche)
+     * @param string $timeMin ISO-8601 (z. B. 2025-10-10T10:00:00+02:00)
+     * @param string $timeMax ISO-8601
+     * @param string|null $query Volltextsuche im Titel/Beschreibung (optional)
+     * @return array|null
+     */
+    public function getEvents($timeMin, $timeMax, $query = null) {
+        $accessToken = $this->getAccessToken();
+        $params = [
+            'timeMin' => $timeMin,
+            'timeMax' => $timeMax,
+            'singleEvents' => 'true',
+            'orderBy' => 'startTime',
+            'maxResults' => 50
+        ];
+        if (!empty($query)) {
+            $params['q'] = $query;
+        }
+        $url = 'https://www.googleapis.com/calendar/v3/calendars/' . urlencode($this->calendarId) . '/events?' . http_build_query($params);
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $accessToken
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        if ($error) {
+            error_log('getEvents: cURL Fehler: ' . $error);
+            return null;
+        }
+        if ($httpCode !== 200) {
+            error_log('getEvents: HTTP ' . $httpCode . ' - ' . $response);
+            return null;
+        }
+        $data = json_decode($response, true);
+        if (!isset($data['items']) || !is_array($data['items'])) {
+            return [];
+        }
+        return $data['items'];
+    }
 }
 ?>
