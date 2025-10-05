@@ -478,7 +478,7 @@ try {
         <!-- Ablehnungs-Modals für ausstehende Reservierungen -->
         <?php if (!empty($pending_reservations)): ?>
             <?php foreach ($pending_reservations as $reject_reservation): ?>
-        <div class="modal fade" id="rejectModal<?php echo $reject_reservation['id']; ?>" tabindex="-1">
+        <div class="modal fade" id="rejectModal<?php echo $reject_reservation['id']; ?>" tabindex="-1" data-reservation-id="<?php echo $reject_reservation['id']; ?>" data-vehicle-name="<?php echo htmlspecialchars($reject_reservation['vehicle_name']); ?>" data-start-datetime="<?php echo htmlspecialchars($reject_reservation['start_datetime']); ?>" data-end-datetime="<?php echo htmlspecialchars($reject_reservation['end_datetime']); ?>">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <form method="POST">
@@ -490,7 +490,7 @@ try {
                             <p>Reservierung #<?php echo $reject_reservation['id']; ?> - <?php echo htmlspecialchars($reject_reservation['vehicle_name']); ?></p>
                             <div class="mb-3">
                                 <label for="rejection_reason<?php echo $reject_reservation['id']; ?>" class="form-label">Ablehnungsgrund</label>
-                                <textarea class="form-control" id="rejection_reason<?php echo $reject_reservation['id']; ?>" name="rejection_reason" rows="3" required></textarea>
+                                <textarea class="form-control" id="rejection_reason<?php echo $reject_reservation['id']; ?>" name="rejection_reason" rows="3" placeholder="Begründung eingeben..." required></textarea>
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -510,6 +510,38 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Wenn ein Ablehnungs-Modal geöffnet wird, Konflikt prüfen und ggf. Grund vorausfüllen
+        document.addEventListener('shown.bs.modal', function (event) {
+            const modal = event.target;
+            if (!modal.id || !modal.id.startsWith('rejectModal')) return;
+
+            const reservationId = modal.getAttribute('data-reservation-id');
+            const vehicleName = modal.getAttribute('data-vehicle-name');
+            const startDateTime = modal.getAttribute('data-start-datetime');
+            const endDateTime = modal.getAttribute('data-end-datetime');
+            const textarea = modal.querySelector('textarea[name="rejection_reason"]');
+            if (!textarea) return;
+
+            fetch('check-calendar-conflicts-simple.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    action: 'check_one',
+                    vehicle_name: vehicleName || '',
+                    start_datetime: startDateTime || '',
+                    end_datetime: endDateTime || ''
+                })
+            })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (data && data.conflict === true) {
+                    if (!textarea.value.trim()) {
+                        textarea.value = 'Das Fahrzeug ist zu diesem Zeitraum bereits belegt.';
+                    }
+                }
+            })
+            .catch(() => {});
+        });
         function checkCalendarConflicts(reservationId, vehicleName, startDateTime, endDateTime) {
             const container = document.getElementById('calendar-check-' + reservationId);
             
