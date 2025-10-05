@@ -360,8 +360,7 @@ try {
                                                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
                                                                 <i class="fas fa-eye"></i> Details
                                                             </button>
-                                                            <form method="POST" class="d-inline" onsubmit="return confirm('Nur Google-Kalender-Eintrag löschen? Die Reservierung bleibt bestehen.');">
-                                                                <input type="hidden" name="action" value="delete_calendar_event">
+                                                            <form method="POST" action="delete-calendar-event.php" class="d-inline" onsubmit="return confirm('Nur Google-Kalender-Eintrag löschen? Die Reservierung bleibt bestehen.');">
                                                                 <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
                                                                 <button type="submit" class="btn btn-sm btn-outline-warning">
                                                                     <i class="fas fa-calendar-xmark"></i> Nur Kalender löschen
