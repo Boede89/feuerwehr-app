@@ -314,7 +314,8 @@ try {
         </div>
         
         <!-- Details-Modals nur für ausstehende Reservierungen -->
-        <?php foreach ($pending_reservations as $modal_reservation): ?>
+        <?php if (!empty($pending_reservations)): ?>
+            <?php foreach ($pending_reservations as $modal_reservation): ?>
         <div class="modal fade" id="detailsModal<?php echo $modal_reservation['id']; ?>" tabindex="-1">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
@@ -409,10 +410,12 @@ try {
                 </div>
             </div>
         </div>
-        <?php endforeach; ?>
+            <?php endforeach; ?>
+        <?php endif; ?>
 
         <!-- Ablehnungs-Modals für ausstehende Reservierungen -->
-        <?php foreach ($pending_reservations as $reject_reservation): ?>
+        <?php if (!empty($pending_reservations)): ?>
+            <?php foreach ($pending_reservations as $reject_reservation): ?>
         <div class="modal fade" id="rejectModal<?php echo $reject_reservation['id']; ?>" tabindex="-1">
             <div class="modal-dialog">
                 <div class="modal-content">
@@ -438,7 +441,8 @@ try {
                 </div>
             </div>
         </div>
-        <?php endforeach; ?>
+            <?php endforeach; ?>
+        <?php endif; ?>
         
     </div>
 
