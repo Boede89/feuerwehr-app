@@ -520,7 +520,7 @@ try {
                                 <i class="fas fa-check"></i> Genehmigen
                             </button>
                         </form>
-                            <form method="POST" class="d-inline" id="approveReplaceForm<?php echo $modal_reservation['id']; ?>" onsubmit="return confirm('Konfliktreservierung löschen und aktuellen Antrag genehmigen?');">
+                            <form method="POST" class="d-inline" id="approveReplaceForm<?php echo $modal_reservation['id']; ?>" onsubmit="return confirm('Konfliktreservierung löschen und aktuellen Antrag genehmigen?');" style="display: none;">
                                 <input type="hidden" name="reservation_id" value="<?php echo $modal_reservation['id']; ?>">
                                 <input type="hidden" name="action" value="approve_replace_conflict">
                                 <input type="hidden" name="conflict_reservation_id" value="">
@@ -638,7 +638,7 @@ try {
                         });
                         conflictsHtml += '</ul></div>';
                         container.innerHTML = conflictsHtml;
-                        // Falls vorhanden, setze die erste Konflikt-ID in das Formular des Replace-Buttons und aktiviere ihn
+                        // Falls vorhanden, setze die erste Konflikt-ID und zeige den Button an
                         try {
                             const conflictId = data.conflicts[0] && data.conflicts[0].reservation_id ? String(data.conflicts[0].reservation_id) : '';
                             const form = document.getElementById('approveReplaceForm' + reservationId);
@@ -646,6 +646,7 @@ try {
                             if (form && btn && conflictId) {
                                 const hiddenInput = form.querySelector('input[name="conflict_reservation_id"]');
                                 if (hiddenInput) hiddenInput.value = conflictId;
+                                form.style.display = '';
                                 btn.disabled = false;
                             }
                         } catch (e) { /* ignore */ }
@@ -656,6 +657,8 @@ try {
                         try {
                             const btn = document.getElementById('approveReplaceBtn' + reservationId);
                             if (btn) btn.disabled = true;
+                            const form = document.getElementById('approveReplaceForm' + reservationId);
+                            if (form) form.style.display = 'none';
                         } catch (e) { /* ignore */ }
                     }
                 } else {
