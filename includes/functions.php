@@ -473,8 +473,18 @@ function delete_google_calendar_event_by_hint($title, $start_datetime, $end_date
         $svc = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
         // Hole Events im Zeitraum (kleines Pufferfenster von +/- 10 Minuten)
         // Prüfe, ob die Service-Account-Klasse das Listen von Events unterstützt
+        // Logge Paramater in DB (falls Tabelle vorhanden)
+        try {
+            $stmt2 = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+            $stmt2->execute(['DEBUG', 'GC DELETE HINT: Aufruf mit title=' . $title . ', start=' . $start_datetime . ', end=' . $end_datetime, 'delete_google_calendar_event_by_hint']);
+        } catch (Throwable $t) {}
+
         if (!method_exists($svc, 'getEvents')) {
             error_log('GC DELETE HINT: getEvents() nicht verfügbar in GoogleCalendarServiceAccount – Fallback übersprungen');
+            try {
+                $stmt3 = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+                $stmt3->execute(['INFO', 'GC DELETE HINT: getEvents() nicht verfügbar – Fallback übersprungen', 'delete_google_calendar_event_by_hint']);
+            } catch (Throwable $t) {}
             return false;
         }
         $start = date('c', strtotime($start_datetime) - 600);
@@ -482,6 +492,10 @@ function delete_google_calendar_event_by_hint($title, $start_datetime, $end_date
         $events = $svc->getEvents($start, $end);
         if (!$events || !is_array($events)) {
             error_log('GC DELETE HINT: Keine Events im Zeitraum gefunden');
+            try {
+                $stmt4 = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+                $stmt4->execute(['INFO', 'GC DELETE HINT: Keine Events im Zeitraum gefunden', 'delete_google_calendar_event_by_hint']);
+            } catch (Throwable $t) {}
             return false;
         }
 
@@ -495,15 +509,27 @@ function delete_google_calendar_event_by_hint($title, $start_datetime, $end_date
                 $ok = $svc->deleteEvent($eid);
                 if ($ok) {
                     error_log('GC DELETE HINT: Event per Hint gelöscht: ' . $eid . ' (' . $summary . ')');
+                    try {
+                        $stmt5 = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+                        $stmt5->execute(['INFO', 'GC DELETE HINT: Event per Hint gelöscht: ' . $eid . ' (' . $summary . ')', 'delete_google_calendar_event_by_hint']);
+                    } catch (Throwable $t) {}
                     $deletedAny = true;
                 } else {
                     error_log('GC DELETE HINT: Löschen per Hint fehlgeschlagen: ' . $eid . ' (' . $summary . ')');
+                    try {
+                        $stmt6 = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+                        $stmt6->execute(['WARNING', 'GC DELETE HINT: Löschen per Hint fehlgeschlagen: ' . $eid . ' (' . $summary . ')', 'delete_google_calendar_event_by_hint']);
+                    } catch (Throwable $t) {}
                 }
             }
         }
         return $deletedAny;
     } catch (Exception $e) {
         error_log('GC DELETE HINT: Exception: ' . $e->getMessage());
+        try {
+            $stmt7 = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+            $stmt7->execute(['ERROR', 'GC DELETE HINT: Exception: ' . $e->getMessage(), 'delete_google_calendar_event_by_hint']);
+        } catch (Throwable $t) {}
         return false;
     }
 }
