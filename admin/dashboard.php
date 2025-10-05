@@ -534,7 +534,9 @@ try {
             })
             .then(r => r.ok ? r.json() : null)
             .then(data => {
-                if (data && data.conflict === true) {
+                const hasConflictFlag = data && data.conflict === true;
+                const hasConflictsArray = data && data.success === true && Array.isArray(data.conflicts) && data.conflicts.length > 0;
+                if (hasConflictFlag || hasConflictsArray) {
                     if (!textarea.value.trim()) {
                         textarea.value = 'Das Fahrzeug ist zu diesem Zeitraum bereits belegt.';
                     }
