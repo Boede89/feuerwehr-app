@@ -520,7 +520,7 @@ try {
                                 <i class="fas fa-check"></i> Genehmigen
                             </button>
                         </form>
-                            <form method="POST" class="d-inline" id="approveReplaceForm<?php echo $modal_reservation['id']; ?>" onsubmit="return confirm('Konfliktreservierung löschen und aktuellen Antrag genehmigen?');" style="display: none;">
+                            <form method="POST" class="d-inline conflict-replace-form d-none" id="approveReplaceForm<?php echo $modal_reservation['id']; ?>" onsubmit="return confirm('Konfliktreservierung löschen und aktuellen Antrag genehmigen?');" hidden>
                                 <input type="hidden" name="reservation_id" value="<?php echo $modal_reservation['id']; ?>">
                                 <input type="hidden" name="action" value="approve_replace_conflict">
                                 <input type="hidden" name="conflict_reservation_id" value="">
@@ -646,7 +646,8 @@ try {
                             if (form && btn && conflictId) {
                                 const hiddenInput = form.querySelector('input[name="conflict_reservation_id"]');
                                 if (hiddenInput) hiddenInput.value = conflictId;
-                                form.style.display = '';
+                                form.classList.remove('d-none');
+                                form.removeAttribute('hidden');
                                 btn.disabled = false;
                             }
                         } catch (e) { /* ignore */ }
@@ -658,7 +659,7 @@ try {
                             const btn = document.getElementById('approveReplaceBtn' + reservationId);
                             if (btn) btn.disabled = true;
                             const form = document.getElementById('approveReplaceForm' + reservationId);
-                            if (form) form.style.display = 'none';
+                            if (form) { form.classList.add('d-none'); form.setAttribute('hidden', ''); }
                         } catch (e) { /* ignore */ }
                     }
                 } else {
@@ -683,6 +684,14 @@ try {
                     console.log('🔍 Details-Button geklickt, Modal ID:', targetModalId);
                     console.log('Reservierungs-ID:', reservationId);
                     
+                    // Button vor jeder Prüfung sicher verstecken
+                    try {
+                        const form = document.getElementById('approveReplaceForm' + reservationId);
+                        const btn = document.getElementById('approveReplaceBtn' + reservationId);
+                        if (form) { form.classList.add('d-none'); form.setAttribute('hidden', ''); }
+                        if (btn) { btn.disabled = true; }
+                    } catch (e) { /* ignore */ }
+
                     // Starte Kalender-Prüfung automatisch nach Modal-Öffnung
                     setTimeout(function() {
                         // Hole die Reservierungsdaten aus dem Modal
@@ -704,6 +713,10 @@ try {
                                 if (container) {
                                     container.innerHTML = '<div class="alert alert-danger mt-2"><strong>Fehler:</strong> Reservierungsdaten konnten nicht geladen werden.</div>';
                                 }
+                                try {
+                                    const form = document.getElementById('approveReplaceForm' + reservationId);
+                                    if (form) { form.classList.add('d-none'); form.setAttribute('hidden', ''); }
+                                } catch (e) { /* ignore */ }
                             }
                         } else {
                             console.error('❌ Modal nicht gefunden:', targetModalId);
