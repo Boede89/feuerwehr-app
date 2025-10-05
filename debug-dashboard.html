@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Debug - Anleitung</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: orange; font-weight: bold; }
+        .code { background: #f4f4f4; padding: 10px; border-radius: 5px; font-family: monospace; }
+        .step { background: #e7f3ff; padding: 15px; margin: 10px 0; border-left: 4px solid #007bff; }
+        .solution { background: #f0f8f0; padding: 15px; margin: 10px 0; border-left: 4px solid #28a745; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Dashboard Debug - Anleitung</h1>
+    
+    <div class="step">
+        <h2>Problem: Offene Anträge werden nicht angezeigt</h2>
+        <p>Das Dashboard zeigt "Keine ausstehenden Anträge" an, obwohl möglicherweise Reservierungen vorhanden sind.</p>
+    </div>
+
+    <div class="step">
+        <h2>Mögliche Ursachen:</h2>
+        <ul>
+            <li><strong>Keine Reservierungen in der Datenbank</strong></li>
+            <li><strong>Alle Reservierungen bereits bearbeitet</strong> (approved/rejected)</li>
+            <li><strong>Datenbankverbindungsproblem</strong></li>
+            <li><strong>Session-Problem</strong></li>
+        </ul>
+    </div>
+
+    <div class="solution">
+        <h2>Lösungsschritte:</h2>
+        
+        <h3>1. Webserver starten</h3>
+        <p>Da PHP nicht im PATH ist, verwenden Sie eine der folgenden Optionen:</p>
+        
+        <h4>Option A: XAMPP (Empfohlen)</h4>
+        <ol>
+            <li>XAMPP Control Panel öffnen</li>
+            <li>Apache starten</li>
+            <li>Projekt-Ordner nach <code>C:\xampp\htdocs\feuerwehrapp</code> kopieren</li>
+            <li>URLs öffnen:
+                <ul>
+                    <li><a href="http://localhost/feuerwehrapp/debug-dashboard-simple.php" target="_blank">http://localhost/feuerwehrapp/debug-dashboard-simple.php</a></li>
+                    <li><a href="http://localhost/feuerwehrapp/create-test-reservation.php" target="_blank">http://localhost/feuerwehrapp/create-test-reservation.php</a></li>
+                    <li><a href="http://localhost/feuerwehrapp/admin/dashboard.php" target="_blank">http://localhost/feuerwehrapp/admin/dashboard.php</a></li>
+                </ul>
+            </li>
+        </ol>
+
+        <h4>Option B: WAMP</h4>
+        <ol>
+            <li>WAMP starten</li>
+            <li>Projekt-Ordner nach <code>C:\wamp64\www\feuerwehrapp</code> kopieren</li>
+            <li>URLs öffnen:
+                <ul>
+                    <li><a href="http://localhost/feuerwehrapp/debug-dashboard-simple.php" target="_blank">http://localhost/feuerwehrapp/debug-dashboard-simple.php</a></li>
+                    <li><a href="http://localhost/feuerwehrapp/create-test-reservation.php" target="_blank">http://localhost/feuerwehrapp/create-test-reservation.php</a></li>
+                    <li><a href="http://localhost/feuerwehrapp/admin/dashboard.php" target="_blank">http://localhost/feuerwehrapp/admin/dashboard.php</a></li>
+                </ul>
+            </li>
+        </ol>
+
+        <h4>Option C: PHP manuell starten</h4>
+        <p>Falls Sie PHP installiert haben, finden Sie den Pfad und starten Sie:</p>
+        <div class="code">
+            C:\pfad\zu\php\php.exe -S localhost:8000
+        </div>
+        <p>Dann öffnen Sie:</p>
+        <ul>
+            <li><a href="http://localhost:8000/debug-dashboard-simple.php" target="_blank">http://localhost:8000/debug-dashboard-simple.php</a></li>
+            <li><a href="http://localhost:8000/create-test-reservation.php" target="_blank">http://localhost:8000/create-test-reservation.php</a></li>
+            <li><a href="http://localhost:8000/admin/dashboard.php" target="_blank">http://localhost:8000/admin/dashboard.php</a></li>
+        </ul>
+    </div>
+
+    <div class="step">
+        <h2>Was die Debug-Skripte tun:</h2>
+        
+        <h3>debug-dashboard-simple.php</h3>
+        <ul>
+            <li>✅ Testet die Datenbankverbindung</li>
+            <li>📊 Zeigt alle Reservierungen an</li>
+            <li>🔍 Prüft den Status jeder Reservierung</li>
+            <li>⚠️ Identifiziert das genaue Problem</li>
+        </ul>
+
+        <h3>create-test-reservation.php</h3>
+        <ul>
+            <li>🚗 Prüft verfügbare Fahrzeuge</li>
+            <li>➕ Erstellt Test-Reservierungen (falls nötig)</li>
+            <li>✅ Überprüft das Ergebnis</li>
+        </ul>
+    </div>
+
+    <div class="solution">
+        <h2>Erwartete Ergebnisse:</h2>
+        
+        <h3>Falls keine Reservierungen vorhanden sind:</h3>
+        <p class="warning">⚠️ Das Debug-Skript zeigt: "Keine Reservierungen in der Datenbank gefunden!"</p>
+        <p><strong>Lösung:</strong> Verwenden Sie create-test-reservation.php um Test-Daten zu erstellen</p>
+
+        <h3>Falls alle Reservierungen bearbeitet sind:</h3>
+        <p class="warning">⚠️ Das Debug-Skript zeigt: "Alle Reservierungen sind bereits bearbeitet"</p>
+        <p><strong>Lösung:</strong> Erstellen Sie eine neue Reservierung oder setzen Sie eine bestehende auf 'pending' zurück</p>
+
+        <h3>Falls das Problem behoben ist:</h3>
+        <p class="success">✅ Das Dashboard zeigt die offenen Anträge korrekt an</p>
+    </div>
+
+    <div class="step">
+        <h2>Nächste Schritte:</h2>
+        <ol>
+            <li>Starten Sie einen Webserver (XAMPP/WAMP empfohlen)</li>
+            <li>Öffnen Sie debug-dashboard-simple.php</li>
+            <li>Folgen Sie den Anweisungen des Debug-Skripts</li>
+            <li>Prüfen Sie das Dashboard erneut</li>
+        </ol>
+    </div>
+
+    <hr>
+    <p><small>Zeitstempel: <span id="timestamp"></span></small></p>
+
+    <script>
+        document.getElementById('timestamp').textContent = new Date().toLocaleString('de-DE');
+    </script>
+</body>
+</html>
