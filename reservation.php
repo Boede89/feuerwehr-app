@@ -79,12 +79,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservati
                 $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([])]);
                 
                 $message = "Reservierung wurde trotz Konflikt erfolgreich eingereicht. Bitte beachten Sie, dass es Überschneidungen mit anderen Reservierungen geben kann.";
-                echo '<script>setTimeout(function() { window.location.href = "index.php"; }, 3000);</script>';
+                $redirect_to_home = true; // Flag für Weiterleitung setzen
             } catch(PDOException $e) {
                 $error = "Fehler beim Speichern der Reservierung: " . $e->getMessage();
+                $redirect_to_home = true; // Auch bei Fehler zur Startseite weiterleiten
             }
         } else {
             $error = "Ungültige Daten für die Konflikt-Reservierung.";
+            $redirect_to_home = true; // Auch bei ungültigen Daten zur Startseite weiterleiten
         }
     }
 }
@@ -657,7 +659,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             
             // Countdown-Anzeige
             let countdown = 3;
-            const messageElement = document.querySelector('.alert-success');
+            const messageElement = document.querySelector('.alert-success, .alert-danger');
             if (messageElement) {
                 const originalMessage = messageElement.innerHTML;
                 const countdownInterval = setInterval(function() {
