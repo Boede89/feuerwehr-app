@@ -135,9 +135,10 @@ class GoogleCalendarServiceAccount {
      * @param string $startDateTime Start-Zeit (Y-m-d H:i:s)
      * @param string $endDateTime End-Zeit (Y-m-d H:i:s)
      * @param string $description Event-Beschreibung
+     * @param string $location Event-Ort
      * @return string Event ID
      */
-    public function createEvent($title, $startDateTime, $endDateTime, $description = '') {
+    public function createEvent($title, $startDateTime, $endDateTime, $description = '', $location = '') {
         $accessToken = $this->getAccessToken();
         
         $event = [
@@ -152,6 +153,11 @@ class GoogleCalendarServiceAccount {
                 'timeZone' => 'Europe/Berlin'
             ]
         ];
+        
+        // Ort hinzufügen, wenn angegeben
+        if (!empty($location)) {
+            $event['location'] = $location;
+        }
         
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, 'https://www.googleapis.com/calendar/v3/calendars/' . urlencode($this->calendarId) . '/events');
