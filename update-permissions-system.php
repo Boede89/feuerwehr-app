@@ -6,28 +6,46 @@
 
 require_once 'config/database.php';
 
+function columnExists(PDO $db, string $table, string $column): bool {
+    $stmt = $db->prepare("SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?");
+    $stmt->execute([$table, $column]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return isset($row['cnt']) ? (int)$row['cnt'] > 0 : false;
+}
+
+function addBooleanColumnIfMissing(PDO $db, string $table, string $column): void {
+    if (!columnExists($db, $table, $column)) {
+        $sql = "ALTER TABLE `$table` ADD COLUMN `$column` TINYINT(1) NOT NULL DEFAULT 0";
+        $db->exec($sql);
+        echo "✅ Spalte hinzugefügt: $column\n";
+    } else {
+        echo "ℹ️ Spalte bereits vorhanden: $column\n";
+    }
+}
+
 try {
-    // Neue Spalten für granular permissions hinzufügen
-    $sql = "ALTER TABLE users 
-            ADD COLUMN is_admin BOOLEAN DEFAULT FALSE,
-            ADD COLUMN can_reservations BOOLEAN DEFAULT FALSE,
-            ADD COLUMN can_users BOOLEAN DEFAULT FALSE,
-            ADD COLUMN can_settings BOOLEAN DEFAULT FALSE,
-            ADD COLUMN can_vehicles BOOLEAN DEFAULT FALSE";
-    
-    $db->exec($sql);
-    echo "✅ Spalten für granular permissions hinzugefügt\n";
-    
-    // Bestehende Admin-User migrieren
-    $stmt = $db->prepare("UPDATE users SET is_admin = TRUE, can_reservations = TRUE, can_users = TRUE, can_settings = TRUE, can_vehicles = TRUE WHERE role = 'admin'");
-    $stmt->execute();
-    echo "✅ Bestehende Admin-User migriert\n";
-    
-    // Normale User bekommen nur Reservierungen-Recht
-    $stmt = $db->prepare("UPDATE users SET can_reservations = TRUE WHERE role != 'admin'");
-    $stmt->execute();
-    echo "✅ Normale User bekommen Reservierungen-Recht\n";
-    
+    // Jede Spalte einzeln und idempotent hinzufügen
+    addBooleanColumnIfMissing($db, 'users', 'is_admin');
+    addBooleanColumnIfMissing($db, 'users', 'can_reservations');
+    addBooleanColumnIfMissing($db, 'users', 'can_users');
+    addBooleanColumnIfMissing($db, 'users', 'can_settings');
+    addBooleanColumnIfMissing($db, 'users', 'can_vehicles');
+
+    // Bestehende Admin-User migrieren (Fallback: role oder user_role Feld nutzen)
+    $roleColumn = 'role';
+    $roleExists = columnExists($db, 'users', 'role');
+    if (!$roleExists && columnExists($db, 'users', 'user_role')) {
+        $roleColumn = 'user_role';
+    }
+
+    // Admins voll freischalten
+    $db->exec("UPDATE users SET is_admin = 1, can_reservations = 1, can_users = 1, can_settings = 1, can_vehicles = 1 WHERE $roleColumn = 'admin'");
+    echo "✅ Admin-User migriert\n";
+
+    // Nicht-Admins erhalten standardmäßig Reservierungen-Recht (optional)
+    $db->exec("UPDATE users SET can_reservations = 1 WHERE $roleColumn <> 'admin'");
+    echo "✅ Standardrechte für Nicht-Admins gesetzt\n";
+
     echo "\n🎉 Permissions System erfolgreich aktualisiert!\n";
     echo "Neue Berechtigungen:\n";
     echo "- is_admin: Vollzugriff auf alles\n";
@@ -35,7 +53,7 @@ try {
     echo "- can_users: Benutzerverwaltung\n";
     echo "- can_settings: Einstellungen\n";
     echo "- can_vehicles: Fahrzeugverwaltung\n";
-    
+
 } catch (Exception $e) {
     echo "❌ Fehler: " . $e->getMessage() . "\n";
 }
