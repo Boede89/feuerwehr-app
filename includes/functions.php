@@ -456,9 +456,19 @@ function create_or_update_google_calendar_event($vehicle_name, $reason, $start_d
                     $stmt = $db->prepare("UPDATE calendar_events SET title = ? WHERE google_event_id = ?");
                     $stmt->execute([$new_title, $existing_event['google_event_id']]);
                     
-                    // Speichere die neue Reservierung mit der bestehenden Google Event ID
-                    $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-                    $stmt->execute([$reservation_id, $existing_event['google_event_id'], $new_title, $start_datetime, $end_datetime]);
+                    // Prüfe ob bereits ein calendar_events Eintrag für diese Reservierung existiert
+                    $stmt = $db->prepare("SELECT id FROM calendar_events WHERE reservation_id = ?");
+                    $stmt->execute([$reservation_id]);
+                    $existing_calendar_event = $stmt->fetch();
+                    
+                    if (!$existing_calendar_event) {
+                        // Speichere die neue Reservierung mit der bestehenden Google Event ID
+                        $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                        $stmt->execute([$reservation_id, $existing_event['google_event_id'], $new_title, $start_datetime, $end_datetime]);
+                        error_log('Neuer calendar_events Eintrag für Reservierung ' . $reservation_id . ' erstellt');
+                    } else {
+                        error_log('calendar_events Eintrag für Reservierung ' . $reservation_id . ' existiert bereits');
+                    }
                     
                     error_log('Event-Titel erfolgreich erweitert: ' . $new_title);
                     return $existing_event['google_event_id'];
@@ -467,9 +477,19 @@ function create_or_update_google_calendar_event($vehicle_name, $reason, $start_d
                     return false;
                 }
             } else {
-                // Fahrzeug bereits im Titel - nur calendar_events Eintrag hinzufügen
-                $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-                $stmt->execute([$reservation_id, $existing_event['google_event_id'], $current_title, $start_datetime, $end_datetime]);
+                // Fahrzeug bereits im Titel - prüfe ob calendar_events Eintrag existiert
+                $stmt = $db->prepare("SELECT id FROM calendar_events WHERE reservation_id = ?");
+                $stmt->execute([$reservation_id]);
+                $existing_calendar_event = $stmt->fetch();
+                
+                if (!$existing_calendar_event) {
+                    // Nur calendar_events Eintrag hinzufügen
+                    $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                    $stmt->execute([$reservation_id, $existing_event['google_event_id'], $current_title, $start_datetime, $end_datetime]);
+                    error_log('Neuer calendar_events Eintrag für Reservierung ' . $reservation_id . ' erstellt (Fahrzeug bereits im Titel)');
+                } else {
+                    error_log('calendar_events Eintrag für Reservierung ' . $reservation_id . ' existiert bereits (Fahrzeug bereits im Titel)');
+                }
                 
                 error_log('Fahrzeug bereits im Titel - nur calendar_events Eintrag hinzugefügt');
                 return $existing_event['google_event_id'];
