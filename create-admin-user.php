@@ -1,81 +1,90 @@
 <?php
 /**
- * Erstelle Admin-Benutzer falls keiner existiert
+ * Create Admin User
+ * Erstellt einen Admin-User mit allen Berechtigungen
  */
 
 require_once 'config/database.php';
-require_once 'includes/functions.php';
-
-echo "<h1>Admin-Benutzer erstellen</h1>";
 
 try {
-    // Prüfe ob bereits ein Admin existiert
-    $stmt = $db->query("SELECT COUNT(*) as count FROM users WHERE user_role = 'admin' OR role = 'admin' OR is_admin = 1");
-    $admin_count = $stmt->fetch()['count'];
+    $username = 'admin';
+    $email = 'admin@feuerwehr.local';
+    $password = 'admin123';
+    $first_name = 'Admin';
+    $last_name = 'User';
     
-    if ($admin_count > 0) {
-        echo "<p style='color: green;'>✅ Es existieren bereits " . $admin_count . " Admin-Benutzer.</p>";
+    // Prüfen ob User bereits existiert
+    $stmt = $db->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+    $stmt->execute([$username, $email]);
+    $existing = $stmt->fetch();
+    
+    if ($existing) {
+        echo "ℹ️ Benutzer '$username' existiert bereits - aktualisiere Berechtigungen\n";
         
-        // Zeige vorhandene Admins
-        $stmt = $db->query("SELECT id, username, email, first_name, last_name, user_role, is_admin FROM users WHERE user_role = 'admin' OR role = 'admin' OR is_admin = 1");
-        $admins = $stmt->fetchAll();
+        // Bestehenden User auf Admin setzen
+        $stmt = $db->prepare("UPDATE users SET 
+            password_hash = ?, 
+            first_name = ?, 
+            last_name = ?, 
+            user_role = 'admin',
+            role = 'admin',
+            is_admin = 1, 
+            can_reservations = 1, 
+            can_users = 1, 
+            can_settings = 1, 
+            can_vehicles = 1,
+            is_active = 1,
+            email_notifications = 1
+            WHERE id = ?");
         
-        echo "<h3>Vorhandene Admin-Benutzer:</h3>";
-        echo "<table border='1' cellpadding='5'>";
-        echo "<tr><th>ID</th><th>Benutzername</th><th>E-Mail</th><th>Name</th><th>Rolle</th></tr>";
-        foreach ($admins as $admin) {
-            echo "<tr>";
-            echo "<td>" . $admin['id'] . "</td>";
-            echo "<td>" . htmlspecialchars($admin['username']) . "</td>";
-            echo "<td>" . htmlspecialchars($admin['email']) . "</td>";
-            echo "<td>" . htmlspecialchars($admin['first_name'] . ' ' . $admin['last_name']) . "</td>";
-            echo "<td>" . htmlspecialchars($admin['user_role'] ?? 'admin') . "</td>";
-            echo "</tr>";
-        }
-        echo "</table>";
+        $password_hash = password_hash($password, PASSWORD_DEFAULT);
+        $stmt->execute([$password_hash, $first_name, $last_name, $existing['id']]);
         
+        echo "✅ Benutzer '$username' aktualisiert\n";
     } else {
-        echo "<p style='color: orange;'>⚠️ Kein Admin-Benutzer gefunden. Erstelle Standard-Admin...</p>";
+        echo "🆕 Erstelle neuen Admin-User '$username'\n";
         
-        // Erstelle Standard-Admin
-        $admin_username = 'admin';
-        $admin_email = 'admin@feuerwehr.de';
-        $admin_password = 'admin123'; // Sollte in Produktion geändert werden
-        $admin_first_name = 'Administrator';
-        $admin_last_name = 'Feuerwehr';
+        // Neuen User erstellen
+        $stmt = $db->prepare("INSERT INTO users 
+            (username, email, password_hash, first_name, last_name, user_role, role, 
+             is_admin, can_reservations, can_users, can_settings, can_vehicles, 
+             is_active, email_notifications, created_at) 
+            VALUES (?, ?, ?, ?, ?, 'admin', 'admin', 1, 1, 1, 1, 1, 1, 1, NOW())");
         
-        $password_hash = hash_password($admin_password);
+        $password_hash = password_hash($password, PASSWORD_DEFAULT);
+        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name]);
         
-        $stmt = $db->prepare("
-            INSERT INTO users (username, email, password_hash, first_name, last_name, is_admin, is_active, user_role, created_at) 
-            VALUES (?, ?, ?, ?, ?, 1, 1, 'admin', NOW())
-        ");
-        
-        $stmt->execute([
-            $admin_username,
-            $admin_email,
-            $password_hash,
-            $admin_first_name,
-            $admin_last_name
-        ]);
-        
-        $admin_id = $db->lastInsertId();
-        
-        echo "<p style='color: green;'>✅ Admin-Benutzer erstellt!</p>";
-        echo "<h3>Anmeldedaten:</h3>";
-        echo "<ul>";
-        echo "<li><strong>Benutzername:</strong> $admin_username</li>";
-        echo "<li><strong>E-Mail:</strong> $admin_email</li>";
-        echo "<li><strong>Passwort:</strong> $admin_password</li>";
-        echo "<li><strong>Name:</strong> $admin_first_name $admin_last_name</li>";
-        echo "</ul>";
-        echo "<p style='color: red;'><strong>Wichtig:</strong> Ändern Sie das Passwort nach der ersten Anmeldung!</p>";
+        echo "✅ Admin-User '$username' erstellt\n";
     }
     
-    echo "<hr>";
-    echo "<p><a href='login.php'>Zur Anmeldung</a> | <a href='admin/dashboard.php'>Zum Dashboard</a></p>";
+    // Login-Daten anzeigen
+    echo "\n🔑 Login-Daten:\n";
+    echo "Benutzername: $username\n";
+    echo "Passwort: $password\n";
+    echo "E-Mail: $email\n";
+    
+    // Alle User anzeigen
+    $stmt = $db->prepare("SELECT username, role, user_role, is_admin, can_reservations, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
+    $stmt->execute();
+    $users = $stmt->fetchAll();
+    
+    echo "\n📋 Alle Benutzer:\n";
+    foreach ($users as $user) {
+        $permissions = [];
+        if ($user['is_admin']) $permissions[] = 'Admin';
+        if ($user['can_reservations']) $permissions[] = 'Reservierungen';
+        if ($user['can_users']) $permissions[] = 'Benutzer';
+        if ($user['can_settings']) $permissions[] = 'Einstellungen';
+        if ($user['can_vehicles']) $permissions[] = 'Fahrzeuge';
+        
+        $role_info = $user['role'] ?: $user['user_role'] ?: 'unbekannt';
+        echo "- {$user['username']} ($role_info): " . implode(', ', $permissions) . "\n";
+    }
+    
+    echo "\n🎉 Admin-User erfolgreich erstellt/aktualisiert!\n";
+    echo "Du kannst dich jetzt mit 'admin' / 'admin123' einloggen.\n";
     
 } catch (Exception $e) {
-    echo "<p style='color: red;'>❌ Fehler: " . htmlspecialchars($e->getMessage()) . "</p>";
+    echo "❌ Fehler: " . $e->getMessage() . "\n";
 }
 ?>
