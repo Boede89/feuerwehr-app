@@ -941,19 +941,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
     <!-- JavaScript für Mehrfach-Fahrzeug-Auswahl -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Prüfe, ob die UI-Elemente für die Mehrfach-Fahrzeug-Auswahl vorhanden sind
+        const selectedVehiclesListEl = document.getElementById('selected-vehicles-list');
+        const addVehicleBtnEl = document.getElementById('add-vehicle-btn');
+        const cancelVehicleBtnEl = document.getElementById('cancel-vehicle-btn');
+        const availableVehiclesGridEl = document.getElementById('available-vehicles-grid');
+
+        // Falls diese Elemente (bei fehlender Fahrzeugauswahl) nicht existieren, keine Initialisierung ausführen
+        if (!selectedVehiclesListEl || !addVehicleBtnEl || !cancelVehicleBtnEl || !availableVehiclesGridEl) {
+            return;
+        }
+
         // Globale Variablen
         let selectedVehicles = <?php echo json_encode($selectedVehicles); ?>;
         let availableVehicles = [];
-        
+
         // Lade verfügbare Fahrzeuge
         loadAvailableVehicles();
-        
+
         // Initialisiere die Anzeige
         updateSelectedVehiclesList();
-        
+
         // Event Listener
-        document.getElementById('add-vehicle-btn').addEventListener('click', showVehicleButtons);
-        document.getElementById('cancel-vehicle-btn').addEventListener('click', hideVehicleButtons);
+        addVehicleBtnEl.addEventListener('click', showVehicleButtons);
+        cancelVehicleBtnEl.addEventListener('click', hideVehicleButtons);
         
         // Lade verfügbare Fahrzeuge vom Server
         function loadAvailableVehicles() {
@@ -984,6 +995,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         // Aktualisiere Fahrzeug-Buttons
         function updateVehicleButtons() {
             const container = document.getElementById('available-vehicles-grid');
+            if (!container) return;
             container.innerHTML = '';
             
             // Filtere bereits ausgewählte Fahrzeuge heraus
@@ -1032,6 +1044,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         // Aktualisiere die Anzeige der ausgewählten Fahrzeuge
         function updateSelectedVehiclesList() {
             const container = document.getElementById('selected-vehicles-list');
+            if (!container) return;
             container.innerHTML = '';
             
             selectedVehicles.forEach((vehicle, index) => {
