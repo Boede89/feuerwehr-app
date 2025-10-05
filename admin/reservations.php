@@ -79,27 +79,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'delete_calendar_event') {
     $reservation_id = (int)$_POST['reservation_id'];
     try {
-        // Kalender-Verknüpfung laden
+        // Alle Kalender-Verknüpfungen laden
         $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
         $stmt->execute([$reservation_id]);
-        $calendar_event = $stmt->fetch();
+        $calendar_events = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-        if ($calendar_event && !empty($calendar_event['google_event_id'])) {
-            // Versuche Google Event zu löschen
-            if (function_exists('delete_google_calendar_event')) {
-                $ok = delete_google_calendar_event($calendar_event['google_event_id']);
-                if (!$ok) {
-                    // nicht kritisch, wir entfernen trotzdem die Verknüpfung lokal
-                    error_log('Kalender-Event konnte nicht via API gelöscht werden: ' . $calendar_event['google_event_id']);
+        if (!empty($calendar_events)) {
+            foreach ($calendar_events as $geid) {
+                if (!empty($geid) && function_exists('delete_google_calendar_event')) {
+                    $ok = delete_google_calendar_event($geid);
+                    if (!$ok) {
+                        error_log('Kalender-Event konnte nicht via API gelöscht werden: ' . $geid);
+                    }
                 }
             }
+        } else {
+            error_log('Keine calendar_events Verknüpfungen für reservation_id=' . $reservation_id);
         }
 
-        // Lokale Verknüpfung entfernen
+        // Lokale Verknüpfungen entfernen
         $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
         $stmt->execute([$reservation_id]);
 
-        $message = 'Kalender-Eintrag (Google) wurde entfernt. Die Reservierung bleibt erhalten.';
+        $message = 'Kalender-Eintrag(e) (Google) wurden entfernt. Die Reservierung bleibt erhalten.';
     } catch (Exception $e) {
         $error = 'Fehler beim Entfernen des Kalender-Eintrags: ' . $e->getMessage();
     }
