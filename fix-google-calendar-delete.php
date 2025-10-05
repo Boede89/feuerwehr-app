@@ -129,61 +129,69 @@ try {
 }
 
 // 4. JavaScript für Tests
-echo "<script>";
-echo "function createEvent(reservationId) {";
-echo "  const resultDiv = document.getElementById('result');";
-echo "  if (!resultDiv) {";
-echo "    const div = document.createElement('div');";
-echo "    div.id = 'result';";
-echo "    div.style.marginTop = '20px';";
-echo "    document.body.appendChild(div);";
-echo "  }";
-echo "  ";
-echo "  const resultDiv = document.getElementById('result');";
-echo "  resultDiv.innerHTML = '<p>Erstelle Google Calendar Event für Reservation ID: ' + reservationId + '</p>';";
-echo "  ";
-echo "  fetch('test-create-google-event.php', {";
-echo "    method: 'POST',";
-echo "    headers: { 'Content-Type': 'application/json' },";
-echo "    body: JSON.stringify({ reservation_id: reservationId })";
-echo "  })";
-echo "  .then(response => response.text())";
-echo "  .then(text => {";
-echo "    resultDiv.innerHTML += '<pre>' + text + '</pre>';";
-echo "    setTimeout(() => location.reload(), 2000);";
-echo "  })";
-echo "  .catch(error => {";
-echo "    resultDiv.innerHTML += '<p style=\"color: red;\">Fehler: ' + error.message + '</p>';";
-echo "  });";
-echo "}";
-echo "";
-echo "function testDelete(reservationId, googleEventId) {";
-echo "  const resultDiv = document.getElementById('result');";
-echo "  if (!resultDiv) {";
-echo "    const div = document.createElement('div');";
-echo "    div.id = 'result';";
-echo "    div.style.marginTop = '20px';";
-echo "    document.body.appendChild(div);";
-echo "  }";
-echo "  ";
-echo "  const resultDiv = document.getElementById('result');";
-echo "  resultDiv.innerHTML = '<p>Teste Löschen von Reservation ID: ' + reservationId + ', Google Event ID: ' + googleEventId + '</p>';";
-echo "  ";
-echo "  fetch('test-delete-reservation.php', {";
-echo "    method: 'POST',";
-echo "    headers: { 'Content-Type': 'application/json' },";
-echo "    body: JSON.stringify({ reservation_id: reservationId, google_event_id: googleEventId })";
-echo "  })";
-echo "  .then(response => response.text())";
-echo "  .then(text => {";
-echo "    resultDiv.innerHTML += '<pre>' + text + '</pre>';";
-echo "    setTimeout(() => location.reload(), 2000);";
-echo "  })";
-echo "  .catch(error => {";
-echo "    resultDiv.innerHTML += '<p style=\"color: red;\">Fehler: ' + error.message + '</p>';";
-echo "  });";
-echo "}";
-echo "</script>";
+?>
+<script>
+function createEvent(reservationId) {
+    const resultDiv = document.getElementById('result');
+    if (!resultDiv) {
+        const div = document.createElement('div');
+        div.id = 'result';
+        div.style.marginTop = '20px';
+        div.style.padding = '10px';
+        div.style.border = '1px solid #ddd';
+        div.style.backgroundColor = '#f9f9f9';
+        document.body.appendChild(div);
+    }
+    
+    const resultDiv = document.getElementById('result');
+    resultDiv.innerHTML = '<p>Erstelle Google Calendar Event für Reservation ID: ' + reservationId + '</p>';
+    
+    fetch('test-create-google-event.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reservation_id: reservationId })
+    })
+    .then(response => response.text())
+    .then(text => {
+        resultDiv.innerHTML += '<pre>' + text + '</pre>';
+        setTimeout(() => location.reload(), 3000);
+    })
+    .catch(error => {
+        resultDiv.innerHTML += '<p style="color: red;">Fehler: ' + error.message + '</p>';
+    });
+}
+
+function testDelete(reservationId, googleEventId) {
+    const resultDiv = document.getElementById('result');
+    if (!resultDiv) {
+        const div = document.createElement('div');
+        div.id = 'result';
+        div.style.marginTop = '20px';
+        div.style.padding = '10px';
+        div.style.border = '1px solid #ddd';
+        div.style.backgroundColor = '#f9f9f9';
+        document.body.appendChild(div);
+    }
+    
+    const resultDiv = document.getElementById('result');
+    resultDiv.innerHTML = '<p>Teste Löschen von Reservation ID: ' + reservationId + ', Google Event ID: ' + googleEventId + '</p>';
+    
+    fetch('test-delete-reservation.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reservation_id: reservationId, google_event_id: googleEventId })
+    })
+    .then(response => response.text())
+    .then(text => {
+        resultDiv.innerHTML += '<pre>' + text + '</pre>';
+        setTimeout(() => location.reload(), 3000);
+    })
+    .catch(error => {
+        resultDiv.innerHTML += '<p style="color: red;">Fehler: ' + error.message + '</p>';
+    });
+}
+</script>
+<?php
 
 echo "<hr>";
 echo "<p><a href='debug-google-calendar-delete.php'>→ Google Calendar Delete Debug</a></p>";
