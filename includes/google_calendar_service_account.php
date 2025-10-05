@@ -201,14 +201,9 @@ class GoogleCalendarServiceAccount {
      * @return bool
      */
     public function deleteEvent($eventId) {
-        // Versuche zuerst mit Access Token
-        try {
-            $accessToken = $this->getAccessToken();
-            return $this->deleteEventWithToken($eventId, $accessToken);
-        } catch (Exception $e) {
-            error_log("Access Token fehlgeschlagen, verwende Service Account direkt: " . $e->getMessage());
-            return $this->deleteEventWithServiceAccount($eventId);
-        }
+        // Verwende Service Account direkt für vollständiges Löschen
+        error_log("Verwende Service Account direkt für vollständiges Löschen: $eventId");
+        return $this->deleteEventDirectly($eventId);
     }
     
     /**
@@ -233,6 +228,69 @@ class GoogleCalendarServiceAccount {
         
         // Log für Debugging
         error_log("Google Calendar deleteEventWithToken - Event ID: $eventId, HTTP Code: $httpCode, Response: $response, Error: $error");
+        
+        // HTTP 204 = erfolgreich gelöscht
+        // HTTP 410 = bereits gelöscht (auch als Erfolg betrachten)
+        return $httpCode === 204 || $httpCode === 410;
+    }
+    
+    /**
+     * Event mit Service Account direkt löschen (ohne Access Token)
+     * @param string $eventId Event ID
+     * @return bool
+     */
+    private function deleteEventDirectly($eventId) {
+        // Erstelle JWT für Service Account
+        $jwt = $this->createJWT();
+        
+        // Hole Access Token mit JWT
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, 'https://oauth2.googleapis.com/token');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+            'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            'assertion' => $jwt
+        ]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/x-www-form-urlencoded'
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        error_log("Service Account Token Request für deleteEventDirectly - HTTP Code: $httpCode, Response: $response, Error: $error");
+        
+        if ($httpCode !== 200) {
+            error_log("Service Account Token Request für deleteEventDirectly fehlgeschlagen");
+            return false;
+        }
+        
+        $data = json_decode($response, true);
+        if (!$data || !isset($data['access_token'])) {
+            error_log("Ungültige Token-Antwort von Service Account für deleteEventDirectly");
+            return false;
+        }
+        
+        $accessToken = $data['access_token'];
+        
+        // Jetzt Event löschen mit dem Access Token
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, 'https://www.googleapis.com/calendar/v3/calendars/' . urlencode($this->calendarId) . '/events/' . urlencode($eventId));
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $accessToken
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        error_log("Google Calendar deleteEventDirectly - Event ID: $eventId, HTTP Code: $httpCode, Response: $response, Error: $error");
         
         // HTTP 204 = erfolgreich gelöscht
         // HTTP 410 = bereits gelöscht (auch als Erfolg betrachten)
@@ -333,14 +391,9 @@ class GoogleCalendarServiceAccount {
      * @return bool
      */
     public function reallyDeleteEvent($eventId) {
-        // Versuche zuerst mit Access Token
-        try {
-            $accessToken = $this->getAccessToken();
-            return $this->reallyDeleteEventWithToken($eventId, $accessToken);
-        } catch (Exception $e) {
-            error_log("Access Token fehlgeschlagen für reallyDeleteEvent, verwende Service Account direkt: " . $e->getMessage());
-            return $this->reallyDeleteEventWithServiceAccount($eventId);
-        }
+        // Verwende Service Account direkt für vollständiges Löschen
+        error_log("Verwende Service Account direkt für reallyDeleteEvent: $eventId");
+        return $this->deleteEventDirectly($eventId);
     }
     
     /**
