@@ -459,13 +459,7 @@ try {
                                                                     <i class="fas fa-minus-circle"></i> Test
                                                                 </button>
                                                             </form>
-                                                            <form method="POST" class="d-inline" onsubmit="return confirm('Komplett löschen? Zuerst aus Google Kalender, dann aus der Datenbank. Dieser Vorgang kann nicht rückgängig gemacht werden.');">
-                                                                <input type="hidden" name="action" value="delete_complete">
-                                                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
-                                                                <button type="submit" class="btn btn-sm btn-danger">
-                                                                    <i class="fas fa-trash-can"></i> Löschen
-                                                                </button>
-                                                            </form>
+                                                            
                                                         </div>
                                                     </td>
                                                 </tr>
