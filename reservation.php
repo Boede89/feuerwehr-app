@@ -22,6 +22,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 $message = '';
 $error = '';
 $selectedVehicle = null;
+$selectedVehicles = []; // Array für mehrere Fahrzeuge
 
 // Browser Console Logging für Debugging
 echo '<script>';
@@ -35,7 +36,7 @@ echo 'console.log("Error:", ' . json_encode($error ?? '') . ');';
 echo 'console.log("POST Data:", ' . json_encode($_POST ?? []) . ');';
 echo '</script>';
 
-// Ausgewähltes Fahrzeug aus POST-Daten oder Session laden
+// Ausgewählte Fahrzeuge aus POST-Daten oder Session laden
 if (isset($_POST['vehicle_data'])) {
     $selectedVehicle = json_decode($_POST['vehicle_data'], true);
     echo '<script>console.log("✅ Fahrzeug aus POST-Daten geladen:", ' . json_encode($selectedVehicle) . ');</script>';
@@ -44,9 +45,13 @@ if (isset($_POST['vehicle_data'])) {
     if (!$selectedVehicle || !isset($selectedVehicle['id'])) {
         echo '<script>console.log("❌ Fahrzeug-Daten sind unvollständig:", ' . json_encode($selectedVehicle) . ');</script>';
         $error = "Fehler beim Laden der Fahrzeug-Daten. Bitte wählen Sie erneut ein Fahrzeug aus.";
+    } else {
+        // Füge das erste Fahrzeug zu selectedVehicles hinzu
+        $selectedVehicles = [$selectedVehicle];
     }
 } elseif (isset($_SESSION['selected_vehicle'])) {
     $selectedVehicle = $_SESSION['selected_vehicle'];
+    $selectedVehicles = [$selectedVehicle];
     echo '<script>console.log("✅ Fahrzeug aus Session geladen:", ' . json_encode($selectedVehicle) . ');</script>';
 } else {
     // Kein Fahrzeug ausgewählt, zeige Fehlermeldung und Weiterleitung
@@ -103,18 +108,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
     } else {
         echo '<script>console.log("✅ CSRF Token gültig");</script>';
         
-        // Prüfe ob Fahrzeug verfügbar ist
-        if (!isset($selectedVehicle['id'])) {
-            $error = "Fahrzeug-Daten sind nicht verfügbar. Bitte wählen Sie erneut ein Fahrzeug aus.";
-            echo '<script>console.log("❌ Fahrzeug-ID nicht verfügbar");</script>';
+        // Prüfe ob Fahrzeuge verfügbar sind
+        $vehicle_ids = $_POST['vehicle_ids'] ?? [];
+        if (empty($vehicle_ids)) {
+            $error = "Keine Fahrzeuge ausgewählt. Bitte wählen Sie mindestens ein Fahrzeug aus.";
+            echo '<script>console.log("❌ Keine Fahrzeug-IDs verfügbar");</script>';
         } else {
-            $vehicle_id = $selectedVehicle['id'];
             $requester_name = sanitize_input($_POST['requester_name'] ?? '');
             $requester_email = sanitize_input($_POST['requester_email'] ?? '');
             $reason = sanitize_input($_POST['reason'] ?? '');
             $location = sanitize_input($_POST['location'] ?? '');
             
-            echo '<script>console.log("✅ Formular-Daten geladen:", {vehicle_id: ' . $vehicle_id . ', requester_name: "' . $requester_name . '", reason: "' . $reason . '"});</script>';
+            echo '<script>console.log("✅ Formular-Daten geladen:", {vehicle_ids: ' . json_encode($vehicle_ids) . ', requester_name: "' . $requester_name . '", reason: "' . $reason . '"});</script>';
         
         // Mehrere Datum/Zeit-Paare verarbeiten
         $date_times = [];
@@ -170,59 +175,67 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     continue;
                 }
                 
-                // Debug: Prüfe Fahrzeug-Konflikte
-                if (check_vehicle_conflict($vehicle_id, $start_datetime, $end_datetime)) {
-                    // Konflikt gefunden - lade Details der bestehenden Reservierung
-                    $conflict_found = true;
-                    
-                    // Lade Details der bestehenden Reservierung
-                    $stmt = $db->prepare("
-                        SELECT r.*, v.name as vehicle_name 
-                        FROM reservations r 
-                        JOIN vehicles v ON r.vehicle_id = v.id 
-                        WHERE r.vehicle_id = ? 
-                        AND r.status = 'approved' 
-                        AND ((r.start_datetime <= ? AND r.end_datetime > ?) 
-                             OR (r.start_datetime < ? AND r.end_datetime >= ?) 
-                             OR (r.start_datetime >= ? AND r.end_datetime <= ?))
-                        LIMIT 1
-                    ");
-                    $stmt->execute([
-                        $vehicle_id, 
-                        $start_datetime, $start_datetime,
-                        $end_datetime, $end_datetime,
-                        $start_datetime, $end_datetime
-                    ]);
-                    $existing_reservation = $stmt->fetch();
-                    
-                    $conflict_timeframe = [
-                        'index' => $index + 1,
-                        'start' => $start_datetime,
-                        'end' => $end_datetime,
-                        'vehicle_id' => $vehicle_id,
-                        'vehicle_name' => $selectedVehicle['name'],
-                        'existing_reservation' => $existing_reservation
-                    ];
-                    // Debug: Fahrzeug bereits reserviert - zeige Modal mit Details
+                // Debug: Prüfe Fahrzeug-Konflikte für alle ausgewählten Fahrzeuge
+                $conflict_found = false;
+                foreach ($vehicle_ids as $vehicle_id) {
+                    if (check_vehicle_conflict($vehicle_id, $start_datetime, $end_datetime)) {
+                        // Konflikt gefunden - lade Details der bestehenden Reservierung
+                        $conflict_found = true;
+                        
+                        // Lade Details der bestehenden Reservierung
+                        $stmt = $db->prepare("
+                            SELECT r.*, v.name as vehicle_name 
+                            FROM reservations r 
+                            JOIN vehicles v ON r.vehicle_id = v.id 
+                            WHERE r.vehicle_id = ? 
+                            AND r.status = 'approved' 
+                            AND ((r.start_datetime <= ? AND r.end_datetime > ?) 
+                                 OR (r.start_datetime < ? AND r.end_datetime >= ?) 
+                                 OR (r.start_datetime >= ? AND r.end_datetime <= ?))
+                            LIMIT 1
+                        ");
+                        $stmt->execute([
+                            $vehicle_id, 
+                            $start_datetime, $start_datetime,
+                            $end_datetime, $end_datetime,
+                            $start_datetime, $end_datetime
+                        ]);
+                        $existing_reservation = $stmt->fetch();
+                        
+                        $conflict_timeframe = [
+                            'index' => $index + 1,
+                            'start' => $start_datetime,
+                            'end' => $end_datetime,
+                            'vehicle_id' => $vehicle_id,
+                            'vehicle_name' => $existing_reservation['vehicle_name'] ?? 'Unbekannt',
+                            'existing_reservation' => $existing_reservation
+                        ];
+                        // Debug: Fahrzeug bereits reserviert - zeige Modal mit Details
+                        break; // Stoppe die Verarbeitung und zeige Modal
+                    }
+                }
+                
+                if ($conflict_found) {
                     break; // Stoppe die Verarbeitung und zeige Modal
                 }
                 
                 // Debug: Validierung erfolgreich
                 
-                // Reservierung speichern
-                // Debug: Speichere Reservierung
-                try {
-                    // Debug: Führe Datenbank-Insert aus
-                    $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([])]);
-                    $success_count++;
-                    // Debug: Reservierung gespeichert
-                } catch(PDOException $e) {
-                    $errors[] = "Zeitraum " . ($index + 1) . ": Fehler beim Speichern - " . $e->getMessage();
-                    // Debug: Fehler beim Speichern
-                } catch(Exception $e) {
-                    $errors[] = "Zeitraum " . ($index + 1) . ": Unerwarteter Fehler - " . $e->getMessage();
-                    // Debug: Unerwarteter Fehler
+                // Reservierung für alle ausgewählten Fahrzeuge speichern
+                foreach ($vehicle_ids as $vehicle_id) {
+                    try {
+                        // Debug: Führe Datenbank-Insert aus
+                        $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([])]);
+                        $success_count++;
+                        // Debug: Reservierung gespeichert
+                    } catch(PDOException $e) {
+                        $errors[] = "Zeitraum " . ($index + 1) . " (Fahrzeug ID $vehicle_id): Fehler beim Speichern - " . $e->getMessage();
+                        // Debug: Fehler beim Speichern
+                    } catch(Exception $e) {
+                        $errors[] = "Zeitraum " . ($index + 1) . " (Fahrzeug ID $vehicle_id): Unerwarteter Fehler - " . $e->getMessage();
+                        // Debug: Unerwarteter Fehler
+                    }
                 }
             }
             
@@ -241,12 +254,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 }
                 
                 if (!empty($admin_emails)) {
-                    // Alle Zeiträume für diesen Antrag laden
-                    $stmt = $db->prepare("SELECT start_datetime, end_datetime FROM reservations WHERE vehicle_id = ? AND requester_email = ? AND reason = ? ORDER BY start_datetime");
-                    $stmt->execute([$vehicle_id, $requester_email, $reason]);
+                    // Alle Zeiträume für diesen Antrag laden (für alle Fahrzeuge)
+                    $placeholders = str_repeat('?,', count($vehicle_ids) - 1) . '?';
+                    $stmt = $db->prepare("SELECT r.start_datetime, r.end_datetime, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.vehicle_id IN ($placeholders) AND r.requester_email = ? AND r.reason = ? ORDER BY r.start_datetime");
+                    $params = array_merge($vehicle_ids, [$requester_email, $reason]);
+                    $stmt->execute($params);
                     $timeframes = $stmt->fetchAll();
                     
-                    $subject = "🔔 Neue Fahrzeugreservierung - " . htmlspecialchars($selectedVehicle['name']);
+                    // Erstelle Fahrzeug-Liste für E-Mail
+                    $vehicle_names = [];
+                    foreach ($vehicle_ids as $vid) {
+                        $stmt = $db->prepare("SELECT name FROM vehicles WHERE id = ?");
+                        $stmt->execute([$vid]);
+                        $vehicle = $stmt->fetch();
+                        if ($vehicle) {
+                            $vehicle_names[] = $vehicle['name'];
+                        }
+                    }
+                    $vehicle_list = implode(', ', $vehicle_names);
+                    
+                    $subject = "🔔 Neue Fahrzeugreservierung - " . $vehicle_list;
                     
                     // Zeiträume-Liste erstellen
                     $timeframes_html = "";
@@ -254,7 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                         $timeframes_html = "<div style='margin-top: 10px;'>";
                         foreach ($timeframes as $index => $timeframe) {
                             $timeframes_html .= "<div style='background-color: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #007bff;'>";
-                            $timeframes_html .= "<strong>Zeitraum " . ($index + 1) . ":</strong> ";
+                            $timeframes_html .= "<strong>Zeitraum " . ($index + 1) . " (" . htmlspecialchars($timeframe['vehicle_name']) . "):</strong> ";
                             $timeframes_html .= format_datetime($timeframe['start_datetime']) . " - " . format_datetime($timeframe['end_datetime']);
                             $timeframes_html .= "</div>";
                         }
@@ -273,8 +300,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                                 <h3 style='margin: 0 0 15px 0; color: #007bff; font-size: 18px;'>📋 Antragsdetails</h3>
                                 <table style='width: 100%; border-collapse: collapse;'>
                                     <tr>
-                                        <td style='padding: 8px 0; font-weight: bold; color: #555; width: 120px;'>🚛 Fahrzeug:</td>
-                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($selectedVehicle['name']) . "</td>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555; width: 120px;'>🚛 Fahrzeuge:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($vehicle_list) . "</td>
                                     </tr>
                                     <tr>
                                         <td style='padding: 8px 0; font-weight: bold; color: #555;'>👤 Antragsteller:</td>
@@ -414,14 +441,40 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                             <input type="hidden" name="vehicle_data" value="<?php echo htmlspecialchars(json_encode($selectedVehicle)); ?>">
                             
-                            <!-- Fahrzeug-Info -->
+                            <!-- Mehrfach-Fahrzeug-Auswahl -->
                             <?php if (isset($selectedVehicle['name'])): ?>
-                            <div class="alert alert-info">
-                                <h6><i class="fas fa-truck"></i> Ausgewähltes Fahrzeug</h6>
-                                <p class="mb-0">
-                                    <strong><?php echo htmlspecialchars($selectedVehicle['name']); ?></strong><br>
-                                    <small><?php echo htmlspecialchars($selectedVehicle['description'] ?? ''); ?></small>
-                                </p>
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-truck"></i> Ausgewählte Fahrzeuge</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="selected-vehicles-list">
+                                        <!-- Ausgewählte Fahrzeuge werden hier dynamisch eingefügt -->
+                                    </div>
+                                    
+                                    <!-- Fahrzeug hinzufügen -->
+                                    <div class="mt-3">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="add-vehicle-btn">
+                                            <i class="fas fa-plus"></i> Weiteres Fahrzeug auswählen
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Verfügbare Fahrzeuge Dropdown (versteckt) -->
+                                    <div id="vehicle-dropdown-container" class="mt-3" style="display: none;">
+                                        <label for="vehicle-select" class="form-label">Fahrzeug auswählen:</label>
+                                        <select class="form-select" id="vehicle-select">
+                                            <option value="">Bitte wählen...</option>
+                                        </select>
+                                        <div class="mt-2">
+                                            <button type="button" class="btn btn-success btn-sm" id="confirm-vehicle-btn">
+                                                <i class="fas fa-check"></i> Hinzufügen
+                                            </button>
+                                            <button type="button" class="btn btn-secondary btn-sm ms-2" id="cancel-vehicle-btn">
+                                                <i class="fas fa-times"></i> Abbrechen
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <?php else: ?>
                             <div class="alert alert-warning">
@@ -760,5 +813,139 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             </div>
         </div>
     </div>
+
+    <!-- JavaScript für Mehrfach-Fahrzeug-Auswahl -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Globale Variablen
+        let selectedVehicles = <?php echo json_encode($selectedVehicles); ?>;
+        let availableVehicles = [];
+        
+        // Lade verfügbare Fahrzeuge
+        loadAvailableVehicles();
+        
+        // Initialisiere die Anzeige
+        updateSelectedVehiclesList();
+        
+        // Event Listener
+        document.getElementById('add-vehicle-btn').addEventListener('click', showVehicleDropdown);
+        document.getElementById('confirm-vehicle-btn').addEventListener('click', addSelectedVehicle);
+        document.getElementById('cancel-vehicle-btn').addEventListener('click', hideVehicleDropdown);
+        
+        // Lade verfügbare Fahrzeuge vom Server
+        function loadAvailableVehicles() {
+            fetch('get-available-vehicles.php')
+                .then(response => response.json())
+                .then(data => {
+                    availableVehicles = data;
+                    updateVehicleDropdown();
+                })
+                .catch(error => {
+                    console.error('Fehler beim Laden der Fahrzeuge:', error);
+                });
+        }
+        
+        // Zeige Fahrzeug-Dropdown
+        function showVehicleDropdown() {
+            document.getElementById('vehicle-dropdown-container').style.display = 'block';
+            document.getElementById('add-vehicle-btn').style.display = 'none';
+            updateVehicleDropdown();
+        }
+        
+        // Verstecke Fahrzeug-Dropdown
+        function hideVehicleDropdown() {
+            document.getElementById('vehicle-dropdown-container').style.display = 'none';
+            document.getElementById('add-vehicle-btn').style.display = 'inline-block';
+            document.getElementById('vehicle-select').value = '';
+        }
+        
+        // Aktualisiere Fahrzeug-Dropdown
+        function updateVehicleDropdown() {
+            const select = document.getElementById('vehicle-select');
+            select.innerHTML = '<option value="">Bitte wählen...</option>';
+            
+            // Filtere bereits ausgewählte Fahrzeuge heraus
+            const selectedIds = selectedVehicles.map(v => v.id);
+            const available = availableVehicles.filter(v => !selectedIds.includes(v.id));
+            
+            available.forEach(vehicle => {
+                const option = document.createElement('option');
+                option.value = vehicle.id;
+                option.textContent = vehicle.name + (vehicle.description ? ' - ' + vehicle.description : '');
+                select.appendChild(option);
+            });
+        }
+        
+        // Füge ausgewähltes Fahrzeug hinzu
+        function addSelectedVehicle() {
+            const select = document.getElementById('vehicle-select');
+            const vehicleId = select.value;
+            
+            if (!vehicleId) {
+                alert('Bitte wählen Sie ein Fahrzeug aus.');
+                return;
+            }
+            
+            const vehicle = availableVehicles.find(v => v.id == vehicleId);
+            if (vehicle) {
+                selectedVehicles.push(vehicle);
+                updateSelectedVehiclesList();
+                hideVehicleDropdown();
+            }
+        }
+        
+        // Entferne Fahrzeug
+        function removeVehicle(vehicleId) {
+            selectedVehicles = selectedVehicles.filter(v => v.id != vehicleId);
+            updateSelectedVehiclesList();
+        }
+        
+        // Aktualisiere die Anzeige der ausgewählten Fahrzeuge
+        function updateSelectedVehiclesList() {
+            const container = document.getElementById('selected-vehicles-list');
+            container.innerHTML = '';
+            
+            selectedVehicles.forEach((vehicle, index) => {
+                const vehicleDiv = document.createElement('div');
+                vehicleDiv.className = 'alert alert-info d-flex justify-content-between align-items-center mb-2';
+                vehicleDiv.innerHTML = `
+                    <div>
+                        <strong>${vehicle.name}</strong>
+                        ${vehicle.description ? '<br><small>' + vehicle.description + '</small>' : ''}
+                    </div>
+                    ${selectedVehicles.length > 1 ? '<button type="button" class="btn btn-outline-danger btn-sm" onclick="removeVehicle(' + vehicle.id + ')"><i class="fas fa-times"></i></button>' : ''}
+                `;
+                container.appendChild(vehicleDiv);
+            });
+            
+            // Aktualisiere versteckte Felder für Formular
+            updateHiddenFields();
+        }
+        
+        // Aktualisiere versteckte Felder für Formular
+        function updateHiddenFields() {
+            // Aktualisiere vehicle_data für das erste Fahrzeug (Kompatibilität)
+            if (selectedVehicles.length > 0) {
+                document.querySelector('input[name="vehicle_data"]').value = JSON.stringify(selectedVehicles[0]);
+            }
+            
+            // Füge versteckte Felder für alle Fahrzeuge hinzu
+            // Entferne alte vehicle_ids Felder
+            document.querySelectorAll('input[name="vehicle_ids[]"]').forEach(el => el.remove());
+            
+            // Füge neue vehicle_ids Felder hinzu
+            selectedVehicles.forEach(vehicle => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'vehicle_ids[]';
+                input.value = vehicle.id;
+                document.querySelector('form').appendChild(input);
+            });
+        }
+        
+        // Globale Funktion für removeVehicle (für onclick)
+        window.removeVehicle = removeVehicle;
+    });
+    </script>
 </body>
 </html>
