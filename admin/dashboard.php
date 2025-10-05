@@ -316,7 +316,10 @@ try {
         <!-- Details-Modals nur für ausstehende Reservierungen -->
         <?php if (!empty($pending_reservations)): ?>
             <?php foreach ($pending_reservations as $modal_reservation): ?>
-        <div class="modal fade" id="detailsModal<?php echo $modal_reservation['id']; ?>" tabindex="-1">
+        <div class="modal fade" id="detailsModal<?php echo $modal_reservation['id']; ?>" tabindex="-1" 
+             data-vehicle-name="<?php echo htmlspecialchars($modal_reservation['vehicle_name']); ?>"
+             data-start-datetime="<?php echo $modal_reservation['start_datetime']; ?>"
+             data-end-datetime="<?php echo $modal_reservation['end_datetime']; ?>">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -362,9 +365,12 @@ try {
                                 
                                 <h6><i class="fas fa-calendar-check text-info"></i> Kalender-Prüfung</h6>
                                 <div id="calendar-check-<?php echo $modal_reservation['id']; ?>">
-                                    <button type="button" class="btn btn-outline-info btn-sm" onclick="checkCalendarConflicts(<?php echo $modal_reservation['id']; ?>, '<?php echo htmlspecialchars($modal_reservation['vehicle_name']); ?>', '<?php echo $modal_reservation['start_datetime']; ?>', '<?php echo $modal_reservation['end_datetime']; ?>')">
-                                        <i class="fas fa-search"></i> Kalender-Konflikte prüfen
-                                    </button>
+                                    <div class="text-center">
+                                        <div class="spinner-border spinner-border-sm text-info" role="status" id="spinner-<?php echo $modal_reservation['id']; ?>">
+                                            <span class="visually-hidden">Lädt...</span>
+                                        </div>
+                                        <p class="text-muted mt-2" id="loading-text-<?php echo $modal_reservation['id']; ?>">Prüfe Kalender-Konflikte...</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -469,6 +475,32 @@ try {
                 container.innerHTML = '<div class="alert alert-danger mt-2"><strong>Fehler:</strong> Verbindung zum Server fehlgeschlagen</div>';
             });
         }
+        
+        // Automatische Kalender-Prüfung für alle Details-Modals
+        document.addEventListener('DOMContentLoaded', function() {
+            // Event Listener für alle Details-Buttons
+            document.querySelectorAll('[data-bs-toggle="modal"][data-bs-target^="#detailsModal"]').forEach(function(button) {
+                button.addEventListener('click', function() {
+                    const targetModalId = this.getAttribute('data-bs-target');
+                    const reservationId = targetModalId.replace('#detailsModal', '');
+                    
+                    // Starte Kalender-Prüfung automatisch nach Modal-Öffnung
+                    setTimeout(function() {
+                        // Hole die Reservierungsdaten aus dem Modal
+                        const modal = document.querySelector(targetModalId);
+                        if (modal) {
+                            const vehicleName = modal.querySelector('[data-vehicle-name]')?.getAttribute('data-vehicle-name') || '';
+                            const startDateTime = modal.querySelector('[data-start-datetime]')?.getAttribute('data-start-datetime') || '';
+                            const endDateTime = modal.querySelector('[data-end-datetime]')?.getAttribute('data-end-datetime') || '';
+                            
+                            if (vehicleName && startDateTime && endDateTime) {
+                                checkCalendarConflicts(reservationId, vehicleName, startDateTime, endDateTime);
+                            }
+                        }
+                    }, 500); // Kurze Verzögerung damit Modal vollständig geöffnet ist
+                });
+            });
+        });
     </script>
 </body>
 </html>
