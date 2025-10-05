@@ -401,15 +401,27 @@ function delete_google_calendar_event($event_id) {
         
         // Erstelle GoogleCalendarServiceAccount mit korrekten Parametern
         $calendar_service = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
-        $result = $calendar_service->deleteEvent($event_id);
         
-        if ($result) {
-            error_log("Google Calendar Event erfolgreich gelöscht: $event_id");
-            return true;
-        } else {
-            error_log("Fehler beim Löschen des Google Calendar Events: $event_id");
-            return false;
+        // Bevorzugt: direkte Lösch-Methode versuchen
+        if (method_exists($calendar_service, 'deleteEventDirectly')) {
+            error_log("GC DELETE: Versuche deleteEventDirectly für $event_id");
+            $direct = $calendar_service->deleteEventDirectly($event_id);
+            if ($direct) {
+                error_log("GC DELETE: deleteEventDirectly erfolgreich: $event_id");
+                return true;
+            }
+            error_log("GC DELETE: deleteEventDirectly fehlgeschlagen, fallback auf deleteEvent: $event_id");
         }
+        
+        // Fallback: Standard-Löschmethode
+        $result = $calendar_service->deleteEvent($event_id);
+        if ($result) {
+            error_log("GC DELETE: deleteEvent erfolgreich: $event_id");
+            return true;
+        }
+        
+        error_log("GC DELETE: Beide Löschmethoden fehlgeschlagen für $event_id");
+        return false;
     } catch (Exception $e) {
         error_log('Fehler beim Löschen des Google Calendar Events: ' . $e->getMessage());
         return false;
