@@ -3,9 +3,16 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
-// Nur für eingeloggte Benutzer mit Admin-Zugriff
+// Prüfe ob Benutzer eingeloggt ist
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
+    header("Location: ../login.php");
+    exit;
+}
+
+// Prüfe ob Benutzer Admin-Rechte hat
 if (!has_admin_access()) {
-    redirect('../login.php');
+    header("Location: ../login.php?error=access_denied");
+    exit;
 }
 
 $message = '';
