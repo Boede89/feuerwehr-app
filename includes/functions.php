@@ -419,12 +419,12 @@ function delete_google_calendar_event($event_id) {
 /**
  * Google Kalender API - Event erstellen
  */
-function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $end_datetime, $reservation_id = null, $location = null) {
+function create_google_calendar_event($title, $reason, $start_datetime, $end_datetime, $reservation_id = null, $location = null) {
     global $db;
     
     // Sofortiges Logging am Anfang
     error_log('=== Google Calendar Event Start ===');
-    error_log('Parameter: vehicle_name=' . $vehicle_name . ', reason=' . $reason . ', start=' . $start_datetime . ', end=' . $end_datetime . ', reservation_id=' . $reservation_id . ', location=' . ($location ?? 'null'));
+    error_log('Parameter: title=' . $title . ', reason=' . $reason . ', start=' . $start_datetime . ', end=' . $end_datetime . ', reservation_id=' . $reservation_id . ', location=' . ($location ?? 'null'));
     
     try {
         // Google Calendar Einstellungen laden
@@ -483,7 +483,7 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
         }
         
         // Event-Details erstellen
-        $title = $vehicle_name . ' - ' . $reason;
+        // $title wird bereits als Parameter übergeben (kann mehrere Fahrzeuge enthalten)
         $description = ''; // Keine Beschreibung mehr
         $event_location = $location ?? 'Nicht angegeben';
         

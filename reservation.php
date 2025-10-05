@@ -351,6 +351,63 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     }
                 }
                 
+                // Google Calendar Event erstellen (nur wenn alle Reservierungen erfolgreich waren)
+                if (empty($errors) && $success_count > 0) {
+                    echo '<script>console.log("📅 Erstelle Google Calendar Event für alle Fahrzeuge");</script>';
+                    
+                    try {
+                        // Erstelle Fahrzeug-Liste für Google Calendar
+                        $vehicle_names = [];
+                        foreach ($vehicle_ids as $vid) {
+                            $stmt = $db->prepare("SELECT name FROM vehicles WHERE id = ?");
+                            $stmt->execute([$vid]);
+                            $vehicle = $stmt->fetch();
+                            if ($vehicle) {
+                                $vehicle_names[] = $vehicle['name'];
+                            }
+                        }
+                        
+                        // Erstelle einen Google Calendar Event für alle Fahrzeuge
+                        // Verwende den ersten Zeitraum für das Event
+                        $first_timeframe = $date_times[0];
+                        $calendar_title = implode(', ', $vehicle_names) . ' - ' . $reason;
+                        
+                        $google_event_id = create_google_calendar_event(
+                            $calendar_title,
+                            $reason,
+                            $first_timeframe['start'],
+                            $first_timeframe['end'],
+                            null, // Keine spezifische Reservierung-ID
+                            $location
+                        );
+                        
+                        if ($google_event_id) {
+                            echo '<script>console.log("✅ Google Calendar Event erstellt:", ' . json_encode($google_event_id) . ');</script>';
+                            
+                            // Speichere Google Event ID für alle Reservierungen
+                            foreach ($vehicle_ids as $vehicle_id) {
+                                foreach ($date_times as $dt) {
+                                    // Finde die entsprechende Reservierung
+                                    $stmt = $db->prepare("SELECT id FROM reservations WHERE vehicle_id = ? AND requester_email = ? AND reason = ? AND start_datetime = ? AND end_datetime = ? ORDER BY id DESC LIMIT 1");
+                                    $stmt->execute([$vehicle_id, $requester_email, $reason, $dt['start'], $dt['end']]);
+                                    $reservation = $stmt->fetch();
+                                    
+                                    if ($reservation) {
+                                        // Speichere Google Event ID in calendar_events Tabelle
+                                        $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                                        $stmt->execute([$reservation['id'], $google_event_id, $calendar_title, $dt['start'], $dt['end']]);
+                                    }
+                                }
+                            }
+                        } else {
+                            echo '<script>console.log("⚠️ Google Calendar Event konnte nicht erstellt werden");</script>';
+                        }
+                        
+                    } catch (Exception $e) {
+                        echo '<script>console.log("❌ Fehler beim Erstellen des Google Calendar Events:", ' . json_encode($e->getMessage()) . ');</script>';
+                    }
+                }
+                
                 if (empty($errors)) {
                     $message = "Alle $success_count Reservierungen wurden erfolgreich eingereicht. Sie erhalten eine E-Mail, sobald über Ihre Anträge entschieden wurde.";
                     echo '<script>console.log("✅ Erfolgreiche Reservierung - Weiterleitung zur Startseite");</script>';
