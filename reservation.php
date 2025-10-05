@@ -459,17 +459,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                                         </button>
                                     </div>
                                     
-                                    <!-- Verfügbare Fahrzeuge Dropdown (versteckt) -->
-                                    <div id="vehicle-dropdown-container" class="mt-3" style="display: none;">
-                                        <label for="vehicle-select" class="form-label">Fahrzeug auswählen:</label>
-                                        <select class="form-select" id="vehicle-select">
-                                            <option value="">Bitte wählen...</option>
-                                        </select>
-                                        <div class="mt-2">
-                                            <button type="button" class="btn btn-success btn-sm" id="confirm-vehicle-btn">
-                                                <i class="fas fa-check"></i> Hinzufügen
-                                            </button>
-                                            <button type="button" class="btn btn-secondary btn-sm ms-2" id="cancel-vehicle-btn">
+                                    <!-- Verfügbare Fahrzeuge Buttons (versteckt) -->
+                                    <div id="vehicle-buttons-container" class="mt-3" style="display: none;">
+                                        <label class="form-label">Weiteres Fahrzeug auswählen:</label>
+                                        <div id="available-vehicles-grid" class="row g-2">
+                                            <!-- Verfügbare Fahrzeug-Buttons werden hier dynamisch eingefügt -->
+                                        </div>
+                                        <div class="mt-3">
+                                            <button type="button" class="btn btn-secondary btn-sm" id="cancel-vehicle-btn">
                                                 <i class="fas fa-times"></i> Abbrechen
                                             </button>
                                         </div>
@@ -814,6 +811,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         </div>
     </div>
 
+    <!-- CSS für Fahrzeug-Buttons -->
+    <style>
+    .vehicle-button {
+        transition: all 0.3s ease;
+        border: 2px solid #dee2e6;
+    }
+    
+    .vehicle-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        border-color: #007bff;
+    }
+    
+    .vehicle-button:active {
+        transform: translateY(0);
+    }
+    
+    .vehicle-button i {
+        transition: color 0.3s ease;
+    }
+    
+    .vehicle-button:hover i {
+        color: #007bff !important;
+    }
+    </style>
+
     <!-- JavaScript für Mehrfach-Fahrzeug-Auswahl -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -828,9 +851,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         updateSelectedVehiclesList();
         
         // Event Listener
-        document.getElementById('add-vehicle-btn').addEventListener('click', showVehicleDropdown);
-        document.getElementById('confirm-vehicle-btn').addEventListener('click', addSelectedVehicle);
-        document.getElementById('cancel-vehicle-btn').addEventListener('click', hideVehicleDropdown);
+        document.getElementById('add-vehicle-btn').addEventListener('click', showVehicleButtons);
+        document.getElementById('cancel-vehicle-btn').addEventListener('click', hideVehicleButtons);
         
         // Lade verfügbare Fahrzeuge vom Server
         function loadAvailableVehicles() {
@@ -838,60 +860,66 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 .then(response => response.json())
                 .then(data => {
                     availableVehicles = data;
-                    updateVehicleDropdown();
+                    updateVehicleButtons();
                 })
                 .catch(error => {
                     console.error('Fehler beim Laden der Fahrzeuge:', error);
                 });
         }
         
-        // Zeige Fahrzeug-Dropdown
-        function showVehicleDropdown() {
-            document.getElementById('vehicle-dropdown-container').style.display = 'block';
+        // Zeige Fahrzeug-Buttons
+        function showVehicleButtons() {
+            document.getElementById('vehicle-buttons-container').style.display = 'block';
             document.getElementById('add-vehicle-btn').style.display = 'none';
-            updateVehicleDropdown();
+            updateVehicleButtons();
         }
         
-        // Verstecke Fahrzeug-Dropdown
-        function hideVehicleDropdown() {
-            document.getElementById('vehicle-dropdown-container').style.display = 'none';
+        // Verstecke Fahrzeug-Buttons
+        function hideVehicleButtons() {
+            document.getElementById('vehicle-buttons-container').style.display = 'none';
             document.getElementById('add-vehicle-btn').style.display = 'inline-block';
-            document.getElementById('vehicle-select').value = '';
         }
         
-        // Aktualisiere Fahrzeug-Dropdown
-        function updateVehicleDropdown() {
-            const select = document.getElementById('vehicle-select');
-            select.innerHTML = '<option value="">Bitte wählen...</option>';
+        // Aktualisiere Fahrzeug-Buttons
+        function updateVehicleButtons() {
+            const container = document.getElementById('available-vehicles-grid');
+            container.innerHTML = '';
             
             // Filtere bereits ausgewählte Fahrzeuge heraus
             const selectedIds = selectedVehicles.map(v => v.id);
             const available = availableVehicles.filter(v => !selectedIds.includes(v.id));
             
+            if (available.length === 0) {
+                container.innerHTML = '<div class="col-12"><p class="text-muted">Alle verfügbaren Fahrzeuge sind bereits ausgewählt.</p></div>';
+                return;
+            }
+            
             available.forEach(vehicle => {
-                const option = document.createElement('option');
-                option.value = vehicle.id;
-                option.textContent = vehicle.name + (vehicle.description ? ' - ' + vehicle.description : '');
-                select.appendChild(option);
+                const col = document.createElement('div');
+                col.className = 'col-md-6 col-lg-4';
+                
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-outline-primary w-100 h-100 d-flex flex-column align-items-center p-3 vehicle-button';
+                button.style.minHeight = '100px';
+                button.onclick = () => addSelectedVehicle(vehicle);
+                
+                button.innerHTML = `
+                    <i class="fas fa-truck fa-2x mb-2 text-primary"></i>
+                    <strong class="mb-1">${vehicle.name}</strong>
+                    ${vehicle.description ? '<small class="text-muted text-center">' + vehicle.description + '</small>' : ''}
+                `;
+                
+                col.appendChild(button);
+                container.appendChild(col);
             });
         }
         
         // Füge ausgewähltes Fahrzeug hinzu
-        function addSelectedVehicle() {
-            const select = document.getElementById('vehicle-select');
-            const vehicleId = select.value;
-            
-            if (!vehicleId) {
-                alert('Bitte wählen Sie ein Fahrzeug aus.');
-                return;
-            }
-            
-            const vehicle = availableVehicles.find(v => v.id == vehicleId);
-            if (vehicle) {
-                selectedVehicles.push(vehicle);
-                updateSelectedVehiclesList();
-                hideVehicleDropdown();
-            }
+        function addSelectedVehicle(vehicle) {
+            selectedVehicles.push(vehicle);
+            updateSelectedVehiclesList();
+            hideVehicleButtons();
         }
         
         // Entferne Fahrzeug
