@@ -13,6 +13,50 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
+// Fallback-Funktion für lokale Konflikt-Prüfung
+function check_local_conflicts($vehicle_name, $start_datetime, $end_datetime) {
+    global $db;
+    
+    try {
+        $stmt = $db->prepare("
+            SELECT id, requester_name, reason, start_datetime, end_datetime 
+            FROM reservations 
+            WHERE vehicle_id = (SELECT id FROM vehicles WHERE name = ?) 
+            AND status = 'approved' 
+            AND (
+                (start_datetime <= ? AND end_datetime >= ?) OR
+                (start_datetime <= ? AND end_datetime >= ?) OR
+                (start_datetime >= ? AND end_datetime <= ?)
+            )
+        ");
+        
+        $stmt->execute([
+            $vehicle_name, 
+            $start_datetime, $start_datetime,
+            $end_datetime, $end_datetime,
+            $start_datetime, $end_datetime
+        ]);
+        
+        $existing_reservations = $stmt->fetchAll();
+        $conflicts = [];
+        
+        foreach ($existing_reservations as $reservation) {
+            $conflicts[] = [
+                'title' => $vehicle_name . ' - ' . $reservation['reason'],
+                'start' => $reservation['start_datetime'],
+                'end' => $reservation['end_datetime'],
+                'requester' => $reservation['requester_name'],
+                'source' => 'local_database'
+            ];
+        }
+        
+        return $conflicts;
+    } catch (Exception $e) {
+        error_log('Lokale Konflikt-Prüfung Fehler: ' . $e->getMessage());
+        return [];
+    }
+}
+
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     echo json_encode(['success' => false, 'error' => 'Nicht angemeldet']);
@@ -42,10 +86,19 @@ try {
     $start_datetime = $input['start_datetime'];
     $end_datetime = $input['end_datetime'];
     
-    // Prüfe Kalender-Konflikte
+    // Prüfe Kalender-Konflikte mit Google Calendar
     $conflicts = [];
     if (function_exists('check_calendar_conflicts')) {
-        $conflicts = check_calendar_conflicts($vehicle_name, $start_datetime, $end_datetime);
+        try {
+            $conflicts = check_calendar_conflicts($vehicle_name, $start_datetime, $end_datetime);
+        } catch (Exception $e) {
+            error_log('Google Calendar Konflikt-Prüfung Fehler: ' . $e->getMessage());
+            // Fallback: Prüfe nur lokale Datenbank
+            $conflicts = check_local_conflicts($vehicle_name, $start_datetime, $end_datetime);
+        }
+    } else {
+        // Fallback: Prüfe nur lokale Datenbank
+        $conflicts = check_local_conflicts($vehicle_name, $start_datetime, $end_datetime);
     }
     
     echo json_encode([
