@@ -118,6 +118,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             $requester_email = sanitize_input($_POST['requester_email'] ?? '');
             $reason = sanitize_input($_POST['reason'] ?? '');
             $location = sanitize_input($_POST['location'] ?? '');
+
+            // Fallback: Wenn keine vehicle_ids[] gesendet wurden, aus vehicle_data ableiten
+            if (empty($vehicle_ids)) {
+                $rawVehicleData = $_POST['vehicle_data'] ?? '';
+                if (!empty($rawVehicleData)) {
+                    $decoded = json_decode($rawVehicleData, true);
+                    if (is_array($decoded) && isset($decoded['id'])) {
+                        $vehicle_ids = [ (int)$decoded['id'] ];
+                        echo '<script>console.log("✅ Fallback vehicle_ids aus vehicle_data gesetzt:", ' . json_encode($vehicle_ids) . ');</script>';
+                    }
+                }
+            }
             
             echo '<script>console.log("✅ Formular-Daten geladen:", {vehicle_ids: ' . json_encode($vehicle_ids) . ', requester_name: "' . $requester_name . '", reason: "' . $reason . '"});</script>';
         
@@ -604,6 +616,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     form.reportValidity && form.reportValidity();
                     return false;
                 }
+                // Stelle sicher, dass mindestens ein vehicle_ids[] Feld vorhanden ist
+                try {
+                    const hasVehicleIds = form.querySelectorAll('input[name="vehicle_ids[]"]').length > 0;
+                    if (!hasVehicleIds) {
+                        const raw = document.querySelector('input[name="vehicle_data"]').value || '';
+                        if (raw) {
+                            const obj = JSON.parse(raw);
+                            if (obj && obj.id) {
+                                const hidden = document.createElement('input');
+                                hidden.type = 'hidden';
+                                hidden.name = 'vehicle_ids[]';
+                                hidden.value = String(obj.id);
+                                form.appendChild(hidden);
+                                console.log('✅ vehicle_ids[] per JS ergänzt:', hidden.value);
+                            }
+                        }
+                    }
+                } catch (err) { console.warn('Warnung: vehicle_ids Ergänzung fehlgeschlagen', err); }
+
                 // Erst UI, dann absenden
                 e.preventDefault();
                 alreadySubmitting = true;
