@@ -76,7 +76,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                                 if ($existing && !empty($existing['google_event_id'])) {
                                     $currentTitle = $existing['title'] ?? '';
                                     $needsAppend = stripos($currentTitle, $reservation['vehicle_name']) === false;
-                                    $newTitle = $needsAppend ? ($currentTitle ? ($currentTitle . ', ' . $reservation['vehicle_name']) : ($reservation['vehicle_name'] . ' - ' . $reservation['reason'])) : $currentTitle;
+                                    if ($needsAppend) {
+                                        // Titel in Format "Fahrzeuge, ... - Grund" normalisieren und Fahrzeugliste vorne pflegen
+                                        $canonicalVehicles = $currentTitle;
+                                        $needle = ' - ' . $reservation['reason'];
+                                        if (stripos($currentTitle, $needle) !== false) {
+                                            $canonicalVehicles = trim(str_ireplace($needle, '', $currentTitle));
+                                        }
+                                        $vehicleParts = array_filter(array_map('trim', explode(',', $canonicalVehicles)));
+                                        if (!in_array($reservation['vehicle_name'], $vehicleParts, true)) {
+                                            $vehicleParts[] = $reservation['vehicle_name'];
+                                        }
+                                        $vehiclesJoined = implode(', ', $vehicleParts);
+                                        $newTitle = $vehiclesJoined . ' - ' . $reservation['reason'];
+                                    } else {
+                                        $newTitle = $currentTitle;
+                                    }
 
                                     // 2) Falls nötig, Titel im Google Kalender aktualisieren
                                     if ($needsAppend && function_exists('update_google_calendar_event_title')) {
