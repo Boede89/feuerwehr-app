@@ -315,13 +315,13 @@ try {
     </div>
 
     <!-- Details-Modals nur für ausstehende Reservierungen -->
-    <?php foreach ($pending_reservations as $reservation): ?>
-        <div class="modal fade" id="detailsModal<?php echo $reservation['id']; ?>" tabindex="-1">
+    <?php foreach ($pending_reservations as $modal_reservation): ?>
+        <div class="modal fade" id="detailsModal<?php echo $modal_reservation['id']; ?>" tabindex="-1">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
-                            <i class="fas fa-info-circle"></i> Reservierungsdetails #<?php echo $reservation['id']; ?>
+                            <i class="fas fa-info-circle"></i> Reservierungsdetails #<?php echo $modal_reservation['id']; ?>
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
@@ -329,26 +329,26 @@ try {
                         <div class="row">
                             <div class="col-md-6">
                                 <h6><i class="fas fa-truck text-primary"></i> Fahrzeug</h6>
-                                <p><?php echo htmlspecialchars($reservation['vehicle_name']); ?></p>
+                                <p><?php echo htmlspecialchars($modal_reservation['vehicle_name']); ?></p>
                                 
                                 <h6><i class="fas fa-user text-info"></i> Antragsteller</h6>
                                 <p>
-                                    <strong><?php echo htmlspecialchars($reservation['requester_name']); ?></strong><br>
-                                    <small class="text-muted"><?php echo htmlspecialchars($reservation['requester_email']); ?></small>
+                                    <strong><?php echo htmlspecialchars($modal_reservation['requester_name']); ?></strong><br>
+                                    <small class="text-muted"><?php echo htmlspecialchars($modal_reservation['requester_email']); ?></small>
                                 </p>
                                 
                                 <h6><i class="fas fa-calendar-alt text-success"></i> Zeitraum</h6>
                                 <p>
-                                    <strong>Von:</strong> <?php echo date('d.m.Y H:i', strtotime($reservation['start_datetime'])); ?><br>
-                                    <strong>Bis:</strong> <?php echo date('d.m.Y H:i', strtotime($reservation['end_datetime'])); ?>
+                                    <strong>Von:</strong> <?php echo date('d.m.Y H:i', strtotime($modal_reservation['start_datetime'])); ?><br>
+                                    <strong>Bis:</strong> <?php echo date('d.m.Y H:i', strtotime($modal_reservation['end_datetime'])); ?>
                                 </p>
                             </div>
                             <div class="col-md-6">
                                 <h6><i class="fas fa-clipboard-list text-warning"></i> Grund</h6>
-                                <p><?php echo htmlspecialchars($reservation['reason']); ?></p>
+                                <p><?php echo htmlspecialchars($modal_reservation['reason']); ?></p>
                                 
                                 <h6><i class="fas fa-map-marker-alt text-info"></i> Ort</h6>
-                                <p><?php echo htmlspecialchars($reservation['location'] ?? 'Nicht angegeben'); ?></p>
+                                <p><?php echo htmlspecialchars($modal_reservation['location'] ?? 'Nicht angegeben'); ?></p>
                                 
                                 <h6><i class="fas fa-info-circle text-secondary"></i> Status</h6>
                                 <p>
@@ -358,13 +358,13 @@ try {
                                 </p>
                                 
                                 <h6><i class="fas fa-clock text-muted"></i> Erstellt</h6>
-                                <p><small class="text-muted"><?php echo date('d.m.Y H:i', strtotime($reservation['created_at'])); ?></small></p>
+                                <p><small class="text-muted"><?php echo date('d.m.Y H:i', strtotime($modal_reservation['created_at'])); ?></small></p>
                                 
                                 <?php 
                                 // Prüfe Kalender-Konflikte
                                 $conflicts = [];
                                 if (function_exists('check_calendar_conflicts')) {
-                                    $conflicts = check_calendar_conflicts($reservation['vehicle_name'], $reservation['start_datetime'], $reservation['end_datetime']);
+                                    $conflicts = check_calendar_conflicts($modal_reservation['vehicle_name'], $modal_reservation['start_datetime'], $modal_reservation['end_datetime']);
                                 }
                                 ?>
                                 
@@ -396,13 +396,13 @@ try {
                     <div class="modal-footer">
                         <!-- Genehmigen/Ablehnen für ausstehende Reservierungen -->
                         <form method="POST" class="d-inline">
-                            <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                            <input type="hidden" name="reservation_id" value="<?php echo $modal_reservation['id']; ?>">
                             <input type="hidden" name="action" value="approve">
                             <button type="submit" class="btn btn-success" onclick="return confirm('Reservierung genehmigen?')">
                                 <i class="fas fa-check"></i> Genehmigen
                             </button>
                         </form>
-                        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $reservation['id']; ?>" data-bs-dismiss="modal">
+                        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $modal_reservation['id']; ?>" data-bs-dismiss="modal">
                             <i class="fas fa-times"></i> Ablehnen
                         </button>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
@@ -413,8 +413,8 @@ try {
     <?php endforeach; ?>
 
     <!-- Ablehnungs-Modals für ausstehende Reservierungen -->
-    <?php foreach ($pending_reservations as $reservation): ?>
-        <div class="modal fade" id="rejectModal<?php echo $reservation['id']; ?>" tabindex="-1">
+    <?php foreach ($pending_reservations as $reject_reservation): ?>
+        <div class="modal fade" id="rejectModal<?php echo $reject_reservation['id']; ?>" tabindex="-1">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <form method="POST">
@@ -423,17 +423,17 @@ try {
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <p>Reservierung #<?php echo $reservation['id']; ?> - <?php echo htmlspecialchars($reservation['vehicle_name']); ?></p>
+                            <p>Reservierung #<?php echo $reject_reservation['id']; ?> - <?php echo htmlspecialchars($reject_reservation['vehicle_name']); ?></p>
                             <div class="mb-3">
-                                <label for="rejection_reason<?php echo $reservation['id']; ?>" class="form-label">Ablehnungsgrund</label>
-                                <textarea class="form-control" id="rejection_reason<?php echo $reservation['id']; ?>" name="rejection_reason" rows="3" required></textarea>
+                                <label for="rejection_reason<?php echo $reject_reservation['id']; ?>" class="form-label">Ablehnungsgrund</label>
+                                <textarea class="form-control" id="rejection_reason<?php echo $reject_reservation['id']; ?>" name="rejection_reason" rows="3" required></textarea>
                             </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
                             <button type="submit" class="btn btn-danger">Ablehnen</button>
                         </div>
-                        <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                        <input type="hidden" name="reservation_id" value="<?php echo $reject_reservation['id']; ?>">
                         <input type="hidden" name="action" value="reject">
                     </form>
                 </div>
