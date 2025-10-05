@@ -455,8 +455,8 @@ try {
                                                             <form method="POST" class="d-inline" onsubmit="return confirm('Fahrzeug aus Kalendereintrag entfernen? Der Kalendereintrag bleibt bestehen, nur das Fahrzeug wird aus dem Titel entfernt.');">
                                                                 <input type="hidden" name="action" value="remove_vehicle_from_calendar">
                                                                 <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
-                                                                <button type="submit" class="btn btn-sm btn-warning">
-                                                                    <i class="fas fa-minus-circle"></i> Test
+                                                                <button type="submit" class="btn btn-sm btn-danger">
+                                                                    <i class="fas fa-trash-can"></i> Löschen
                                                                 </button>
                                                             </form>
                                                             
