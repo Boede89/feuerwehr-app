@@ -473,17 +473,43 @@ try {
             }
 
             if (btnCopy && ta) {
+                const markCopied = () => {
+                    btnCopy.classList.remove('btn-primary');
+                    btnCopy.classList.add('btn-success');
+                    btnCopy.innerHTML = '<i class="fas fa-check"></i> Kopiert';
+                    setTimeout(() => {
+                        btnCopy.classList.remove('btn-success');
+                        btnCopy.classList.add('btn-primary');
+                        btnCopy.innerHTML = '<i class="fas fa-copy"></i> In Zwischenablage';
+                    }, 1500);
+                };
+
                 btnCopy.addEventListener('click', async function () {
+                    const text = ta.value || '';
+                    // Versuch 1: moderne API (benötigt HTTPS/secure context)
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        try {
+                            await navigator.clipboard.writeText(text);
+                            markCopied();
+                            return;
+                        } catch (e) {
+                            // Fallback unten
+                        }
+                    }
+                    // Versuch 2: legacy execCommand Fallback
                     try {
-                        await navigator.clipboard.writeText(ta.value);
-                        btnCopy.classList.remove('btn-primary');
-                        btnCopy.classList.add('btn-success');
-                        btnCopy.innerHTML = '<i class="fas fa-check"></i> Kopiert';
-                        setTimeout(() => {
-                            btnCopy.classList.remove('btn-success');
-                            btnCopy.classList.add('btn-primary');
-                            btnCopy.innerHTML = '<i class="fas fa-copy"></i> In Zwischenablage';
-                        }, 1500);
+                        const prevReadOnly = ta.hasAttribute('readonly');
+                        ta.removeAttribute('readonly');
+                        ta.focus();
+                        ta.select();
+                        const ok = document.execCommand && document.execCommand('copy');
+                        if (ok) {
+                            markCopied();
+                        } else {
+                            alert('Kopieren fehlgeschlagen');
+                        }
+                        if (prevReadOnly) ta.setAttribute('readonly', 'readonly');
+                        window.getSelection && window.getSelection().removeAllRanges();
                     } catch (err) {
                         alert('Kopieren fehlgeschlagen');
                     }
