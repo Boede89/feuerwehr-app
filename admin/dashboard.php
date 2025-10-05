@@ -359,6 +359,37 @@ try {
                                 
                                 <h6><i class="fas fa-clock text-muted"></i> Erstellt</h6>
                                 <p><small class="text-muted"><?php echo date('d.m.Y H:i', strtotime($reservation['created_at'])); ?></small></p>
+                                
+                                <?php 
+                                // Prüfe Kalender-Konflikte
+                                $conflicts = [];
+                                if (function_exists('check_calendar_conflicts')) {
+                                    $conflicts = check_calendar_conflicts($reservation['vehicle_name'], $reservation['start_datetime'], $reservation['end_datetime']);
+                                }
+                                ?>
+                                
+                                <?php if (!empty($conflicts)): ?>
+                                    <h6><i class="fas fa-exclamation-triangle text-danger"></i> Kalender-Konflikte</h6>
+                                    <div class="alert alert-warning">
+                                        <strong>Warnung:</strong> Für dieses Fahrzeug existieren bereits Kalender-Einträge im beantragten Zeitraum:
+                                        <ul class="mb-0 mt-2">
+                                            <?php foreach ($conflicts as $conflict): ?>
+                                                <li>
+                                                    <strong><?php echo htmlspecialchars($conflict['title']); ?></strong><br>
+                                                    <small class="text-muted">
+                                                        <?php echo date('d.m.Y H:i', strtotime($conflict['start'])); ?> - 
+                                                        <?php echo date('d.m.Y H:i', strtotime($conflict['end'])); ?>
+                                                    </small>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    </div>
+                                <?php else: ?>
+                                    <h6><i class="fas fa-check-circle text-success"></i> Kalender-Status</h6>
+                                    <div class="alert alert-success">
+                                        <strong>Kein Konflikt:</strong> Der beantragte Zeitraum ist frei.
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
