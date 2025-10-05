@@ -126,6 +126,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     }
 }
 
+// Fahrzeug aus Kalendereintrag entfernen (nur Titel anpassen, Event bleibt)
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'remove_vehicle_from_calendar') {
+    try {
+        $reservation_id = (int)($_POST['reservation_id'] ?? 0);
+        if ($reservation_id <= 0) {
+            throw new Exception('Ungültige Reservierungs-ID');
+        }
+
+        // Reservierungsdaten laden
+        $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+        $stmt->execute([$reservation_id]);
+        $reservation = $stmt->fetch();
+        
+        if (!$reservation) {
+            throw new Exception('Reservierung nicht gefunden');
+        }
+
+        // Google Event ID aus calendar_events laden
+        $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
+        $stmt->execute([$reservation_id]);
+        $calendar_event = $stmt->fetch();
+        
+        if (!$calendar_event || empty($calendar_event['google_event_id'])) {
+            throw new Exception('Keine Google Event ID für diese Reservierung gefunden');
+        }
+
+        // Fahrzeug aus Kalendereintrag entfernen
+        $success = remove_vehicle_from_calendar_event($calendar_event['google_event_id'], $reservation['vehicle_name']);
+        
+        if ($success) {
+            $message = "Fahrzeug '{$reservation['vehicle_name']}' wurde aus dem Kalendereintrag entfernt.";
+        } else {
+            $error = "Fehler beim Entfernen des Fahrzeugs aus dem Kalendereintrag.";
+        }
+        
+    } catch (Exception $e) {
+        $error = 'Fehler beim Entfernen des Fahrzeugs: ' . $e->getMessage();
+    }
+}
+
 // Komplett löschen: erst Google-Kalender-Eintrag(e) löschen, danach Reservierung + Verknüpfungen entfernen
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'delete_complete') {
     try {
@@ -412,6 +452,13 @@ try {
                                                                 <i class="fas fa-eye"></i> Details
                                                             </button>
                                                             
+                                                            <form method="POST" class="d-inline" onsubmit="return confirm('Fahrzeug aus Kalendereintrag entfernen? Der Kalendereintrag bleibt bestehen, nur das Fahrzeug wird aus dem Titel entfernt.');">
+                                                                <input type="hidden" name="action" value="remove_vehicle_from_calendar">
+                                                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-warning">
+                                                                    <i class="fas fa-minus-circle"></i> Test
+                                                                </button>
+                                                            </form>
                                                             <form method="POST" class="d-inline" onsubmit="return confirm('Komplett löschen? Zuerst aus Google Kalender, dann aus der Datenbank. Dieser Vorgang kann nicht rückgängig gemacht werden.');">
                                                                 <input type="hidden" name="action" value="delete_complete">
                                                                 <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">

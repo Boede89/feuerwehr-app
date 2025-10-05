@@ -874,6 +874,112 @@ function create_google_calendar_event($title, $reason, $start_datetime, $end_dat
 }
 
 /**
+ * Entfernt ein Fahrzeug aus einem Google Calendar Event-Titel
+ * @param string $google_event_id Google Event ID
+ * @param string $vehicle_name Fahrzeugname zum Entfernen
+ * @return bool Erfolg
+ */
+function remove_vehicle_from_calendar_event($google_event_id, $vehicle_name) {
+    global $db;
+    
+    try {
+        error_log("REMOVE VEHICLE: Starte Entfernung von '$vehicle_name' aus Event $google_event_id");
+        
+        // Google Calendar Einstellungen laden
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'google_calendar_%'");
+        $stmt->execute();
+        $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        
+        $auth_type = $settings['google_calendar_auth_type'] ?? 'service_account';
+        $calendar_id = $settings['google_calendar_id'] ?? 'primary';
+        $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
+        
+        if ($auth_type !== 'service_account' || empty($service_account_json)) {
+            error_log('REMOVE VEHICLE: Service Account nicht konfiguriert');
+            return false;
+        }
+        
+        if (!class_exists('GoogleCalendarServiceAccount')) {
+            error_log('REMOVE VEHICLE: GoogleCalendarServiceAccount Klasse nicht verfügbar');
+            return false;
+        }
+        
+        $google_calendar = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
+        
+        // Event abrufen
+        $event = $google_calendar->getEvent($google_event_id);
+        if (!$event) {
+            error_log("REMOVE VEHICLE: Event $google_event_id nicht gefunden");
+            return false;
+        }
+        
+        $current_title = $event['summary'] ?? '';
+        error_log("REMOVE VEHICLE: Aktueller Titel: $current_title");
+        
+        // Fahrzeug aus Titel entfernen
+        $new_title = remove_vehicle_from_title($current_title, $vehicle_name);
+        
+        if ($new_title === $current_title) {
+            error_log("REMOVE VEHICLE: Fahrzeug '$vehicle_name' nicht im Titel gefunden");
+            return false;
+        }
+        
+        error_log("REMOVE VEHICLE: Neuer Titel: $new_title");
+        
+        // Event aktualisieren
+        $event['summary'] = $new_title;
+        $result = $google_calendar->updateEvent($google_event_id, $event);
+        
+        if ($result) {
+            // Datenbank aktualisieren
+            $stmt = $db->prepare("UPDATE calendar_events SET title = ? WHERE google_event_id = ?");
+            $stmt->execute([$new_title, $google_event_id]);
+            error_log("REMOVE VEHICLE: Erfolgreich - Fahrzeug '$vehicle_name' aus Event entfernt");
+            return true;
+        } else {
+            error_log("REMOVE VEHICLE: Fehler beim Aktualisieren des Events");
+            return false;
+        }
+        
+    } catch (Exception $e) {
+        error_log('REMOVE VEHICLE: Exception: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Entfernt einen Fahrzeugnamen aus einem Titel-String
+ * @param string $title Aktueller Titel
+ * @param string $vehicle_name Fahrzeugname zum Entfernen
+ * @return string Neuer Titel
+ */
+function remove_vehicle_from_title($title, $vehicle_name) {
+    // Verschiedene Muster für Fahrzeug-Entfernung
+    $patterns = [
+        // "Fahrzeug1, Fahrzeug2 - Grund" -> "Fahrzeug2 - Grund" (wenn Fahrzeug1 entfernt wird)
+        '/\b' . preg_quote($vehicle_name, '/') . '\s*,\s*/',
+        // ", Fahrzeug1" am Ende
+        '/,\s*' . preg_quote($vehicle_name, '/') . '\s*$/',
+        // "Fahrzeug1" am Anfang
+        '/^' . preg_quote($vehicle_name, '/') . '\s*,\s*/',
+        // "Fahrzeug1 - Grund" -> "Grund" (wenn nur ein Fahrzeug)
+        '/^' . preg_quote($vehicle_name, '/') . '\s*-\s*/',
+    ];
+    
+    $new_title = $title;
+    foreach ($patterns as $pattern) {
+        $new_title = preg_replace($pattern, '', $new_title);
+    }
+    
+    // Aufräumen: doppelte Leerzeichen, führende/nachfolgende Kommas
+    $new_title = preg_replace('/\s+/', ' ', $new_title);
+    $new_title = preg_replace('/^,\s*|,\s*$/', '', $new_title);
+    $new_title = trim($new_title);
+    
+    return $new_title;
+}
+
+/**
  * Kollisionsprüfung für Fahrzeugreservierungen
  */
 function check_vehicle_conflict($vehicle_id, $start_datetime, $end_datetime, $exclude_id = null) {
