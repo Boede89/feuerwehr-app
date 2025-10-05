@@ -581,20 +581,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             const submitBtn = document.getElementById('submitReservationBtn');
             if (!form || !submitBtn) return;
 
-            form.addEventListener('submit', function(e) {
-                // Wenn dieses Submit nicht vom Konflikt-Modal (force_submit) kommt
-                if (!e.submitter || e.submitter.name !== 'force_submit_reservation') {
-                    // Button sofort deaktivieren und Ladezustand anzeigen
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Wird gesendet...';
+            let alreadySubmitting = false;
 
-                    // Bestätigungs-Modal anzeigen, während der Server verarbeitet
-                    const pendingModalEl = document.getElementById('submitPendingModal');
-                    if (pendingModalEl) {
-                        const pendingModal = new bootstrap.Modal(pendingModalEl, { backdrop: 'static', keyboard: false });
-                        pendingModal.show();
-                    }
+            submitBtn.addEventListener('click', function(e) {
+                if (alreadySubmitting) {
+                    e.preventDefault();
+                    return false;
                 }
+                // HTML5 Validierung ausführen
+                if (!form.checkValidity()) {
+                    // Browser zeigt Validierungsfehler an
+                    e.preventDefault();
+                    form.reportValidity && form.reportValidity();
+                    return false;
+                }
+
+                // Verhindere Standard-Submit, um zuerst UI-Zustand zu setzen
+                e.preventDefault();
+                alreadySubmitting = true;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Wird gesendet...';
+
+                // Bestätigungs-Modal anzeigen
+                const pendingModalEl = document.getElementById('submitPendingModal');
+                if (pendingModalEl) {
+                    const pendingModal = new bootstrap.Modal(pendingModalEl, { backdrop: 'static', keyboard: false });
+                    pendingModal.show();
+                }
+
+                // Jetzt Formular absenden
+                form.submit();
             });
         });
         // Fahrzeugdaten aus Session Storage laden und übertragen
