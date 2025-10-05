@@ -48,6 +48,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $db->commit();
             $message = 'Fahrzeugreservierungs-Einstellungen gespeichert.';
+
+            // Nach dem Speichern neu laden, damit die Felder gefüllt bleiben
+            $stmt = $db->prepare('SELECT setting_key, setting_value FROM settings');
+            $stmt->execute();
+            $settings = [];
+            foreach ($stmt->fetchAll() as $row) {
+                $settings[$row['setting_key']] = $row['setting_value'];
+            }
         } catch (Exception $e) {
             $db->rollBack();
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
