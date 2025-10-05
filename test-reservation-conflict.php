@@ -35,10 +35,10 @@ try {
     
     $result = $stmt->execute([
         $vehicle['id'],
-        'Test User 1',
-        'test1@example.com',
-        'Erste Test-Reservierung',
-        'Test-Ort',
+        'Max Mustermann',
+        'max.mustermann@example.com',
+        'Übung: Brandbekämpfung',
+        'Feuerwehrhaus',
         $start_datetime,
         $end_datetime
     ]);
