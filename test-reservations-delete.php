@@ -12,13 +12,26 @@ echo "<h1>🧪 Test: Reservierungen-Seite Löschung testen</h1>";
 echo "<h2>1. Erstelle Test-Reservierung mit Google Calendar Event</h2>";
 
 try {
+    // Prüfe verfügbare Fahrzeuge
+    $stmt = $db->prepare("SELECT id, name FROM vehicles ORDER BY id LIMIT 1");
+    $stmt->execute();
+    $vehicle = $stmt->fetch();
+    
+    if (!$vehicle) {
+        echo "<p style='color: red;'>❌ Keine Fahrzeuge in der Datenbank gefunden</p>";
+        exit;
+    }
+    
+    $vehicle_id = $vehicle['id'];
+    $vehicle_name = $vehicle['name'];
+    
+    echo "<p style='color: green;'>✅ Verwende Fahrzeug: $vehicle_name (ID: $vehicle_id)</p>";
+    
     // Erstelle Test-Reservierung
     $stmt = $db->prepare("
         INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, status, created_at) 
         VALUES (?, ?, ?, ?, ?, ?, ?, 'approved', NOW())
     ");
-    
-    $vehicle_id = 1; // MTF
     $requester_name = 'Test User';
     $requester_email = 'test@example.com';
     $reason = 'Test für Reservierungen-Löschung';
@@ -33,7 +46,7 @@ try {
     
     // Erstelle Google Calendar Event
     $google_event_id = create_google_calendar_event(
-        'MTF',
+        $vehicle_name,
         $reason,
         $start_datetime,
         $end_datetime,
@@ -149,7 +162,7 @@ try {
                 echo "<h2>4. Teste Konfliktprüfung</h2>";
                 
                 try {
-                    $conflicts = check_calendar_conflicts('MTF', $start_datetime, $end_datetime);
+                    $conflicts = check_calendar_conflicts($vehicle_name, $start_datetime, $end_datetime);
                     
                     echo "<p><strong>Konflikte gefunden:</strong> " . count($conflicts) . "</p>";
                     
