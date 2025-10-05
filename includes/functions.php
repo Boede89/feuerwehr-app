@@ -306,6 +306,46 @@ function has_all_permissions($permissions) {
 }
 
 /**
+ * Generiert die Admin-Navigation basierend auf Benutzerberechtigungen
+ * @return string HTML für die Navigation
+ */
+function get_admin_navigation() {
+    $nav_items = [];
+    
+    // Dashboard - für alle mit Reservierungen-Recht
+    if (has_permission('reservations')) {
+        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>';
+    }
+    
+    // Reservierungen - für alle mit Reservierungen-Recht
+    if (has_permission('reservations')) {
+        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="reservations.php"><i class="fas fa-calendar-check"></i> Reservierungen</a></li>';
+    }
+    
+    // Fahrzeuge - für alle mit Fahrzeug-Recht
+    if (has_permission('vehicles')) {
+        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="vehicles.php"><i class="fas fa-truck"></i> Fahrzeuge</a></li>';
+    }
+    
+    // Benutzer - nur für Benutzerverwaltung
+    if (has_permission('users')) {
+        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="users.php"><i class="fas fa-users"></i> Benutzer</a></li>';
+    }
+    
+    // Einstellungen - nur für Einstellungen-Recht
+    if (has_permission('settings')) {
+        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="settings.php"><i class="fas fa-cog"></i> Einstellungen</a></li>';
+    }
+    
+    // Profil - für alle eingeloggten Benutzer
+    if (is_logged_in()) {
+        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="profile.php"><i class="fas fa-user"></i> Profil</a></li>';
+    }
+    
+    return implode("\n                ", $nav_items);
+}
+
+/**
  * Weiterleitung
  */
 function redirect($url) {

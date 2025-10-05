@@ -9,8 +9,8 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     exit;
 }
 
-// Prüfe ob Benutzer Admin-Rechte hat
-if (!has_admin_access()) {
+// Prüfe ob Benutzer Benutzerverwaltung-Rechte hat
+if (!has_permission('users')) {
     header("Location: ../login.php?error=access_denied");
     exit;
 }
