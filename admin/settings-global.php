@@ -212,48 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
     </form>
 
-    <hr class="my-5">
-    <h2 class="h5"><i class="fas fa-shield-halved"></i> Sicherung & Wiederherstellung</h2>
-    <div class="row g-4">
-        <div class="col-md-6">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="fas fa-file-arrow-down"></i> Einstellungen</h5>
-                    <p class="text-muted">Exportieren und importieren Sie die globalen Einstellungen als JSON.</p>
-                    <div class="d-flex flex-column gap-2">
-                        <a class="btn btn-outline-primary" href="export-settings.php">
-                            <i class="fas fa-download"></i> Exportieren (JSON)
-                        </a>
-                        <form method="POST" action="import-settings.php" enctype="multipart/form-data" class="d-inline">
-                            <input type="file" name="settings_file" accept="application/json,.json" class="form-control form-control-sm mb-2" required>
-                            <button type="submit" class="btn btn-outline-success">
-                                <i class="fas fa-upload"></i> Importieren (JSON)
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="fas fa-database"></i> Gesamte Datenbank</h5>
-                    <p class="text-muted">Kompletter SQL-Dump (Schema und Daten) der App-Datenbank.</p>
-                    <div class="d-flex flex-column gap-2">
-                        <a class="btn btn-outline-primary" href="export-database.php">
-                            <i class="fas fa-download"></i> Exportieren (SQL)
-                        </a>
-                        <form method="POST" action="import-database.php" enctype="multipart/form-data" class="d-inline">
-                            <input type="file" name="database_file" accept=".sql,application/sql,text/sql" class="form-control form-control-sm mb-2" required>
-                            <button type="submit" class="btn btn-outline-success" onclick="return confirm('Achtung: Der Datenbank-Import überschreibt bestehende Daten. Fortfahren?');">
-                                <i class="fas fa-upload"></i> Importieren (SQL)
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
