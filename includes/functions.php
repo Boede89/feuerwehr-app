@@ -231,6 +231,81 @@ function has_admin_access() {
 }
 
 /**
+ * Prüft ob der aktuelle Benutzer eine bestimmte Berechtigung hat
+ * @param string $permission Berechtigung (admin, reservations, users, settings, vehicles)
+ * @return bool
+ */
+function has_permission($permission) {
+    global $db;
+    
+    if (!isset($_SESSION['user_id'])) {
+        return false;
+    }
+    
+    try {
+        $stmt = $db->prepare("SELECT is_admin, can_reservations, can_users, can_settings, can_vehicles FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$user) {
+            return false;
+        }
+        
+        // Admin hat alle Berechtigungen
+        if ($user['is_admin']) {
+            return true;
+        }
+        
+        // Spezifische Berechtigung prüfen
+        switch ($permission) {
+            case 'admin':
+                return $user['is_admin'];
+            case 'reservations':
+                return $user['can_reservations'];
+            case 'users':
+                return $user['can_users'];
+            case 'settings':
+                return $user['can_settings'];
+            case 'vehicles':
+                return $user['can_vehicles'];
+            default:
+                return false;
+        }
+    } catch (Exception $e) {
+        error_log("Permission check error: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Prüft mehrere Berechtigungen (OR-Verknüpfung)
+ * @param array $permissions Array von Berechtigungen
+ * @return bool
+ */
+function has_any_permission($permissions) {
+    foreach ($permissions as $permission) {
+        if (has_permission($permission)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Prüft mehrere Berechtigungen (AND-Verknüpfung)
+ * @param array $permissions Array von Berechtigungen
+ * @return bool
+ */
+function has_all_permissions($permissions) {
+    foreach ($permissions as $permission) {
+        if (!has_permission($permission)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
  * Weiterleitung
  */
 function redirect($url) {

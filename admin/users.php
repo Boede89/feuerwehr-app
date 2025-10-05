@@ -44,6 +44,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $is_active = isset($_POST['is_active']) ? 1 : 0;
         $password = $_POST['password'] ?? '';
         
+        // Granular permissions
+        $is_admin = isset($_POST['is_admin']) ? 1 : 0;
+        $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
+        $can_users = isset($_POST['can_users']) ? 1 : 0;
+        $can_settings = isset($_POST['can_settings']) ? 1 : 0;
+        $can_vehicles = isset($_POST['can_vehicles']) ? 1 : 0;
+        
         if (empty($username) || empty($email) || empty($first_name) || empty($last_name)) {
             $error = "Alle Felder sind erforderlich.";
         } elseif (!validate_email($email)) {
@@ -55,8 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $error = "Passwort ist erforderlich.";
                     } else {
                         $password_hash = hash_password($password);
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, email_notifications, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_role, $email_notifications, $is_active]);
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, email_notifications, is_active, is_admin, can_reservations, can_users, can_settings, can_vehicles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_role, $email_notifications, $is_active, $is_admin, $can_reservations, $can_users, $can_settings, $can_vehicles]);
                         $message = "Benutzer wurde erfolgreich hinzugefügt.";
                         log_activity($_SESSION['user_id'], 'user_added', "Benutzer '$username' hinzugefügt");
                         
@@ -67,11 +74,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 } elseif ($action == 'edit') {
                     if (!empty($password)) {
                         $password_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_role, $email_notifications, $is_active, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_role, $email_notifications, $is_active, $is_admin, $can_reservations, $can_users, $can_settings, $can_vehicles, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, $user_role, $email_notifications, $is_active, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $user_role, $email_notifications, $is_active, $is_admin, $can_reservations, $can_users, $can_settings, $can_vehicles, $user_id]);
                     }
                     $message = "Benutzer wurde erfolgreich aktualisiert.";
                     log_activity($_SESSION['user_id'], 'user_updated', "Benutzer '$username' aktualisiert");
@@ -108,7 +115,7 @@ if (isset($_GET['delete'])) {
 
 // Benutzer laden
 try {
-    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, email_notifications, is_active, created_at FROM users ORDER BY created_at DESC");
+    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, email_notifications, is_active, created_at, is_admin, can_reservations, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
     $stmt->execute();
     $users = $stmt->fetchAll();
 } catch(PDOException $e) {
@@ -214,6 +221,7 @@ try {
                                         <th>E-Mail</th>
                                         <th>Name</th>
                                         <th>Rolle</th>
+                                        <th>Berechtigungen</th>
                                         <th>E-Mail-Benachrichtigungen</th>
                                         <th>Status</th>
                                         <th>Erstellt</th>
@@ -238,6 +246,25 @@ try {
                                                 <span class="badge <?php echo $role_info[0]; ?>"><?php echo $role_info[1]; ?></span>
                                             </td>
                                             <td>
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    <?php if ($user['is_admin']): ?>
+                                                        <span class="badge bg-danger">Admin</span>
+                                                    <?php endif; ?>
+                                                    <?php if ($user['can_reservations']): ?>
+                                                        <span class="badge bg-primary">Reservierungen</span>
+                                                    <?php endif; ?>
+                                                    <?php if ($user['can_users']): ?>
+                                                        <span class="badge bg-warning">Benutzer</span>
+                                                    <?php endif; ?>
+                                                    <?php if ($user['can_settings']): ?>
+                                                        <span class="badge bg-info">Einstellungen</span>
+                                                    <?php endif; ?>
+                                                    <?php if ($user['can_vehicles']): ?>
+                                                        <span class="badge bg-success">Fahrzeuge</span>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </td>
+                                            <td>
                                                 <?php if ($user['email_notifications']): ?>
                                                     <span class="badge bg-success">Aktiviert</span>
                                                 <?php else: ?>
@@ -254,7 +281,7 @@ try {
                                             <td><?php echo format_date($user['created_at']); ?></td>
                                             <td>
                                                 <button type="button" class="btn btn-outline-primary btn-sm" 
-                                                        onclick="editUser(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['email']); ?>', '<?php echo htmlspecialchars($user['first_name']); ?>', '<?php echo htmlspecialchars($user['last_name']); ?>', '<?php echo $user['user_role']; ?>', <?php echo $user['email_notifications']; ?>, <?php echo $user['is_active']; ?>)">
+                                                        onclick="editUser(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['email']); ?>', '<?php echo htmlspecialchars($user['first_name']); ?>', '<?php echo htmlspecialchars($user['last_name']); ?>', '<?php echo $user['user_role']; ?>', <?php echo $user['email_notifications']; ?>, <?php echo $user['is_active']; ?>, <?php echo $user['is_admin']; ?>, <?php echo $user['can_reservations']; ?>, <?php echo $user['can_users']; ?>, <?php echo $user['can_settings']; ?>, <?php echo $user['can_vehicles']; ?>)">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
                                                 <?php if ($user['id'] != $_SESSION['user_id']): ?>
@@ -318,6 +345,46 @@ try {
                                 <strong>Benutzer:</strong> Kann nur Reservierungen einreichen<br>
                                 <strong>Genehmiger:</strong> Kann Reservierungen genehmigen/ablehnen<br>
                                 <strong>Administrator:</strong> Vollzugriff auf alle Funktionen
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Berechtigungen</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="is_admin" name="is_admin">
+                                        <label class="form-check-label" for="is_admin">
+                                            <strong>Administrator</strong> - Vollzugriff auf alles
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="can_reservations" name="can_reservations">
+                                        <label class="form-check-label" for="can_reservations">
+                                            Fahrzeugreservierungen - Dashboard & Reservierungen
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="can_users" name="can_users">
+                                        <label class="form-check-label" for="can_users">
+                                            Benutzerverwaltung
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="can_settings" name="can_settings">
+                                        <label class="form-check-label" for="can_settings">
+                                            Einstellungen
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="can_vehicles" name="can_vehicles">
+                                        <label class="form-check-label" for="can_vehicles">
+                                            Fahrzeugverwaltung
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
@@ -399,7 +466,7 @@ try {
             }
         }
         
-        function editUser(userId, username, email, firstName, lastName, userRole, emailNotifications, isActive) {
+        function editUser(userId, username, email, firstName, lastName, userRole, emailNotifications, isActive, isAdmin, canReservations, canUsers, canSettings, canVehicles) {
             // Modal anzeigen
             const modal = document.getElementById('userModal');
             if (modal) {
@@ -413,6 +480,14 @@ try {
                 document.getElementById('user_role').value = userRole;
                 document.getElementById('email_notifications').checked = emailNotifications == 1;
                 document.getElementById('is_active').checked = isActive == 1;
+                
+                // Berechtigungen setzen
+                document.getElementById('is_admin').checked = isAdmin == 1;
+                document.getElementById('can_reservations').checked = canReservations == 1;
+                document.getElementById('can_users').checked = canUsers == 1;
+                document.getElementById('can_settings').checked = canSettings == 1;
+                document.getElementById('can_vehicles').checked = canVehicles == 1;
+                
                 document.getElementById('action').value = 'edit';
                 document.getElementById('submitButton').textContent = 'Aktualisieren';
                 document.getElementById('password-required').textContent = '';
