@@ -489,7 +489,12 @@ function delete_google_calendar_event_by_hint($title, $start_datetime, $end_date
         }
         $start = date('c', strtotime($start_datetime) - 600);
         $end = date('c', strtotime($end_datetime) + 600);
-        $events = $svc->getEvents($start, $end);
+        // Suche mit Query (Titel) einschränken
+        $events = $svc->getEvents($start, $end, $title);
+        try {
+            $stmtCnt = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+            $stmtCnt->execute(['DEBUG', 'GC DELETE HINT: getEvents lieferte ' . (is_array($events) ? count($events) : -1) . ' Treffer', 'delete_google_calendar_event_by_hint']);
+        } catch (Throwable $t) {}
         if (!$events || !is_array($events)) {
             error_log('GC DELETE HINT: Keine Events im Zeitraum gefunden');
             try {
