@@ -55,6 +55,40 @@ if (isset($_POST['vehicle_data'])) {
     echo '<script>setTimeout(function() { window.location.href = "vehicle-selection.php"; }, 3000);</script>';
 }
 
+// Konflikt-Verarbeitung (wenn Benutzer trotz Konflikt fortfahren möchte)
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservation'])) {
+    echo '<script>console.log("🔍 Konflikt-Reservierung wird verarbeitet...");</script>';
+    
+    $csrf_token = $_POST['csrf_token'] ?? '';
+    
+    if (!validate_csrf_token($csrf_token)) {
+        $error = "Ungültiger Sicherheitstoken. Bitte versuchen Sie es erneut.";
+    } else {
+        // Verarbeite die Reservierung trotz Konflikt
+        $vehicle_id = (int)($_POST['conflict_vehicle_id'] ?? 0);
+        $requester_name = sanitize_input($_POST['requester_name'] ?? '');
+        $requester_email = sanitize_input($_POST['requester_email'] ?? '');
+        $reason = sanitize_input($_POST['reason'] ?? '');
+        $location = sanitize_input($_POST['location'] ?? '');
+        $start_datetime = sanitize_input($_POST['conflict_start_datetime'] ?? '');
+        $end_datetime = sanitize_input($_POST['conflict_end_datetime'] ?? '');
+        
+        if ($vehicle_id && $requester_name && $requester_email && $reason && $start_datetime && $end_datetime) {
+            try {
+                $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([])]);
+                
+                $message = "Reservierung wurde trotz Konflikt erfolgreich eingereicht. Bitte beachten Sie, dass es Überschneidungen mit anderen Reservierungen geben kann.";
+                echo '<script>setTimeout(function() { window.location.href = "vehicle-selection.php"; }, 3000);</script>';
+            } catch(PDOException $e) {
+                $error = "Fehler beim Speichern der Reservierung: " . $e->getMessage();
+            }
+        } else {
+            $error = "Ungültige Daten für die Konflikt-Reservierung.";
+        }
+    }
+}
+
 // Formular verarbeiten
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation'])) {
     echo '<script>console.log("🔍 Formular wird verarbeitet...");</script>';
@@ -136,9 +170,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 
                 // Debug: Prüfe Fahrzeug-Konflikte
                 if (check_vehicle_conflict($vehicle_id, $start_datetime, $end_datetime)) {
-                    $errors[] = "Zeitraum " . ($index + 1) . ": Das ausgewählte Fahrzeug ist in diesem Zeitraum bereits reserviert.";
-                    // Debug: Fahrzeug bereits reserviert
-                    continue;
+                    // Konflikt gefunden - zeige Modal mit Wahl
+                    $conflict_found = true;
+                    $conflict_timeframe = [
+                        'index' => $index + 1,
+                        'start' => $start_datetime,
+                        'end' => $end_datetime,
+                        'vehicle_id' => $vehicle_id,
+                        'vehicle_name' => $selectedVehicle['name']
+                    ];
+                    // Debug: Fahrzeug bereits reserviert - zeige Modal
+                    break; // Stoppe die Verarbeitung und zeige Modal
                 }
                 
                 // Debug: Validierung erfolgreich
@@ -607,6 +649,60 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             }
         });
         <?php endif; ?>
+        
+        // Konflikt-Modal anzeigen wenn nötig
+        <?php if (isset($conflict_found) && $conflict_found): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            const conflictModal = new bootstrap.Modal(document.getElementById('conflictModal'));
+            conflictModal.show();
+        });
+        <?php endif; ?>
     </script>
+    
+    <!-- Konflikt-Modal -->
+    <div class="modal fade" id="conflictModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle"></i> Fahrzeug bereits reserviert
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <h6><strong>Konflikt erkannt!</strong></h6>
+                        <p>Das ausgewählte Fahrzeug <strong><?php echo htmlspecialchars($conflict_timeframe['vehicle_name']); ?></strong> ist bereits für den gewünschten Zeitraum reserviert:</p>
+                        <ul class="mb-0">
+                            <li><strong>Zeitraum:</strong> <?php echo date('d.m.Y H:i', strtotime($conflict_timeframe['start'])); ?> - <?php echo date('d.m.Y H:i', strtotime($conflict_timeframe['end'])); ?></li>
+                        </ul>
+                    </div>
+                    
+                    <p>Möchten Sie den Antrag trotzdem einreichen? Der Administrator wird über den Konflikt informiert und kann entscheiden, ob beide Reservierungen möglich sind.</p>
+                    
+                    <div class="alert alert-info">
+                        <small><i class="fas fa-info-circle"></i> <strong>Hinweis:</strong> Bei einer Überschneidung kann es zu Problemen bei der Fahrzeugverfügbarkeit kommen.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <form method="POST" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <input type="hidden" name="conflict_vehicle_id" value="<?php echo $conflict_timeframe['vehicle_id']; ?>">
+                        <input type="hidden" name="conflict_start_datetime" value="<?php echo $conflict_timeframe['start']; ?>">
+                        <input type="hidden" name="conflict_end_datetime" value="<?php echo $conflict_timeframe['end']; ?>">
+                        <input type="hidden" name="requester_name" value="<?php echo htmlspecialchars($_POST['requester_name'] ?? ''); ?>">
+                        <input type="hidden" name="requester_email" value="<?php echo htmlspecialchars($_POST['requester_email'] ?? ''); ?>">
+                        <input type="hidden" name="reason" value="<?php echo htmlspecialchars($_POST['reason'] ?? ''); ?>">
+                        <input type="hidden" name="location" value="<?php echo htmlspecialchars($_POST['location'] ?? ''); ?>">
+                        <button type="submit" name="force_submit_reservation" class="btn btn-warning">
+                            <i class="fas fa-exclamation-triangle"></i> Antrag trotzdem versenden
+                        </button>
+                    </form>
+                    <button type="button" class="btn btn-secondary" onclick="window.location.href='reservation.php'">
+                        <i class="fas fa-times"></i> Antrag abbrechen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
