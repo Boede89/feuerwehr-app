@@ -78,12 +78,22 @@ try {
         $res = $stmt->fetch();
         if ($res && function_exists('delete_google_calendar_event_by_hint')) {
             $title = ($res['vehicle_name'] ?? '') . ' - ' . ($res['reason'] ?? '');
+            // DB-Logging: Fallback wird versucht
+            try {
+                $stmt2 = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+                $stmt2->execute(['INFO', 'DELETE-ENDPOINT: Versuche Fallback-Löschung per Hint: title=' . $title . ', start=' . $res['start_datetime'] . ', end=' . $res['end_datetime'], 'admin/delete-calendar-event.php']);
+            } catch (Throwable $t) {}
             $hintOk = delete_google_calendar_event_by_hint($title, $res['start_datetime'], $res['end_datetime']);
             if ($hintOk) {
                 error_log('DELETE-ENDPOINT: Fallback-Löschung per Hint erfolgreich für reservation_id=' . $reservation_id);
                 try {
                     $stmt = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
                     $stmt->execute(['INFO', 'DELETE-ENDPOINT: Fallback-Löschung per Hint erfolgreich für reservation_id=' . $reservation_id, 'admin/delete-calendar-event.php']);
+                } catch (Throwable $t) {}
+            } else {
+                try {
+                    $stmt3 = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+                    $stmt3->execute(['WARNING', 'DELETE-ENDPOINT: Fallback-Löschung per Hint NICHT erfolgreich für reservation_id=' . $reservation_id, 'admin/delete-calendar-event.php']);
                 } catch (Throwable $t) {}
             }
         }
