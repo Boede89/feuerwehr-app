@@ -276,7 +276,41 @@ class GoogleCalendarServiceAccount {
         
         $accessToken = $data['access_token'];
         
-        // Jetzt Event löschen mit dem Access Token
+        // Versuche mehrfaches Löschen mit verschiedenen Methoden
+        $success = false;
+        
+        // Methode 1: Standard DELETE
+        $success = $this->deleteEventWithStandardMethod($eventId, $accessToken);
+        if ($success) {
+            error_log("Event erfolgreich mit Standard-Methode gelöscht: $eventId");
+            return true;
+        }
+        
+        // Methode 2: DELETE mit showDeleted=false Parameter
+        $success = $this->deleteEventWithShowDeletedFalse($eventId, $accessToken);
+        if ($success) {
+            error_log("Event erfolgreich mit showDeleted=false gelöscht: $eventId");
+            return true;
+        }
+        
+        // Methode 3: Event zuerst stornieren, dann löschen
+        $success = $this->deleteEventByCancellingFirst($eventId, $accessToken);
+        if ($success) {
+            error_log("Event erfolgreich durch Stornierung gelöscht: $eventId");
+            return true;
+        }
+        
+        error_log("Alle Lösch-Methoden fehlgeschlagen für Event: $eventId");
+        return false;
+    }
+    
+    /**
+     * Event mit Standard DELETE Methode löschen
+     * @param string $eventId Event ID
+     * @param string $accessToken Access Token
+     * @return bool
+     */
+    private function deleteEventWithStandardMethod($eventId, $accessToken) {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, 'https://www.googleapis.com/calendar/v3/calendars/' . urlencode($this->calendarId) . '/events/' . urlencode($eventId));
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
@@ -290,10 +324,84 @@ class GoogleCalendarServiceAccount {
         $error = curl_error($ch);
         curl_close($ch);
         
-        error_log("Google Calendar deleteEventDirectly - Event ID: $eventId, HTTP Code: $httpCode, Response: $response, Error: $error");
+        error_log("Standard DELETE - Event ID: $eventId, HTTP Code: $httpCode, Response: $response, Error: $error");
         
-        // HTTP 204 = erfolgreich gelöscht
-        // HTTP 410 = bereits gelöscht (auch als Erfolg betrachten)
+        return $httpCode === 204 || $httpCode === 410;
+    }
+    
+    /**
+     * Event mit showDeleted=false Parameter löschen
+     * @param string $eventId Event ID
+     * @param string $accessToken Access Token
+     * @return bool
+     */
+    private function deleteEventWithShowDeletedFalse($eventId, $accessToken) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, 'https://www.googleapis.com/calendar/v3/calendars/' . urlencode($this->calendarId) . '/events/' . urlencode($eventId) . '?showDeleted=false');
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $accessToken
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        error_log("showDeleted=false DELETE - Event ID: $eventId, HTTP Code: $httpCode, Response: $response, Error: $error");
+        
+        return $httpCode === 204 || $httpCode === 410;
+    }
+    
+    /**
+     * Event durch Stornierung löschen
+     * @param string $eventId Event ID
+     * @param string $accessToken Access Token
+     * @return bool
+     */
+    private function deleteEventByCancellingFirst($eventId, $accessToken) {
+        // Zuerst Event stornieren
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, 'https://www.googleapis.com/calendar/v3/calendars/' . urlencode($this->calendarId) . '/events/' . urlencode($eventId));
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['status' => 'cancelled']));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $accessToken,
+            'Content-Type: application/json'
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        error_log("Event stornieren - Event ID: $eventId, HTTP Code: $httpCode, Response: $response, Error: $error");
+        
+        if ($httpCode !== 200) {
+            return false;
+        }
+        
+        // Warte kurz
+        sleep(1);
+        
+        // Jetzt Event löschen
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, 'https://www.googleapis.com/calendar/v3/calendars/' . urlencode($this->calendarId) . '/events/' . urlencode($eventId));
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $accessToken
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        error_log("Event nach Stornierung löschen - Event ID: $eventId, HTTP Code: $httpCode, Response: $response, Error: $error");
+        
         return $httpCode === 204 || $httpCode === 410;
     }
     
