@@ -405,9 +405,27 @@ function delete_google_calendar_event($event_id) {
         
         // Verwende die öffentliche deleteEvent Methode
         error_log("GC DELETE: Versuche deleteEvent für $event_id");
+        
+        // Zusätzlich in Datenbank loggen
+        try {
+            $stmt = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+            $stmt->execute(['INFO', "GC DELETE: Versuche deleteEvent für $event_id", "delete_google_calendar_event"]);
+        } catch (Exception $e) {
+            // Ignoriere DB-Log-Fehler
+        }
+        
         $result = $calendar_service->deleteEvent($event_id);
         if ($result) {
             error_log("GC DELETE: deleteEvent erfolgreich: $event_id");
+            
+            // Erfolg in Datenbank loggen
+            try {
+                $stmt = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+                $stmt->execute(['INFO', "GC DELETE: deleteEvent erfolgreich: $event_id", "delete_google_calendar_event"]);
+            } catch (Exception $e) {
+                // Ignoriere DB-Log-Fehler
+            }
+            
             return true;
         }
         // Manche Bibliotheken geben false zurück, wenn das Event bereits nicht mehr existiert
