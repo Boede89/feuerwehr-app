@@ -967,10 +967,28 @@ function remove_vehicle_from_calendar_event($google_event_id, $vehicle_name, $re
         $result = $google_calendar->updateEvent($google_event_id, $event);
         
         if ($result) {
-            // Datenbank aktualisieren
+            // Kalender-Event-Titel in allen Verknüpfungen aktualisieren
             $stmt = $db->prepare("UPDATE calendar_events SET title = ? WHERE google_event_id = ?");
             $stmt->execute([$new_title, $google_event_id]);
-            error_log("REMOVE VEHICLE: Erfolgreich - Fahrzeug '$vehicle_name' aus Event entfernt");
+
+            // Spezifische Reservierung (das entfernte Fahrzeug) aus DB entfernen
+            if (!empty($reservation_id)) {
+                try {
+                    $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
+                    $stmt->execute([$reservation_id]);
+                } catch (Exception $e) {
+                    error_log('REMOVE VEHICLE: Fehler beim Entfernen calendar_events für Reservierung ' . $reservation_id . ': ' . $e->getMessage());
+                }
+                try {
+                    $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
+                    $stmt->execute([$reservation_id]);
+                    error_log("REMOVE VEHICLE: Reservierung $reservation_id nach Teil-Entfernung gelöscht");
+                } catch (Exception $e) {
+                    error_log('REMOVE VEHICLE: Fehler beim Löschen der Reservierung ' . $reservation_id . ': ' . $e->getMessage());
+                }
+            }
+
+            error_log("REMOVE VEHICLE: Erfolgreich - Fahrzeug '$vehicle_name' aus Event entfernt und Reservierung bereinigt");
             return true;
         } else {
             error_log("REMOVE VEHICLE: Fehler beim Aktualisieren des Events");
