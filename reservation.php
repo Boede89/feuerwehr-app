@@ -52,7 +52,7 @@ if (isset($_POST['vehicle_data'])) {
     // Kein Fahrzeug ausgewählt, zeige Fehlermeldung und Weiterleitung
     echo '<script>console.log("❌ Kein Fahrzeug ausgewählt - Prüfe SessionStorage");</script>';
     $error = "Bitte wählen Sie zuerst ein Fahrzeug aus.";
-    echo '<script>setTimeout(function() { window.location.href = "vehicle-selection.php"; }, 3000);</script>';
+    echo '<script>setTimeout(function() { window.location.href = "index.php"; }, 3000);</script>';
 }
 
 // Konflikt-Verarbeitung (wenn Benutzer trotz Konflikt fortfahren möchte)
@@ -427,7 +427,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             <div class="alert alert-warning">
                                 <h6><i class="fas fa-exclamation-triangle"></i> Kein Fahrzeug ausgewählt</h6>
                                 <p class="mb-0">Bitte wählen Sie zuerst ein Fahrzeug aus der Fahrzeugauswahl aus.</p>
-                                <a href="vehicle-selection.php" class="btn btn-primary btn-sm mt-2">
+                                <a href="index.php" class="btn btn-primary btn-sm mt-2">
                                     <i class="fas fa-truck"></i> Fahrzeug auswählen
                                 </a>
                             </div>
@@ -490,7 +490,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             </div>
                             
                             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                <a href="vehicle-selection.php" class="btn btn-outline-secondary me-md-2">
+                                <a href="index.php" class="btn btn-outline-secondary me-md-2">
                                     <i class="fas fa-arrow-left"></i> Fahrzeug ändern
                                 </a>
                                 <?php if (isset($selectedVehicle['name'])): ?>
@@ -570,7 +570,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             } else {
                 console.log('❌ Kein Fahrzeug in SessionStorage gefunden');
                 // Kein Fahrzeug ausgewählt, zurück zur Auswahl
-                window.location.href = 'vehicle-selection.php';
+                window.location.href = 'index.php';
             }
         });
         
