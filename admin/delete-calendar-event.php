@@ -19,6 +19,22 @@ function safe_redirect_back($msg = '', $is_error = false) {
     exit;
 }
 
+// Stelle sicher, dass die Debug-Log-Tabelle existiert und schreibe einen Start-Logeintrag
+try {
+    $db->exec("CREATE TABLE IF NOT EXISTS debug_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        level ENUM('INFO','WARNING','ERROR','DEBUG') DEFAULT 'INFO',
+        message TEXT,
+        context TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )");
+    $stmt = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+    $stmt->execute(['INFO', 'DELETE-ENDPOINT aufgerufen', 'admin/delete-calendar-event.php']);
+} catch (Throwable $t) {
+    // still proceed even if logging table cannot be created
+}
+
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         safe_redirect_back('Ungültige Methode', true);
@@ -40,11 +56,19 @@ try {
                 $ok = delete_google_calendar_event($geid);
                 if (!$ok) {
                     error_log('DELETE-ENDPOINT: delete_google_calendar_event fehlgeschlagen für ' . $geid);
+                    try {
+                        $stmt = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+                        $stmt->execute(['WARNING', 'DELETE-ENDPOINT: delete_google_calendar_event fehlgeschlagen für ' . $geid, 'admin/delete-calendar-event.php']);
+                    } catch (Throwable $t) {}
                 }
             }
         }
     } else {
         error_log('DELETE-ENDPOINT: Keine calendar_events Verknüpfungen für reservation_id=' . $reservation_id);
+        try {
+            $stmt = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+            $stmt->execute(['INFO', 'DELETE-ENDPOINT: Keine calendar_events Verknüpfungen für reservation_id=' . $reservation_id, 'admin/delete-calendar-event.php']);
+        } catch (Throwable $t) {}
     }
 
     // Fallback per Titel/Zeitraum
@@ -57,10 +81,18 @@ try {
             $hintOk = delete_google_calendar_event_by_hint($title, $res['start_datetime'], $res['end_datetime']);
             if ($hintOk) {
                 error_log('DELETE-ENDPOINT: Fallback-Löschung per Hint erfolgreich für reservation_id=' . $reservation_id);
+                try {
+                    $stmt = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+                    $stmt->execute(['INFO', 'DELETE-ENDPOINT: Fallback-Löschung per Hint erfolgreich für reservation_id=' . $reservation_id, 'admin/delete-calendar-event.php']);
+                } catch (Throwable $t) {}
             }
         }
     } catch (Exception $ie) {
         error_log('DELETE-ENDPOINT: Fallback-Query Fehler: ' . $ie->getMessage());
+        try {
+            $stmt = $db->prepare("INSERT INTO debug_logs (level, message, context) VALUES (?, ?, ?)");
+            $stmt->execute(['ERROR', 'DELETE-ENDPOINT: Fallback-Query Fehler: ' . $ie->getMessage(), 'admin/delete-calendar-event.php']);
+        } catch (Throwable $t) {}
     }
 
     // Lokale Verknüpfungen entfernen (nie fatal)
