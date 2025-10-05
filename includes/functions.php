@@ -401,7 +401,7 @@ function delete_google_calendar_event($event_id) {
         
         // Erstelle GoogleCalendarServiceAccount mit korrekten Parametern
         $calendar_service = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
-        $result = $calendar_service->reallyDeleteEvent($event_id);
+        $result = $calendar_service->deleteEvent($event_id);
         
         if ($result) {
             error_log("Google Calendar Event erfolgreich gelöscht: $event_id");
