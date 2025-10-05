@@ -479,12 +479,16 @@ function create_or_update_google_calendar_event($vehicle_name, $reason, $start_d
             error_log('Kein bestehendes Event gefunden - erstelle neues');
             $title = $vehicle_name . ' - ' . $reason;
             
+            error_log('Rufe create_google_calendar_event auf mit: title=' . $title . ', reason=' . $reason . ', start=' . $start_datetime . ', end=' . $end_datetime . ', reservation_id=' . $reservation_id . ', location=' . ($location ?? 'null'));
+            
             $google_event_id = create_google_calendar_event($title, $reason, $start_datetime, $end_datetime, $reservation_id, $location);
+            
+            error_log('create_google_calendar_event Rückgabe: ' . ($google_event_id ? $google_event_id : 'FALSE'));
             
             // create_google_calendar_event erstellt bereits den calendar_events Eintrag
             // Daher kein zusätzliches INSERT nötig
             
-            error_log('create_google_calendar_event Ergebnis: ' . ($google_event_id ? $google_event_id : 'FALSE'));
+            error_log('create_or_update_google_calendar_event gibt zurück: ' . ($google_event_id ? $google_event_id : 'FALSE'));
             return $google_event_id;
         }
         
