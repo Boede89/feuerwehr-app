@@ -392,7 +392,7 @@ function delete_google_calendar_event($event_id) {
         
         $auth_type = $settings['google_calendar_auth_type'] ?? 'service_account';
         $calendar_id = $settings['google_calendar_id'] ?? 'primary';
-        $service_account_json = $settings['google_calendar_service_account'] ?? '';
+        $service_account_json = $settings['google_calendar_service_account_json'] ?? '';
         
         if (empty($service_account_json)) {
             error_log('Google Calendar Service Account JSON nicht gefunden');
