@@ -33,14 +33,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         $reservation = $stmt->fetch();
         
         if ($reservation && in_array($reservation['status'], ['approved', 'rejected'])) {
-            // Lösche Google Calendar Event NICHT - nur Datenbank-Einträge
+            // Hole Google Calendar Event ID vor dem Löschen
+            $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
+            $stmt->execute([$reservation_id]);
+            $calendar_event = $stmt->fetch();
+            
+            // Lösche aus Google Calendar (nur wenn Event ID vorhanden)
+            if ($calendar_event && !empty($calendar_event['google_event_id'])) {
+                $google_deleted = delete_google_calendar_event($calendar_event['google_event_id']);
+                if ($google_deleted) {
+                    error_log("Google Calendar Event gelöscht: " . $calendar_event['google_event_id']);
+                } else {
+                    error_log("Fehler beim Löschen des Google Calendar Events: " . $calendar_event['google_event_id']);
+                }
+            }
+            
+            // Lösche aus lokaler Datenbank
             $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
             $stmt->execute([$reservation_id]);
             
             $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
             $stmt->execute([$reservation_id]);
             
-            $message = "Reservierung erfolgreich gelöscht.";
+            $message = "Reservierung erfolgreich gelöscht (sowohl aus Datenbank als auch Google Calendar).";
         } else {
             $error = "Nur bearbeitete Reservierungen können gelöscht werden.";
         }

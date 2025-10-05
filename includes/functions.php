@@ -369,6 +369,32 @@ function check_calendar_conflicts($vehicle_name, $start_datetime, $end_datetime)
 }
 
 /**
+ * Google Calendar Event löschen
+ */
+function delete_google_calendar_event($event_id) {
+    try {
+        if (!class_exists('GoogleCalendarServiceAccount')) {
+            error_log('GoogleCalendarServiceAccount Klasse nicht verfügbar');
+            return false;
+        }
+        
+        $calendar_service = new GoogleCalendarServiceAccount();
+        $result = $calendar_service->deleteEvent($event_id);
+        
+        if ($result) {
+            error_log("Google Calendar Event erfolgreich gelöscht: $event_id");
+            return true;
+        } else {
+            error_log("Fehler beim Löschen des Google Calendar Events: $event_id");
+            return false;
+        }
+    } catch (Exception $e) {
+        error_log('Fehler beim Löschen des Google Calendar Events: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * Google Kalender API - Event erstellen
  */
 function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $end_datetime, $reservation_id = null, $location = null) {
