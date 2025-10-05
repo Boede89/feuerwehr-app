@@ -366,6 +366,9 @@ try {
                                                                     <i class="fas fa-calendar-xmark"></i> Nur Kalender löschen
                                                                 </button>
                                                             </form>
+                                                            <a href="link-calendar-event.php?reservation_id=<?php echo $reservation['id']; ?>" class="btn btn-sm btn-outline-secondary">
+                                                                <i class="fas fa-link"></i> Kalender-ID verknüpfen
+                                                            </a>
                                                             <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $reservation['id']; ?>">
                                                                 <i class="fas fa-trash"></i> Löschen
                                                             </button>
