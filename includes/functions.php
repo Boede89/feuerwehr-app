@@ -916,21 +916,23 @@ function remove_vehicle_from_calendar_event($google_event_id, $vehicle_name) {
         $current_title = $event['summary'] ?? '';
         error_log("REMOVE VEHICLE: Aktueller Titel: $current_title");
         
-        // Fahrzeug aus Titel entfernen
-        $new_title = remove_vehicle_from_title($current_title, $vehicle_name);
-        
-        if ($new_title === $current_title) {
-            error_log("REMOVE VEHICLE: Fahrzeug '$vehicle_name' nicht im Titel gefunden");
-            return false;
-        }
-        
-        // Prüfen, ob nach der Entfernung noch Fahrzeuge im Titel vorhanden sind
-        // Titelformat erwartet: "Fahrzeugliste - Grund"
-        $parts = explode(' - ', $new_title, 2);
-        $vehicle_part_after = trim($parts[0] ?? '');
-        $hasVehiclesLeft = $vehicle_part_after !== '';
+        // Titel in Fahrzeugs-Teil und Grund aufteilen
+        $titleParts = explode(' - ', $current_title, 2);
+        $vehiclesPart = trim($titleParts[0] ?? '');
+        $reasonPart = trim($titleParts[1] ?? '');
 
-        if (!$hasVehiclesLeft) {
+        // Liste der Fahrzeuge aus dem vorderen Titelteil extrahieren (kommagetrennt)
+        $vehicles = array_filter(array_map('trim', explode(',', $vehiclesPart)), function($v) { return $v !== ''; });
+
+        // Entferne das gewünschte Fahrzeug (case-insensitive Vergleich)
+        $vehiclesRemaining = [];
+        foreach ($vehicles as $v) {
+            if (strcasecmp($v, $vehicle_name) !== 0) {
+                $vehiclesRemaining[] = $v;
+            }
+        }
+
+        if (empty($vehiclesRemaining)) {
             // Kein Fahrzeug mehr im Titel -> gesamten Kalendereintrag löschen
             error_log("REMOVE VEHICLE: Keine Fahrzeuge mehr im Titel – lösche komplettes Event $google_event_id");
             $deleted = $google_calendar->deleteEvent($google_event_id);
@@ -948,6 +950,9 @@ function remove_vehicle_from_calendar_event($google_event_id, $vehicle_name) {
             return false;
         }
 
+        // Neuen Titel zusammenbauen: verbleibende Fahrzeuge + unveränderter Grund
+        $newVehiclesPart = implode(', ', $vehiclesRemaining);
+        $new_title = $reasonPart !== '' ? ($newVehiclesPart . ' - ' . $reasonPart) : $newVehiclesPart;
         error_log("REMOVE VEHICLE: Neuer Titel: $new_title");
         
         // Event aktualisieren
