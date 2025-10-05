@@ -8,11 +8,17 @@ require_once 'includes/functions.php';
 
 echo "<h1>🔍 Debug: Weiterleitungs-Problem</h1>";
 
+// Hole eine echte vehicle_id
+$stmt = $db->prepare("SELECT id FROM vehicles LIMIT 1");
+$stmt->execute();
+$vehicle = $stmt->fetch();
+$vehicle_id = $vehicle ? $vehicle['id'] : 1;
+
 // Simuliere Force Submit POST
 $_SERVER['REQUEST_METHOD'] = 'POST';
 $_POST['force_submit_reservation'] = '1';
 $_POST['csrf_token'] = generate_csrf_token();
-$_POST['conflict_vehicle_id'] = '1';
+$_POST['conflict_vehicle_id'] = $vehicle_id;
 $_POST['conflict_start_datetime'] = '2025-01-15 10:00:00';
 $_POST['conflict_end_datetime'] = '2025-01-15 12:00:00';
 $_POST['requester_name'] = 'Test User';

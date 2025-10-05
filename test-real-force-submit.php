@@ -1,14 +1,14 @@
 <?php
 /**
- * Test: Force Submit Weiterleitung
+ * Test: Echter Force Submit Test
  */
 
 require_once 'config/database.php';
 require_once 'includes/functions.php';
 
-echo "<h1>🧪 Force Submit Weiterleitung Test</h1>";
+echo "<h1>🧪 Echter Force Submit Test</h1>";
 
-// 1. Erstelle Test-Reservierung für Konflikt
+// 1. Erstelle Test-Konflikt mit echten Daten
 echo "<h2>1. Erstelle Test-Konflikt</h2>";
 
 try {
@@ -22,11 +22,11 @@ try {
         exit;
     }
     
-    echo "<p>Verwende Fahrzeug: " . htmlspecialchars($vehicle['name']) . "</p>";
+    echo "<p>Verwende Fahrzeug: " . htmlspecialchars($vehicle['name']) . " (ID: " . $vehicle['id'] . ")</p>";
     
     // Erstelle erste Reservierung (wird genehmigt)
-    $start_datetime = date('Y-m-d H:i:s', strtotime('+1 day 14:00'));
-    $end_datetime = date('Y-m-d H:i:s', strtotime('+1 day 16:00'));
+    $start_datetime = date('Y-m-d H:i:s', strtotime('+1 day 15:00'));
+    $end_datetime = date('Y-m-d H:i:s', strtotime('+1 day 17:00'));
     
     $stmt = $db->prepare("
         INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, status, created_at) 
@@ -35,10 +35,10 @@ try {
     
     $result = $stmt->execute([
         $vehicle['id'],
-        'Test User',
-        'test@example.com',
-        'Test-Reservierung für Konflikt',
-        'Test-Ort',
+        'Max Mustermann',
+        'max.mustermann@example.com',
+        'Übung: Brandbekämpfung',
+        'Feuerwehrhaus',
         $start_datetime,
         $end_datetime
     ]);
@@ -51,13 +51,12 @@ try {
         exit;
     }
     
-    // 2. Teste Force Submit Formular
-    echo "<h2>2. Teste Force Submit Formular</h2>";
+    // 2. Teste Force Submit mit echten Daten
+    echo "<h2>2. Teste Force Submit mit echten Daten</h2>";
     
-    echo "<form method='POST' action='reservation.php'>";
+    echo "<form method='POST' action='reservation.php' id='forceSubmitForm'>";
     echo "<input type='hidden' name='csrf_token' value='" . generate_csrf_token() . "'>";
     echo "<input type='hidden' name='conflict_vehicle_id' value='" . $vehicle['id'] . "'>";
-    echo "<p><strong>Verwende Vehicle ID:</strong> " . $vehicle['id'] . "</p>";
     echo "<input type='hidden' name='conflict_start_datetime' value='$start_datetime'>";
     echo "<input type='hidden' name='conflict_end_datetime' value='$end_datetime'>";
     echo "<input type='hidden' name='requester_name' value='Test User 2'>";
@@ -65,14 +64,27 @@ try {
     echo "<input type='hidden' name='reason' value='Test Force Submit'>";
     echo "<input type='hidden' name='location' value='Test-Ort'>";
     echo "<button type='submit' name='force_submit_reservation' class='btn btn-warning'>";
-    echo "<i class='fas fa-exclamation-triangle'></i> Teste Force Submit (sollte zur Startseite weiterleiten)";
+    echo "<i class='fas fa-exclamation-triangle'></i> Teste Force Submit (echte Daten)";
     echo "</button>";
     echo "</form>";
     
-    echo "<p><small>Klicken Sie auf den Button, um die Weiterleitung zur Startseite zu testen.</small></p>";
+    echo "<p><small>Klicken Sie auf den Button, um den echten Force Submit zu testen.</small></p>";
     
-    // 3. Zeige bestehende Reservierungen
-    echo "<h2>3. Bestehende Reservierungen</h2>";
+    // 3. JavaScript für Debug
+    echo "<h2>3. Debug-Informationen</h2>";
+    echo "<div id='debug-info'></div>";
+    
+    echo "<script>";
+    echo "document.getElementById('forceSubmitForm').addEventListener('submit', function(e) {";
+    echo "  console.log('🔍 Force Submit Form wird abgesendet...');";
+    echo "  console.log('Vehicle ID:', " . $vehicle['id'] . ");";
+    echo "  console.log('Start DateTime:', '$start_datetime');";
+    echo "  console.log('End DateTime:', '$end_datetime');";
+    echo "});";
+    echo "</script>";
+    
+    // 4. Zeige bestehende Reservierungen
+    echo "<h2>4. Bestehende Reservierungen</h2>";
     
     $stmt = $db->prepare("
         SELECT r.*, v.name as vehicle_name 
