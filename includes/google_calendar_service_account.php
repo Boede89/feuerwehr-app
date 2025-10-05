@@ -263,6 +263,66 @@ class GoogleCalendarServiceAccount {
     }
     
     /**
+     * Event wirklich vollständig löschen (auch stornierte Events)
+     * @param string $eventId Event ID
+     * @return bool
+     */
+    public function reallyDeleteEvent($eventId) {
+        $accessToken = $this->getAccessToken();
+        
+        // Mehrfache Löschversuche für stornierte Events
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            error_log("Löschversuch $attempt für Event: $eventId");
+            
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, 'https://www.googleapis.com/calendar/v3/calendars/' . urlencode($this->calendarId) . '/events/' . urlencode($eventId));
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $accessToken
+            ]);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+            
+            error_log("Löschversuch $attempt - HTTP Code: $httpCode, Response: $response, Error: $error");
+            
+            // HTTP 204 = erfolgreich gelöscht
+            // HTTP 410 = bereits gelöscht
+            if ($httpCode === 204 || $httpCode === 410) {
+                error_log("Event erfolgreich gelöscht (Versuch $attempt): $eventId");
+                return true;
+            }
+            
+            // Warte kurz vor dem nächsten Versuch
+            if ($attempt < 3) {
+                sleep(2);
+            }
+        }
+        
+        // Prüfe ob Event noch existiert
+        try {
+            $event = $this->getEvent($eventId);
+            
+            if (isset($event['status']) && $event['status'] === 'cancelled') {
+                error_log("Event ist cancelled nach Löschversuchen - betrachte als gelöscht: $eventId");
+                return true;
+            }
+            
+        } catch (Exception $e) {
+            if (strpos($e->getMessage(), '404') !== false) {
+                error_log("Event nicht gefunden (404) nach Löschversuchen - erfolgreich gelöscht: $eventId");
+                return true;
+            }
+        }
+        
+        error_log("Event konnte nicht vollständig gelöscht werden: $eventId");
+        return false;
+    }
+    
+    /**
      * Prüfe ob Event wirklich gelöscht ist (ignoriert stornierte Events)
      * @param string $eventId Event ID
      * @return bool true wenn gelöscht oder storniert
