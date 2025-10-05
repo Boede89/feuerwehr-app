@@ -401,7 +401,7 @@ function delete_google_calendar_event($event_id) {
         
         // Erstelle GoogleCalendarServiceAccount mit korrekten Parametern
         $calendar_service = new GoogleCalendarServiceAccount($service_account_json, $calendar_id, true);
-        $result = $calendar_service->forceDeleteEvent($event_id);
+        $result = $calendar_service->reallyDeleteEvent($event_id);
         
         if ($result) {
             error_log("Google Calendar Event erfolgreich gelöscht: $event_id");
@@ -484,7 +484,7 @@ function create_google_calendar_event($vehicle_name, $reason, $start_datetime, $
         
         // Event-Details erstellen
         $title = $vehicle_name . ' - ' . $reason;
-        $description = "Fahrzeugreservierung über Feuerwehr App\nFahrzeug: $vehicle_name\nGrund: $reason\nOrt: " . ($location ?? 'Nicht angegeben');
+        $description = $location ?? 'Nicht angegeben';
         
         error_log('Google Calendar: Event-Details - title=' . $title . ', description=' . $description);
         
