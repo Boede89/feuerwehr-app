@@ -308,20 +308,39 @@ if (!$isAdmin && !$canAtemschutz) {
                                 $uebungAm = $fmtDate($t['uebung_am'] ?? null);
                                 $uebungBis = $bisUebung($t['uebung_am'] ?? null);
                                 $status = $t['status'] ?? 'Aktiv';
-                                    // Status anhand Bis-Daten bestimmen
+                                    // Status anhand Bis-Daten bestimmen (inkl. Sonderfall: Übung abgelaufen)
                                     $now = new DateTime('today');
-                                    $isExpired = false; $isWarn = false;
-                                    $datesCheck = [];
-                                    if (!empty($t['strecke_bis'])) { $datesCheck[] = new DateTime($t['strecke_bis']); }
-                                    if (!empty($t['g263_bis'])) { $datesCheck[] = new DateTime($t['g263_bis']); }
-                                    if (!empty($t['uebung_bis'])) { $datesCheck[] = new DateTime($t['uebung_bis']); }
-                                    foreach ($datesCheck as $d) {
-                                        $diff = (int)$now->diff($d)->format('%r%a');
-                                        if ($diff < 0) { $isExpired = true; break; }
-                                        if ($diff <= $warnDays) { $isWarn = true; }
+                                    $streckeExpired = false; $g263Expired = false; $uebungExpired = false;
+                                    $anyWarn = false;
+                                    if (!empty($t['strecke_bis'])) {
+                                        $diff = (int)$now->diff(new DateTime($t['strecke_bis']))->format('%r%a');
+                                        if ($diff < 0) { $streckeExpired = true; }
+                                        elseif ($diff <= $warnDays) { $anyWarn = true; }
                                     }
-                                    $statusText = $isExpired ? 'Abgelaufen' : ($isWarn ? 'Warnung' : 'Tauglich');
-                                    $statusClass = $isExpired ? 'bg-danger' : ($isWarn ? 'bg-warning text-dark' : 'bg-success');
+                                    if (!empty($t['g263_bis'])) {
+                                        $diff = (int)$now->diff(new DateTime($t['g263_bis']))->format('%r%a');
+                                        if ($diff < 0) { $g263Expired = true; }
+                                        elseif ($diff <= $warnDays) { $anyWarn = true; }
+                                    }
+                                    if (!empty($t['uebung_bis'])) {
+                                        $diff = (int)$now->diff(new DateTime($t['uebung_bis']))->format('%r%a');
+                                        if ($diff < 0) { $uebungExpired = true; }
+                                        elseif ($diff <= $warnDays) { $anyWarn = true; }
+                                    }
+
+                                    if ($streckeExpired || $g263Expired) {
+                                        $statusText = 'Abgelaufen';
+                                        $statusClass = 'bg-danger';
+                                    } elseif ($uebungExpired && !$streckeExpired && !$g263Expired) {
+                                        $statusText = 'Übung abgelaufen';
+                                        $statusClass = 'bg-danger';
+                                    } elseif ($anyWarn) {
+                                        $statusText = 'Warnung';
+                                        $statusClass = 'bg-warning text-dark';
+                                    } else {
+                                        $statusText = 'Tauglich';
+                                        $statusClass = 'bg-success';
+                                    }
                             ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($name); ?></td>
