@@ -163,31 +163,7 @@ if (isset($_POST['test_email_btn'])) {
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="dashboard.php">
-                            <i class="fas fa-tachometer-alt"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="reservations.php">
-                            <i class="fas fa-calendar-check"></i> Reservierungen
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="vehicles.php">
-                            <i class="fas fa-truck"></i> Fahrzeuge
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="users.php">
-                            <i class="fas fa-users"></i> Benutzer
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="settings.php">
-                            <i class="fas fa-cog"></i> Einstellungen
-                        </a>
-                    </li>
+                    <?php echo get_admin_navigation(); ?>
                 </ul>
                 <ul class="navbar-nav">
                     <li class="nav-item dropdown">
