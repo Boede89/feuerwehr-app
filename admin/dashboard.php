@@ -569,7 +569,7 @@ try {
                                                 </td>
                                                 <td class="text-end">
                                                     <div class="btn-group" role="group">
-                                                        <button type="button" class="btn btn-sm btn-outline-primary btn-edit-traeger"
+                                                        <button type="button" class="btn btn-sm btn-outline-primary btn-edit-traeger" data-bs-toggle="modal" data-bs-target="#editTraegerDashModal"
                                                             data-id="<?php echo (int)$it['id']; ?>"
                                                             data-name="<?php echo htmlspecialchars($it['name']); ?>">
                                                             <i class="fas fa-pen"></i> Bearbeiten
@@ -1217,8 +1217,12 @@ try {
             const id = btn.getAttribute('data-id');
             const name = btn.getAttribute('data-name') || '';
             // Wir holen Details live nach
-            fetch('/admin/atemschutz-get.php?id=' + encodeURIComponent(id))
+            const absoluteUrl = '/admin/atemschutz-get.php?id=' + encodeURIComponent(id);
+            const relativeUrl = 'atemschutz-get.php?id=' + encodeURIComponent(id);
+            fetch(absoluteUrl)
                 .then(r => r.ok ? r.json() : null)
+                .catch(() => null)
+                .then(data => data ? data : fetch(relativeUrl).then(r => r.ok ? r.json() : null).catch(()=>null))
                 .then(data => {
                     document.getElementById('dash_edit_id').value = id;
                     document.getElementById('dash_edit_name').value = name;
@@ -1230,6 +1234,15 @@ try {
                         document.getElementById('dash_edit_strecke_am').value = data.data.strecke_am || '';
                         document.getElementById('dash_edit_g263_am').value = data.data.g263_am || '';
                         document.getElementById('dash_edit_uebung_am').value = data.data.uebung_am || '';
+                    } else {
+                        // Fallback: Felder leeren, Modal trotzdem öffnen, damit kein JS-Fehler entsteht
+                        document.getElementById('dash_edit_first_name').value = '';
+                        document.getElementById('dash_edit_last_name').value = '';
+                        document.getElementById('dash_edit_email').value = '';
+                        document.getElementById('dash_edit_birthdate').value = '';
+                        document.getElementById('dash_edit_strecke_am').value = '';
+                        document.getElementById('dash_edit_g263_am').value = '';
+                        document.getElementById('dash_edit_uebung_am').value = '';
                     }
                     try {
                         const modalEl = document.getElementById('editTraegerDashModal');
