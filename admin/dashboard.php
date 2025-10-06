@@ -1125,7 +1125,7 @@ try {
         });
 
         // Benachrichtigung einzelner Geräteträger (mit E-Mail-Fallback)
-        async function notifyAtemschutz(id){
+        window.notifyAtemschutz = async function(id){
             try {
                 const r = await fetch('/admin/atemschutz-get.php?id='+encodeURIComponent(id));
                 const data = await r.json();
@@ -1152,7 +1152,7 @@ try {
             } catch(e){ alert('Fehler: '+e.message); }
         }
         // Benachrichtigung aller mit E-Mail
-        async function notifyAllAtemschutz(){
+        window.notifyAllAtemschutz = async function(){
             try {
                 const res = await fetch('/admin/atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ all:true }) });
                 const j = await res.json();
@@ -1232,7 +1232,6 @@ try {
                 .catch(()=>{});
         });
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <?php endif; ?>
 </body>
 </html>
