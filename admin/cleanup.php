@@ -17,6 +17,7 @@ if (!isset($_SESSION['user_id']) || !is_admin($_SESSION['user_id'])) {
 $message = '';
 $error = '';
 
+
 // Cleanup ausführen
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'cleanup') {
     try {
@@ -193,10 +194,12 @@ $expired_reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <p>Dieses Tool löscht automatisch abgelaufene Reservierungen aus der Datenbank und dem Google Calendar.</p>
                                 <p><strong>Gefunden:</strong> <?php echo count($expired_reservations); ?> abgelaufene Reservierungen</p>
                                 <p><strong>Kriterien:</strong> Reservierungen mit <code>end_datetime < NOW()</code> und Status <code>approved</code> oder <code>pending</code></p>
+                                <p><strong>Automatisierung:</strong> Läuft täglich um 3:00 Uhr automatisch im Hintergrund (keine Benachrichtigungen an Antragsteller)</p>
                             </div>
                         </div>
                     </div>
                 </div>
+
 
                 <!-- Cleanup Actions -->
                 <div class="row mb-4">
