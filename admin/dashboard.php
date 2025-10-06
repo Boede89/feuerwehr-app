@@ -388,6 +388,110 @@ try {
             </div>
         </div>
 
+        <?php if (has_permission('atemschutz')): ?>
+        <!-- Atemschutz Abschnitt -->
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="card shadow">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-lungs"></i> Atemschutz</h6>
+                        <a href="atemschutz.php" class="btn btn-sm btn-outline-primary"><i class="fas fa-lungs"></i> Atemschutz öffnen</a>
+                    </div>
+                    <div class="card-body">
+                        <?php
+                        // Warn-/Abgelaufen-Liste berechnen
+                        $warnDays = 90;
+                        try {
+                            $s = $db->prepare("SELECT setting_value FROM settings WHERE setting_key='atemschutz_warn_days' LIMIT 1");
+                            $s->execute();
+                            $val = $s->fetchColumn();
+                            if ($val !== false && is_numeric($val)) { $warnDays = (int)$val; }
+                        } catch (Exception $e) {}
+
+                        $now = new DateTime('today');
+                        $stmta = $db->prepare("SELECT id, first_name, last_name, birthdate, strecke_am, g263_am, uebung_am FROM atemschutz_traeger");
+                        $stmta->execute();
+                        $rows = $stmta->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+                        $items = [];
+                        foreach ($rows as $r) {
+                            $age = 0; if (!empty($r['birthdate'])) { try { $age = (new DateTime($r['birthdate']))->diff($now)->y; } catch (Exception $e) {} }
+                            $streckeBis = !empty($r['strecke_am']) ? (new DateTime($r['strecke_am']))->modify('+1 year') : null;
+                            $g263Bis = null; if (!empty($r['g263_am'])) { $g = new DateTime($r['g263_am']); $g->modify(($age < 50 ? '+3 year' : '+1 year')); $g263Bis = $g; }
+                            $uebungBis = !empty($r['uebung_am']) ? (new DateTime($r['uebung_am']))->modify('+1 year') : null;
+                            $streckeDiff = $streckeBis ? (int)$now->diff($streckeBis)->format('%r%a') : null;
+                            $g263Diff = $g263Bis ? (int)$now->diff($g263Bis)->format('%r%a') : null;
+                            $uebungDiff = $uebungBis ? (int)$now->diff($uebungBis)->format('%r%a') : null;
+
+                            $streckeExpired = $streckeDiff !== null && $streckeDiff < 0;
+                            $g263Expired = $g263Diff !== null && $g263Diff < 0;
+                            $uebungExpired = $uebungDiff !== null && $uebungDiff < 0;
+                            $anyWarn = ($streckeDiff !== null && $streckeDiff <= $warnDays && $streckeDiff >= 0)
+                                     || ($g263Diff !== null && $g263Diff <= $warnDays && $g263Diff >= 0)
+                                     || ($uebungDiff !== null && $uebungDiff <= $warnDays && $uebungDiff >= 0);
+
+                            $status = 'tauglich';
+                            if ($streckeExpired || $g263Expired) { $status = 'abgelaufen'; }
+                            elseif ($uebungExpired && !$streckeExpired && !$g263Expired) { $status = 'uebung_abgelaufen'; }
+                            elseif ($anyWarn) { $status = 'warnung'; }
+
+                            if (in_array($status, ['warnung','uebung_abgelaufen','abgelaufen'], true)) {
+                                $items[] = [
+                                    'name' => trim(($r['last_name'] ?? '') . ', ' . ($r['first_name'] ?? '')),
+                                    'strecke_bis' => $streckeBis ? $streckeBis->format('d.m.Y') : '',
+                                    'g263_bis' => $g263Bis ? $g263Bis->format('d.m.Y') : '',
+                                    'uebung_bis' => $uebungBis ? $uebungBis->format('d.m.Y') : '',
+                                    'status' => $status,
+                                ];
+                            }
+                        }
+                        ?>
+
+                        <?php if (empty($items)): ?>
+                            <div class="text-center text-muted py-4">Keine Auffälligkeiten</div>
+                        <?php else: ?>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0 text-danger"><i class="fas fa-triangle-exclamation"></i> Auffällige Geräteträger</h6>
+                                <a class="btn btn-sm btn-outline-secondary" href="#" onclick="alert('Funktion folgt'); return false;"><i class="fas fa-paper-plane"></i> Geräteträger benachrichtigen</a>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Strecke Bis</th>
+                                            <th>G26.3 Bis</th>
+                                            <th>Übung/Einsatz Bis</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($items as $it): ?>
+                                            <tr>
+                                                <td><?php echo htmlspecialchars($it['name']); ?></td>
+                                                <td><?php echo htmlspecialchars($it['strecke_bis']); ?></td>
+                                                <td><?php echo htmlspecialchars($it['g263_bis']); ?></td>
+                                                <td><?php echo htmlspecialchars($it['uebung_bis']); ?></td>
+                                                <td>
+                                                    <?php if ($it['status']==='abgelaufen'): ?>
+                                                        <span class="badge bg-danger">Abgelaufen</span>
+                                                    <?php elseif ($it['status']==='uebung_abgelaufen'): ?>
+                                                        <span class="badge bg-danger">Übung abgelaufen</span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-warning text-dark">Warnung</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
         <?php if (has_permission('reservations')): ?>
         <div class="row">
             <!-- Fahrzeugreservierungen -->
