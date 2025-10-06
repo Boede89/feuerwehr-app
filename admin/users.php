@@ -197,7 +197,7 @@ try {
                                         <th>Benutzername</th>
                                         <th>E-Mail</th>
                                         <th>Name</th>
-                                        <th>Rolle</th>
+                                        <!-- Rolle entfernt -->
                                         <th>Berechtigungen</th>
                                         <th>E-Mail-Benachrichtigungen</th>
                                         <th>Status</th>
@@ -211,17 +211,7 @@ try {
                                             <td><strong><?php echo htmlspecialchars($user['username']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($user['email']); ?></td>
                                             <td><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></td>
-                                            <td>
-                                                <?php
-                                                $role_labels = [
-                                                    'admin' => ['bg-danger', 'Administrator'],
-                                                    'approver' => ['bg-warning', 'Genehmiger'],
-                                                    'user' => ['bg-secondary', 'Benutzer']
-                                                ];
-                                                $role_info = $role_labels[$user['user_role']] ?? ['bg-secondary', 'Unbekannt'];
-                                                ?>
-                                                <span class="badge <?php echo $role_info[0]; ?>"><?php echo $role_info[1]; ?></span>
-                                            </td>
+                                            <!-- Rolle-Spalte entfernt -->
                                             <td>
                                                 <div class="d-flex flex-wrap gap-1">
                                                     <?php if ($user['is_admin']): ?>
@@ -318,9 +308,9 @@ try {
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="is_admin" name="is_admin">
+                                        <input class="form-check-input" type="checkbox" id="is_admin" name="is_admin" onchange="toggleAdminPermissions(this.checked)">
                                         <label class="form-check-label" for="is_admin">
-                                            <strong>Administrator</strong> - Vollzugriff auf alles
+                                            <strong>Administrator</strong>
                                         </label>
                                     </div>
                                     <div class="form-check">
@@ -461,6 +451,7 @@ try {
                 document.getElementById('can_users').checked = canUsers == 1;
                 document.getElementById('can_settings').checked = canSettings == 1;
                 document.getElementById('can_vehicles').checked = canVehicles == 1;
+                toggleAdminPermissions(isAdmin == 1);
                 
                 document.getElementById('action').value = 'edit';
                 document.getElementById('submitButton').textContent = 'Aktualisieren';
@@ -476,6 +467,14 @@ try {
         
         // Event Listener für Modal-Schließung hinzufügen
         document.addEventListener('DOMContentLoaded', function() {
+            // Admin-Checkbox initial toggeln
+            const adminCheckbox = document.getElementById('is_admin');
+            if (adminCheckbox) {
+                toggleAdminPermissions(adminCheckbox.checked);
+                adminCheckbox.addEventListener('change', function(){
+                    toggleAdminPermissions(this.checked);
+                });
+            }
             // Abbrechen Button
             const cancelButton = document.querySelector('#userModal .btn-secondary');
             if (cancelButton) {
@@ -503,5 +502,20 @@ try {
             }
         });
     </script>
+        <script>
+        function toggleAdminPermissions(isAdmin) {
+            const permIds = ['can_reservations', 'can_atemschutz', 'can_users', 'can_settings', 'can_vehicles'];
+            permIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (isAdmin) {
+                    el.checked = true;
+                    el.disabled = true;
+                } else {
+                    el.disabled = false;
+                }
+            });
+        }
+        </script>
 </body>
 </html>
