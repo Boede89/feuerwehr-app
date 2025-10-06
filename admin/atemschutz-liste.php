@@ -17,26 +17,33 @@ if (empty($_SESSION['user_id'])) {
     exit;
 }
 
-// Berechtigung: zuerst Session, dann DB-Fallback
+// Berechtigung: Admin hat immer Zugriff; sonst Atemschutz-Recht
+$isAdmin = !empty($_SESSION['is_admin']) && (int)$_SESSION['is_admin'] === 1;
 $canAtemschutz = !empty($_SESSION['can_atemschutz']) && (int)$_SESSION['can_atemschutz'] === 1;
 $permissionWarning = null;
-if (!$canAtemschutz) {
-    try {
-        $uid = (int)($_SESSION['user_id'] ?? 0);
-        if ($uid > 0) {
-            $stmtPerm = $db->prepare('SELECT can_atemschutz FROM users WHERE id = ?');
-            $stmtPerm->execute([$uid]);
-            $rowPerm = $stmtPerm->fetch(PDO::FETCH_ASSOC);
-            if ($rowPerm && (int)($rowPerm['can_atemschutz'] ?? 0) === 1) {
+
+try {
+    $uid = (int)($_SESSION['user_id'] ?? 0);
+    if ($uid > 0) {
+        $stmtPerm = $db->prepare('SELECT is_admin, can_atemschutz FROM users WHERE id = ?');
+        $stmtPerm->execute([$uid]);
+        $rowPerm = $stmtPerm->fetch(PDO::FETCH_ASSOC);
+        if ($rowPerm) {
+            if ((int)($rowPerm['is_admin'] ?? 0) === 1) {
+                $isAdmin = true;
+                $_SESSION['is_admin'] = 1; // Session synchronisieren
+            }
+            if ((int)($rowPerm['can_atemschutz'] ?? 0) === 1) {
                 $canAtemschutz = true;
                 $_SESSION['can_atemschutz'] = 1; // Session synchronisieren
             }
         }
-    } catch (Exception $e) {
-        // Ignorieren, fällt unten auf 403 zurück
     }
+} catch (Exception $e) {
+    // still proceed below
 }
-if (!$canAtemschutz) {
+
+if (!$isAdmin && !$canAtemschutz) {
     // Temporär: Seite dennoch anzeigen, aber Hinweis einblenden
     $permissionWarning = 'Hinweis: Ihnen fehlt aktuell die Berechtigung "Atemschutz". Anzeige erfolgt vorübergehend zu Testzwecken.';
 }
