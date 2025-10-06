@@ -1133,7 +1133,9 @@ try {
                 let { email, first_name, last_name } = data.data || {};
                 if (!email) {
                     // schönes Modal öffnen
-                    const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('emailEntryModal'));
+                    const modalEl = document.getElementById('emailEntryModal');
+                    if (!modalEl || !(window.bootstrap && bootstrap.Modal)) { alert('Modal nicht verfügbar. Bitte Seite neu laden.'); return; }
+                    const m = bootstrap.Modal.getOrCreateInstance(modalEl);
                     document.getElementById('email_entry_id').value = String(id);
                     document.getElementById('email_entry_name').value = `${last_name || ''}, ${first_name || ''}`.trim();
                     document.getElementById('email_entry_email').value = '';
@@ -1196,9 +1198,13 @@ try {
                 } catch(e){ err.textContent = e.message; err.classList.remove('d-none'); }
             });
         }
-        // Bootstrap Dropdowns sicher initialisieren
-        document.querySelectorAll('.dropdown-toggle').forEach(function(el){
-            try { bootstrap.Dropdown.getOrCreateInstance(el); } catch(e){}
+        // Bootstrap Dropdowns sicher initialisieren (nach bundle load)
+        document.addEventListener('DOMContentLoaded', function(){
+            try {
+                document.querySelectorAll('.dropdown-toggle').forEach(function(el){
+                    try { bootstrap.Dropdown.getOrCreateInstance(el); } catch(_){}
+                });
+            } catch(_) {}
         });
 
         // Prefill für Atemschutz-Dashboard-Edit-Modal
