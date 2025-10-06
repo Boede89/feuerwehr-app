@@ -58,10 +58,10 @@ if (!isset($_SESSION['user_id']) || !has_permission('atemschutz')) {
                 </button>
             </div>
             <div class="col-12 col-md-6">
-                <button class="btn btn-outline-primary w-100 py-4" id="btnShowList">
+                <a class="btn btn-outline-primary w-100 py-4" href="atemschutz-liste.php" id="btnShowListLink">
                     <i class="fas fa-list fa-2x mb-2 d-block"></i>
                     <span class="fs-5">Aktuelle Liste anzeigen</span>
-                </button>
+                </a>
             </div>
             <div class="col-12 col-md-6">
                 <button class="btn btn-outline-success w-100 py-4" id="btnPlanTraining">
@@ -88,12 +88,7 @@ if (!isset($_SESSION['user_id']) || !has_permission('atemschutz')) {
         const onClickInfo = (msg) => () => alert(msg + "\n(Funktion folgt)");
         const q = (id) => document.getElementById(id);
         // Button-Aktionen: Liste öffnet neue Seite
-        const btnShowList = q('btnShowList');
-        if (btnShowList) {
-            btnShowList.addEventListener('click', function(){
-                window.location.href = 'atemschutz-liste.php';
-            });
-        }
+        // Kein JS-Redirect nötig – echter Link wird verwendet
 
         // Platzhalter für andere Buttons
         const other = {
