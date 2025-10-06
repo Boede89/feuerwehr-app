@@ -400,9 +400,9 @@ try {
             <div class="col-12">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h1 class="h3 mb-0">
-                        <i class="fas fa-tachometer-alt"></i> Dashboard
-                        <small class="text-muted">Willkommen zurück, <?php echo htmlspecialchars($_SESSION['first_name'] ?? 'Admin'); ?>!</small>
-                    </h1>
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                    <small class="text-muted">Willkommen zurück, <?php echo htmlspecialchars($_SESSION['first_name'] ?? 'Admin'); ?>!</small>
+                </h1>
                 </div>
                 
                 <?php if ($message): ?>
@@ -596,7 +596,7 @@ try {
                         <div class="d-flex justify-content-between align-items-center">
                             <h6 class="m-0 font-weight-bold text-primary">
                                 <i class="fas fa-truck"></i> Fahrzeugreservierungen
-                            </h6>
+                        </h6>
                             <a href="reservations.php" class="btn btn-sm btn-primary">
                                 <i class="fas fa-calendar-check"></i> Reservierungen verwalten
                             </a>
@@ -769,7 +769,7 @@ try {
                             </div>
                         </div>
                     </div>
-                        <div class="modal-footer">
+                    <div class="modal-footer">
                         <!-- Genehmigen/Ablehnen für ausstehende Reservierungen -->
                         <form method="POST" class="d-inline">
                             <input type="hidden" name="reservation_id" value="<?php echo $modal_reservation['id']; ?>">
@@ -784,8 +784,8 @@ try {
                                 <input type="hidden" name="conflict_reservation_id" value="">
                                 <button type="submit" class="btn btn-warning" id="approveReplaceBtn<?php echo $modal_reservation['id']; ?>" disabled>
                                     <i class="fas fa-exchange-alt"></i> Konflikt löschen & genehmigen
-                                </button>
-                            </form>
+                            </button>
+                        </form>
                         <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $modal_reservation['id']; ?>" data-bs-dismiss="modal">
                             <i class="fas fa-times"></i> Ablehnen
                         </button>
@@ -934,6 +934,42 @@ try {
     </div>
     <?php endif; ?>
 
+    <!-- Modal: E-Mail eintragen (schöne Variante statt Browser-Prompt) -->
+    <?php if (has_permission('atemschutz')): ?>
+    <div class="modal fade" id="emailEntryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-secondary text-white">
+                    <h5 class="modal-title"><i class="fas fa-envelope me-2"></i> E-Mail eintragen</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="emailEntryForm">
+                    <input type="hidden" id="email_entry_id">
+                    <div class="modal-body">
+                        <div class="mb-2">
+                            <label class="form-label">Geräteträger</label>
+                            <input type="text" class="form-control" id="email_entry_name" disabled>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">E-Mail Adresse</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-at"></i></span>
+                                <input type="email" class="form-control" id="email_entry_email" placeholder="name@beispiel.de" required>
+                            </div>
+                            <div class="form-text">Diese Adresse wird gespeichert und für Benachrichtigungen verwendet.</div>
+                        </div>
+                        <div class="alert alert-danger d-none" id="email_entry_error"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-secondary">Speichern & Benachrichtigen</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <script>
         // Wenn ein Ablehnungs-Modal geöffnet wird, Konflikt prüfen und ggf. Grund vorausfüllen
         document.addEventListener('shown.bs.modal', function (event) {
@@ -1053,7 +1089,7 @@ try {
                         if (form) { form.classList.add('d-none'); form.setAttribute('hidden', ''); }
                         if (btn) { btn.disabled = true; }
                     } catch (e) { /* ignore */ }
-
+                    
                     // Starte Kalender-Prüfung automatisch nach Modal-Öffnung
                     setTimeout(function() {
                         // Hole die Reservierungsdaten aus dem Modal
@@ -1094,22 +1130,16 @@ try {
                 const r = await fetch('atemschutz-get.php?id='+encodeURIComponent(id));
                 const data = await r.json();
                 if (!data || data.success !== true) { alert('Konnte Geräteträger nicht laden.'); return; }
-                let { email, first_name, last_name, birthdate, strecke_am, g263_am, uebung_am } = data.data || {};
+                let { email, first_name, last_name } = data.data || {};
                 if (!email) {
-                    email = prompt('Keine E-Mail hinterlegt. Bitte E-Mail eintragen:');
-                    if (!email) return;
-                    // Speichern der E-Mail
-                    const form = new FormData();
-                    form.append('action','update_atemschutz_traeger');
-                    form.append('id', String(id));
-                    form.append('first_name', first_name || '');
-                    form.append('last_name', last_name || '');
-                    form.append('email', email);
-                    form.append('birthdate', birthdate || '');
-                    form.append('strecke_am', strecke_am || '');
-                    form.append('g263_am', g263_am || '');
-                    form.append('uebung_am', uebung_am || '');
-                    await fetch('dashboard.php', { method:'POST', body: form });
+                    // schönes Modal öffnen
+                    const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('emailEntryModal'));
+                    document.getElementById('email_entry_id').value = String(id);
+                    document.getElementById('email_entry_name').value = `${last_name || ''}, ${first_name || ''}`.trim();
+                    document.getElementById('email_entry_email').value = '';
+                    document.getElementById('email_entry_error').classList.add('d-none');
+                    m.show();
+                    return;
                 }
                 // Mail auslösen
                 const res = await fetch('atemschutz-notify.php', {
@@ -1126,6 +1156,45 @@ try {
                 const j = await res.json();
                 if (j && j.success) { alert('E-Mails versendet: '+(j.sent||0)); } else { alert('Versand fehlgeschlagen.'); }
             } catch(e){ alert('Fehler: '+e.message); }
+        }
+
+        // Submit für E-Mail-Eintragsmodal
+        const emailForm = document.getElementById('emailEntryForm');
+        if (emailForm) {
+            emailForm.addEventListener('submit', async function(ev){
+                ev.preventDefault();
+                const id = document.getElementById('email_entry_id').value;
+                const email = document.getElementById('email_entry_email').value.trim();
+                const err = document.getElementById('email_entry_error');
+                err.classList.add('d-none'); err.textContent='';
+                if (!email) { err.textContent = 'Bitte E-Mail angeben.'; err.classList.remove('d-none'); return; }
+                try {
+                    // bestehende Daten holen
+                    const r = await fetch('atemschutz-get.php?id='+encodeURIComponent(id));
+                    const data = await r.json();
+                    if (!data || data.success !== true) { throw new Error('Datensatz nicht gefunden'); }
+                    const d = data.data || {};
+                    const form = new FormData();
+                    form.append('action','update_atemschutz_traeger');
+                    form.append('id', String(id));
+                    form.append('first_name', d.first_name || '');
+                    form.append('last_name', d.last_name || '');
+                    form.append('email', email);
+                    form.append('birthdate', d.birthdate || '');
+                    form.append('strecke_am', d.strecke_am || '');
+                    form.append('g263_am', d.g263_am || '');
+                    form.append('uebung_am', d.uebung_am || '');
+                    await fetch('dashboard.php', { method:'POST', body: form });
+                    // danach senden
+                    const res = await fetch('atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[Number(id)] }) });
+                    const j = await res.json();
+                    if (!j || !j.success) throw new Error('Versand fehlgeschlagen');
+                    bootstrap.Modal.getInstance(document.getElementById('emailEntryModal'))?.hide();
+                    alert('E-Mail gesendet.');
+                    // optional: Seite neu laden um "Benachrichtigt am" zu aktualisieren
+                    location.reload();
+                } catch(e){ err.textContent = e.message; err.classList.remove('d-none'); }
+            });
         }
         // Bootstrap Dropdowns sicher initialisieren
         document.querySelectorAll('.dropdown-toggle').forEach(function(el){
