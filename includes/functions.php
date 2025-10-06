@@ -322,10 +322,7 @@ function get_admin_navigation() {
         $nav_items[] = '<li class="nav-item"><a class="nav-link" href="settings.php"><i class="fas fa-cog"></i> Einstellungen</a></li>';
     }
     
-    // Profil - für alle eingeloggten Benutzer
-    if (is_logged_in()) {
-        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="profile.php"><i class="fas fa-user"></i> Profil</a></li>';
-    }
+    // Profil-Link wird über das Benutzer-Dropdown angeboten, nicht in der Hauptnavigation
     
     return implode("\n                ", $nav_items);
 }
