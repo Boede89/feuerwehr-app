@@ -58,7 +58,7 @@ if (!isset($_SESSION['user_id']) || !has_permission('atemschutz')) {
                 </button>
             </div>
             <div class="col-12 col-md-6">
-                <a class="btn btn-outline-primary w-100 py-4" href="atemschutz-liste.php" id="btnShowListLink">
+                <a class="btn btn-outline-primary w-100 py-4" href="/admin/atemschutz-liste.php" id="btnShowListLink">
                     <i class="fas fa-list fa-2x mb-2 d-block"></i>
                     <span class="fs-5">Aktuelle Liste anzeigen</span>
                 </a>
