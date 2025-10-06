@@ -42,6 +42,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
                 $stmt->execute([$_SESSION['user_id'], $reservation_id]);
                 
+                // E-Mail an Antragsteller senden
+                $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+                $stmt->execute([$reservation_id]);
+                $reservation = $stmt->fetch();
+                
+                if ($reservation && !empty($reservation['requester_email'])) {
+                    $subject = "Fahrzeugreservierung genehmigt - " . $reservation['vehicle_name'];
+                    $message_html = "
+                    <h2>Fahrzeugreservierung genehmigt</h2>
+                    <p>Ihre Fahrzeugreservierung wurde genehmigt.</p>
+                    <p><strong>Fahrzeug:</strong> " . htmlspecialchars($reservation['vehicle_name']) . "</p>
+                    <p><strong>Grund:</strong> " . htmlspecialchars($reservation['reason']) . "</p>
+                    <p><strong>Von:</strong> " . htmlspecialchars($reservation['start_datetime']) . "</p>
+                    <p><strong>Bis:</strong> " . htmlspecialchars($reservation['end_datetime']) . "</p>
+                    <p>Vielen Dank für Ihre Reservierung!</p>
+                    ";
+                    
+                    try {
+                        send_email($reservation['requester_email'], $subject, $message_html);
+                        error_log("APPROVE EMAIL: E-Mail an Antragsteller gesendet: " . $reservation['requester_email']);
+                    } catch (Exception $e) {
+                        error_log("APPROVE EMAIL: Fehler beim Senden der E-Mail: " . $e->getMessage());
+                    }
+                }
+                
                 // Google Calendar Event erstellen
                 try {
                     // Reservierungsdaten für Google Calendar laden
@@ -156,6 +181,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             if (!empty($rejection_reason)) {
                 $stmt = $db->prepare("UPDATE reservations SET status = 'rejected', rejection_reason = ?, approved_by = ?, approved_at = NOW() WHERE id = ?");
                 $stmt->execute([$rejection_reason, $_SESSION['user_id'], $reservation_id]);
+                
+                // E-Mail an Antragsteller senden
+                $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+                $stmt->execute([$reservation_id]);
+                $reservation = $stmt->fetch();
+                
+                if ($reservation && !empty($reservation['requester_email'])) {
+                    $subject = "Fahrzeugreservierung abgelehnt - " . $reservation['vehicle_name'];
+                    $message_html = "
+                    <h2>Fahrzeugreservierung abgelehnt</h2>
+                    <p>Ihre Fahrzeugreservierung wurde leider abgelehnt.</p>
+                    <p><strong>Fahrzeug:</strong> " . htmlspecialchars($reservation['vehicle_name']) . "</p>
+                    <p><strong>Grund:</strong> " . htmlspecialchars($reservation['reason']) . "</p>
+                    <p><strong>Von:</strong> " . htmlspecialchars($reservation['start_datetime']) . "</p>
+                    <p><strong>Bis:</strong> " . htmlspecialchars($reservation['end_datetime']) . "</p>
+                    <p><strong>Ablehnungsgrund:</strong> " . htmlspecialchars($rejection_reason) . "</p>
+                    <p>Bei Rückfragen wenden Sie sich bitte an die Verwaltung.</p>
+                    ";
+                    
+                    try {
+                        send_email($reservation['requester_email'], $subject, $message_html);
+                        error_log("REJECT EMAIL: E-Mail an Antragsteller gesendet: " . $reservation['requester_email']);
+                    } catch (Exception $e) {
+                        error_log("REJECT EMAIL: Fehler beim Senden der E-Mail: " . $e->getMessage());
+                    }
+                }
+                
                 $message = "Reservierung erfolgreich abgelehnt.";
             } else {
                 $error = "Bitte geben Sie einen Ablehnungsgrund an.";
