@@ -332,6 +332,11 @@ try {
     <title>Dashboard - Feuerwehr App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .bis-badge { padding: .25rem .5rem; border-radius: .375rem; display: inline-block; }
+        .bis-warn { background-color: #fff3cd; color: #664d03; }
+        .bis-expired { background-color: #dc3545; color: #fff; }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -437,10 +442,11 @@ try {
 
                             if (in_array($status, ['warnung','uebung_abgelaufen','abgelaufen'], true)) {
                                 $items[] = [
+                                    'id' => (int)$r['id'],
                                     'name' => trim(($r['last_name'] ?? '') . ', ' . ($r['first_name'] ?? '')),
-                                    'strecke_bis' => $streckeBis ? $streckeBis->format('d.m.Y') : '',
-                                    'g263_bis' => $g263Bis ? $g263Bis->format('d.m.Y') : '',
-                                    'uebung_bis' => $uebungBis ? $uebungBis->format('d.m.Y') : '',
+                                    'strecke_bis' => $streckeBis ? $streckeBis->format('Y-m-d') : '',
+                                    'g263_bis' => $g263Bis ? $g263Bis->format('Y-m-d') : '',
+                                    'uebung_bis' => $uebungBis ? $uebungBis->format('Y-m-d') : '',
                                     'status' => $status,
                                 ];
                             }
@@ -463,15 +469,49 @@ try {
                                             <th>G26.3 Bis</th>
                                             <th>Übung/Einsatz Bis</th>
                                             <th>Status</th>
+                                            <th></th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <?php foreach ($items as $it): ?>
                                             <tr>
                                                 <td><?php echo htmlspecialchars($it['name']); ?></td>
-                                                <td><?php echo htmlspecialchars($it['strecke_bis']); ?></td>
-                                                <td><?php echo htmlspecialchars($it['g263_bis']); ?></td>
-                                                <td><?php echo htmlspecialchars($it['uebung_bis']); ?></td>
+                                                <td>
+                                                    <?php
+                                                        $cls = '';
+                                                        if ($it['strecke_bis']) {
+                                                            $d = new DateTime($it['strecke_bis']);
+                                                            $diff = (int)$now->diff($d)->format('%r%a');
+                                                            if ($diff < 0) $cls = 'bis-expired';
+                                                            elseif ($diff <= $warnDays) $cls = 'bis-warn';
+                                                        }
+                                                    ?>
+                                                    <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($it['strecke_bis'] ? date('d.m.Y', strtotime($it['strecke_bis'])) : ''); ?></span>
+                                                </td>
+                                                <td>
+                                                    <?php
+                                                        $cls = '';
+                                                        if ($it['g263_bis']) {
+                                                            $d = new DateTime($it['g263_bis']);
+                                                            $diff = (int)$now->diff($d)->format('%r%a');
+                                                            if ($diff < 0) $cls = 'bis-expired';
+                                                            elseif ($diff <= $warnDays) $cls = 'bis-warn';
+                                                        }
+                                                    ?>
+                                                    <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($it['g263_bis'] ? date('d.m.Y', strtotime($it['g263_bis'])) : ''); ?></span>
+                                                </td>
+                                                <td>
+                                                    <?php
+                                                        $cls = '';
+                                                        if ($it['uebung_bis']) {
+                                                            $d = new DateTime($it['uebung_bis']);
+                                                            $diff = (int)$now->diff($d)->format('%r%a');
+                                                            if ($diff < 0) $cls = 'bis-expired';
+                                                            elseif ($diff <= $warnDays) $cls = 'bis-warn';
+                                                        }
+                                                    ?>
+                                                    <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($it['uebung_bis'] ? date('d.m.Y', strtotime($it['uebung_bis'])) : ''); ?></span>
+                                                </td>
                                                 <td>
                                                     <?php if ($it['status']==='abgelaufen'): ?>
                                                         <span class="badge bg-danger">Abgelaufen</span>
@@ -480,6 +520,11 @@ try {
                                                     <?php else: ?>
                                                         <span class="badge bg-warning text-dark">Warnung</span>
                                                     <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <a href="#" class="btn btn-sm btn-outline-secondary" onclick="alert('Funktion folgt'); return false;">
+                                                        <i class="fas fa-paper-plane"></i> Benachrichtigen
+                                                    </a>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
