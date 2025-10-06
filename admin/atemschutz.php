@@ -80,6 +80,106 @@ if (!isset($_SESSION['user_id']) || !has_permission('atemschutz')) {
         <div class="alert alert-info">
             Funktionen werden als nächstes implementiert. Wählen Sie einen Button, um fortzufahren.
         </div>
+
+        <?php
+        // Liste der Geräteträger laden (reine Auflistung, keine Benutzer der App)
+        $traeger = [];
+        try {
+            $stmt = $db->prepare("SELECT id, first_name, last_name, birthdate, strecke_am, g263_am, uebung_am FROM atemschutz_traeger ORDER BY last_name, first_name");
+            $stmt->execute();
+            $traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            echo '<div class="alert alert-danger">Fehler beim Laden der Geräteträger: ' . htmlspecialchars($e->getMessage()) . '</div>';
+        }
+
+        // Hilfsfunktionen für Anzeige
+        $fmtDate = function($d) {
+            if (!$d) return '';
+            try { $dt = new DateTime($d); return $dt->format('d.m.Y'); } catch (Exception $e) { return ''; }
+        };
+        $calcAge = function($birthdate) {
+            if (!$birthdate) return '';
+            try { $b = new DateTime($birthdate); $now = new DateTime('today'); return $b->diff($now)->y; } catch (Exception $e) { return ''; }
+        };
+        $addYears = function($dateStr, $years) use ($fmtDate) {
+            if (!$dateStr) return '';
+            try { $d = new DateTime($dateStr); $d->modify('+' . (int)$years . ' year'); return $fmtDate($d->format('Y-m-d')); } catch (Exception $e) { return ''; }
+        };
+        $bisStrecke = function($streckeAm) use ($addYears) { return $addYears($streckeAm, 1); };
+        $bisUebung = function($uebungAm) use ($addYears) { return $addYears($uebungAm, 1); };
+        $bisG263 = function($g263Am, $age) use ($addYears) { return $addYears($g263Am, ($age !== '' && (int)$age < 50) ? 3 : 1); };
+        ?>
+
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span class="fw-semibold">Aktuelle Liste der Atemschutzgeräteträger</span>
+                <span class="badge bg-secondary"><?php echo count($traeger); ?> Einträge</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Alter</th>
+                            <th>Strecke<br><small>Am / Bis</small></th>
+                            <th>G26.3<br><small>Am / Bis</small></th>
+                            <th>Übung/Einsatz<br><small>Am / Bis</small></th>
+                            <th>Status</th>
+                            <th>Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($traeger)): ?>
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">Noch keine Geräteträger erfasst.</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($traeger as $t): ?>
+                                <?php
+                                    $name = trim(($t['last_name'] ?? '') . ', ' . ($t['first_name'] ?? ''));
+                                    $age = $calcAge($t['birthdate'] ?? null);
+                                    $streckeAm = $fmtDate($t['strecke_am'] ?? null);
+                                    $streckeBis = $bisStrecke($t['strecke_am'] ?? null);
+                                    $g263Am = $fmtDate($t['g263_am'] ?? null);
+                                    $g263Bis = $bisG263($t['g263_am'] ?? null, $age);
+                                    $uebungAm = $fmtDate($t['uebung_am'] ?? null);
+                                    $uebungBis = $bisUebung($t['uebung_am'] ?? null);
+                                ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($name); ?></td>
+                                    <td><?php echo htmlspecialchars($age); ?></td>
+                                    <td>
+                                        <div>Am: <?php echo htmlspecialchars($streckeAm); ?></div>
+                                        <div>Bis: <?php echo htmlspecialchars($streckeBis); ?></div>
+                                    </td>
+                                    <td>
+                                        <div>Am: <?php echo htmlspecialchars($g263Am); ?></div>
+                                        <div>Bis: <?php echo htmlspecialchars($g263Bis); ?></div>
+                                    </td>
+                                    <td>
+                                        <div>Am: <?php echo htmlspecialchars($uebungAm); ?></div>
+                                        <div>Bis: <?php echo htmlspecialchars($uebungBis); ?></div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success">Aktiv</span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-outline-primary" data-action="edit" data-id="<?php echo (int)$t['id']; ?>">
+                                                <i class="fas fa-pen"></i> Bearbeiten
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="<?php echo (int)$t['id']; ?>">
+                                                <i class="fas fa-trash"></i> Löschen
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -94,6 +194,21 @@ if (!isset($_SESSION['user_id']) || !has_permission('atemschutz')) {
             btnRecordData: 'Daten hinterlegen'
         };
         Object.entries(map).forEach(([id,label])=>{ const el=q(id); if(el) el.addEventListener('click', onClickInfo(label)); });
+
+        // Aktionen in der Liste (Platzhalter)
+        document.querySelectorAll('button[data-action]')?.forEach(btn => {
+            btn.addEventListener('click', function(){
+                const action = this.getAttribute('data-action');
+                const id = this.getAttribute('data-id');
+                if (action === 'edit') {
+                    alert('Bearbeiten: ID ' + id + '\n(Funktion folgt)');
+                } else if (action === 'delete') {
+                    if (confirm('Geräteträger wirklich löschen?')) {
+                        alert('Löschen: ID ' + id + '\n(Funktion folgt)');
+                    }
+                }
+            });
+        });
     });
     </script>
 
