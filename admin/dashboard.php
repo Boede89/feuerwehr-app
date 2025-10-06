@@ -442,7 +442,7 @@ try {
                         } catch (Exception $e) {}
 
                         $now = new DateTime('today');
-                        $stmta = $db->prepare("SELECT id, first_name, last_name, birthdate, strecke_am, g263_am, uebung_am FROM atemschutz_traeger");
+                        $stmta = $db->prepare("SELECT id, first_name, last_name, birthdate, strecke_am, g263_am, uebung_am, last_notified_at FROM atemschutz_traeger");
                         $stmta->execute();
                         $rows = $stmta->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -476,6 +476,7 @@ try {
                                     'g263_bis' => $g263Bis ? $g263Bis->format('Y-m-d') : '',
                                     'uebung_bis' => $uebungBis ? $uebungBis->format('Y-m-d') : '',
                                     'status' => $status,
+                                    'last_notified_at' => $r['last_notified_at'] ?? '',
                                 ];
                             }
                         }
@@ -497,6 +498,7 @@ try {
                                             <th>G26.3 Bis</th>
                                             <th>Übung/Einsatz Bis</th>
                                             <th>Status</th>
+                                            <th>Benachrichtigt am</th>
                                             <th class="text-end">Aktion</th>
                                         </tr>
                                     </thead>
@@ -548,6 +550,9 @@ try {
                                                     <?php else: ?>
                                                         <span class="badge bg-warning text-dark">Warnung</span>
                                                     <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <?php echo htmlspecialchars($it['last_notified_at'] ? date('d.m.Y H:i', strtotime($it['last_notified_at'])) : '-'); ?>
                                                 </td>
                                                 <td class="text-end">
                                                     <div class="btn-group" role="group">
@@ -1112,6 +1117,11 @@ try {
                 if (j && j.success) { alert('E-Mails versendet: '+(j.sent||0)); } else { alert('Versand fehlgeschlagen.'); }
             } catch(e){ alert('Fehler: '+e.message); }
         }
+        // Bootstrap Dropdowns sicher initialisieren
+        document.querySelectorAll('.dropdown-toggle').forEach(function(el){
+            try { bootstrap.Dropdown.getOrCreateInstance(el); } catch(e){}
+        });
+
         // Prefill für Atemschutz-Dashboard-Edit-Modal
         document.addEventListener('click', function(e){
             const btn = e.target.closest('[data-bs-target="#editTraegerDashModal"][data-id]');
