@@ -173,6 +173,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <title>Atemschutz – Feuerwehr App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+    /* Sicherstellen, dass Modals über Navbar/anderen Elementen liegen */
+    .modal { z-index: 2000; }
+    .modal-backdrop { z-index: 1990; }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -510,9 +515,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         const btnPlan = q('btnPlanTraining');
-        if (btnPlan) {
-            btnPlan.addEventListener('click', function(){
-                const modal = new bootstrap.Modal(document.getElementById('planTrainingModal'));
+        const planModalEl = document.getElementById('planTrainingModal');
+        if (btnPlan && planModalEl) {
+            // Fallback Öffnung per JS, falls data-bs-* nicht greift
+            btnPlan.addEventListener('click', function(e){
+                e.preventDefault();
+                const modal = new bootstrap.Modal(planModalEl, { backdrop: true, keyboard: true });
                 modal.show();
             });
         }
