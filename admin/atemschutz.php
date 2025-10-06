@@ -25,10 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 		$addError = 'Bitte alle Pflichtfelder ausfüllen (Vorname, Nachname, Geburtsdatum, Strecke Am, G26.3 Am, Übung/Einsatz Am).';
 	} else {
 		try {
-			// Tabelle sicherstellen - erst löschen falls vorhanden, dann neu erstellen
-			$db->exec("DROP TABLE IF EXISTS atemschutz_traeger");
+			// Tabelle sicherstellen (nur anlegen, wenn sie noch nicht existiert)
 			$db->exec(
-				"CREATE TABLE atemschutz_traeger (
+				"CREATE TABLE IF NOT EXISTS atemschutz_traeger (
 					id INT AUTO_INCREMENT PRIMARY KEY,
 					first_name VARCHAR(100) NOT NULL,
 					last_name VARCHAR(100) NOT NULL,
@@ -39,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 					uebung_am DATE NOT NULL,
 					status VARCHAR(50) NOT NULL DEFAULT 'Aktiv',
 					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
 			);
 
 			$stmt = $db->prepare("INSERT INTO atemschutz_traeger (first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'Aktiv')");
