@@ -486,7 +486,7 @@ try {
                         <?php else: ?>
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <h6 class="mb-0 text-danger"><i class="fas fa-triangle-exclamation"></i> Auffällige Geräteträger</h6>
-                                <a class="btn btn-sm btn-outline-secondary" href="#" onclick="alert('Funktion folgt'); return false;"><i class="fas fa-paper-plane"></i> Alle Benachrichtigen</a>
+                                <a class="btn btn-sm btn-outline-secondary" href="#" onclick="notifyAllAtemschutz(); return false;"><i class="fas fa-paper-plane"></i> Alle Benachrichtigen</a>
                             </div>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle">
@@ -556,7 +556,7 @@ try {
                                                             data-name="<?php echo htmlspecialchars($it['name']); ?>">
                                                             <i class="fas fa-pen"></i> Bearbeiten
                                                         </button>
-                                                        <a href="#" class="btn btn-sm btn-outline-secondary" onclick="alert('Funktion folgt'); return false;" title="Benachrichtigen">
+                                                        <a href="#" class="btn btn-sm btn-outline-secondary" onclick="notifyAtemschutz(<?php echo (int)$it['id']; ?>); return false;" title="Benachrichtigen">
                                                             <i class="fas fa-paper-plane"></i>
                                                         </a>
                                                     </div>
@@ -1072,6 +1072,46 @@ try {
                 });
             });
         });
+
+        // Benachrichtigung einzelner Geräteträger (mit E-Mail-Fallback)
+        async function notifyAtemschutz(id){
+            try {
+                const r = await fetch('atemschutz-get.php?id='+encodeURIComponent(id));
+                const data = await r.json();
+                if (!data || data.success !== true) { alert('Konnte Geräteträger nicht laden.'); return; }
+                let { email, first_name, last_name, birthdate, strecke_am, g263_am, uebung_am } = data.data || {};
+                if (!email) {
+                    email = prompt('Keine E-Mail hinterlegt. Bitte E-Mail eintragen:');
+                    if (!email) return;
+                    // Speichern der E-Mail
+                    const form = new FormData();
+                    form.append('action','update_atemschutz_traeger');
+                    form.append('id', String(id));
+                    form.append('first_name', first_name || '');
+                    form.append('last_name', last_name || '');
+                    form.append('email', email);
+                    form.append('birthdate', birthdate || '');
+                    form.append('strecke_am', strecke_am || '');
+                    form.append('g263_am', g263_am || '');
+                    form.append('uebung_am', uebung_am || '');
+                    await fetch('dashboard.php', { method:'POST', body: form });
+                }
+                // Mail auslösen
+                const res = await fetch('atemschutz-notify.php', {
+                    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[id] })
+                });
+                const j = await res.json();
+                if (j && j.success) { alert('E-Mail gesendet.'); } else { alert('Senden fehlgeschlagen.'); }
+            } catch(e){ alert('Fehler: '+e.message); }
+        }
+        // Benachrichtigung aller mit E-Mail
+        async function notifyAllAtemschutz(){
+            try {
+                const res = await fetch('atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ all:true }) });
+                const j = await res.json();
+                if (j && j.success) { alert('E-Mails versendet: '+(j.sent||0)); } else { alert('Versand fehlgeschlagen.'); }
+            } catch(e){ alert('Fehler: '+e.message); }
+        }
         // Prefill für Atemschutz-Dashboard-Edit-Modal
         document.addEventListener('click', function(e){
             const btn = e.target.closest('[data-bs-target="#editTraegerDashModal"][data-id]');
