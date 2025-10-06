@@ -81,7 +81,14 @@ try {
         $message_html .= '</ul><p>Vielen Dank.</p>';
 
         try {
-            if (send_email($email, $subject, $message_html)) { $sent++; }
+            if (send_email($email, $subject, $message_html)) {
+                $sent++;
+                // last_notified_at aktualisieren
+                try {
+                    $upd = $db->prepare("UPDATE atemschutz_traeger SET last_notified_at = NOW() WHERE id = ?");
+                    $upd->execute([(int)$r['id']]);
+                } catch (Exception $ie) { /* ignore */ }
+            }
         } catch(Exception $e) { $errors[] = $e->getMessage(); }
     }
 
