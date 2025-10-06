@@ -314,8 +314,8 @@ function has_all_permissions($permissions) {
 function get_admin_navigation() {
     $nav_items = [];
     
-    // Dashboard - für alle mit Reservierungen-Recht
-    if (has_permission('reservations')) {
+    // Dashboard - immer sichtbar für eingeloggte Benutzer
+    if (is_logged_in()) {
         $nav_items[] = '<li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>';
     }
     

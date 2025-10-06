@@ -375,11 +375,6 @@ try {
                         <i class="fas fa-tachometer-alt"></i> Dashboard
                         <small class="text-muted">Willkommen zurück, <?php echo htmlspecialchars($_SESSION['first_name'] ?? 'Admin'); ?>!</small>
                     </h1>
-                    <div class="btn-group">
-                        <a href="reservations.php" class="btn btn-primary">
-                            <i class="fas fa-calendar-check"></i> Reservierungen verwalten
-                        </a>
-                    </div>
                 </div>
                 
                 <?php if ($message): ?>
@@ -398,16 +393,23 @@ try {
             </div>
         </div>
 
+        <?php if (has_permission('reservations')): ?>
         <div class="row">
-            <!-- Offene Anträge -->
+            <!-- Fahrzeugreservierungen -->
             <div class="col-12 mb-4">
                 <div class="card shadow">
                     <div class="card-header">
-                        <h6 class="m-0 font-weight-bold text-warning">
-                            <i class="fas fa-clock"></i> Offene Anträge (<?php echo count($pending_reservations); ?>)
-                        </h6>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="m-0 font-weight-bold text-primary">
+                                <i class="fas fa-truck"></i> Fahrzeugreservierungen
+                            </h6>
+                            <a href="reservations.php" class="btn btn-sm btn-primary">
+                                <i class="fas fa-calendar-check"></i> Reservierungen verwalten
+                            </a>
+                        </div>
                     </div>
                     <div class="card-body">
+                        <h6 class="text-warning mb-3"><i class="fas fa-clock"></i> Offene Anträge (<?php echo count($pending_reservations); ?>)</h6>
                         <?php if (empty($pending_reservations)): ?>
                             <div class="text-center py-5">
                                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
