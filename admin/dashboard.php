@@ -570,11 +570,9 @@ try {
                                                 </td>
                                                 <td class="text-end">
                                                     <div class="btn-group" role="group">
-                                                        <button type="button" class="btn btn-sm btn-outline-primary btn-edit-traeger"
-                                                            data-id="<?php echo (int)$it['id']; ?>"
-                                                            data-name="<?php echo htmlspecialchars($it['name']); ?>">
+                                                        <a class="btn btn-sm btn-outline-primary" href="atemschutz-liste.php?edit_id=<?php echo (int)$it['id']; }?>">
                                                             <i class="fas fa-pen"></i> Bearbeiten
-                                                        </button>
+                                                        </a>
                                                         <a href="#" class="btn btn-sm btn-outline-secondary" onclick="notifyAtemschutz(<?php echo (int)$it['id']; ?>); return false;" title="Benachrichtigen">
                                                             <i class="fas fa-paper-plane"></i>
                                                         </a>
@@ -1212,13 +1210,7 @@ try {
         });
 
         // Prefill für Atemschutz-Dashboard-Edit-Modal
-        document.addEventListener('click', function(e){
-            const btn = e.target.closest('.btn-edit-traeger[data-id]');
-            if (!btn) return;
-            const id = btn.getAttribute('data-id');
-            // Öffne Bearbeitung auf der Atemschutz-Liste (dort funktionieren Modals sicher)
-            window.location.href = 'atemschutz-liste.php?edit_id=' + encodeURIComponent(id);
-        });
+        // Kein JS für Bearbeiten nötig – direkter Link zur Liste mit ?edit_id
     </script>
     <?php endif; ?>
 </body>
