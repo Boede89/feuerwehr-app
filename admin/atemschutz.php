@@ -3,8 +3,8 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
-// Nur eingeloggte Admins (vorerst)
-if (!isset($_SESSION['user_id']) || !has_admin_access()) {
+// Zugriff nur für Benutzer mit Atemschutz-Recht
+if (!isset($_SESSION['user_id']) || !has_permission('atemschutz')) {
     header('Location: ../login.php?error=access_denied');
     exit;
 }

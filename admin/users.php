@@ -63,8 +63,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $error = "Passwort ist erforderlich.";
                     } else {
                         $password_hash = hash_password($password);
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, email_notifications, is_active, is_admin, can_reservations, can_users, can_settings, can_vehicles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_role, $email_notifications, $is_active, $is_admin, $can_reservations, $can_users, $can_settings, $can_vehicles]);
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, email_notifications, is_active, is_admin, can_reservations, can_atemschutz, can_users, can_settings, can_vehicles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_role, $email_notifications, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles]);
                         $message = "Benutzer wurde erfolgreich hinzugefügt.";
                         log_activity($_SESSION['user_id'], 'user_added', "Benutzer '$username' hinzugefügt");
                         
@@ -75,11 +75,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 } elseif ($action == 'edit') {
                     if (!empty($password)) {
                         $password_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_role, $email_notifications, $is_active, $is_admin, $can_reservations, $can_users, $can_settings, $can_vehicles, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_role, $email_notifications, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, $user_role, $email_notifications, $is_active, $is_admin, $can_reservations, $can_users, $can_settings, $can_vehicles, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $user_role, $email_notifications, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles, $user_id]);
                     }
                     $message = "Benutzer wurde erfolgreich aktualisiert.";
                     log_activity($_SESSION['user_id'], 'user_updated', "Benutzer '$username' aktualisiert");
@@ -116,7 +116,7 @@ if (isset($_GET['delete'])) {
 
 // Benutzer laden
 try {
-    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, email_notifications, is_active, created_at, is_admin, can_reservations, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
+    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, email_notifications, is_active, created_at, is_admin, can_reservations, can_atemschutz, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
     $stmt->execute();
     $users = $stmt->fetchAll();
 } catch(PDOException $e) {
@@ -339,6 +339,12 @@ try {
                                         <input class="form-check-input" type="checkbox" id="can_reservations" name="can_reservations">
                                         <label class="form-check-label" for="can_reservations">
                                             Fahrzeugreservierungen - Dashboard & Reservierungen
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="can_atemschutz" name="can_atemschutz">
+                                        <label class="form-check-label" for="can_atemschutz">
+                                            Atemschutz (Zugriff auf Atemschutztauglichkeit)
                                         </label>
                                     </div>
                                 </div>
