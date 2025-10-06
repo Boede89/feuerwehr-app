@@ -514,16 +514,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             });
         }
 
-        const btnPlan = q('btnPlanTraining');
-        const planModalEl = document.getElementById('planTrainingModal');
-        if (btnPlan && planModalEl) {
-            // Fallback Öffnung per JS, falls data-bs-* nicht greift
-            btnPlan.addEventListener('click', function(e){
-                e.preventDefault();
-                const modal = new bootstrap.Modal(planModalEl, { backdrop: true, keyboard: true });
-                modal.show();
-            });
-        }
+        // Fallback-Handler: öffnet Modal auch dann, wenn data-bs-* nicht greift
+        (function(){
+            const trigger = document.getElementById('btnPlanTraining');
+            const modalEl = document.getElementById('planTrainingModal');
+            if (trigger && modalEl && window.bootstrap && bootstrap.Modal) {
+                trigger.addEventListener('click', function(ev){
+                    ev.preventDefault();
+                    try {
+                        const m = bootstrap.Modal.getOrCreateInstance(modalEl, {backdrop:true, keyboard:true});
+                        m.show();
+                    } catch(e) { /* ignore */ }
+                });
+            }
+        })();
     });
     </script>
 
