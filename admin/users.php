@@ -224,7 +224,7 @@ try {
                                                         <span class="badge bg-primary">Fahrzeugreservierungen</span>
                                                     <?php endif; ?>
                                                     <?php if (!empty($user['can_atemschutz'])): ?>
-                                                        <span class="badge bg-info">Atemschutz</span>
+                                                        <span class="badge bg-success">Atemschutz</span>
                                                     <?php endif; ?>
                                                 </div>
                                             </td>
@@ -244,7 +244,7 @@ try {
                                             </td>
                                             <td><?php echo format_date($user['created_at']); ?></td>
                                             <td>
-                                                <button type="button" class="btn btn-outline-primary btn-sm" 
+                                                <button type="button" class="btn btn-outline-primary btn-sm" id="editBtn<?php echo (int)$user['id']; ?>"
                                                         onclick="editUser(
                                                             <?php echo (int)$user['id']; ?>,
                                                             <?php echo json_encode((string)$user['username']); ?>,
@@ -263,6 +263,7 @@ try {
                                                         )">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('editBtn<?php echo (int)$user['id']; ?>').click()">Test bearbeiten</button>
                                                 <?php if ($user['id'] != $_SESSION['user_id']): ?>
                                                     <a href="?delete=<?php echo $user['id']; ?>" class="btn btn-outline-danger btn-sm" 
                                                        onclick="return confirm('Sind Sie sicher, dass Sie diesen Benutzer löschen möchten?')">
