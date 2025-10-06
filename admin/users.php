@@ -372,7 +372,7 @@ try {
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="can_atemschutz" name="can_atemschutz">
                                         <label class="form-check-label" for="can_atemschutz">
-                                            Atemschutztauglichkeits-Überwachung
+                                            <strong>Atemschutztauglichkeits-Überwachung</strong>
                                         </label>
                                     </div>
                                 </div>
