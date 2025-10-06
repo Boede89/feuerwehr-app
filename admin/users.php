@@ -245,22 +245,16 @@ try {
                                             <td><?php echo format_date($user['created_at']); ?></td>
                                             <td>
                                                 <button type="button" class="btn btn-outline-primary btn-sm" id="editBtn<?php echo (int)$user['id']; ?>" data-bs-toggle="modal" data-bs-target="#userModal"
-                                                        onclick="editUser(
-                                                            <?php echo (int)$user['id']; ?>,
-                                                            <?php echo json_encode((string)$user['username']); ?>,
-                                                            <?php echo json_encode((string)$user['email']); ?>,
-                                                            <?php echo json_encode((string)$user['first_name']); ?>,
-                                                            <?php echo json_encode((string)$user['last_name']); ?>,
-                                                            'user',
-                                                            <?php echo (int)$user['email_notifications']; ?>,
-                                                            <?php echo (int)$user['is_active']; ?>,
-                                                            <?php echo (int)$user['is_admin']; ?>,
-                                                            <?php echo (int)$user['can_reservations']; ?>,
-                                                            <?php echo (int)$user['can_atemschutz']; ?>,
-                                                            0,
-                                                            0,
-                                                            0
-                                                        )">
+                                                    data-user-id="<?php echo (int)$user['id']; ?>"
+                                                    data-username="<?php echo htmlspecialchars($user['username'], ENT_QUOTES); ?>"
+                                                    data-email="<?php echo htmlspecialchars($user['email'], ENT_QUOTES); ?>"
+                                                    data-first-name="<?php echo htmlspecialchars($user['first_name'], ENT_QUOTES); ?>"
+                                                    data-last-name="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES); ?>"
+                                                    data-email-notifications="<?php echo (int)$user['email_notifications']; ?>"
+                                                    data-is-active="<?php echo (int)$user['is_active']; ?>"
+                                                    data-is-admin="<?php echo (int)$user['is_admin']; ?>"
+                                                    data-can-reservations="<?php echo (int)$user['can_reservations']; ?>"
+                                                    data-can-atemschutz="<?php echo (int)$user['can_atemschutz']; ?>">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
                                                 <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('editBtn<?php echo (int)$user['id']; ?>').click()">Test bearbeiten</button>
@@ -472,9 +466,27 @@ try {
             // Click-Delegation: Falls einzelne Buttons vom Overlay überdeckt würden
             document.querySelectorAll('button[id^="editBtn"]').forEach(function(btn){
                 btn.addEventListener('click', function(e){
-                    e.preventDefault();
-                    e.stopPropagation();
-                    // Parameter sind bereits im onclick des Buttons verdrahtet
+                    // Daten aus data-Attributen ins Formular füllen
+                    const getBool = (v) => (String(v) === '1');
+                    document.getElementById('userModalTitle').textContent = 'Benutzer bearbeiten';
+                    document.getElementById('user_id').value = this.dataset.userId || '';
+                    document.getElementById('username').value = this.dataset.username || '';
+                    document.getElementById('email').value = this.dataset.email || '';
+                    document.getElementById('first_name').value = this.dataset.firstName || '';
+                    document.getElementById('last_name').value = this.dataset.lastName || '';
+                    document.getElementById('email_notifications').checked = getBool(this.dataset.emailNotifications);
+                    document.getElementById('is_active').checked = getBool(this.dataset.isActive);
+                    document.getElementById('is_admin').checked = getBool(this.dataset.isAdmin);
+                    const canRes = getBool(this.dataset.canReservations);
+                    const canAtm = getBool(this.dataset.canAtemschutz);
+                    document.getElementById('can_reservations').checked = canRes;
+                    const atmEl = document.getElementById('can_atemschutz');
+                    if (atmEl) atmEl.checked = canAtm;
+                    toggleAdminPermissions(getBool(this.dataset.isAdmin));
+                    document.getElementById('action').value = 'edit';
+                    document.getElementById('submitButton').textContent = 'Aktualisieren';
+                    document.getElementById('password-required').textContent = '';
+                    const help = document.getElementById('password-help'); if (help) help.style.display = 'block';
                 });
             });
             // Admin-Checkbox initial toggeln
