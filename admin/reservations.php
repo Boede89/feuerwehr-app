@@ -150,16 +150,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         $calendar_event = $stmt->fetch();
         
         if (!$calendar_event || empty($calendar_event['google_event_id'])) {
-            throw new Exception('Keine Google Event ID für diese Reservierung gefunden');
-        }
-
-        // Fahrzeug aus Kalendereintrag entfernen
-        $success = remove_vehicle_from_calendar_event($calendar_event['google_event_id'], $reservation['vehicle_name'], $reservation_id);
-        
-        if ($success) {
-            $message = "Fahrzeug '{$reservation['vehicle_name']}' wurde aus dem Kalendereintrag entfernt.";
+            // Keine Google Event ID gefunden - Reservierung wurde wahrscheinlich abgelehnt
+            // Lösche die Reservierung direkt aus der Datenbank
+            $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
+            $stmt->execute([$reservation_id]);
+            $message = "Reservierung wurde gelöscht (kein Google Calendar Eintrag vorhanden - wahrscheinlich abgelehnt).";
         } else {
-            $error = "Fehler beim Entfernen des Fahrzeugs aus dem Kalendereintrag.";
+            // Fahrzeug aus Kalendereintrag entfernen
+            $success = remove_vehicle_from_calendar_event($calendar_event['google_event_id'], $reservation['vehicle_name'], $reservation_id);
+            
+            if ($success) {
+                $message = "Fahrzeug '{$reservation['vehicle_name']}' wurde aus dem Kalendereintrag entfernt.";
+            } else {
+                $error = "Fehler beim Entfernen des Fahrzeugs aus dem Kalendereintrag.";
+            }
         }
         
     } catch (Exception $e) {
