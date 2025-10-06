@@ -251,7 +251,22 @@ try {
                                             <td><?php echo format_date($user['created_at']); ?></td>
                                             <td>
                                                 <button type="button" class="btn btn-outline-primary btn-sm" 
-                                                        onclick="editUser(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['email']); ?>', '<?php echo htmlspecialchars($user['first_name']); ?>', '<?php echo htmlspecialchars($user['last_name']); ?>', 'user', <?php echo $user['email_notifications']; ?>, <?php echo $user['is_active']; ?>, <?php echo $user['is_admin']; ?>, <?php echo $user['can_reservations']; ?>, <?php echo $user['can_atemschutz']; ?>, <?php echo $user['can_users']; ?>, <?php echo $user['can_settings']; ?>, <?php echo $user['can_vehicles']; ?>)">
+                                                        onclick='editUser(
+                                                            <?php echo (int)$user["id"]; ?>,
+                                                            <?php echo json_encode((string)$user["username"]); ?>,
+                                                            <?php echo json_encode((string)$user["email"]); ?>,
+                                                            <?php echo json_encode((string)$user["first_name"]); ?>,
+                                                            <?php echo json_encode((string)$user["last_name"]); ?>,
+                                                            "user",
+                                                            <?php echo (int)$user["email_notifications"]; ?>,
+                                                            <?php echo (int)$user["is_active"]; ?>,
+                                                            <?php echo (int)$user["is_admin"]; ?>,
+                                                            <?php echo (int)$user["can_reservations"]; ?>,
+                                                            <?php echo (int)$user["can_atemschutz"]; ?>,
+                                                            <?php echo (int)$user["can_users"]; ?>,
+                                                            <?php echo (int)$user["can_settings"]; ?>,
+                                                            <?php echo (int)$user["can_vehicles"]; ?>
+                                                        )'>
                                                     <i class="fas fa-edit"></i>
                                                 </button>
                                                 <?php if ($user['id'] != $_SESSION['user_id']): ?>
