@@ -26,6 +26,33 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 $error = '';
 $message = '';
 
+// POST: Atemschutz-Träger aktualisieren (vom Dashboard-Modal)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_atemschutz_traeger') {
+    if (!has_permission('atemschutz')) {
+        $error = 'Keine Berechtigung.';
+    } else {
+        $id = (int)($_POST['id'] ?? 0);
+        $firstName = trim($_POST['first_name'] ?? '');
+        $lastName = trim($_POST['last_name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $birthdate = trim($_POST['birthdate'] ?? '');
+        $streckeAm = trim($_POST['strecke_am'] ?? '');
+        $g263Am = trim($_POST['g263_am'] ?? '');
+        $uebungAm = trim($_POST['uebung_am'] ?? '');
+        if ($id <= 0 || $firstName === '' || $lastName === '' || $birthdate === '' || $streckeAm === '' || $g263Am === '' || $uebungAm === '') {
+            $error = 'Bitte alle Pflichtfelder ausfüllen.';
+        } else {
+            try {
+                $stmtU = $db->prepare("UPDATE atemschutz_traeger SET first_name=?, last_name=?, email=?, birthdate=?, strecke_am=?, g263_am=?, uebung_am=? WHERE id=?");
+                $stmtU->execute([$firstName, $lastName, ($email !== '' ? $email : null), $birthdate, $streckeAm, $g263Am, $uebungAm, $id]);
+                $message = 'Geräteträger aktualisiert.';
+            } catch (Exception $e) {
+                $error = 'Fehler beim Speichern: ' . htmlspecialchars($e->getMessage());
+            }
+        }
+    }
+}
+
 // POST-Verarbeitung für Genehmigung/Ablehnung
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     $reservation_id = (int)$_POST['reservation_id'];
@@ -469,7 +496,7 @@ try {
                                             <th>G26.3 Bis</th>
                                             <th>Übung/Einsatz Bis</th>
                                             <th>Status</th>
-                                            <th></th>
+                                            <th class="text-end">Aktion</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -521,10 +548,17 @@ try {
                                                         <span class="badge bg-warning text-dark">Warnung</span>
                                                     <?php endif; ?>
                                                 </td>
-                                                <td>
-                                                    <a href="#" class="btn btn-sm btn-outline-secondary" onclick="alert('Funktion folgt'); return false;">
-                                                        <i class="fas fa-paper-plane"></i> Benachrichtigen
-                                                    </a>
+                                                <td class="text-end">
+                                                    <div class="btn-group" role="group">
+                                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editTraegerDashModal"
+                                                            data-id="<?php echo (int)$it['id']; ?>"
+                                                            data-name="<?php echo htmlspecialchars($it['name']); ?>">
+                                                            <i class="fas fa-pen"></i> Bearbeiten
+                                                        </button>
+                                                        <a href="#" class="btn btn-sm btn-outline-secondary" onclick="alert('Funktion folgt'); return false;" title="Benachrichtigen">
+                                                            <i class="fas fa-paper-plane"></i>
+                                                        </a>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -780,6 +814,64 @@ try {
         
     </div>
 
+    <!-- Modal: Atemschutz-Träger bearbeiten (vom Dashboard) -->
+    <?php if (has_permission('atemschutz')): ?>
+    <div class="modal fade" id="editTraegerDashModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-user-pen me-2"></i> Geräteträger bearbeiten</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="dashboard.php">
+                    <input type="hidden" name="action" value="update_atemschutz_traeger">
+                    <input type="hidden" name="id" id="dash_edit_id">
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Name</label>
+                                <input type="text" class="form-control" id="dash_edit_name" disabled>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Vorname *</label>
+                                <input type="text" class="form-control" name="first_name" id="dash_edit_first_name" required>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Nachname *</label>
+                                <input type="text" class="form-control" name="last_name" id="dash_edit_last_name" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">E-Mail (optional)</label>
+                                <input type="email" class="form-control" name="email" id="dash_edit_email" placeholder="name@beispiel.de">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Geburtsdatum *</label>
+                                <input type="date" class="form-control" name="birthdate" id="dash_edit_birthdate" required>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Strecke – Am *</label>
+                                <input type="date" class="form-control" name="strecke_am" id="dash_edit_strecke_am" required>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">G26.3 – Am *</label>
+                                <input type="date" class="form-control" name="g263_am" id="dash_edit_g263_am" required>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Übung/Einsatz – Am *</label>
+                                <input type="date" class="form-control" name="uebung_am" id="dash_edit_uebung_am" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary">Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Wenn ein Ablehnungs-Modal geöffnet wird, Konflikt prüfen und ggf. Grund vorausfüllen
@@ -932,6 +1024,30 @@ try {
                     }, 500); // Kurze Verzögerung damit Modal vollständig geöffnet ist
                 });
             });
+        });
+        // Prefill für Atemschutz-Dashboard-Edit-Modal
+        document.addEventListener('click', function(e){
+            const btn = e.target.closest('[data-bs-target="#editTraegerDashModal"][data-id]');
+            if (!btn) return;
+            const id = btn.getAttribute('data-id');
+            const name = btn.getAttribute('data-name') || '';
+            // Wir holen Details live nach
+            fetch('atemschutz-get.php?id=' + encodeURIComponent(id))
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    document.getElementById('dash_edit_id').value = id;
+                    document.getElementById('dash_edit_name').value = name;
+                    if (data && data.success) {
+                        document.getElementById('dash_edit_first_name').value = data.data.first_name || '';
+                        document.getElementById('dash_edit_last_name').value = data.data.last_name || '';
+                        document.getElementById('dash_edit_email').value = data.data.email || '';
+                        document.getElementById('dash_edit_birthdate').value = data.data.birthdate || '';
+                        document.getElementById('dash_edit_strecke_am').value = data.data.strecke_am || '';
+                        document.getElementById('dash_edit_g263_am').value = data.data.g263_am || '';
+                        document.getElementById('dash_edit_uebung_am').value = data.data.uebung_am || '';
+                    }
+                })
+                .catch(()=>{});
         });
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
