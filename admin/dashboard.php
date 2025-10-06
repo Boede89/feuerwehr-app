@@ -569,7 +569,7 @@ try {
                                                 </td>
                                                 <td class="text-end">
                                                     <div class="btn-group" role="group">
-                                                        <button type="button" class="btn btn-sm btn-outline-primary btn-edit-traeger" data-bs-toggle="modal" data-bs-target="#editTraegerDashModal"
+                                                        <button type="button" class="btn btn-sm btn-outline-primary btn-edit-traeger"
                                                             data-id="<?php echo (int)$it['id']; ?>"
                                                             data-name="<?php echo htmlspecialchars($it['name']); ?>">
                                                             <i class="fas fa-pen"></i> Bearbeiten
@@ -1244,14 +1244,25 @@ try {
                         document.getElementById('dash_edit_g263_am').value = '';
                         document.getElementById('dash_edit_uebung_am').value = '';
                     }
-                    try {
+                    (function ensureBootstrapAndShow(){
                         const modalEl = document.getElementById('editTraegerDashModal');
-                        if (modalEl && window.bootstrap && bootstrap.Modal) {
-                            // Explizit Default-Optionen setzen, um undefined-Zugriff zu vermeiden
-                            const m = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: true, keyboard: true });
-                            m.show();
+                        if (!modalEl) return;
+                        function show(){
+                            try {
+                                const m = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: true, keyboard: true });
+                                m.show();
+                            } catch(_) {}
                         }
-                    } catch(_) {}
+                        if (window.bootstrap && bootstrap.Modal) { show(); return; }
+                        // Fallback: Bootstrap Bundle nachladen
+                        const existing = document.querySelector('script[data-dyn="bs-bundle"]');
+                        if (existing) { existing.addEventListener('load', show); return; }
+                        const s = document.createElement('script');
+                        s.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js';
+                        s.defer = true; s.async = true; s.setAttribute('data-dyn','bs-bundle');
+                        s.addEventListener('load', show);
+                        document.body.appendChild(s);
+                    })();
                 })
                 .catch(()=>{});
         });
