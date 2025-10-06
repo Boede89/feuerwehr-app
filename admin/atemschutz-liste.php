@@ -59,7 +59,8 @@ if (!$isAdmin && !$canAtemschutz) {
     <style>
     .bis-badge { padding: .25rem .5rem; border-radius: .375rem; display: inline-block; }
     .bis-warn { background-color: #fff3cd; color: #664d03; } /* gelb */
-    .bis-expired { background-color: #f8d7da; color: #842029; } /* rot */
+    .bis-expired { background-color: #dc3545; color: #fff; } /* kräftiges rot */
+    .status-badge { font-weight: 600; }
     </style>
 </head>
 <body>
@@ -106,6 +107,31 @@ if (!$isAdmin && !$canAtemschutz) {
     <?php endif; ?>
 
     <?php
+    // Update-Handler (Bearbeiten)
+    $updateMsg = '';
+    $updateErr = '';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_traeger') {
+        $id = (int)($_POST['id'] ?? 0);
+        $firstName = trim($_POST['first_name'] ?? '');
+        $lastName = trim($_POST['last_name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $birthdate = trim($_POST['birthdate'] ?? '');
+        $streckeAm = trim($_POST['strecke_am'] ?? '');
+        $g263Am = trim($_POST['g263_am'] ?? '');
+        $uebungAm = trim($_POST['uebung_am'] ?? '');
+
+        if ($id <= 0 || $firstName === '' || $lastName === '' || $birthdate === '' || $streckeAm === '' || $g263Am === '' || $uebungAm === '') {
+            $updateErr = 'Bitte alle Pflichtfelder ausfüllen.';
+        } else {
+            try {
+                $stmtU = $db->prepare("UPDATE atemschutz_traeger SET first_name=?, last_name=?, email=?, birthdate=?, strecke_am=?, g263_am=?, uebung_am=? WHERE id=?");
+                $stmtU->execute([$firstName, $lastName, ($email !== '' ? $email : null), $birthdate, $streckeAm, $g263Am, $uebungAm, $id]);
+                $updateMsg = 'Geräteträger aktualisiert.';
+            } catch (Exception $e) {
+                $updateErr = 'Fehler beim Speichern: ' . htmlspecialchars($e->getMessage());
+            }
+        }
+    }
     // Suche & Sortierung
     $q = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
     $allowedSort = [
@@ -207,6 +233,12 @@ if (!$isAdmin && !$canAtemschutz) {
     <?php if ($error): ?>
         <div class="alert alert-danger">Fehler beim Laden der Geräteträger: <?php echo htmlspecialchars($error); ?></div>
     <?php endif; ?>
+    <?php if (!empty($updateMsg)): ?>
+        <div class="alert alert-success"><?php echo htmlspecialchars($updateMsg); ?></div>
+    <?php endif; ?>
+    <?php if (!empty($updateErr)): ?>
+        <div class="alert alert-danger"><?php echo htmlspecialchars($updateErr); ?></div>
+    <?php endif; ?>
 
     <form class="mb-3" method="get" action="atemschutz-liste.php">
         <div class="row g-2 align-items-end">
@@ -269,7 +301,7 @@ if (!$isAdmin && !$canAtemschutz) {
                             <td colspan="7" class="text-center text-muted py-4">Noch keine Geräteträger erfasst.</td>
                         </tr>
                     <?php else: ?>
-                        <?php foreach ($traeger as $t): ?>
+                            <?php foreach ($traeger as $t): ?>
                             <?php
                                 $first = $t['first_name'] ?? '';
                                 $last = $t['last_name'] ?? '';
@@ -282,6 +314,20 @@ if (!$isAdmin && !$canAtemschutz) {
                                 $uebungAm = $fmtDate($t['uebung_am'] ?? null);
                                 $uebungBis = $bisUebung($t['uebung_am'] ?? null);
                                 $status = $t['status'] ?? 'Aktiv';
+                                    // Status anhand Bis-Daten bestimmen
+                                    $now = new DateTime('today');
+                                    $isExpired = false; $isWarn = false;
+                                    $datesCheck = [];
+                                    if (!empty($t['strecke_bis'])) { $datesCheck[] = new DateTime($t['strecke_bis']); }
+                                    if (!empty($t['g263_bis'])) { $datesCheck[] = new DateTime($t['g263_bis']); }
+                                    if (!empty($t['uebung_bis'])) { $datesCheck[] = new DateTime($t['uebung_bis']); }
+                                    foreach ($datesCheck as $d) {
+                                        $diff = (int)$now->diff($d)->format('%r%a');
+                                        if ($diff < 0) { $isExpired = true; break; }
+                                        if ($diff <= $warnDays) { $isWarn = true; }
+                                    }
+                                    $statusText = $isExpired ? 'Abgelaufen' : ($isWarn ? 'Warnung' : 'Tauglich');
+                                    $statusClass = $isExpired ? 'bg-danger' : ($isWarn ? 'bg-warning text-dark' : 'bg-success');
                             ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($name); ?></td>
@@ -332,11 +378,19 @@ if (!$isAdmin && !$canAtemschutz) {
                                     <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($uebungBis); ?></span></div>
                                 </td>
                                 <td>
-                                    <span class="badge bg-success"><?php echo htmlspecialchars($status); ?></span>
+                                    <span class="badge status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($statusText); ?></span>
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">
-                                        <button class="btn btn-sm btn-outline-primary" data-action="edit" data-id="<?php echo (int)$t['id']; ?>">
+                                        <button class="btn btn-sm btn-outline-primary" data-action="edit" data-id="<?php echo (int)$t['id']; ?>"
+                                            data-first_name="<?php echo htmlspecialchars($t['first_name'] ?? ''); ?>"
+                                            data-last_name="<?php echo htmlspecialchars($t['last_name'] ?? ''); ?>"
+                                            data-email="<?php echo htmlspecialchars($t['email'] ?? ''); ?>"
+                                            data-birthdate="<?php echo htmlspecialchars($t['birthdate'] ?? ''); ?>"
+                                            data-strecke_am="<?php echo htmlspecialchars($t['strecke_am'] ?? ''); ?>"
+                                            data-g263_am="<?php echo htmlspecialchars($t['g263_am'] ?? ''); ?>"
+                                            data-uebung_am="<?php echo htmlspecialchars($t['uebung_am'] ?? ''); ?>"
+                                        >
                                             <i class="fas fa-pen"></i> Bearbeiten
                                         </button>
                                         <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="<?php echo (int)$t['id']; ?>">
@@ -354,6 +408,58 @@ if (!$isAdmin && !$canAtemschutz) {
 
 </div>
 
+<!-- Modal: Geräteträger bearbeiten -->
+<div class="modal fade" id="editTraegerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-user-pen me-2"></i> Geräteträger bearbeiten</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="atemschutz-liste.php">
+                <input type="hidden" name="action" value="update_traeger">
+                <input type="hidden" name="id" id="edit_id">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Vorname *</label>
+                            <input type="text" class="form-control" name="first_name" id="edit_first_name" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Nachname *</label>
+                            <input type="text" class="form-control" name="last_name" id="edit_last_name" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">E-Mail (optional)</label>
+                            <input type="email" class="form-control" name="email" id="edit_email" placeholder="name@beispiel.de">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Geburtsdatum *</label>
+                            <input type="date" class="form-control" name="birthdate" id="edit_birthdate" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Strecke – Am *</label>
+                            <input type="date" class="form-control" name="strecke_am" id="edit_strecke_am" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">G26.3 – Am *</label>
+                            <input type="date" class="form-control" name="g263_am" id="edit_g263_am" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Übung/Einsatz – Am *</label>
+                            <input type="date" class="form-control" name="uebung_am" id="edit_uebung_am" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+ </div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function(){
@@ -362,7 +468,17 @@ document.addEventListener('DOMContentLoaded', function(){
             const action = this.getAttribute('data-action');
             const id = this.getAttribute('data-id');
             if (action === 'edit') {
-                alert('Bearbeiten: ID ' + id + '\n(Funktion folgt)');
+                // Modal mit Daten füllen
+                document.getElementById('edit_id').value = id;
+                document.getElementById('edit_first_name').value = this.getAttribute('data-first_name') || '';
+                document.getElementById('edit_last_name').value = this.getAttribute('data-last_name') || '';
+                document.getElementById('edit_email').value = this.getAttribute('data-email') || '';
+                document.getElementById('edit_birthdate').value = this.getAttribute('data-birthdate') || '';
+                document.getElementById('edit_strecke_am').value = this.getAttribute('data-strecke_am') || '';
+                document.getElementById('edit_g263_am').value = this.getAttribute('data-g263_am') || '';
+                document.getElementById('edit_uebung_am').value = this.getAttribute('data-uebung_am') || '';
+                const modal = new bootstrap.Modal(document.getElementById('editTraegerModal'));
+                modal.show();
             } else if (action === 'delete') {
                 if (confirm('Geräteträger wirklich löschen?')) {
                     alert('Löschen: ID ' + id + '\n(Funktion folgt)');
