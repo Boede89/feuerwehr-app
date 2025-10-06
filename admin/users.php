@@ -257,7 +257,6 @@ try {
                                                     data-can-atemschutz="<?php echo (int)$user['can_atemschutz']; ?>">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
-                                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('editBtn<?php echo (int)$user['id']; ?>').click()">Test bearbeiten</button>
                                                 <?php if ($user['id'] != $_SESSION['user_id']): ?>
                                                     <a href="?delete=<?php echo $user['id']; ?>" class="btn btn-outline-danger btn-sm" 
                                                        onclick="return confirm('Sind Sie sicher, dass Sie diesen Benutzer löschen möchten?')">
