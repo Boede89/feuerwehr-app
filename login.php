@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = "Bitte geben Sie Benutzername und Passwort ein.";
     } else {
         try {
-            $stmt = $db->prepare("SELECT id, username, email, password_hash, first_name, last_name, is_admin, is_active, user_role, email_notifications FROM users WHERE username = ? OR email = ?");
+            $stmt = $db->prepare("SELECT id, username, email, password_hash, first_name, last_name, is_admin, is_active, user_role, email_notifications, can_reservations, can_atemschutz, can_users, can_settings, can_vehicles FROM users WHERE username = ? OR email = ?");
             $stmt->execute([$username, $username]);
             $user = $stmt->fetch();
             
@@ -36,6 +36,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $_SESSION['is_admin'] = $user['is_admin'];
                 $_SESSION['role'] = $user['user_role'] ?? 'user';
                 $_SESSION['email_notifications'] = $user['email_notifications'] ?? 1;
+                $_SESSION['can_reservations'] = $user['can_reservations'] ?? 0;
+                $_SESSION['can_atemschutz'] = $user['can_atemschutz'] ?? 0;
+                $_SESSION['can_users'] = $user['can_users'] ?? 0;
+                $_SESSION['can_settings'] = $user['can_settings'] ?? 0;
+                $_SESSION['can_vehicles'] = $user['can_vehicles'] ?? 0;
                 
                 // Aktivität loggen
                 log_activity($user['id'], 'login', 'Benutzer angemeldet');
