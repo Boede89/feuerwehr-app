@@ -317,6 +317,11 @@ function get_admin_navigation() {
         $nav_items[] = '<li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>';
     }
     
+    // Atemschutz (vorerst nur für Admins sichtbar)
+    if (has_admin_access()) {
+        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="atemschutz.php"><i class="fas fa-lungs"></i> Atemschutz</a></li>';
+    }
+
     // Einstellungen - nur für Einstellungen-Recht (inkl. Fahrzeuge und Benutzer)
     if (has_permission('settings') || has_permission('vehicles') || has_permission('users')) {
         $nav_items[] = '<li class="nav-item"><a class="nav-link" href="settings.php"><i class="fas fa-cog"></i> Einstellungen</a></li>';
