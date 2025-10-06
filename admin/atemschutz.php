@@ -99,6 +99,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 		}
 	}
 }
+
+// POST: Übung planen – Filter und Vorschlagsliste erzeugen
+$planInfo = null;
+$planError = null;
+$planResults = [];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'plan_training') {
+	$planDate = trim($_POST['plan_date'] ?? '');
+	$needCount = (int)($_POST['need_count'] ?? 0);
+	$allAvailable = isset($_POST['all_available']) ? true : false;
+	$statuses = $_POST['statuses'] ?? [];
+	if ($planDate === '') { $planDate = date('Y-m-d'); }
+
+	try {
+		// Basis: alle Träger
+		$stmt = $db->prepare("SELECT id, first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am FROM atemschutz_traeger");
+		$stmt->execute();
+		$all = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		
+		$warnDays = 90;
+		try {
+			$s = $db->prepare("SELECT setting_value FROM settings WHERE setting_key='atemschutz_warn_days' LIMIT 1");
+			$s->execute();
+			$val = $s->fetchColumn();
+			if ($val !== false && is_numeric($val)) { $warnDays = (int)$val; }
+		} catch (Exception $e) {}
+
+		$now = new DateTime('today');
+		foreach ($all as $row) {
+			$age = 0; if (!empty($row['birthdate'])) { try { $age = (new DateTime($row['birthdate']))->diff($now)->y; } catch (Exception $e) {} }
+			// Bis-Daten berechnen
+			$streckeBis = !empty($row['strecke_am']) ? (new DateTime($row['strecke_am']))->modify('+1 year')->format('Y-m-d') : null;
+			$g263Bis = null; if (!empty($row['g263_am'])) { $g = new DateTime($row['g263_am']); $g->modify(($age < 50 ? '+3 year' : '+1 year')); $g263Bis = $g->format('Y-m-d'); }
+			$uebungBis = !empty($row['uebung_am']) ? (new DateTime($row['uebung_am']))->modify('+1 year')->format('Y-m-d') : null;
+			// Status bestimmen analog Liste
+			$streckeExpired=false; $g263Expired=false; $uebungExpired=false; $anyWarn=false;
+			if ($streckeBis) { $diff=(int)$now->diff(new DateTime($streckeBis))->format('%r%a'); if ($diff<0) $streckeExpired=true; elseif ($diff<= $warnDays) $anyWarn=true; }
+			if ($g263Bis) { $diff=(int)$now->diff(new DateTime($g263Bis))->format('%r%a'); if ($diff<0) $g263Expired=true; elseif ($diff<= $warnDays) $anyWarn=true; }
+			if ($uebungBis) { $diff=(int)$now->diff(new DateTime($uebungBis))->format('%r%a'); if ($diff<0) $uebungExpired=true; elseif ($diff<= $warnDays) $anyWarn=true; }
+			if ($streckeExpired || $g263Expired) { $status = 'abgelaufen'; }
+			elseif ($uebungExpired) { $status = 'uebung_abgelaufen'; }
+			elseif ($anyWarn) { $status = 'warnung'; }
+			else { $status = 'tauglich'; }
+
+			$row['_status'] = $status;
+			$row['_uebung_am'] = $row['uebung_am'];
+			$row['_name'] = trim(($row['last_name'] ?? '') . ', ' . ($row['first_name'] ?? ''));
+			$row['_age'] = $age;
+			$row['_uebung_am_sort'] = $row['uebung_am'] ?: '0000-01-01';
+			$planResults[] = $row;
+		}
+		// Filter nach Status
+		if (!is_array($statuses) || empty($statuses)) { $statuses = ['tauglich','warnung','uebung_abgelaufen']; }
+		$statuses = array_map('strval', $statuses);
+		$planResults = array_values(array_filter($planResults, static function($r) use ($statuses){ return in_array($r['_status'], $statuses, true); }));
+		// Sortierung: ältestes uebung_am zuerst
+		usort($planResults, static function($a,$b){ return strcmp($a['_uebung_am_sort'], $b['_uebung_am_sort']); });
+		// Anzahl begrenzen wenn nicht alle
+		if (!$allAvailable && $needCount > 0) {
+			$planResults = array_slice($planResults, 0, $needCount);
+		}
+		$planInfo = 'Vorschlagsliste erstellt.';
+	} catch (Exception $e) {
+		$planError = 'Fehler bei der Planung: ' . htmlspecialchars($e->getMessage());
+	}
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -234,6 +299,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 								</div>
 							</div>
 
+    <?php if (!empty($planInfo)): ?>
+        <div class="container-fluid">
+            <div class="card mt-3">
+                <div class="card-header">
+                    <strong>Vorschlagsliste</strong>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Geburtsdatum</th>
+                                <th>Übung/Einsatz – Am</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach (($planResults ?? []) as $pr): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($pr['_name'] ?? ''); ?></td>
+                                    <td><?php echo htmlspecialchars($pr['birthdate'] ?? ''); ?></td>
+                                    <td><?php echo htmlspecialchars($pr['_uebung_am'] ?? ''); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            <?php if (empty($planResults)): ?>
+                                <tr><td colspan="3" class="text-muted text-center py-3">Keine passenden Geräteträger gefunden.</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
 							<div class="col-12">
 								<div class="border rounded p-3">
 									<h6 class="mb-3"><i class="fas fa-road me-2"></i> Strecke</h6>
@@ -341,6 +439,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 		</div>
 	</div>
 
+	<!-- Modal: Übung planen -->
+	<div class="modal fade" id="planTrainingModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-lg modal-dialog-centered">
+			<div class="modal-content">
+				<div class="modal-header bg-success text-white">
+					<h5 class="modal-title"><i class="fas fa-calendar-plus me-2"></i> Übung planen</h5>
+					<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<form method="post" action="atemschutz.php">
+					<input type="hidden" name="action" value="plan_training">
+					<div class="modal-body">
+						<div class="row g-3">
+							<div class="col-12 col-md-4">
+								<label class="form-label">Übungsdatum</label>
+								<input type="date" class="form-control" name="plan_date" value="<?php echo htmlspecialchars(date('Y-m-d')); ?>" required>
+							</div>
+							<div class="col-12 col-md-4">
+								<label class="form-label">Benötigte PA-Träger</label>
+								<input type="number" min="0" class="form-control" name="need_count" placeholder="z.B. 4">
+								<div class="form-check mt-2">
+									<input class="form-check-input" type="checkbox" name="all_available" id="all_available">
+									<label class="form-check-label" for="all_available">Alle verfügbaren auswählen</label>
+								</div>
+							</div>
+							<div class="col-12 col-md-4">
+								<label class="form-label">Status-Filter</label>
+								<div class="form-check">
+									<input class="form-check-input" type="checkbox" name="statuses[]" id="st_tauglich" value="tauglich" checked>
+									<label class="form-check-label" for="st_tauglich">Tauglich</label>
+								</div>
+								<div class="form-check">
+									<input class="form-check-input" type="checkbox" name="statuses[]" id="st_warnung" value="warnung" checked>
+									<label class="form-check-label" for="st_warnung">Warnung</label>
+								</div>
+								<div class="form-check">
+									<input class="form-check-input" type="checkbox" name="statuses[]" id="st_ueb_abg" value="uebung_abgelaufen" checked>
+									<label class="form-check-label" for="st_ueb_abg">Übung abgelaufen</label>
+								</div>
+							</div>
+						</div>
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+						<button type="submit" class="btn btn-success">Vorschlag erstellen</button>
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
+
     <script>
     // Platzhalter-Handler – werden später mit Logik hinterlegt
     document.addEventListener('DOMContentLoaded', function(){
@@ -350,15 +498,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // Kein JS-Redirect nötig – echter Link wird verwendet
 
         // Platzhalter für andere Buttons (btnAddTraeger öffnet Modal, daher kein Alert)
-        const other = {
-            btnPlanTraining: 'Übung planen'
-        };
+        const other = { };
         Object.entries(other).forEach(([id,label])=>{ const el=q(id); if(el) el.addEventListener('click', onClickInfo(label)); });
 
         const btnRecord = q('btnRecordData');
         if (btnRecord) {
             btnRecord.addEventListener('click', function(){
                 const modal = new bootstrap.Modal(document.getElementById('bulkDataModal'));
+                modal.show();
+            });
+        }
+
+        const btnPlan = q('btnPlanTraining');
+        if (btnPlan) {
+            btnPlan.addEventListener('click', function(){
+                const modal = new bootstrap.Modal(document.getElementById('planTrainingModal'));
                 modal.show();
             });
         }
