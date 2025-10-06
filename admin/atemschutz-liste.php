@@ -135,7 +135,7 @@ if (!$isAdmin && !$canAtemschutz) {
     // Suche & Sortierung
     $q = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
     $allowedSort = [
-        'name','age','strecke_am','strecke_bis','g263_am','g263_bis','uebung_am','uebung_bis','status'
+        'name','age','strecke_bis','g263_bis','uebung_bis','status'
     ];
     $sort = isset($_GET['sort']) && in_array($_GET['sort'], $allowedSort, true) ? $_GET['sort'] : 'name';
     $dir = strtolower($_GET['dir'] ?? 'asc');
@@ -194,11 +194,8 @@ if (!$isAdmin && !$canAtemschutz) {
         $orderMap = [
             'name' => 'name_full',
             'age' => 'TIMESTAMPDIFF(YEAR, birthdate, CURDATE())',
-            'strecke_am' => 'strecke_am',
             'strecke_bis' => 'strecke_bis',
-            'g263_am' => 'g263_am',
             'g263_bis' => 'g263_bis',
-            'uebung_am' => 'uebung_am',
             'uebung_bis' => 'uebung_bis',
             'status' => 'status',
         ];
@@ -254,11 +251,8 @@ if (!$isAdmin && !$canAtemschutz) {
                 <select class="form-select" name="sort">
                     <option value="name" <?php echo $sort==='name'?'selected':''; ?>>Name</option>
                     <option value="age" <?php echo $sort==='age'?'selected':''; ?>>Alter</option>
-                    <option value="strecke_am" <?php echo $sort==='strecke_am'?'selected':''; ?>>Strecke Am</option>
                     <option value="strecke_bis" <?php echo $sort==='strecke_bis'?'selected':''; ?>>Strecke Bis</option>
-                    <option value="g263_am" <?php echo $sort==='g263_am'?'selected':''; ?>>G26.3 Am</option>
                     <option value="g263_bis" <?php echo $sort==='g263_bis'?'selected':''; ?>>G26.3 Bis</option>
-                    <option value="uebung_am" <?php echo $sort==='uebung_am'?'selected':''; ?>>Übung/Einsatz Am</option>
                     <option value="uebung_bis" <?php echo $sort==='uebung_bis'?'selected':''; ?>>Übung/Einsatz Bis</option>
                     <option value="status" <?php echo $sort==='status'?'selected':''; ?>>Status</option>
                 </select>
