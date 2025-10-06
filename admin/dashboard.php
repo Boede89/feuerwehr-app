@@ -562,7 +562,7 @@ try {
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
-                                                    <?php echo htmlspecialchars($it['last_notified_at'] ? date('d.m.Y H:i', strtotime($it['last_notified_at'])) : '-'); ?>
+                                                    <?php echo htmlspecialchars($it['last_notified_at'] ? date('d.m.Y', strtotime($it['last_notified_at'])) : '-'); ?>
                                                 </td>
                                                 <td class="text-end">
                                                     <div class="btn-group" role="group">
@@ -1127,7 +1127,7 @@ try {
         // Benachrichtigung einzelner Geräteträger (mit E-Mail-Fallback)
         async function notifyAtemschutz(id){
             try {
-                const r = await fetch('atemschutz-get.php?id='+encodeURIComponent(id));
+                const r = await fetch('/admin/atemschutz-get.php?id='+encodeURIComponent(id));
                 const data = await r.json();
                 if (!data || data.success !== true) { alert('Konnte Geräteträger nicht laden.'); return; }
                 let { email, first_name, last_name } = data.data || {};
@@ -1142,7 +1142,7 @@ try {
                     return;
                 }
                 // Mail auslösen
-                const res = await fetch('atemschutz-notify.php', {
+                const res = await fetch('/admin/atemschutz-notify.php', {
                     method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[id] })
                 });
                 const j = await res.json();
@@ -1152,7 +1152,7 @@ try {
         // Benachrichtigung aller mit E-Mail
         async function notifyAllAtemschutz(){
             try {
-                const res = await fetch('atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ all:true }) });
+                const res = await fetch('/admin/atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ all:true }) });
                 const j = await res.json();
                 if (j && j.success) { alert('E-Mails versendet: '+(j.sent||0)); } else { alert('Versand fehlgeschlagen.'); }
             } catch(e){ alert('Fehler: '+e.message); }
@@ -1170,7 +1170,7 @@ try {
                 if (!email) { err.textContent = 'Bitte E-Mail angeben.'; err.classList.remove('d-none'); return; }
                 try {
                     // bestehende Daten holen
-                    const r = await fetch('atemschutz-get.php?id='+encodeURIComponent(id));
+                    const r = await fetch('/admin/atemschutz-get.php?id='+encodeURIComponent(id));
                     const data = await r.json();
                     if (!data || data.success !== true) { throw new Error('Datensatz nicht gefunden'); }
                     const d = data.data || {};
@@ -1186,7 +1186,7 @@ try {
                     form.append('uebung_am', d.uebung_am || '');
                     await fetch('dashboard.php', { method:'POST', body: form });
                     // danach senden
-                    const res = await fetch('atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[Number(id)] }) });
+                    const res = await fetch('/admin/atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[Number(id)] }) });
                     const j = await res.json();
                     if (!j || !j.success) throw new Error('Versand fehlgeschlagen');
                     bootstrap.Modal.getInstance(document.getElementById('emailEntryModal'))?.hide();
