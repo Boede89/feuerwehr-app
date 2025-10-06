@@ -569,7 +569,7 @@ try {
                                                 </td>
                                                 <td class="text-end">
                                                     <div class="btn-group" role="group">
-                                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editTraegerDashModal"
+                                                        <button type="button" class="btn btn-sm btn-outline-primary btn-edit-traeger"
                                                             data-id="<?php echo (int)$it['id']; ?>"
                                                             data-name="<?php echo htmlspecialchars($it['name']); ?>">
                                                             <i class="fas fa-pen"></i> Bearbeiten
@@ -1212,7 +1212,7 @@ try {
 
         // Prefill für Atemschutz-Dashboard-Edit-Modal
         document.addEventListener('click', function(e){
-            const btn = e.target.closest('[data-bs-target="#editTraegerDashModal"][data-id]');
+            const btn = e.target.closest('.btn-edit-traeger[data-id]');
             if (!btn) return;
             const id = btn.getAttribute('data-id');
             const name = btn.getAttribute('data-name') || '';
@@ -1234,7 +1234,8 @@ try {
                     try {
                         const modalEl = document.getElementById('editTraegerDashModal');
                         if (modalEl && window.bootstrap && bootstrap.Modal) {
-                            const m = bootstrap.Modal.getOrCreateInstance(modalEl);
+                            // Explizit Default-Optionen setzen, um undefined-Zugriff zu vermeiden
+                            const m = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: true, keyboard: true });
                             m.show();
                         }
                     } catch(_) {}
