@@ -2,6 +2,12 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/db.php';
 
+// Lightweight-Probe: /admin/atemschutz-liste.php?plain=1
+if (isset($_GET['plain'])) {
+    echo 'ATEMSCHUTZ_LISTE_OK';
+    exit;
+}
+
 if (!is_logged_in()) {
     header('Location: ../login.php');
     exit;
