@@ -17,8 +17,24 @@ if (empty($_SESSION['user_id'])) {
     exit;
 }
 
-// Berechtigung aus Session (wurde beim Login gesetzt)
+// Berechtigung: zuerst Session, dann DB-Fallback
 $canAtemschutz = !empty($_SESSION['can_atemschutz']) && (int)$_SESSION['can_atemschutz'] === 1;
+if (!$canAtemschutz) {
+    try {
+        $uid = (int)($_SESSION['user_id'] ?? 0);
+        if ($uid > 0) {
+            $stmtPerm = $db->prepare('SELECT can_atemschutz FROM users WHERE id = ?');
+            $stmtPerm->execute([$uid]);
+            $rowPerm = $stmtPerm->fetch(PDO::FETCH_ASSOC);
+            if ($rowPerm && (int)($rowPerm['can_atemschutz'] ?? 0) === 1) {
+                $canAtemschutz = true;
+                $_SESSION['can_atemschutz'] = 1; // Session synchronisieren
+            }
+        }
+    } catch (Exception $e) {
+        // Ignorieren, fällt unten auf 403 zurück
+    }
+}
 if (!$canAtemschutz) {
     http_response_code(403);
     echo 'Zugriff verweigert';
