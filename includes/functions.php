@@ -322,18 +322,8 @@ function get_admin_navigation() {
         $nav_items[] = '<li class="nav-item"><a class="nav-link" href="reservations.php"><i class="fas fa-calendar-check"></i> Reservierungen</a></li>';
     }
     
-    // Fahrzeuge - für alle mit Fahrzeug-Recht
-    if (has_permission('vehicles')) {
-        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="vehicles.php"><i class="fas fa-truck"></i> Fahrzeuge</a></li>';
-    }
-    
-    // Benutzer - nur für Benutzerverwaltung
-    if (has_permission('users')) {
-        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="users.php"><i class="fas fa-users"></i> Benutzer</a></li>';
-    }
-    
-    // Einstellungen - nur für Einstellungen-Recht
-    if (has_permission('settings')) {
+    // Einstellungen - nur für Einstellungen-Recht (inkl. Fahrzeuge und Benutzer)
+    if (has_permission('settings') || has_permission('vehicles') || has_permission('users')) {
         $nav_items[] = '<li class="nav-item"><a class="nav-link" href="settings.php"><i class="fas fa-cog"></i> Einstellungen</a></li>';
     }
     
