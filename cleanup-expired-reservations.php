@@ -1,124 +1,141 @@
 <?php
 /**
- * Automatisches Löschen von überschrittenen Reservierungen
+ * Cleanup-Script für abgelaufene Reservierungen
  * 
- * Dieses Skript sollte regelmäßig ausgeführt werden (z.B. via Cron Job)
- * um alte Reservierungen sowohl aus der Datenbank als auch aus dem Google Calendar zu entfernen.
+ * Dieses Script löscht automatisch Reservierungen, deren end_datetime in der Vergangenheit liegt.
+ * Es wird sowohl die Datenbank als auch die Google Calendar Events bereinigt.
+ * 
+ * Verwendung:
+ * - Manuell: php cleanup-expired-reservations.php
+ * - Cron-Job: 0 2 * * * php /path/to/cleanup-expired-reservations.php
  */
 
-require_once 'config/database.php';
+// Fehlerbehandlung aktivieren
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Session starten (falls nötig)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Datenbankverbindung
+require_once 'includes/db.php';
 require_once 'includes/functions.php';
 
-echo "<h1>🧹 Cleanup: Überschrittene Reservierungen löschen</h1>";
-echo "<p>Zeitstempel: " . date('Y-m-d H:i:s') . "</p>";
+// Google Calendar Funktionen laden
+if (file_exists('includes/google_calendar_functions.php')) {
+    require_once 'includes/google_calendar_functions.php';
+}
+
+echo "🧹 Cleanup abgelaufener Reservierungen gestartet...\n";
+echo "⏰ Zeitpunkt: " . date('Y-m-d H:i:s') . "\n\n";
 
 try {
-    // 1. Finde alle Reservierungen, die bereits beendet sind
-    $current_datetime = date('Y-m-d H:i:s');
+    // 1. Abgelaufene Reservierungen finden
+    echo "1. Suche abgelaufene Reservierungen...\n";
     
     $stmt = $db->prepare("
-        SELECT r.*, v.name as vehicle_name, ce.google_event_id
+        SELECT r.id, r.requester_name, r.requester_email, r.reason, r.start_datetime, r.end_datetime,
+               v.name as vehicle_name, ce.google_event_id
         FROM reservations r 
         JOIN vehicles v ON r.vehicle_id = v.id 
         LEFT JOIN calendar_events ce ON r.id = ce.reservation_id
-        WHERE r.end_datetime < ? 
-        AND r.status IN ('approved', 'rejected')
+        WHERE r.end_datetime < NOW() 
+        AND r.status IN ('approved', 'pending')
         ORDER BY r.end_datetime ASC
     ");
+    $stmt->execute();
+    $expired_reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    $stmt->execute([$current_datetime]);
-    $expired_reservations = $stmt->fetchAll();
+    $count = count($expired_reservations);
+    echo "   Gefunden: {$count} abgelaufene Reservierungen\n\n";
     
-    echo "<h2>1. Gefundene überschrittene Reservierungen</h2>";
+    if ($count === 0) {
+        echo "✅ Keine abgelaufenen Reservierungen gefunden. Cleanup beendet.\n";
+        exit(0);
+    }
     
-    if (empty($expired_reservations)) {
-        echo "<p style='color: green;'>✅ Keine überschrittenen Reservierungen gefunden</p>";
-    } else {
-        echo "<p style='color: orange;'>⚠️ " . count($expired_reservations) . " überschrittene Reservierungen gefunden:</p>";
+    // 2. Reservierungen verarbeiten
+    echo "2. Verarbeite abgelaufene Reservierungen...\n";
+    
+    $deleted_count = 0;
+    $google_deleted_count = 0;
+    $errors = [];
+    
+    foreach ($expired_reservations as $reservation) {
+        echo "   Verarbeite: {$reservation['vehicle_name']} - {$reservation['reason']} (bis: {$reservation['end_datetime']})\n";
         
-        echo "<table border='1' cellpadding='5' style='width: 100%;'>";
-        echo "<tr><th>ID</th><th>Fahrzeug</th><th>Antragsteller</th><th>Grund</th><th>Ende</th><th>Status</th><th>Google Event ID</th></tr>";
-        
-        foreach ($expired_reservations as $reservation) {
-            echo "<tr>";
-            echo "<td>" . $reservation['id'] . "</td>";
-            echo "<td>" . htmlspecialchars($reservation['vehicle_name']) . "</td>";
-            echo "<td>" . htmlspecialchars($reservation['requester_name']) . "</td>";
-            echo "<td>" . htmlspecialchars($reservation['reason']) . "</td>";
-            echo "<td>" . $reservation['end_datetime'] . "</td>";
-            echo "<td>" . $reservation['status'] . "</td>";
-            echo "<td>" . ($reservation['google_event_id'] ?: 'Keine') . "</td>";
-            echo "</tr>";
-        }
-        echo "</table>";
-        
-        // 2. Lösche die Reservierungen
-        echo "<h2>2. Lösche überschrittene Reservierungen</h2>";
-        
-        $deleted_count = 0;
-        $google_deleted_count = 0;
-        $errors = [];
-        
-        foreach ($expired_reservations as $reservation) {
-            try {
-                // Lösche aus Google Calendar (nur wenn Event ID vorhanden)
-                if (!empty($reservation['google_event_id'])) {
-                    $google_deleted = delete_google_calendar_event($reservation['google_event_id']);
-                    if ($google_deleted) {
-                        $google_deleted_count++;
-                        echo "<p style='color: green;'>✅ Google Calendar Event gelöscht: " . $reservation['google_event_id'] . "</p>";
+        try {
+            // 2.1 Google Calendar Event löschen (falls vorhanden)
+            if (!empty($reservation['google_event_id'])) {
+                echo "     - Lösche Google Calendar Event: {$reservation['google_event_id']}\n";
+                
+                // Prüfen ob noch andere Reservierungen dieses Event nutzen
+                $stmt = $db->prepare("SELECT COUNT(*) FROM calendar_events WHERE google_event_id = ?");
+                $stmt->execute([$reservation['google_event_id']]);
+                $remaining_links = (int)$stmt->fetchColumn();
+                
+                if ($remaining_links === 1) {
+                    // Nur löschen, wenn keine weitere Reservierung dieses Event nutzt
+                    if (function_exists('delete_google_calendar_event')) {
+                        $google_deleted = delete_google_calendar_event($reservation['google_event_id']);
+                        if ($google_deleted) {
+                            echo "     ✅ Google Calendar Event gelöscht\n";
+                            $google_deleted_count++;
+                        } else {
+                            echo "     ⚠️ Google Calendar Event konnte nicht gelöscht werden\n";
+                            $errors[] = "Google Calendar Event {$reservation['google_event_id']} konnte nicht gelöscht werden";
+                        }
                     } else {
-                        $errors[] = "Fehler beim Löschen des Google Calendar Events: " . $reservation['google_event_id'];
-                        echo "<p style='color: red;'>❌ Fehler beim Löschen des Google Calendar Events: " . $reservation['google_event_id'] . "</p>";
+                        echo "     ⚠️ Google Calendar Funktion nicht verfügbar\n";
+                        $errors[] = "Google Calendar Funktion nicht verfügbar für Event {$reservation['google_event_id']}";
                     }
+                } else {
+                    echo "     ℹ️ Google Event wird nicht gelöscht (noch {$remaining_links} weitere Verknüpfungen)\n";
                 }
-                
-                // Lösche aus lokaler Datenbank
-                $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
-                $stmt->execute([$reservation['id']]);
-                
-                $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
-                $stmt->execute([$reservation['id']]);
-                
-                $deleted_count++;
-                echo "<p style='color: green;'>✅ Reservierung gelöscht: ID " . $reservation['id'] . " (" . $reservation['vehicle_name'] . ")</p>";
-                
-            } catch (Exception $e) {
-                $errors[] = "Fehler beim Löschen der Reservierung ID " . $reservation['id'] . ": " . $e->getMessage();
-                echo "<p style='color: red;'>❌ Fehler beim Löschen der Reservierung ID " . $reservation['id'] . ": " . $e->getMessage() . "</p>";
+            } else {
+                echo "     ℹ️ Kein Google Calendar Event vorhanden\n";
             }
+            
+            // 2.2 Calendar Events Verknüpfung löschen
+            $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
+            $stmt->execute([$reservation['id']]);
+            echo "     ✅ Calendar Events Verknüpfung gelöscht\n";
+            
+            // 2.3 Reservierung löschen
+            $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
+            $stmt->execute([$reservation['id']]);
+            echo "     ✅ Reservierung gelöscht\n";
+            
+            $deleted_count++;
+            
+        } catch (Exception $e) {
+            $error_msg = "Fehler bei Reservierung ID {$reservation['id']}: " . $e->getMessage();
+            echo "     ❌ {$error_msg}\n";
+            $errors[] = $error_msg;
         }
         
-        // 3. Zusammenfassung
-        echo "<h2>3. Zusammenfassung</h2>";
-        echo "<ul>";
-        echo "<li><strong>Gefundene Reservierungen:</strong> " . count($expired_reservations) . "</li>";
-        echo "<li><strong>Gelöschte Reservierungen:</strong> " . $deleted_count . "</li>";
-        echo "<li><strong>Gelöschte Google Calendar Events:</strong> " . $google_deleted_count . "</li>";
-        echo "<li><strong>Fehler:</strong> " . count($errors) . "</li>";
-        echo "</ul>";
-        
-        if (!empty($errors)) {
-            echo "<h3>Fehler-Details:</h3>";
-            echo "<ul>";
-            foreach ($errors as $error) {
-                echo "<li style='color: red;'>" . htmlspecialchars($error) . "</li>";
-            }
-            echo "</ul>";
-        }
-        
-        if ($deleted_count > 0) {
-            echo "<p style='color: green; font-weight: bold;'>✅ Cleanup erfolgreich abgeschlossen!</p>";
+        echo "\n";
+    }
+    
+    // 3. Zusammenfassung
+    echo "3. Cleanup abgeschlossen!\n";
+    echo "   ✅ Reservierungen gelöscht: {$deleted_count}\n";
+    echo "   ✅ Google Calendar Events gelöscht: {$google_deleted_count}\n";
+    
+    if (!empty($errors)) {
+        echo "   ⚠️ Fehler aufgetreten: " . count($errors) . "\n";
+        foreach ($errors as $error) {
+            echo "     - {$error}\n";
         }
     }
     
+    echo "\n🎉 Cleanup erfolgreich abgeschlossen!\n";
+    
 } catch (Exception $e) {
-    echo "<p style='color: red;'>❌ Fehler beim Cleanup: " . $e->getMessage() . "</p>";
-    error_log('Cleanup-Fehler: ' . $e->getMessage());
+    echo "❌ Kritischer Fehler beim Cleanup: " . $e->getMessage() . "\n";
+    echo "Stack Trace:\n" . $e->getTraceAsString() . "\n";
+    exit(1);
 }
-
-echo "<hr>";
-echo "<p><a href='admin/reservations.php'>→ Zur Reservierungen-Übersicht</a></p>";
-echo "<p><a href='admin/dashboard.php'>→ Zum Dashboard</a></p>";
-echo "<p><small>Cleanup abgeschlossen: " . date('Y-m-d H:i:s') . "</small></p>";
 ?>
