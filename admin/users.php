@@ -51,7 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Benutzerverwaltung/Einstellungen werden durch Administrator gesetzt
         $can_users = $is_admin ? 1 : 0;
         $can_settings = $is_admin ? 1 : 0;
-        $can_vehicles = isset($_POST['can_vehicles']) ? 1 : 0;
+        // Fahrzeugverwaltung: nur Administratoren erhalten Zugriff (kein eigener Schalter)
+        $can_vehicles = $is_admin ? 1 : 0;
         
         if (empty($username) || empty($email) || empty($first_name) || empty($last_name)) {
             $error = "Alle Felder sind erforderlich.";
@@ -329,12 +330,7 @@ try {
                                 </div>
                                 <div class="col-md-6">
                                     <!-- Benutzerverwaltung/Einstellungen werden automatisch durch Administrator gesetzt -->
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="can_vehicles" name="can_vehicles">
-                                        <label class="form-check-label" for="can_vehicles">
-                                            Fahrzeugverwaltung
-                                        </label>
-                                    </div>
+                                    <!-- Fahrzeugverwaltung wird automatisch über Administrator gesetzt -->
                                 </div>
                             </div>
                         </div>
