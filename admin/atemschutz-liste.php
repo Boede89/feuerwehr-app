@@ -297,9 +297,9 @@ if (!$isAdmin && !$canAtemschutz) {
     <div class="card">
         <div class="card-header d-flex align-items-center justify-content-between">
             <span class="fw-semibold">Aktuelle Liste</span>
-            <div class="text-end">
-                <div><span class="badge bg-secondary">Gesamt: <?php echo (int)($totalCount ?? count($traeger)); ?></span></div>
-                <div class="mt-1"><span class="badge bg-success">Tauglich/Warnung: <?php echo (int)($okOrWarnCount ?? 0); ?></span></div>
+            <div class="d-flex flex-column align-items-end">
+                <span class="badge bg-secondary mb-1">Gesamt: <?php echo (int)($totalCount ?? count($traeger)); ?></span>
+                <span class="badge bg-success">Tauglich: <?php echo (int)($okOrWarnCount ?? 0); ?></span>
             </div>
         </div>
         <div class="table-responsive">
