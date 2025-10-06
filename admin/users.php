@@ -500,6 +500,35 @@ try {
                 document.body.classList.add('modal-open');
             }
         }
+        
+        // Event Listener für Modal-Schließung hinzufügen
+        document.addEventListener('DOMContentLoaded', function() {
+            // Abbrechen Button
+            const cancelButton = document.querySelector('#userModal .btn-secondary');
+            if (cancelButton) {
+                cancelButton.addEventListener('click', function() {
+                    closeUserModal();
+                });
+            }
+            
+            // X Button (Schließen)
+            const closeButton = document.querySelector('#userModal .btn-close');
+            if (closeButton) {
+                closeButton.addEventListener('click', function() {
+                    closeUserModal();
+                });
+            }
+            
+            // Modal-Hintergrund klicken zum Schließen
+            const modal = document.getElementById('userModal');
+            if (modal) {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) {
+                        closeUserModal();
+                    }
+                });
+            }
+        });
     </script>
 </body>
 </html>
