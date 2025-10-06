@@ -370,10 +370,17 @@ try {
     <div class="container-fluid mt-4">
         <div class="row">
             <div class="col-12">
-                <h1 class="h3 mb-4">
-                    <i class="fas fa-tachometer-alt"></i> Dashboard
-                    <small class="text-muted">Willkommen zurück, <?php echo htmlspecialchars($_SESSION['first_name'] ?? 'Admin'); ?>!</small>
-                </h1>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                        <small class="text-muted">Willkommen zurück, <?php echo htmlspecialchars($_SESSION['first_name'] ?? 'Admin'); ?>!</small>
+                    </h1>
+                    <div class="btn-group">
+                        <a href="reservations.php" class="btn btn-primary">
+                            <i class="fas fa-calendar-check"></i> Reservierungen verwalten
+                        </a>
+                    </div>
+                </div>
                 
                 <?php if ($message): ?>
                     <div class="alert alert-success alert-dismissible fade show" role="alert">

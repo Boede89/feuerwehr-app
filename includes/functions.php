@@ -317,11 +317,6 @@ function get_admin_navigation() {
         $nav_items[] = '<li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>';
     }
     
-    // Reservierungen - für alle mit Reservierungen-Recht
-    if (has_permission('reservations')) {
-        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="reservations.php"><i class="fas fa-calendar-check"></i> Reservierungen</a></li>';
-    }
-    
     // Einstellungen - nur für Einstellungen-Recht (inkl. Fahrzeuge und Benutzer)
     if (has_permission('settings') || has_permission('vehicles') || has_permission('users')) {
         $nav_items[] = '<li class="nav-item"><a class="nav-link" href="settings.php"><i class="fas fa-cog"></i> Einstellungen</a></li>';
