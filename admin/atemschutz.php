@@ -306,38 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 								</div>
 							</div>
 
-    <?php if (!empty($planInfo)): ?>
-        <div class="container-fluid">
-            <div class="card mt-3">
-                <div class="card-header">
-                    <strong>Vorschlagsliste</strong>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Name</th>
-                                <th>Geburtsdatum</th>
-                                <th>Übung/Einsatz – Am</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach (($planResults ?? []) as $pr): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($pr['_name'] ?? ''); ?></td>
-                                    <td><?php echo htmlspecialchars($pr['birthdate'] ?? ''); ?></td>
-                                    <td><?php echo htmlspecialchars($pr['_uebung_am'] ?? ''); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                            <?php if (empty($planResults)): ?>
-                                <tr><td colspan="3" class="text-muted text-center py-3">Keine passenden Geräteträger gefunden.</td></tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    <?php endif; ?>
+    
 
 							<div class="col-12">
 								<div class="border rounded p-3">
