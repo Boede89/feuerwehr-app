@@ -244,7 +244,7 @@ try {
                                             </td>
                                             <td><?php echo format_date($user['created_at']); ?></td>
                                             <td>
-                                                <button type="button" class="btn btn-outline-primary btn-sm" id="editBtn<?php echo (int)$user['id']; ?>"
+                                                <button type="button" class="btn btn-outline-primary btn-sm" id="editBtn<?php echo (int)$user['id']; ?>" data-bs-toggle="modal" data-bs-target="#userModal"
                                                         onclick="editUser(
                                                             <?php echo (int)$user['id']; ?>,
                                                             <?php echo json_encode((string)$user['username']); ?>,
