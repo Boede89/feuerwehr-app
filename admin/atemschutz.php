@@ -5,8 +5,49 @@ require_once '../includes/functions.php';
 
 // Zugriff nur für Benutzer mit Atemschutz-Recht
 if (!isset($_SESSION['user_id']) || !has_permission('atemschutz')) {
-    header('Location: ../login.php?error=access_denied');
-    exit;
+	header('Location: ../login.php?error=access_denied');
+	exit;
+}
+
+// POST: Geräteträger hinzufügen
+$addSuccess = null;
+$addError = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_traeger') {
+	$firstName = trim($_POST['first_name'] ?? '');
+	$lastName = trim($_POST['last_name'] ?? '');
+	$email = trim($_POST['email'] ?? '');
+	$birthdate = trim($_POST['birthdate'] ?? '');
+	$streckeAm = trim($_POST['strecke_am'] ?? '');
+	$g263Am = trim($_POST['g263_am'] ?? '');
+	$uebungAm = trim($_POST['uebung_am'] ?? '');
+
+	if ($firstName === '' || $lastName === '' || $birthdate === '' || $streckeAm === '' || $g263Am === '' || $uebungAm === '') {
+		$addError = 'Bitte alle Pflichtfelder ausfüllen (Vorname, Nachname, Geburtsdatum, Strecke Am, G26.3 Am, Übung/Einsatz Am).';
+	} else {
+		try {
+			// Tabelle sicherstellen
+			$db->exec(
+				"CREATE TABLE IF NOT EXISTS atemschutz_traeger (
+					id INT AUTO_INCREMENT PRIMARY KEY,
+					first_name VARCHAR(100) NOT NULL,
+					last_name VARCHAR(100) NOT NULL,
+					email VARCHAR(255) NULL,
+					birthdate DATE NOT NULL,
+					strecke_am DATE NOT NULL,
+					g263_am DATE NOT NULL,
+					uebung_am DATE NOT NULL,
+					status VARCHAR(50) NOT NULL DEFAULT 'Aktiv',
+					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+			);
+
+			$stmt = $db->prepare("INSERT INTO atemschutz_traeger (first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'Aktiv')");
+			$stmt->execute([$firstName, $lastName, ($email !== '' ? $email : null), $birthdate, $streckeAm, $g263Am, $uebungAm]);
+			$addSuccess = 'Geräteträger erfolgreich angelegt.';
+		} catch (Exception $e) {
+			$addError = 'Fehler beim Speichern: ' . htmlspecialchars($e->getMessage());
+		}
+	}
 }
 ?>
 <!DOCTYPE html>
@@ -50,9 +91,9 @@ if (!isset($_SESSION['user_id']) || !has_permission('atemschutz')) {
             <h1 class="h3 mb-0"><i class="fas fa-lungs"></i> Atemschutz</h1>
         </div>
 
-        <div class="row g-4 mb-4">
+		<div class="row g-4 mb-4">
             <div class="col-12 col-md-6">
-                <button class="btn btn-primary w-100 py-4" id="btnAddTraeger">
+				<button class="btn btn-primary w-100 py-4" id="btnAddTraeger" data-bs-toggle="modal" data-bs-target="#addTraegerModal">
                     <i class="fas fa-user-plus fa-2x mb-2 d-block"></i>
                     <span class="fs-5">Geräteträger hinzufügen</span>
                 </button>
@@ -77,10 +118,68 @@ if (!isset($_SESSION['user_id']) || !has_permission('atemschutz')) {
             </div>
         </div>
 
-        <div class="alert alert-info">
-            Funktionen werden als nächstes implementiert. Wählen Sie einen Button, um fortzufahren.
-        </div>
+		<div class="alert alert-info">
+			Funktionen werden als nächstes implementiert. Wählen Sie einen Button, um fortzufahren.
+		</div>
+
+		<?php if (!empty($addSuccess)): ?>
+			<div class="alert alert-success"><?php echo htmlspecialchars($addSuccess); ?></div>
+		<?php endif; ?>
+		<?php if (!empty($addError)): ?>
+			<div class="alert alert-danger"><?php echo htmlspecialchars($addError); ?></div>
+		<?php endif; ?>
     </div>
+
+	<!-- Modal: Geräteträger hinzufügen -->
+	<div class="modal fade" id="addTraegerModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title"><i class="fas fa-user-plus"></i> Geräteträger hinzufügen</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<form method="post" action="atemschutz.php">
+					<input type="hidden" name="action" value="add_traeger">
+					<div class="modal-body">
+						<div class="row g-3">
+							<div class="col-12 col-md-6">
+								<label class="form-label">Vorname *</label>
+								<input type="text" class="form-control" name="first_name" required>
+							</div>
+							<div class="col-12 col-md-6">
+								<label class="form-label">Nachname *</label>
+								<input type="text" class="form-control" name="last_name" required>
+							</div>
+							<div class="col-12">
+								<label class="form-label">E-Mail (optional)</label>
+								<input type="email" class="form-control" name="email" placeholder="name@beispiel.de">
+							</div>
+							<div class="col-12 col-md-6">
+								<label class="form-label">Geburtsdatum *</label>
+								<input type="date" class="form-control" name="birthdate" required>
+							</div>
+							<div class="col-12 col-md-6">
+								<label class="form-label">Strecke – Am *</label>
+								<input type="date" class="form-control" name="strecke_am" required>
+							</div>
+							<div class="col-12 col-md-6">
+								<label class="form-label">G26.3 – Am *</label>
+								<input type="date" class="form-control" name="g263_am" required>
+							</div>
+							<div class="col-12 col-md-6">
+								<label class="form-label">Übung/Einsatz – Am *</label>
+								<input type="date" class="form-control" name="uebung_am" required>
+							</div>
+						</div>
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+						<button type="submit" class="btn btn-primary">Speichern</button>
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
 
     <script>
     // Platzhalter-Handler – werden später mit Logik hinterlegt
