@@ -19,6 +19,7 @@ if (empty($_SESSION['user_id'])) {
 
 // Berechtigung: zuerst Session, dann DB-Fallback
 $canAtemschutz = !empty($_SESSION['can_atemschutz']) && (int)$_SESSION['can_atemschutz'] === 1;
+$permissionWarning = null;
 if (!$canAtemschutz) {
     try {
         $uid = (int)($_SESSION['user_id'] ?? 0);
@@ -36,9 +37,8 @@ if (!$canAtemschutz) {
     }
 }
 if (!$canAtemschutz) {
-    http_response_code(403);
-    echo 'Zugriff verweigert';
-    exit;
+    // Temporär: Seite dennoch anzeigen, aber Hinweis einblenden
+    $permissionWarning = 'Hinweis: Ihnen fehlt aktuell die Berechtigung "Atemschutz". Anzeige erfolgt vorübergehend zu Testzwecken.';
 }
 
 ?><!DOCTYPE html>
@@ -88,6 +88,10 @@ if (!$canAtemschutz) {
             </a>
         </div>
     </div>
+
+    <?php if (!empty($permissionWarning)): ?>
+        <div class="alert alert-warning"><?php echo htmlspecialchars($permissionWarning); ?></div>
+    <?php endif; ?>
 
     <?php
     $traeger = [];
