@@ -176,7 +176,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 throw new Exception('Konflikt-Reservierung nicht gefunden.');
             }
             
-            // Lösche die konfliktverursachende Reservierung
+            // Lösche die konfliktverursachende Reservierung aus Google Calendar und Datenbank
+            // 1. Google Calendar Event löschen
+            $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
+            $stmt->execute([$conflict_reservation_id]);
+            $calendar_event = $stmt->fetch();
+            
+            if ($calendar_event && !empty($calendar_event['google_event_id'])) {
+                $google_event_id = $calendar_event['google_event_id'];
+                $stmt = $db->prepare("SELECT COUNT(*) FROM calendar_events WHERE google_event_id = ?");
+                $stmt->execute([$google_event_id]);
+                $remaining_links = (int)$stmt->fetchColumn();
+
+                if ($remaining_links === 1) {
+                    // Nur löschen, wenn keine weitere Reservierung dieses Event nutzt
+                    $google_deleted = delete_google_calendar_event($google_event_id);
+                    if ($google_deleted) {
+                        error_log("CONFLICT RESOLVE: Google Calendar Event gelöscht: " . $google_event_id);
+                    } else {
+                        error_log("CONFLICT RESOLVE: Google Calendar Event konnte nicht gelöscht werden: " . $google_event_id);
+                    }
+                } else {
+                    error_log("CONFLICT RESOLVE: Google Event nicht gelöscht, es existieren noch " . $remaining_links . " weitere Verknüpfung(en) für " . $google_event_id);
+                }
+            }
+            
+            // 2. Calendar Events Verknüpfung löschen
+            $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
+            $stmt->execute([$conflict_reservation_id]);
+            
+            // 3. Reservierung löschen
             $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
             $stmt->execute([$conflict_reservation_id]);
             
