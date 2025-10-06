@@ -49,6 +49,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 		}
 	}
 }
+
+// POST: Mehrere Daten hinterlegen (Bulk-Update für Datumsspalten)
+$bulkSuccess = null;
+$bulkError = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'bulk_update_dates') {
+	$field = $_POST['field'] ?? '';
+	$dateValue = trim($_POST['date_value'] ?? '');
+	$ids = $_POST['traeger_ids'] ?? [];
+	
+	$allowedFields = [ 'strecke_am', 'g263_am', 'uebung_am' ];
+	if (!in_array($field, $allowedFields, true)) {
+		$bulkError = 'Ungültiges Zielfeld.';
+	} elseif ($dateValue === '') {
+		$bulkError = 'Bitte ein Datum angeben.';
+	} elseif (!is_array($ids) || count($ids) === 0) {
+		$bulkError = 'Bitte mindestens einen Geräteträger auswählen.';
+	} else {
+		try {
+			// Sicherstellen, dass Tabelle existiert
+			$db->exec(
+				"CREATE TABLE IF NOT EXISTS atemschutz_traeger (
+					id INT AUTO_INCREMENT PRIMARY KEY,
+					first_name VARCHAR(100) NOT NULL,
+					last_name VARCHAR(100) NOT NULL,
+					email VARCHAR(255) NULL,
+					birthdate DATE NOT NULL,
+					strecke_am DATE NOT NULL,
+					g263_am DATE NOT NULL,
+					uebung_am DATE NOT NULL,
+					status VARCHAR(50) NOT NULL DEFAULT 'Aktiv',
+					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+			);
+			
+			$idsInt = array_map(static fn($v) => (int)$v, $ids);
+			$idsInt = array_values(array_filter($idsInt, static fn($v) => $v > 0));
+			if (count($idsInt) === 0) {
+				throw new Exception('Keine gültigen IDs.');
+			}
+			$placeholders = implode(',', array_fill(0, count($idsInt), '?'));
+			$sql = "UPDATE atemschutz_traeger SET {$field} = ? WHERE id IN ($placeholders)";
+			$params = array_merge([$dateValue], $idsInt);
+			$stmt = $db->prepare($sql);
+			$stmt->execute($params);
+			$bulkSuccess = 'Datum erfolgreich aktualisiert.';
+		} catch (Exception $e) {
+			$bulkError = 'Fehler beim Aktualisieren: ' . htmlspecialchars($e->getMessage());
+		}
+	}
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -127,6 +177,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 		<?php endif; ?>
 		<?php if (!empty($addError)): ?>
 			<div class="alert alert-danger"><?php echo htmlspecialchars($addError); ?></div>
+		<?php endif; ?>
+		<?php if (!empty($bulkSuccess)): ?>
+			<div class="alert alert-success"><?php echo htmlspecialchars($bulkSuccess); ?></div>
+		<?php endif; ?>
+		<?php if (!empty($bulkError)): ?>
+			<div class="alert alert-danger"><?php echo htmlspecialchars($bulkError); ?></div>
 		<?php endif; ?>
     </div>
 
@@ -227,6 +283,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 		</div>
 	</div>
 
+	<!-- Modal: Daten hinterlegen (Bulk) -->
+	<div class="modal fade" id="bulkDataModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-lg modal-dialog-centered">
+			<div class="modal-content">
+				<div class="modal-header bg-primary text-white">
+					<h5 class="modal-title"><i class="fas fa-pen-to-square me-2"></i> Daten hinterlegen</h5>
+					<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<form method="post" action="atemschutz.php">
+					<input type="hidden" name="action" value="bulk_update_dates">
+					<div class="modal-body">
+						<div class="row g-4">
+							<div class="col-12">
+								<div class="border rounded p-3 bg-light">
+									<h6 class="mb-3"><i class="fas fa-users me-2"></i> Geräteträger auswählen</h6>
+									<div class="row" id="bulkTraegerList">
+										<?php
+										try {
+											$stmt = $db->prepare("SELECT id, first_name, last_name FROM atemschutz_traeger ORDER BY last_name, first_name");
+											$stmt->execute();
+											$allTraeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
+											if ($allTraeger) {
+												foreach ($allTraeger as $row) {
+													$name = trim(($row['last_name'] ?? '') . ', ' . ($row['first_name'] ?? ''));
+													echo '<div class="col-12 col-md-6 col-lg-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="traeger_ids[]" value="' . (int)$row['id'] . '" id="t_' . (int)$row['id'] . '"><label class="form-check-label" for="t_' . (int)$row['id'] . '">' . htmlspecialchars($name) . '</label></div></div>';
+												}
+											} else {
+												echo '<div class="col-12 text-muted">Keine Geräteträger vorhanden.</div>';
+											}
+										} catch (Exception $e) {
+											echo '<div class="col-12 text-danger">Fehler beim Laden: ' . htmlspecialchars($e->getMessage()) . '</div>';
+										}
+										?>
+								</div>
+							</div>
+							<div class="col-12 col-md-6">
+								<label class="form-label">Feld</label>
+								<select class="form-select" name="field" required>
+									<option value="strecke_am">Strecke – Am</option>
+									<option value="g263_am">G26.3 – Am</option>
+									<option value="uebung_am">Übung/Einsatz – Am</option>
+								</select>
+							</div>
+							<div class="col-12 col-md-6">
+								<label class="form-label">Neues Datum</label>
+								<input type="date" class="form-control" name="date_value" required>
+							</div>
+						</div>
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+						<button type="submit" class="btn btn-primary">Speichern</button>
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
+
     <script>
     // Platzhalter-Handler – werden später mit Logik hinterlegt
     document.addEventListener('DOMContentLoaded', function(){
@@ -237,10 +351,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         // Platzhalter für andere Buttons (btnAddTraeger öffnet Modal, daher kein Alert)
         const other = {
-            btnPlanTraining: 'Übung planen',
-            btnRecordData: 'Daten hinterlegen'
+            btnPlanTraining: 'Übung planen'
         };
         Object.entries(other).forEach(([id,label])=>{ const el=q(id); if(el) el.addEventListener('click', onClickInfo(label)); });
+
+        const btnRecord = q('btnRecordData');
+        if (btnRecord) {
+            btnRecord.addEventListener('click', function(){
+                const modal = new bootstrap.Modal(document.getElementById('bulkDataModal'));
+                modal.show();
+            });
+        }
     });
     </script>
 
