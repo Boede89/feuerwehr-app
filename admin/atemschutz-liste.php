@@ -101,6 +101,15 @@ if (!$isAdmin && !$canAtemschutz) {
     <?php endif; ?>
 
     <?php
+    // Suche & Sortierung
+    $q = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
+    $allowedSort = [
+        'name','age','strecke_am','strecke_bis','g263_am','g263_bis','uebung_am','uebung_bis','status'
+    ];
+    $sort = isset($_GET['sort']) && in_array($_GET['sort'], $allowedSort, true) ? $_GET['sort'] : 'name';
+    $dir = strtolower($_GET['dir'] ?? 'asc');
+    $dir = $dir === 'desc' ? 'DESC' : 'ASC';
+
     $traeger = [];
     $error = null;
     try {
@@ -125,12 +134,40 @@ if (!$isAdmin && !$canAtemschutz) {
         if (empty($selectParts)) {
             throw new Exception('Benötigte Spalten fehlen (z.B. first_name/last_name/birthdate).');
         }
-        $select = implode(", ", $selectParts);
-        $order = in_array('last_name', $columns, true) && in_array('first_name', $columns, true)
-            ? 'ORDER BY last_name, first_name'
-            : 'ORDER BY id DESC';
-        $stmt = $db->prepare("SELECT $select FROM atemschutz_traeger $order");
-        $stmt->execute();
+        // Abgeleitete Felder für Sortierung (Name und Bis-Daten)
+        $select = implode(", ", $selectParts)
+            . ", CONCAT(IFNULL(last_name,''), ', ', IFNULL(first_name,'')) AS name_full"
+            . ", DATE_ADD(strecke_am, INTERVAL 1 YEAR) AS strecke_bis"
+            . ", CASE WHEN TIMESTAMPDIFF(YEAR, birthdate, CURDATE()) < 50 THEN DATE_ADD(g263_am, INTERVAL 3 YEAR) ELSE DATE_ADD(g263_am, INTERVAL 1 YEAR) END AS g263_bis"
+            . ", DATE_ADD(uebung_am, INTERVAL 1 YEAR) AS uebung_bis";
+
+        // WHERE (Suche)
+        $where = '';
+        $params = [];
+        if ($q !== '' && (in_array('first_name', $columns, true) || in_array('last_name', $columns, true))) {
+            $where = 'WHERE (CONCAT(IFNULL(last_name,\'\'), ", ", IFNULL(first_name,\'\')) LIKE ? OR CONCAT(IFNULL(first_name,\'\'), " ", IFNULL(last_name,\'\')) LIKE ?)';
+            $params[] = "%$q%";
+            $params[] = "%$q%";
+        }
+
+        // ORDER BY
+        $orderMap = [
+            'name' => 'name_full',
+            'age' => 'TIMESTAMPDIFF(YEAR, birthdate, CURDATE())',
+            'strecke_am' => 'strecke_am',
+            'strecke_bis' => 'strecke_bis',
+            'g263_am' => 'g263_am',
+            'g263_bis' => 'g263_bis',
+            'uebung_am' => 'uebung_am',
+            'uebung_bis' => 'uebung_bis',
+            'status' => 'status',
+        ];
+        $orderExpr = $orderMap[$sort] ?? 'name_full';
+        $order = "ORDER BY $orderExpr $dir";
+
+        $sql = "SELECT $select FROM atemschutz_traeger $where $order";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
         $traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         $error = $error ?: $e->getMessage();
@@ -157,6 +194,43 @@ if (!$isAdmin && !$canAtemschutz) {
         <div class="alert alert-danger">Fehler beim Laden der Geräteträger: <?php echo htmlspecialchars($error); ?></div>
     <?php endif; ?>
 
+    <form class="mb-3" method="get" action="atemschutz-liste.php">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Nach Namen suchen</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control" name="q" value="<?php echo htmlspecialchars($q); ?>" placeholder="Nachname, Vorname oder Vorname Nachname">
+                </div>
+            </div>
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label">Sortieren nach</label>
+                <select class="form-select" name="sort">
+                    <option value="name" <?php echo $sort==='name'?'selected':''; ?>>Name</option>
+                    <option value="age" <?php echo $sort==='age'?'selected':''; ?>>Alter</option>
+                    <option value="strecke_am" <?php echo $sort==='strecke_am'?'selected':''; ?>>Strecke Am</option>
+                    <option value="strecke_bis" <?php echo $sort==='strecke_bis'?'selected':''; ?>>Strecke Bis</option>
+                    <option value="g263_am" <?php echo $sort==='g263_am'?'selected':''; ?>>G26.3 Am</option>
+                    <option value="g263_bis" <?php echo $sort==='g263_bis'?'selected':''; ?>>G26.3 Bis</option>
+                    <option value="uebung_am" <?php echo $sort==='uebung_am'?'selected':''; ?>>Übung/Einsatz Am</option>
+                    <option value="uebung_bis" <?php echo $sort==='uebung_bis'?'selected':''; ?>>Übung/Einsatz Bis</option>
+                    <option value="status" <?php echo $sort==='status'?'selected':''; ?>>Status</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label">Richtung</label>
+                <select class="form-select" name="dir">
+                    <option value="asc" <?php echo strtolower($dir)==='asc'?'selected':''; ?>>Aufsteigend</option>
+                    <option value="desc" <?php echo strtolower($dir)==='desc'?'selected':''; ?>>Absteigend</option>
+                </select>
+            </div>
+            <div class="col-12 col-lg-4 d-flex gap-2">
+                <button class="btn btn-primary" type="submit"><i class="fas fa-filter"></i> Anwenden</button>
+                <a class="btn btn-outline-secondary" href="atemschutz-liste.php"><i class="fas fa-rotate-left"></i> Zurücksetzen</a>
+            </div>
+        </div>
+    </form>
+
     <div class="card">
         <div class="card-header d-flex align-items-center justify-content-between">
             <span class="fw-semibold">Aktuelle Liste</span>
@@ -166,12 +240,12 @@ if (!$isAdmin && !$canAtemschutz) {
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Name</th>
-                        <th>Alter</th>
-                        <th>Strecke<br><small>Am / Bis</small></th>
-                        <th>G26.3<br><small>Am / Bis</small></th>
-                        <th>Übung/Einsatz<br><small>Am / Bis</small></th>
-                        <th>Status</th>
+                        <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'name','dir'=>$sort==='name' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Name</a></th>
+                        <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'age','dir'=>$sort==='age' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Alter</a></th>
+                        <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'strecke_am','dir'=>$sort==='strecke_am' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Strecke</a><br><small>Am / <a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'strecke_bis','dir'=>$sort==='strecke_bis' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Bis</a></small></th>
+                        <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'g263_am','dir'=>$sort==='g263_am' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">G26.3</a><br><small>Am / <a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'g263_bis','dir'=>$sort==='g263_bis' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Bis</a></small></th>
+                        <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'uebung_am','dir'=>$sort==='uebung_am' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Übung/Einsatz</a><br><small>Am / <a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'uebung_bis','dir'=>$sort==='uebung_bis' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Bis</a></small></th>
+                        <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'status','dir'=>$sort==='status' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Status</a></th>
                         <th>Aktion</th>
                     </tr>
                 </thead>
