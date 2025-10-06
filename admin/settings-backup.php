@@ -34,9 +34,7 @@ $error = '';
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav me-auto">
-                <li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li class="nav-item"><a class="nav-link" href="settings.php"><i class="fas fa-cog"></i> Einstellungen</a></li>
-                <li class="nav-item"><a class="nav-link active" href="settings-backup.php"><i class="fas fa-shield-halved"></i> Sicherung</a></li>
+                <?php echo get_admin_navigation(); ?>
             </ul>
         </div>
     </div>
