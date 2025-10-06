@@ -50,25 +50,29 @@ if (!isset($_SESSION['user_id']) || !has_permission('atemschutz')) {
             <h1 class="h3 mb-0"><i class="fas fa-lungs"></i> Atemschutz</h1>
         </div>
 
-        <div class="row g-3 mb-4">
-            <div class="col-12 col-md-6 col-lg-3">
-                <button class="btn btn-primary w-100 py-3" id="btnAddTraeger">
-                    <i class="fas fa-user-plus"></i> Geräteträger hinzufügen
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-md-6">
+                <button class="btn btn-primary w-100 py-4" id="btnAddTraeger">
+                    <i class="fas fa-user-plus fa-2x mb-2 d-block"></i>
+                    <span class="fs-5">Geräteträger hinzufügen</span>
                 </button>
             </div>
-            <div class="col-12 col-md-6 col-lg-3">
-                <button class="btn btn-outline-primary w-100 py-3" id="btnShowList">
-                    <i class="fas fa-list"></i> Aktuelle Liste anzeigen
+            <div class="col-12 col-md-6">
+                <button class="btn btn-outline-primary w-100 py-4" id="btnShowList">
+                    <i class="fas fa-list fa-2x mb-2 d-block"></i>
+                    <span class="fs-5">Aktuelle Liste anzeigen</span>
                 </button>
             </div>
-            <div class="col-12 col-md-6 col-lg-3">
-                <button class="btn btn-outline-success w-100 py-3" id="btnPlanTraining">
-                    <i class="fas fa-calendar-plus"></i> Übung planen
+            <div class="col-12 col-md-6">
+                <button class="btn btn-outline-success w-100 py-4" id="btnPlanTraining">
+                    <i class="fas fa-calendar-plus fa-2x mb-2 d-block"></i>
+                    <span class="fs-5">Übung planen</span>
                 </button>
             </div>
-            <div class="col-12 col-md-6 col-lg-3">
-                <button class="btn btn-outline-secondary w-100 py-3" id="btnRecordData">
-                    <i class="fas fa-pen-to-square"></i> Daten hinterlegen
+            <div class="col-12 col-md-6">
+                <button class="btn btn-outline-secondary w-100 py-4" id="btnRecordData">
+                    <i class="fas fa-pen-to-square fa-2x mb-2 d-block"></i>
+                    <span class="fs-5">Daten hinterlegen</span>
                 </button>
             </div>
         </div>
