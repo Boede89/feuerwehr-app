@@ -338,13 +338,13 @@ try {
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="can_reservations" name="can_reservations">
                                         <label class="form-check-label" for="can_reservations">
-                                            Fahrzeugreservierungen - Dashboard & Reservierungen
+                                            Fahrzeugreservierungen
                                         </label>
                                     </div>
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="can_atemschutz" name="can_atemschutz">
                                         <label class="form-check-label" for="can_atemschutz">
-                                            Atemschutz (Zugriff auf Atemschutztauglichkeit)
+                                            Atemschutz
                                         </label>
                                     </div>
                                 </div>
