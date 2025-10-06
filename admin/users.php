@@ -217,20 +217,14 @@ try {
                                             <!-- Rolle-Spalte entfernt -->
                                             <td>
                                                 <div class="d-flex flex-wrap gap-1">
-                                                    <?php if ($user['is_admin']): ?>
-                                                        <span class="badge bg-danger">Admin</span>
+                                                    <?php if (!empty($user['is_admin'])): ?>
+                                                        <span class="badge bg-danger">Administrator</span>
                                                     <?php endif; ?>
-                                                    <?php if ($user['can_reservations']): ?>
+                                                    <?php if (!empty($user['can_reservations'])): ?>
                                                         <span class="badge bg-primary">Fahrzeugreservierungen</span>
                                                     <?php endif; ?>
-                                                    <?php if ($user['can_users']): ?>
-                                                        <span class="badge bg-warning">Benutzer</span>
-                                                    <?php endif; ?>
-                                                    <?php if ($user['can_settings']): ?>
-                                                        <span class="badge bg-info">Einstellungen</span>
-                                                    <?php endif; ?>
-                                                    <?php if ($user['can_vehicles']): ?>
-                                                        <span class="badge bg-success">Fahrzeuge</span>
+                                                    <?php if (!empty($user['can_atemschutz'])): ?>
+                                                        <span class="badge bg-info">Atemschutz</span>
                                                     <?php endif; ?>
                                                 </div>
                                             </td>
@@ -251,22 +245,22 @@ try {
                                             <td><?php echo format_date($user['created_at']); ?></td>
                                             <td>
                                                 <button type="button" class="btn btn-outline-primary btn-sm" 
-                                                        onclick='editUser(
-                                                            <?php echo (int)$user["id"]; ?>,
-                                                            <?php echo json_encode((string)$user["username"]); ?>,
-                                                            <?php echo json_encode((string)$user["email"]); ?>,
-                                                            <?php echo json_encode((string)$user["first_name"]); ?>,
-                                                            <?php echo json_encode((string)$user["last_name"]); ?>,
-                                                            "user",
-                                                            <?php echo (int)$user["email_notifications"]; ?>,
-                                                            <?php echo (int)$user["is_active"]; ?>,
-                                                            <?php echo (int)$user["is_admin"]; ?>,
-                                                            <?php echo (int)$user["can_reservations"]; ?>,
-                                                            <?php echo (int)$user["can_atemschutz"]; ?>,
-                                                            <?php echo (int)$user["can_users"]; ?>,
-                                                            <?php echo (int)$user["can_settings"]; ?>,
-                                                            <?php echo (int)$user["can_vehicles"]; ?>
-                                                        )'>
+                                                        onclick="editUser(
+                                                            <?php echo (int)$user['id']; ?>,
+                                                            <?php echo json_encode((string)$user['username']); ?>,
+                                                            <?php echo json_encode((string)$user['email']); ?>,
+                                                            <?php echo json_encode((string)$user['first_name']); ?>,
+                                                            <?php echo json_encode((string)$user['last_name']); ?>,
+                                                            'user',
+                                                            <?php echo (int)$user['email_notifications']; ?>,
+                                                            <?php echo (int)$user['is_active']; ?>,
+                                                            <?php echo (int)$user['is_admin']; ?>,
+                                                            <?php echo (int)$user['can_reservations']; ?>,
+                                                            <?php echo (int)$user['can_atemschutz']; ?>,
+                                                            0,
+                                                            0,
+                                                            0
+                                                        )">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
                                                 <?php if ($user['id'] != $_SESSION['user_id']): ?>
