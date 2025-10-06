@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $email = sanitize_input($_POST['email'] ?? '');
         $first_name = sanitize_input($_POST['first_name'] ?? '');
         $last_name = sanitize_input($_POST['last_name'] ?? '');
-        $user_role = sanitize_input($_POST['user_role'] ?? 'user');
+        $user_role = 'user';
         $email_notifications = isset($_POST['email_notifications']) ? 1 : 0;
         $is_active = isset($_POST['is_active']) ? 1 : 0;
         $password = $_POST['password'] ?? '';
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     } else {
                         $password_hash = hash_password($password);
                         $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, email_notifications, is_active, is_admin, can_reservations, can_atemschutz, can_users, can_settings, can_vehicles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_role, $email_notifications, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles]);
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $email_notifications, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles]);
                         $message = "Benutzer wurde erfolgreich hinzugefügt.";
                         log_activity($_SESSION['user_id'], 'user_added', "Benutzer '$username' hinzugefügt");
                         
@@ -76,10 +76,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     if (!empty($password)) {
                         $password_hash = hash_password($password);
                         $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_role, $email_notifications, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles, $user_id]);
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $email_notifications, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles, $user_id]);
                     } else {
                         $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, $user_role, $email_notifications, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles, $user_id]);
+                        $stmt->execute([$username, $email, $first_name, $last_name, 'user', $email_notifications, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles, $user_id]);
                     }
                     $message = "Benutzer wurde erfolgreich aktualisiert.";
                     log_activity($_SESSION['user_id'], 'user_updated', "Benutzer '$username' aktualisiert");
@@ -311,19 +311,7 @@ try {
                             </div>
                         </div>
                         
-                        <div class="mb-3">
-                            <label for="user_role" class="form-label">Rolle *</label>
-                            <select class="form-select" id="user_role" name="user_role" required>
-                                <option value="user">Benutzer</option>
-                                <option value="approver">Genehmiger</option>
-                                <option value="admin">Administrator</option>
-                            </select>
-                            <div class="form-text">
-                                <strong>Benutzer:</strong> Kann nur Reservierungen einreichen<br>
-                                <strong>Genehmiger:</strong> Kann Reservierungen genehmigen/ablehnen<br>
-                                <strong>Administrator:</strong> Vollzugriff auf alle Funktionen
-                            </div>
-                        </div>
+                        <!-- Rollen-Auswahl entfernt: Berechtigungen werden granular unten gesetzt -->
                         
                         <div class="mb-3">
                             <label class="form-label">Berechtigungen</label>
@@ -425,7 +413,7 @@ try {
                 document.getElementById('email').value = '';
                 document.getElementById('first_name').value = '';
                 document.getElementById('last_name').value = '';
-                document.getElementById('user_role').value = 'user';
+                // Rolle entfällt, standardmäßig 'user'
                 document.getElementById('email_notifications').checked = true;
                 document.getElementById('is_active').checked = true;
                 document.getElementById('action').value = 'add';
@@ -460,7 +448,7 @@ try {
                 document.getElementById('email').value = email;
                 document.getElementById('first_name').value = firstName;
                 document.getElementById('last_name').value = lastName;
-                document.getElementById('user_role').value = userRole;
+                // Rolle entfällt
                 document.getElementById('email_notifications').checked = emailNotifications == 1;
                 document.getElementById('is_active').checked = isActive == 1;
                 
