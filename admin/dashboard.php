@@ -570,7 +570,7 @@ try {
                                                 </td>
                                                 <td class="text-end">
                                                     <div class="btn-group" role="group">
-                                                        <a class="btn btn-sm btn-outline-primary" href="atemschutz-liste.php?edit_id=<?php echo (int)$it['id']; }?>">
+                                                        <a class="btn btn-sm btn-outline-primary" href="atemschutz-liste.php?edit_id=<?php echo (int)$it['id']; ?>">
                                                             <i class="fas fa-pen"></i> Bearbeiten
                                                         </a>
                                                         <a href="#" class="btn btn-sm btn-outline-secondary" onclick="notifyAtemschutz(<?php echo (int)$it['id']; ?>); return false;" title="Benachrichtigen">
