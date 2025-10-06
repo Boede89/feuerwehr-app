@@ -250,6 +250,19 @@ if (!$isAdmin && !$canAtemschutz) {
     $bisG263 = function($g263Am, $age) use ($addYears) { return $addYears($g263Am, ($age !== '' && (int)$age < 50) ? 3 : 1); };
     ?>
 
+    <?php
+    // Optional: Edit-Autoload via GET edit_id
+    $autoloadEdit = isset($_GET['edit_id']) ? (int)$_GET['edit_id'] : 0;
+    $autoloadData = null;
+    if ($autoloadEdit > 0) {
+        try {
+            $st = $db->prepare("SELECT id, first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am FROM atemschutz_traeger WHERE id=? LIMIT 1");
+            $st->execute([$autoloadEdit]);
+            $autoloadData = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (Exception $e) { /* ignore */ }
+    }
+    ?>
+
     <?php if ($error): ?>
         <div class="alert alert-danger">Fehler beim Laden der Geräteträger: <?php echo htmlspecialchars($error); ?></div>
     <?php endif; ?>
@@ -571,6 +584,21 @@ document.addEventListener('DOMContentLoaded', function(){
             }
         });
     });
+    // Auto-open edit modal via GET
+    <?php if (!empty($autoloadData)): ?>
+    try {
+        document.getElementById('edit_id').value = '<?php echo (int)$autoloadData['id']; ?>';
+        document.getElementById('edit_first_name').value = '<?php echo htmlspecialchars($autoloadData['first_name'], ENT_QUOTES); ?>';
+        document.getElementById('edit_last_name').value = '<?php echo htmlspecialchars($autoloadData['last_name'], ENT_QUOTES); ?>';
+        document.getElementById('edit_email').value = '<?php echo htmlspecialchars($autoloadData['email'] ?? '', ENT_QUOTES); ?>';
+        document.getElementById('edit_birthdate').value = '<?php echo htmlspecialchars($autoloadData['birthdate'], ENT_QUOTES); ?>';
+        document.getElementById('edit_strecke_am').value = '<?php echo htmlspecialchars($autoloadData['strecke_am'], ENT_QUOTES); ?>';
+        document.getElementById('edit_g263_am').value = '<?php echo htmlspecialchars($autoloadData['g263_am'], ENT_QUOTES); ?>';
+        document.getElementById('edit_uebung_am').value = '<?php echo htmlspecialchars($autoloadData['uebung_am'], ENT_QUOTES); ?>';
+        const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('editTraegerModal'));
+        m.show();
+    } catch(e) {}
+    <?php endif; ?>
 });
 </script>
 </body>

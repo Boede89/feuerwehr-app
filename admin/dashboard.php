@@ -1215,56 +1215,8 @@ try {
             const btn = e.target.closest('.btn-edit-traeger[data-id]');
             if (!btn) return;
             const id = btn.getAttribute('data-id');
-            const name = btn.getAttribute('data-name') || '';
-            // Wir holen Details live nach
-            const absoluteUrl = '/admin/atemschutz-get.php?id=' + encodeURIComponent(id);
-            const relativeUrl = 'atemschutz-get.php?id=' + encodeURIComponent(id);
-            fetch(absoluteUrl)
-                .then(r => r.ok ? r.json() : null)
-                .catch(() => null)
-                .then(data => data ? data : fetch(relativeUrl).then(r => r.ok ? r.json() : null).catch(()=>null))
-                .then(data => {
-                    document.getElementById('dash_edit_id').value = id;
-                    document.getElementById('dash_edit_name').value = name;
-                    if (data && data.success) {
-                        document.getElementById('dash_edit_first_name').value = data.data.first_name || '';
-                        document.getElementById('dash_edit_last_name').value = data.data.last_name || '';
-                        document.getElementById('dash_edit_email').value = data.data.email || '';
-                        document.getElementById('dash_edit_birthdate').value = data.data.birthdate || '';
-                        document.getElementById('dash_edit_strecke_am').value = data.data.strecke_am || '';
-                        document.getElementById('dash_edit_g263_am').value = data.data.g263_am || '';
-                        document.getElementById('dash_edit_uebung_am').value = data.data.uebung_am || '';
-                    } else {
-                        // Fallback: Felder leeren, Modal trotzdem öffnen, damit kein JS-Fehler entsteht
-                        document.getElementById('dash_edit_first_name').value = '';
-                        document.getElementById('dash_edit_last_name').value = '';
-                        document.getElementById('dash_edit_email').value = '';
-                        document.getElementById('dash_edit_birthdate').value = '';
-                        document.getElementById('dash_edit_strecke_am').value = '';
-                        document.getElementById('dash_edit_g263_am').value = '';
-                        document.getElementById('dash_edit_uebung_am').value = '';
-                    }
-                    (function ensureBootstrapAndShow(){
-                        const modalEl = document.getElementById('editTraegerDashModal');
-                        if (!modalEl) return;
-                        function show(){
-                            try {
-                                const m = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: true, keyboard: true });
-                                m.show();
-                            } catch(_) {}
-                        }
-                        if (window.bootstrap && bootstrap.Modal) { show(); return; }
-                        // Fallback: Bootstrap Bundle nachladen
-                        const existing = document.querySelector('script[data-dyn="bs-bundle"]');
-                        if (existing) { existing.addEventListener('load', show); return; }
-                        const s = document.createElement('script');
-                        s.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js';
-                        s.defer = true; s.async = true; s.setAttribute('data-dyn','bs-bundle');
-                        s.addEventListener('load', show);
-                        document.body.appendChild(s);
-                    })();
-                })
-                .catch(()=>{});
+            // Öffne Bearbeitung auf der Atemschutz-Liste (dort funktionieren Modals sicher)
+            window.location.href = 'atemschutz-liste.php?edit_id=' + encodeURIComponent(id);
         });
     </script>
     <?php endif; ?>
