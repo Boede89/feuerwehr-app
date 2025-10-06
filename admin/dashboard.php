@@ -485,7 +485,7 @@ try {
                         <?php else: ?>
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <h6 class="mb-0 text-danger"><i class="fas fa-triangle-exclamation"></i> Auffällige Geräteträger</h6>
-                                <a class="btn btn-sm btn-outline-secondary" href="#" onclick="alert('Funktion folgt'); return false;"><i class="fas fa-paper-plane"></i> Geräteträger benachrichtigen</a>
+                                <a class="btn btn-sm btn-outline-secondary" href="#" onclick="alert('Funktion folgt'); return false;"><i class="fas fa-paper-plane"></i> Alle Benachrichtigen</a>
                             </div>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle">
