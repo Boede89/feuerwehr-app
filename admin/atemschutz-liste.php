@@ -56,6 +56,11 @@ if (!$isAdmin && !$canAtemschutz) {
     <title>Atemschutz – Aktuelle Liste</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <style>
+    .bis-badge { padding: .25rem .5rem; border-radius: .375rem; display: inline-block; }
+    .bis-warn { background-color: #fff3cd; color: #664d03; } /* gelb */
+    .bis-expired { background-color: #f8d7da; color: #842029; } /* rot */
+    </style>
 </head>
 <body>
 
@@ -109,6 +114,15 @@ if (!$isAdmin && !$canAtemschutz) {
     $sort = isset($_GET['sort']) && in_array($_GET['sort'], $allowedSort, true) ? $_GET['sort'] : 'name';
     $dir = strtolower($_GET['dir'] ?? 'asc');
     $dir = $dir === 'desc' ? 'DESC' : 'ASC';
+
+    // Schwellwert (Tage) für gelbe Warnung aus settings, Default 90
+    $warnDays = 90;
+    try {
+        $stmtWarn = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'atemschutz_warn_days' LIMIT 1");
+        $stmtWarn->execute();
+        $v = $stmtWarn->fetchColumn();
+        if ($v !== false && is_numeric($v)) { $warnDays = (int)$v; }
+    } catch (Exception $e) { /* ignore, fallback 90 */ }
 
     $traeger = [];
     $error = null;
@@ -274,15 +288,48 @@ if (!$isAdmin && !$canAtemschutz) {
                                 <td><?php echo htmlspecialchars($age); ?></td>
                                 <td>
                                     <div>Am: <?php echo htmlspecialchars($streckeAm); ?></div>
-                                    <div>Bis: <?php echo htmlspecialchars($streckeBis); ?></div>
+                                    <?php
+                                        $streckeBisDate = $t['strecke_bis'] ?? null;
+                                        $cls = '';
+                                        if ($streckeBisDate) {
+                                            $now = new DateTime('today');
+                                            $bis = new DateTime($streckeBisDate);
+                                            $diff = (int)$now->diff($bis)->format('%r%a');
+                                            if ($diff < 0) { $cls = 'bis-expired'; }
+                                            elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                        }
+                                    ?>
+                                    <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($streckeBis); ?></span></div>
                                 </td>
                                 <td>
                                     <div>Am: <?php echo htmlspecialchars($g263Am); ?></div>
-                                    <div>Bis: <?php echo htmlspecialchars($g263Bis); ?></div>
+                                    <?php
+                                        $g263BisDate = $t['g263_bis'] ?? null;
+                                        $cls = '';
+                                        if ($g263BisDate) {
+                                            $now = new DateTime('today');
+                                            $bis = new DateTime($g263BisDate);
+                                            $diff = (int)$now->diff($bis)->format('%r%a');
+                                            if ($diff < 0) { $cls = 'bis-expired'; }
+                                            elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                        }
+                                    ?>
+                                    <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($g263Bis); ?></span></div>
                                 </td>
                                 <td>
                                     <div>Am: <?php echo htmlspecialchars($uebungAm); ?></div>
-                                    <div>Bis: <?php echo htmlspecialchars($uebungBis); ?></div>
+                                    <?php
+                                        $uebungBisDate = $t['uebung_bis'] ?? null;
+                                        $cls = '';
+                                        if ($uebungBisDate) {
+                                            $now = new DateTime('today');
+                                            $bis = new DateTime($uebungBisDate);
+                                            $diff = (int)$now->diff($bis)->format('%r%a');
+                                            if ($diff < 0) { $cls = 'bis-expired'; }
+                                            elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                        }
+                                    ?>
+                                    <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($uebungBis); ?></span></div>
                                 </td>
                                 <td>
                                     <span class="badge bg-success"><?php echo htmlspecialchars($status); ?></span>
