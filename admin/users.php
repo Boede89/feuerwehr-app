@@ -495,7 +495,9 @@ try {
                 // Berechtigungen setzen
                 document.getElementById('is_admin').checked = isAdmin == 1;
                 document.getElementById('can_reservations').checked = canReservations == 1;
-                document.getElementById('can_atemschutz').checked = canAtemschutz == 1;
+                if (document.getElementById('can_atemschutz')) {
+                    document.getElementById('can_atemschutz').checked = canAtemschutz == 1;
+                }
                 document.getElementById('can_users').checked = canUsers == 1;
                 document.getElementById('can_settings').checked = canSettings == 1;
                 document.getElementById('can_vehicles').checked = canVehicles == 1;
