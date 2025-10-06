@@ -50,10 +50,48 @@ if (!isset($_SESSION['user_id']) || !has_permission('atemschutz')) {
             <h1 class="h3 mb-0"><i class="fas fa-lungs"></i> Atemschutz</h1>
         </div>
 
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-md-6 col-lg-3">
+                <button class="btn btn-primary w-100 py-3" id="btnAddTraeger">
+                    <i class="fas fa-user-plus"></i> Geräteträger hinzufügen
+                </button>
+            </div>
+            <div class="col-12 col-md-6 col-lg-3">
+                <button class="btn btn-outline-primary w-100 py-3" id="btnShowList">
+                    <i class="fas fa-list"></i> Aktuelle Liste anzeigen
+                </button>
+            </div>
+            <div class="col-12 col-md-6 col-lg-3">
+                <button class="btn btn-outline-success w-100 py-3" id="btnPlanTraining">
+                    <i class="fas fa-calendar-plus"></i> Übung planen
+                </button>
+            </div>
+            <div class="col-12 col-md-6 col-lg-3">
+                <button class="btn btn-outline-secondary w-100 py-3" id="btnRecordData">
+                    <i class="fas fa-pen-to-square"></i> Daten hinterlegen
+                </button>
+            </div>
+        </div>
+
         <div class="alert alert-info">
-            Diese Seite ist vorbereitet. Inhalte folgen.
+            Funktionen werden als nächstes implementiert. Wählen Sie einen Button, um fortzufahren.
         </div>
     </div>
+
+    <script>
+    // Platzhalter-Handler – werden später mit Logik hinterlegt
+    document.addEventListener('DOMContentLoaded', function(){
+        const onClickInfo = (msg) => () => alert(msg + "\n(Funktion folgt)");
+        const q = (id) => document.getElementById(id);
+        const map = {
+            btnAddTraeger: 'Geräteträger hinzufügen',
+            btnShowList: 'Aktuelle Liste anzeigen',
+            btnPlanTraining: 'Übung planen',
+            btnRecordData: 'Daten hinterlegen'
+        };
+        Object.entries(map).forEach(([id,label])=>{ const el=q(id); if(el) el.addEventListener('click', onClickInfo(label)); });
+    });
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
