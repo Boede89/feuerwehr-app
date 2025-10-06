@@ -359,6 +359,7 @@ try {
     <title>Dashboard - Feuerwehr App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" defer></script>
     <style>
         .bis-badge { padding: .25rem .5rem; border-radius: .375rem; display: inline-block; }
         .bis-warn { background-color: #fff3cd; color: #664d03; }
@@ -918,7 +919,6 @@ try {
     </div>
     <?php endif; ?>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Wenn ein Ablehnungs-Modal geöffnet wird, Konflikt prüfen und ggf. Grund vorausfüllen
         document.addEventListener('shown.bs.modal', function (event) {
@@ -945,6 +945,7 @@ try {
             .then(r => r.ok ? r.json() : null)
             .then(data => {
                 const hasConflictsArray = data && data.success === true && Array.isArray(data.conflicts) && data.conflicts.length > 0;
+                const hasConflictFlag = false;
                 if (hasConflictFlag || hasConflictsArray) {
                     if (!textarea.value.trim()) {
                         textarea.value = 'Das Fahrzeug ist bereits belegt!';
