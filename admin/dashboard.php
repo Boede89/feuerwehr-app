@@ -21,12 +21,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     exit;
 }
 
-// Prüfe ob Benutzer Reservierungen-Rechte hat
-// Fallback auf alte Rolle-Prüfung falls neue Permissions nicht verfügbar
-if (!has_permission('reservations') && !can_approve_reservations()) {
-    header("Location: ../login.php?error=access_denied");
-    exit;
-}
+// Dashboard ist für alle eingeloggten Benutzer sichtbar; Inhalte werden per Berechtigung gesteuert
 
 $error = '';
 $message = '';
