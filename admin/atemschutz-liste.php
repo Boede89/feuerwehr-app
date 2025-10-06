@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../includes/functions.php';
+// Standalone-Variante ohne get_admin_navigation(), um Redirects zu vermeiden
 require_once __DIR__ . '/../includes/db.php';
 
 // Lightweight-Probe: /admin/atemschutz-liste.php?plain=1
@@ -8,12 +8,18 @@ if (isset($_GET['plain'])) {
     exit;
 }
 
-if (!is_logged_in()) {
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+if (empty($_SESSION['user_id'])) {
     header('Location: ../login.php');
     exit;
 }
 
-if (!has_permission('atemschutz')) {
+// Berechtigung aus Session (wurde beim Login gesetzt)
+$canAtemschutz = !empty($_SESSION['can_atemschutz']) && (int)$_SESSION['can_atemschutz'] === 1;
+if (!$canAtemschutz) {
     http_response_code(403);
     echo 'Zugriff verweigert';
     exit;
@@ -29,7 +35,33 @@ if (!has_permission('atemschutz')) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-<?php echo get_admin_navigation(); ?>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="dashboard.php"><i class="fas fa-fire"></i> Feuerwehr App</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="nav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link active" href="atemschutz-liste.php"><i class="fas fa-list"></i> Atemschutz-Liste</a></li>
+            </ul>
+            <ul class="navbar-nav">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['first_name'] ?? 'Benutzer'); ?>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="profile.php"><i class="fas fa-user-edit"></i> Profil</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="../logout.php"><i class="fas fa-sign-out-alt"></i> Abmelden</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+    </nav>
 
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
