@@ -220,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </a>
             </div>
             <div class="col-12 col-md-6">
-                <button class="btn btn-outline-success w-100 py-4" id="btnPlanTraining">
+                <button class="btn btn-outline-success w-100 py-4" id="btnPlanTraining" data-bs-toggle="modal" data-bs-target="#planTrainingModal">
                     <i class="fas fa-calendar-plus fa-2x mb-2 d-block"></i>
                     <span class="fs-5">Übung planen</span>
                 </button>
