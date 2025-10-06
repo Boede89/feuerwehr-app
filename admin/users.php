@@ -48,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Granular permissions
         $is_admin = isset($_POST['is_admin']) ? 1 : 0;
         $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
+        $can_atemschutz = isset($_POST['can_atemschutz']) ? 1 : 0;
         // Benutzerverwaltung/Einstellungen werden durch Administrator gesetzt
         $can_users = $is_admin ? 1 : 0;
         $can_settings = $is_admin ? 1 : 0;
@@ -460,7 +461,7 @@ try {
                     toggleAdminPermissions(this.checked);
                 });
             }
-            // Abbrechen Button
+                // Abbrechen Button
             const cancelButton = document.querySelector('#userModal .btn-secondary');
             if (cancelButton) {
                 cancelButton.addEventListener('click', function() {
@@ -501,6 +502,26 @@ try {
                 }
             });
         }
+        </script>
+        <script>
+        // Client-Validierung: Passwort beim Anlegen erforderlich, Modal bleibt offen
+        document.addEventListener('DOMContentLoaded', function(){
+            const form = document.getElementById('userForm');
+            if (!form) return;
+            form.addEventListener('submit', function(e){
+                const action = document.getElementById('action').value;
+                const pwd = document.getElementById('password').value;
+                if (action === 'add' && (!pwd || pwd.trim() === '')) {
+                    e.preventDefault();
+                    const help = document.getElementById('password-help');
+                    const req = document.getElementById('password-required');
+                    if (help) help.style.display = 'block';
+                    if (req) req.textContent = '* (erforderlich)';
+                    alert('Bitte ein Passwort setzen.');
+                    return false;
+                }
+            });
+        });
         </script>
 </body>
 </html>
