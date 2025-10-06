@@ -22,6 +22,9 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 }
 
 // Dashboard ist für alle eingeloggten Benutzer sichtbar; Inhalte werden per Berechtigung gesteuert
+// WICHTIG: Berechtigungen einmal ermitteln und wiederverwenden (verhindert Inkonsistenzen)
+$canAtemschutz = has_permission('atemschutz');
+$canReservations = has_permission('reservations');
 
 $error = '';
 $message = '';
@@ -421,7 +424,7 @@ try {
             </div>
         </div>
 
-        <?php if (has_permission('atemschutz')): ?>
+        <?php if ($canAtemschutz): ?>
         <!-- Atemschutz Abschnitt -->
         <div class="row">
             <div class="col-12 mb-4">
@@ -587,7 +590,7 @@ try {
             </div>
         </div>
         <?php endif; ?>
-        <?php if (has_permission('reservations')): ?>
+        <?php if ($canReservations): ?>
         <div class="row">
             <!-- Fahrzeugreservierungen -->
             <div class="col-12 mb-4">
@@ -831,7 +834,7 @@ try {
     </div>
 
     <!-- Modal: Atemschutz-Träger bearbeiten (vom Dashboard) -->
-    <?php if (has_permission('atemschutz')): ?>
+    <?php if ($canAtemschutz): ?>
     <div class="modal fade" id="editTraegerDashModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -935,7 +938,7 @@ try {
     <?php endif; ?>
 
     <!-- Modal: E-Mail eintragen (schöne Variante statt Browser-Prompt) -->
-    <?php if (has_permission('atemschutz')): ?>
+    <?php if ($canAtemschutz): ?>
     <div class="modal fade" id="emailEntryModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -1214,7 +1217,7 @@ try {
             const id = btn.getAttribute('data-id');
             const name = btn.getAttribute('data-name') || '';
             // Wir holen Details live nach
-            fetch('atemschutz-get.php?id=' + encodeURIComponent(id))
+            fetch('/admin/atemschutz-get.php?id=' + encodeURIComponent(id))
                 .then(r => r.ok ? r.json() : null)
                 .then(data => {
                     document.getElementById('dash_edit_id').value = id;
@@ -1228,6 +1231,13 @@ try {
                         document.getElementById('dash_edit_g263_am').value = data.data.g263_am || '';
                         document.getElementById('dash_edit_uebung_am').value = data.data.uebung_am || '';
                     }
+                    try {
+                        const modalEl = document.getElementById('editTraegerDashModal');
+                        if (modalEl && window.bootstrap && bootstrap.Modal) {
+                            const m = bootstrap.Modal.getOrCreateInstance(modalEl);
+                            m.show();
+                        }
+                    } catch(_) {}
                 })
                 .catch(()=>{});
         });
