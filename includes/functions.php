@@ -232,7 +232,7 @@ function has_admin_access() {
 
 /**
  * Prüft ob der aktuelle Benutzer eine bestimmte Berechtigung hat
- * @param string $permission Berechtigung (admin, reservations, users, settings, vehicles)
+ * @param string $permission Berechtigung (admin, reservations, users, settings, vehicles, atemschutz)
  * @return bool
  */
 function has_permission($permission) {
@@ -243,7 +243,7 @@ function has_permission($permission) {
     }
     
     try {
-        $stmt = $db->prepare("SELECT is_admin, can_reservations, can_users, can_settings, can_vehicles FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT is_admin, can_reservations, can_users, can_settings, can_vehicles, can_atemschutz FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -259,15 +259,17 @@ function has_permission($permission) {
         // Spezifische Berechtigung prüfen
         switch ($permission) {
             case 'admin':
-                return $user['is_admin'];
+                return (bool)$user['is_admin'];
             case 'reservations':
-                return $user['can_reservations'];
+                return (bool)$user['can_reservations'];
             case 'users':
-                return $user['can_users'];
+                return (bool)$user['can_users'];
             case 'settings':
-                return $user['can_settings'];
+                return (bool)$user['can_settings'];
             case 'vehicles':
-                return $user['can_vehicles'];
+                return (bool)$user['can_vehicles'];
+            case 'atemschutz':
+                return (bool)($user['can_atemschutz'] ?? 0);
             default:
                 return false;
         }
@@ -317,8 +319,8 @@ function get_admin_navigation() {
         $nav_items[] = '<li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>';
     }
     
-    // Atemschutz (vorerst nur für Admins sichtbar)
-    if (has_admin_access()) {
+    // Atemschutz (sichtbar für Benutzer mit Atemschutz-Recht)
+    if (has_permission('atemschutz')) {
         $nav_items[] = '<li class="nav-item"><a class="nav-link" href="atemschutz.php"><i class="fas fa-lungs"></i> Atemschutz</a></li>';
     }
 
