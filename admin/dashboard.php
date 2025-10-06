@@ -1129,27 +1129,46 @@ try {
         // Benachrichtigung einzelner Geräteträger (mit E-Mail-Fallback)
         window.notifyAtemschutz = async function(id){
             try {
-                const r = await fetch('/admin/atemschutz-get.php?id='+encodeURIComponent(id));
-                const data = await r.json();
-                if (!data || data.success !== true) { alert('Konnte Geräteträger nicht laden.'); return; }
+                const absUrl = '/admin/atemschutz-get.php?id='+encodeURIComponent(id);
+                const relUrl = 'atemschutz-get.php?id='+encodeURIComponent(id);
+                let data = null;
+                try { data = await fetch(absUrl).then(r=>r.ok?r.json():null); } catch(_) { data = null; }
+                if (!data) { try { data = await fetch(relUrl).then(r=>r.ok?r.json():null); } catch(_) { data = null; } }
+                if (!data || data.success !== true) {
+                    const err = data && data.error ? String(data.error) : 'unbekannt';
+                    alert('Konnte Geräteträger nicht laden ('+err+').');
+                    return;
+                }
                 let { email, first_name, last_name } = data.data || {};
                 if (!email) {
-                    // schönes Modal öffnen
+                    // schönes Modal öffnen (mit Bootstrap-Fallback)
                     const modalEl = document.getElementById('emailEntryModal');
-                    if (!modalEl || !(window.bootstrap && bootstrap.Modal)) { alert('Modal nicht verfügbar. Bitte Seite neu laden.'); return; }
-                    const m = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    if (!modalEl) { alert('Modal nicht verfügbar.'); return; }
+                    const show = ()=>{ try { bootstrap.Modal.getOrCreateInstance(modalEl).show(); } catch(_) { alert('Modal kann nicht geöffnet werden.'); } };
                     document.getElementById('email_entry_id').value = String(id);
                     document.getElementById('email_entry_name').value = `${last_name || ''}, ${first_name || ''}`.trim();
                     document.getElementById('email_entry_email').value = '';
                     document.getElementById('email_entry_error').classList.add('d-none');
-                    m.show();
+                    if (window.bootstrap && bootstrap.Modal) { show(); }
+                    else {
+                        const existing = document.querySelector('script[data-dyn="bs-bundle"]');
+                        if (existing) existing.addEventListener('load', show);
+                        else {
+                            const s = document.createElement('script');
+                            s.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js';
+                            s.defer = true; s.async = true; s.setAttribute('data-dyn','bs-bundle');
+                            s.addEventListener('load', show);
+                            document.body.appendChild(s);
+                        }
+                    }
                     return;
                 }
                 // Mail auslösen
-                const res = await fetch('/admin/atemschutz-notify.php', {
-                    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[id] })
-                });
-                const j = await res.json();
+                const notifyAbs = '/admin/atemschutz-notify.php';
+                const notifyRel = 'atemschutz-notify.php';
+                let j = null;
+                try { j = await fetch(notifyAbs, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[id] }) }).then(r=>r.ok?r.json():null); } catch(_) { j = null; }
+                if (!j) { try { j = await fetch(notifyRel, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[id] }) }).then(r=>r.ok?r.json():null); } catch(_) { j = null; } }
                 if (j && j.success) { alert('E-Mail gesendet.'); } else { alert('Senden fehlgeschlagen.'); }
             } catch(e){ alert('Fehler: '+e.message); }
         }
