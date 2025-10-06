@@ -408,10 +408,16 @@ try {
                 document.getElementById('password-required').textContent = '*';
                 document.getElementById('password-help').style.display = 'none';
                 
-                // Modal anzeigen
-                modal.style.display = 'block';
-                modal.classList.add('show');
-                document.body.classList.add('modal-open');
+                // Modal zuverlässig über Bootstrap-API öffnen
+                if (window.bootstrap && window.bootstrap.Modal) {
+                    const bsModal = new bootstrap.Modal(modal, { backdrop: 'static' });
+                    bsModal.show();
+                } else {
+                    // Fallback, falls Bootstrap-API nicht verfügbar ist
+                    modal.style.display = 'block';
+                    modal.classList.add('show');
+                    document.body.classList.add('modal-open');
+                }
             }
         }
         
@@ -461,8 +467,16 @@ try {
             }
         }
         
-        // Event Listener für Modal-Schließung hinzufügen
+        // Event Listener für Modal-Schließung & Edit-Buttons hinzufügen
         document.addEventListener('DOMContentLoaded', function() {
+            // Click-Delegation: Falls einzelne Buttons vom Overlay überdeckt würden
+            document.querySelectorAll('button[id^="editBtn"]').forEach(function(btn){
+                btn.addEventListener('click', function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Parameter sind bereits im onclick des Buttons verdrahtet
+                });
+            });
             // Admin-Checkbox initial toggeln
             const adminCheckbox = document.getElementById('is_admin');
             if (adminCheckbox) {
