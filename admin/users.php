@@ -48,8 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Granular permissions
         $is_admin = isset($_POST['is_admin']) ? 1 : 0;
         $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
-        $can_users = isset($_POST['can_users']) ? 1 : 0;
-        $can_settings = isset($_POST['can_settings']) ? 1 : 0;
+        // Benutzerverwaltung/Einstellungen werden durch Administrator gesetzt
+        $can_users = $is_admin ? 1 : 0;
+        $can_settings = $is_admin ? 1 : 0;
         $can_vehicles = isset($_POST['can_vehicles']) ? 1 : 0;
         
         if (empty($username) || empty($email) || empty($first_name) || empty($last_name)) {
@@ -327,18 +328,7 @@ try {
                                     </div>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="can_users" name="can_users">
-                                        <label class="form-check-label" for="can_users">
-                                            Benutzerverwaltung
-                                        </label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="can_settings" name="can_settings">
-                                        <label class="form-check-label" for="can_settings">
-                                            Einstellungen
-                                        </label>
-                                    </div>
+                                    <!-- Benutzerverwaltung/Einstellungen werden automatisch durch Administrator gesetzt -->
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="can_vehicles" name="can_vehicles">
                                         <label class="form-check-label" for="can_vehicles">
@@ -448,8 +438,7 @@ try {
                 if (document.getElementById('can_atemschutz')) {
                     document.getElementById('can_atemschutz').checked = canAtemschutz == 1;
                 }
-                document.getElementById('can_users').checked = canUsers == 1;
-                document.getElementById('can_settings').checked = canSettings == 1;
+                // Benutzerverwaltung/Einstellungen werden von Admin-Checkbox bestimmt
                 document.getElementById('can_vehicles').checked = canVehicles == 1;
                 toggleAdminPermissions(isAdmin == 1);
                 
