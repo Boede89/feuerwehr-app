@@ -84,6 +84,22 @@ require_once 'includes/functions.php';
                         </div>
                     </div>
 
+                    <?php if (isset($_SESSION['user_id']) && isset($_SESSION['can_atemschutz']) && $_SESSION['can_atemschutz']): ?>
+                    <div class="col-md-6">
+                        <div class="card h-100 shadow-sm feature-card">
+                            <div class="card-body text-center p-4">
+                                <div class="feature-icon mb-3">
+                                    <i class="fas fa-lungs text-info"></i>
+                                </div>
+                                <h5 class="card-title">Atemschutztauglichkeit</h5>
+                                <p class="card-text">Überwachen Sie die Tauglichkeit Ihrer Atemschutzgeräteträger und deren Zertifikate.</p>
+                                <a href="admin/atemschutz.php" class="btn btn-info btn-lg">
+                                    <i class="fas fa-lungs"></i> Atemschutz verwalten
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <?php else: ?>
                     <div class="col-md-6">
                         <div class="card h-100 shadow-sm feature-card">
                             <div class="card-body text-center p-4">
@@ -98,6 +114,7 @@ require_once 'includes/functions.php';
                             </div>
                         </div>
                     </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
