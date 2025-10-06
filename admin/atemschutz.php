@@ -3,9 +3,24 @@ session_start();
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
 
-// Prüfe ob Benutzer eingeloggt ist und Atemschutz-Berechtigung hat
-if (!isset($_SESSION['user_id']) || !$_SESSION['can_atemschutz']) {
+// Prüfe ob Benutzer eingeloggt ist und Atemschutz-Berechtigung hat (direkt aus DB)
+if (!isset($_SESSION['user_id'])) {
     header('Location: ../login.php');
+    exit;
+}
+
+try {
+    $permStmt = $db->prepare("SELECT can_atemschutz FROM users WHERE id = ? LIMIT 1");
+    $permStmt->execute([$_SESSION['user_id']]);
+    $canAtemschutz = (int)$permStmt->fetchColumn();
+    if ($canAtemschutz !== 1) {
+        header('Location: ../login.php?error=access_denied');
+        exit;
+    }
+    // Sync in Session für spätere Checks
+    $_SESSION['can_atemschutz'] = 1;
+} catch (Exception $e) {
+    header('Location: ../login.php?error=access_denied');
     exit;
 }
 
