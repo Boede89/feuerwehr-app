@@ -206,6 +206,29 @@ if (!$isAdmin && !$canAtemschutz) {
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
         $traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Zählwerte vorbereiten: Gesamt und Tauglich/Warnung (ohne abgelaufen / "Übung abgelaufen")
+        $totalCount = count($traeger);
+        $okOrWarnCount = 0;
+        $now = new DateTime('today');
+        foreach ($traeger as $tRow) {
+            $streckeExpired = false; $g263Expired = false; $uebungExpired = false;
+            if (!empty($tRow['strecke_bis'])) {
+                $diff = (int)$now->diff(new DateTime($tRow['strecke_bis']))->format('%r%a');
+                if ($diff < 0) { $streckeExpired = true; }
+            }
+            if (!empty($tRow['g263_bis'])) {
+                $diff = (int)$now->diff(new DateTime($tRow['g263_bis']))->format('%r%a');
+                if ($diff < 0) { $g263Expired = true; }
+            }
+            if (!empty($tRow['uebung_bis'])) {
+                $diff = (int)$now->diff(new DateTime($tRow['uebung_bis']))->format('%r%a');
+                if ($diff < 0) { $uebungExpired = true; }
+            }
+            if (!$streckeExpired && !$g263Expired && !$uebungExpired) { // Tauglich oder Warnung
+                $okOrWarnCount++;
+            }
+        }
     } catch (Exception $e) {
         $error = $error ?: $e->getMessage();
     }
@@ -274,7 +297,10 @@ if (!$isAdmin && !$canAtemschutz) {
     <div class="card">
         <div class="card-header d-flex align-items-center justify-content-between">
             <span class="fw-semibold">Aktuelle Liste</span>
-            <span class="badge bg-secondary"><?php echo count($traeger); ?> Einträge</span>
+            <div class="text-end">
+                <div><span class="badge bg-secondary">Gesamt: <?php echo (int)($totalCount ?? count($traeger)); ?></span></div>
+                <div class="mt-1"><span class="badge bg-success">Tauglich/Warnung: <?php echo (int)($okOrWarnCount ?? 0); ?></span></div>
+            </div>
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
