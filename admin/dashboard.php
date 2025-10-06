@@ -829,36 +829,82 @@ try {
                     <div class="modal-body">
                         <div class="row g-3">
                             <div class="col-12">
-                                <label class="form-label">Name</label>
-                                <input type="text" class="form-control" id="dash_edit_name" disabled>
+                                <div class="border rounded p-3 bg-light">
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <label class="form-label">Name</label>
+                                            <input type="text" class="form-control" id="dash_edit_name" disabled>
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label">Vorname <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="fas fa-user"></i></span>
+                                                <input type="text" class="form-control" name="first_name" id="dash_edit_first_name" placeholder="Max" required>
+                                            </div>
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label">Nachname <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="fas fa-user"></i></span>
+                                                <input type="text" class="form-control" name="last_name" id="dash_edit_last_name" placeholder="Mustermann" required>
+                                            </div>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">E-Mail (optional)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                                                <input type="email" class="form-control" name="email" id="dash_edit_email" placeholder="name@beispiel.de">
+                                            </div>
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label">Geburtsdatum <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="fas fa-cake-candles"></i></span>
+                                                <input type="date" class="form-control" name="birthdate" id="dash_edit_birthdate" required>
+                                            </div>
+                                            <div class="form-text">Alter wird automatisch berechnet.</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="col-12 col-md-6">
-                                <label class="form-label">Vorname *</label>
-                                <input type="text" class="form-control" name="first_name" id="dash_edit_first_name" required>
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <label class="form-label">Nachname *</label>
-                                <input type="text" class="form-control" name="last_name" id="dash_edit_last_name" required>
-                            </div>
+
                             <div class="col-12">
-                                <label class="form-label">E-Mail (optional)</label>
-                                <input type="email" class="form-control" name="email" id="dash_edit_email" placeholder="name@beispiel.de">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-3"><i class="fas fa-road me-2"></i> Strecke</h6>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label">Am <span class="text-danger">*</span></label>
+                                            <input type="date" class="form-control" name="strecke_am" id="dash_edit_strecke_am" required>
+                                            <div class="form-text">Bis-Datum wird automatisch auf +1 Jahr gesetzt.</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="col-12 col-md-6">
-                                <label class="form-label">Geburtsdatum *</label>
-                                <input type="date" class="form-control" name="birthdate" id="dash_edit_birthdate" required>
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-3"><i class="fas fa-stethoscope me-2"></i> G26.3</h6>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label">Am <span class="text-danger">*</span></label>
+                                            <input type="date" class="form-control" name="g263_am" id="dash_edit_g263_am" required>
+                                            <div class="form-text">Bis-Datum: unter 50 Jahre +3 Jahre, ab 50 +1 Jahr.</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="col-12 col-md-6">
-                                <label class="form-label">Strecke – Am *</label>
-                                <input type="date" class="form-control" name="strecke_am" id="dash_edit_strecke_am" required>
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <label class="form-label">G26.3 – Am *</label>
-                                <input type="date" class="form-control" name="g263_am" id="dash_edit_g263_am" required>
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <label class="form-label">Übung/Einsatz – Am *</label>
-                                <input type="date" class="form-control" name="uebung_am" id="dash_edit_uebung_am" required>
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-3"><i class="fas fa-dumbbell me-2"></i> Übung/Einsatz</h6>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label">Am <span class="text-danger">*</span></label>
+                                            <input type="date" class="form-control" name="uebung_am" id="dash_edit_uebung_am" required>
+                                            <div class="form-text">Bis-Datum wird automatisch auf +1 Jahr gesetzt.</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
