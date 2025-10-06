@@ -441,6 +441,16 @@ try {
                             if ($val !== false && is_numeric($val)) { $warnDays = (int)$val; }
                         } catch (Exception $e) {}
 
+                        // Sicherstellen, dass Spalte last_notified_at existiert
+                        try {
+                            $col = $db->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'atemschutz_traeger' AND COLUMN_NAME = 'last_notified_at'");
+                            $col->execute();
+                            $exists = (int)$col->fetchColumn() > 0;
+                            if (!$exists) {
+                                $db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN last_notified_at DATETIME NULL");
+                            }
+                        } catch (Exception $e) { /* ignore */ }
+
                         $now = new DateTime('today');
                         $stmta = $db->prepare("SELECT id, first_name, last_name, birthdate, strecke_am, g263_am, uebung_am, last_notified_at FROM atemschutz_traeger");
                         $stmta->execute();
