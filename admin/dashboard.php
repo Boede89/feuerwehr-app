@@ -11,9 +11,10 @@ $host = 'feuerwehr_mysql';
 $dbname = 'feuerwehr_app';
 $username = 'root';
 
-// Versuche verschiedene Passwörter
-$passwords = ['root', 'feuerwehr123', '', 'password', 'admin'];
+// Versuche verschiedene Passwörter und Konfigurationen
+$passwords = ['root', 'feuerwehr123', '', 'password', 'admin', 'mysql', '123456'];
 $db = null;
+$last_error = '';
 
 foreach ($passwords as $password) {
     try {
@@ -21,13 +22,27 @@ foreach ($passwords as $password) {
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         break; // Erfolgreich verbunden
     } catch (PDOException $e) {
-        // Versuche nächstes Passwort
+        $last_error = $e->getMessage();
         continue;
     }
 }
 
+// Falls immer noch keine Verbindung, versuche ohne Datenbankname
 if (!$db) {
-    die("Datenbankverbindung fehlgeschlagen. Bitte prüfen Sie die Anmeldedaten in docker-compose.yml");
+    foreach ($passwords as $password) {
+        try {
+            $db = new PDO("mysql:host=$host;charset=utf8", $username, $password);
+            $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            break;
+        } catch (PDOException $e) {
+            $last_error = $e->getMessage();
+            continue;
+        }
+    }
+}
+
+if (!$db) {
+    die("Datenbankverbindung fehlgeschlagen. Letzter Fehler: " . $last_error . "<br><br>Bitte prüfen Sie:<br>1. Docker-Compose-Konfiguration<br>2. MySQL-Container läuft<br>3. Korrekte Anmeldedaten");
 }
 
 // Einfache Berechtigungsprüfung
