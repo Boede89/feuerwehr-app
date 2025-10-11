@@ -23,15 +23,15 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 
 // Dashboard ist für alle eingeloggten Benutzer sichtbar; Inhalte werden per Berechtigung gesteuert
 // WICHTIG: Berechtigungen einmal ermitteln und wiederverwenden (verhindert Inkonsistenzen)
-$canAtemschutz = has_permission('atemschutz');
-$canReservations = has_permission('reservations');
+$canAtemschutz = has_permission('atemschutz') || hasAdminPermission();
+$canReservations = has_permission('reservations') || hasAdminPermission();
 
 $error = '';
 $message = '';
 
 // POST: Atemschutz-Träger aktualisieren (vom Dashboard-Modal)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_atemschutz_traeger') {
-    if (!has_permission('atemschutz')) {
+    if (!has_permission('atemschutz') && !hasAdminPermission()) {
         $error = 'Keine Berechtigung.';
     } else {
         $id = (int)($_POST['id'] ?? 0);

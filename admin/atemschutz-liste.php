@@ -18,34 +18,15 @@ if (empty($_SESSION['user_id'])) {
 }
 
 // Berechtigung: Admin hat immer Zugriff; sonst Atemschutz-Recht
-$isAdmin = !empty($_SESSION['is_admin']) && (int)$_SESSION['is_admin'] === 1;
-$canAtemschutz = !empty($_SESSION['can_atemschutz']) && (int)$_SESSION['can_atemschutz'] === 1;
+require_once __DIR__ . '/../includes/functions.php';
+$isAdmin = hasAdminPermission();
+$canAtemschutz = has_permission('atemschutz') || hasAdminPermission();
 $permissionWarning = null;
 
-try {
-    $uid = (int)($_SESSION['user_id'] ?? 0);
-    if ($uid > 0) {
-        $stmtPerm = $db->prepare('SELECT is_admin, can_atemschutz FROM users WHERE id = ?');
-        $stmtPerm->execute([$uid]);
-        $rowPerm = $stmtPerm->fetch(PDO::FETCH_ASSOC);
-        if ($rowPerm) {
-            if ((int)($rowPerm['is_admin'] ?? 0) === 1) {
-                $isAdmin = true;
-                $_SESSION['is_admin'] = 1; // Session synchronisieren
-            }
-            if ((int)($rowPerm['can_atemschutz'] ?? 0) === 1) {
-                $canAtemschutz = true;
-                $_SESSION['can_atemschutz'] = 1; // Session synchronisieren
-            }
-        }
-    }
-} catch (Exception $e) {
-    // still proceed below
-}
-
+// Berechtigungen werden jetzt über hasAdminPermission() und has_permission() geprüft
 if (!$isAdmin && !$canAtemschutz) {
-    // Temporär: Seite dennoch anzeigen, aber Hinweis einblenden
-    $permissionWarning = 'Hinweis: Ihnen fehlt aktuell die Berechtigung "Atemschutz". Anzeige erfolgt vorübergehend zu Testzwecken.';
+    header('Location: ../login.php?error=access_denied');
+    exit;
 }
 
 ?><!DOCTYPE html>
