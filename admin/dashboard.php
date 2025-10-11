@@ -1,67 +1,28 @@
 ﻿<?php
 /**
- * Dashboard - Saubere Version
+ * Dashboard - Komplett neue saubere Version
  */
 
 // Starte Session
 session_start();
 
 // Einfache Datenbankverbindung
-$host = 'feuerwehr_mysql';
-$dbname = 'feuerwehr_app';
+$host = "feuerwehr_mysql";
+$dbname = "feuerwehr_app";
+$username = "feuerwehr_user";
+$password = "feuerwehr_password";
 
-// Versuche zuerst mit dem feuerwehr_user (empfohlen)
-$usernames = ['feuerwehr_user', 'root'];
-
-// Korrekte Anmeldedaten aus der Docker-Compose-Konfiguration
-$passwords = [
-    'feuerwehr_password', // Das Passwort für feuerwehr_user
-    'root_password_2024', // Das korrekte Root-Passwort aus docker-compose.yml
-    '', // Leeres Passwort (Standard)
-    'root', 
-    'feuerwehr123',
-    'password',
-    'admin',
-    'mysql',
-    '123456',
-    'secret'
-];
-
-$db = null;
-$last_error = '';
-
-// Versuche verschiedene Benutzer/Passwort-Kombinationen
-foreach ($usernames as $username) {
-    foreach ($passwords as $password) {
-        try {
-            $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
-            $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            break 2; // Erfolgreich verbunden - breche beide Schleifen ab
-        } catch (PDOException $e) {
-            $last_error = $e->getMessage();
-            continue;
-        }
-    }
+try {
+    $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("Datenbankverbindung fehlgeschlagen: " . $e->getMessage());
 }
 
-// Falls immer noch keine Verbindung, versuche ohne Datenbankname
-if (!$db) {
-    foreach ($usernames as $username) {
-        foreach ($passwords as $password) {
-            try {
-                $db = new PDO("mysql:host=$host;charset=utf8", $username, $password);
-                $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-                break 2; // Erfolgreich verbunden
-            } catch (PDOException $e) {
-                $last_error = $e->getMessage();
-                continue;
-            }
-        }
-    }
-}
-
-if (!$db) {
-    die("Datenbankverbindung fehlgeschlagen. Letzter Fehler: " . $last_error . "<br><br>Debug-Informationen:<br>Host: $host<br>Datenbank: $dbname<br><br>Bitte prüfen Sie die Docker-Compose-Konfiguration für die korrekten MySQL-Anmeldedaten.");
+// Prüfe ob Benutzer eingeloggt ist
+if (!isset($_SESSION["user_id"])) {
+    header("Location: ../login.php");
+    exit();
 }
 
 // Einfache Berechtigungsprüfung
@@ -102,89 +63,70 @@ function hasAdminPermission($user_id = null) {
     }
 }
 
-function has_permission($permission) {
+function has_permission($permission_name, $user_id = null) {
     global $db;
     
-    $user_id = $_SESSION['user_id'] ?? null;
+    if (!$user_id) {
+        $user_id = $_SESSION['user_id'] ?? null;
+    }
+    
     if (!$user_id) {
         return false;
     }
     
     try {
-        $stmt = $db->prepare("SELECT can_$permission FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT can_$permission_name FROM users WHERE id = ?");
         $stmt->execute([$user_id]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        return $user && $user["can_$permission"];
+        if ($result && $result["can_$permission_name"] == 1) {
+            return true;
+        }
+        
+        return false;
     } catch (Exception $e) {
-        error_log("Error checking permission: " . $e->getMessage());
+        error_log("Error checking permission '$permission_name': " . $e->getMessage());
         return false;
     }
 }
 
-// Prüfe ob Benutzer eingeloggt ist
-if (!isset($_SESSION['user_id'])) {
+// Hole Benutzerinformationen
+$user_id = $_SESSION['user_id'];
+$stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$user) {
+    session_destroy();
     header("Location: ../login.php");
     exit();
 }
 
-// Berechtigungen ermitteln
+// Berechtigungen prüfen
 $canAtemschutz = has_permission('atemschutz') || hasAdminPermission();
 $canReservations = has_permission('reservations') || hasAdminPermission();
+$canUsers = has_permission('users') || hasAdminPermission();
+$canSettings = hasAdminPermission();
 
-// Verarbeite POST-Requests
-$message = '';
-$error = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['update_atemschutz_traeger'])) {
-        if (!has_permission('atemschutz') && !hasAdminPermission()) {
-            $error = 'Keine Berechtigung.';
-        } else {
-            try {
-                $id = (int)$_POST['id'];
-                $first_name = trim($_POST['first_name'] ?? '');
-                $last_name = trim($_POST['last_name'] ?? '');
-                $email = trim($_POST['email'] ?? '');
-                $birthdate = $_POST['birthdate'] ?? '';
-                $strecke_am = $_POST['strecke_am'] ?? '';
-                $g263_am = $_POST['g263_am'] ?? '';
-                $uebung_am = $_POST['uebung_am'] ?? '';
-
-                if (empty($first_name) || empty($last_name)) {
-                    throw new Exception('Vor- und Nachname sind erforderlich.');
-                }
-
-                $stmt = $db->prepare("UPDATE atemschutz_traeger SET first_name=?, last_name=?, email=?, birthdate=?, strecke_am=?, g263_am=?, uebung_am=? WHERE id=?");
-                $stmt->execute([$first_name, $last_name, $email, $birthdate, $strecke_am, $g263_am, $uebung_am, $id]);
-                
-                $message = 'Geräteträger erfolgreich aktualisiert.';
-            } catch (Exception $e) {
-                $error = 'Fehler: ' . $e->getMessage();
-            }
-        }
-    }
-}
-
-// Lade Atemschutz-Daten
-$atemschutz_items = [];
+// Hole Atemschutz-Daten
+$atemschutz_data = [];
 if ($canAtemschutz) {
     try {
-        $stmt = $db->query("SELECT * FROM atemschutz_traeger ORDER BY last_name, first_name");
-        $atemschutz_items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt = $db->query("SELECT * FROM atemschutz ORDER BY name");
+        $atemschutz_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
-        $error = 'Fehler beim Laden der Atemschutz-Daten: ' . $e->getMessage();
+        error_log("Error fetching atemschutz data: " . $e->getMessage());
     }
 }
 
-// Lade Reservierungs-Daten
-$pending_reservations = [];
+// Hole Reservierungs-Daten
+$reservations_data = [];
 if ($canReservations) {
     try {
-        $stmt = $db->query("SELECT * FROM reservations WHERE status = 'pending' ORDER BY created_at DESC");
-        $pending_reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt = $db->query("SELECT * FROM reservations ORDER BY start_date DESC LIMIT 10");
+        $reservations_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
-        $error = 'Fehler beim Laden der Reservierungen: ' . $e->getMessage();
+        error_log("Error fetching reservations data: " . $e->getMessage());
     }
 }
 ?>
@@ -194,264 +136,326 @@ if ($canReservations) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Feuerwehr App</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .card {
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        .atemschutz-item {
+            border-left: 4px solid #dc3545;
+        }
+        .atemschutz-item.overdue {
+            border-left-color: #ffc107;
+        }
+        .atemschutz-item.expired {
+            border-left-color: #dc3545;
+        }
+    </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="../index.php">
-                <i class="fas fa-fire me-2"></i>Feuerwehr App
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-fire"></i> Feuerwehr App
             </a>
             <div class="navbar-nav ms-auto">
-                <a class="nav-link" href="../logout.php">Abmelden</a>
+                <span class="navbar-text me-3">Hallo, <?php echo htmlspecialchars($user['name']); ?>!</span>
+                <a class="btn btn-outline-light btn-sm" href="../logout.php">
+                    <i class="fas fa-sign-out-alt"></i> Abmelden
+                </a>
             </div>
         </div>
     </nav>
 
     <div class="container-fluid mt-4">
         <div class="row">
+            <!-- Atemschutz Bereich -->
+            <?php if ($canAtemschutz): ?>
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0"><i class="fas fa-mask"></i> Atemschutz</h5>
+                    </div>
+                    <div class="card-body">
+                        <?php if (empty($atemschutz_data)): ?>
+                            <p class="text-muted">Keine Atemschutz-Daten verfügbar.</p>
+                        <?php else: ?>
+                            <div class="list-group">
+                                <?php foreach ($atemschutz_data as $item): ?>
+                                    <?php
+                                    $last_check = new DateTime($item['last_check']);
+                                    $next_check = clone $last_check;
+                                    $next_check->add(new DateInterval('P1Y')); // 1 Jahr
+                                    $now = new DateTime();
+                                    $days_until = $now->diff($next_check)->days;
+                                    
+                                    $item_class = 'atemschutz-item';
+                                    if ($next_check < $now) {
+                                        $item_class .= ' expired';
+                                    } elseif ($days_until <= 30) {
+                                        $item_class .= ' overdue';
+                                    }
+                                    ?>
+                                    <div class="list-group-item <?php echo $item_class; ?>">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><?php echo htmlspecialchars($item['name']); ?></h6>
+                                            <small>
+                                                <?php if ($next_check < $now): ?>
+                                                    <span class="badge bg-danger">Abgelaufen</span>
+                                                <?php elseif ($days_until <= 30): ?>
+                                                    <span class="badge bg-warning">Bald fällig</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-success">OK</span>
+                                                <?php endif; ?>
+                                            </small>
+                                        </div>
+                                        <p class="mb-1">
+                                            <small class="text-muted">
+                                                Letzte Prüfung: <?php echo $last_check->format('d.m.Y'); ?><br>
+                                                Nächste Prüfung: <?php echo $next_check->format('d.m.Y'); ?>
+                                                <?php if ($next_check < $now): ?>
+                                                    <br><strong class="text-danger">Überfällig um <?php echo $now->diff($next_check)->days; ?> Tage</strong>
+                                                <?php elseif ($days_until <= 30): ?>
+                                                    <br><strong class="text-warning">Fällig in <?php echo $days_until; ?> Tagen</strong>
+                                                <?php endif; ?>
+                                            </small>
+                                        </p>
+                                        <div class="mt-2">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="notifyAtemschutz(<?php echo $item['id']; ?>)">
+                                                <i class="fas fa-bell"></i> Benachrichtigen
+                                            </button>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="mt-3">
+                                <button class="btn btn-primary" onclick="notifyAllAtemschutz()">
+                                    <i class="fas fa-bell"></i> Alle benachrichtigen
+                                </button>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <!-- Reservierungen Bereich -->
+            <?php if ($canReservations): ?>
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-calendar"></i> Reservierungen</h5>
+                    </div>
+                    <div class="card-body">
+                        <?php if (empty($reservations_data)): ?>
+                            <p class="text-muted">Keine Reservierungen verfügbar.</p>
+                        <?php else: ?>
+                            <div class="list-group">
+                                <?php foreach ($reservations_data as $reservation): ?>
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><?php echo htmlspecialchars($reservation['title']); ?></h6>
+                                            <small class="text-muted">
+                                                <?php echo date('d.m.Y', strtotime($reservation['start_date'])); ?>
+                                            </small>
+                                        </div>
+                                        <p class="mb-1"><?php echo htmlspecialchars($reservation['description']); ?></p>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <!-- Navigation -->
             <div class="col-12">
-                <h1 class="mb-4"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h1>
-                
-                <?php if ($message): ?>
-                    <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        <?php echo htmlspecialchars($message); ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if ($error): ?>
-                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        <?php echo htmlspecialchars($error); ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <?php if ($canAtemschutz): ?>
-        <!-- Atemschutz Abschnitt -->
-        <div class="row">
-            <div class="col-12 mb-4">
-                <div class="card shadow">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-lungs"></i> Atemschutz</h6>
-                        <a href="atemschutz.php" class="btn btn-sm btn-outline-primary">
-                            <i class="fas fa-cog me-1"></i> Verwalten
-                        </a>
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-cog"></i> Navigation</h5>
                     </div>
                     <div class="card-body">
-                        <?php
-                        // Berechne Status für jeden Geräteträger
-                        $now = new DateTime();
-                        $items = [];
-                        foreach ($atemschutz_items as $r) {
-                            $age = $r['birthdate'] ? (int)$now->diff(new DateTime($r['birthdate']))->y : 0;
-                            $streckeBis = !empty($r['strecke_am']) ? (new DateTime($r['strecke_am']))->modify('+1 year') : null;
-                            $g263Bis = null; if (!empty($r['g263_am'])) { $g = new DateTime($r['g263_am']); $g->modify(($age < 50 ? '+3 year' : '+1 year')); $g263Bis = $g; }
-                            $uebungBis = !empty($r['uebung_am']) ? (new DateTime($r['uebung_am']))->modify('+1 year') : null;
-                            $streckeDiff = $streckeBis ? (int)$now->diff($streckeBis)->format('%r%a') : null;
-                            $g263Diff = $g263Bis ? (int)$now->diff($g263Bis)->format('%r%a') : null;
-                            $uebungDiff = $uebungBis ? (int)$now->diff($uebungBis)->format('%r%a') : null;
-                            
-                            $status = 'ok';
-                            if ($streckeDiff !== null && $streckeDiff < 0) $status = 'abgelaufen';
-                            else if ($g263Diff !== null && $g263Diff < 0) $status = 'abgelaufen';
-                            else if ($uebungDiff !== null && $uebungDiff < 0) $status = 'abgelaufen';
-                            else if ($streckeDiff !== null && $streckeDiff < 30) $status = 'warnung';
-                            else if ($g263Diff !== null && $g263Diff < 30) $status = 'warnung';
-                            else if ($uebungDiff !== null && $uebungDiff < 30) $status = 'warnung';
-                            
-                            $items[] = array_merge($r, [
-                                'status' => $status,
-                                'strecke_diff' => $streckeDiff,
-                                'g263_diff' => $g263Diff,
-                                'uebung_diff' => $uebungDiff
-                            ]);
-                        }
-                        ?>
-                        
-                        <?php if (empty($items)): ?>
-                            <div class="text-center text-muted py-4">
-                                <i class="fas fa-info-circle fa-2x mb-2"></i>
-                                <p>Keine Geräteträger vorhanden.</p>
+                        <div class="row">
+                            <?php if ($canAtemschutz): ?>
+                            <div class="col-md-3 mb-2">
+                                <a href="atemschutz.php" class="btn btn-outline-danger w-100">
+                                    <i class="fas fa-mask"></i> Atemschutz
+                                </a>
                             </div>
-                        <?php else: ?>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>E-Mail</th>
-                                            <th>Status</th>
-                                            <th>Letzte Benachrichtigung</th>
-                                            <th>Aktionen</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($items as $it): ?>
-                                            <tr>
-                                                <td>
-                                                    <strong><?php echo htmlspecialchars($it['first_name'] . ' ' . $it['last_name']); ?></strong>
-                                                </td>
-                                                <td>
-                                                    <?php echo htmlspecialchars($it['email'] ?: '-'); ?>
-                                                </td>
-                                                <td>
-                                                    <?php if ($it['status']==='abgelaufen'): ?>
-                                                        <span class="badge bg-danger">Abgelaufen</span>
-                                                    <?php elseif ($it['status']==='warnung'): ?>
-                                                        <span class="badge bg-warning text-dark">Warnung</span>
-                                                    <?php else: ?>
-                                                        <span class="badge bg-success">OK</span>
-                                                    <?php endif; ?>
-                                                </td>
-                                                <td>
-                                                    <?php echo htmlspecialchars($it['last_notified_at'] ? date('d.m.Y', strtotime($it['last_notified_at'])) : '-'); ?>
-                                                </td>
-                                                <td>
-                                                    <button class="btn btn-sm btn-outline-primary me-1" onclick="notifyAtemschutz(<?php echo $it['id']; ?>)">
-                                                        <i class="fas fa-envelope me-1"></i> Benachrichtigen
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
+                            <?php endif; ?>
+                            
+                            <?php if ($canReservations): ?>
+                            <div class="col-md-3 mb-2">
+                                <a href="reservations.php" class="btn btn-outline-primary w-100">
+                                    <i class="fas fa-calendar"></i> Reservierungen
+                                </a>
                             </div>
-                        <?php endif; ?>
+                            <?php endif; ?>
+                            
+                            <?php if ($canUsers): ?>
+                            <div class="col-md-3 mb-2">
+                                <a href="users.php" class="btn btn-outline-success w-100">
+                                    <i class="fas fa-users"></i> Benutzer
+                                </a>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <?php if ($canSettings): ?>
+                            <div class="col-md-3 mb-2">
+                                <a href="settings.php" class="btn btn-outline-secondary w-100">
+                                    <i class="fas fa-cog"></i> Einstellungen
+                                </a>
+                            </div>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        <?php endif; ?>
-        
-        <?php if ($canReservations): ?>
-        <div class="row">
-            <!-- Fahrzeugreservierungen -->
-            <div class="col-12 mb-4">
-                <div class="card shadow">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-car me-2"></i> Ausstehende Reservierungen</h6>
-                        <a href="reservations.php" class="btn btn-sm btn-outline-primary">
-                            <i class="fas fa-list me-1"></i> Alle anzeigen
-                        </a>
-                    </div>
-                    <div class="card-body">
-                        <?php if (empty($pending_reservations)): ?>
-                            <div class="text-center text-muted py-4">
-                                <i class="fas fa-check-circle fa-2x mb-2"></i>
-                                <p>Keine ausstehenden Reservierungen.</p>
-                            </div>
-                        <?php else: ?>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Fahrzeug</th>
-                                            <th>Benutzer</th>
-                                            <th>Von</th>
-                                            <th>Bis</th>
-                                            <th>Zweck</th>
-                                            <th>Aktionen</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($pending_reservations as $reservation): ?>
-                                            <tr>
-                                                <td><?php echo htmlspecialchars($reservation['vehicle_name'] ?? 'Unbekannt'); ?></td>
-                                                <td><?php echo htmlspecialchars($reservation['user_name'] ?? 'Unbekannt'); ?></td>
-                                                <td><?php echo date('d.m.Y H:i', strtotime($reservation['start_time'])); ?></td>
-                                                <td><?php echo date('d.m.Y H:i', strtotime($reservation['end_time'])); ?></td>
-                                                <td><?php echo htmlspecialchars($reservation['purpose'] ?? '-'); ?></td>
-                                                <td>
-                                                    <button class="btn btn-sm btn-success me-1" onclick="approveReservation(<?php echo $reservation['id']; ?>)">
-                                                        <i class="fas fa-check me-1"></i> Genehmigen
-                                                    </button>
-                                                    <button class="btn btn-sm btn-danger" onclick="rejectReservation(<?php echo $reservation['id']; ?>)">
-                                                        <i class="fas fa-times me-1"></i> Ablehnen
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <?php endif; ?>
-        
     </div>
 
-    <!-- Modal: E-Mail eintragen -->
-    <div class="modal fade" id="emailEntryModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
+    <!-- E-Mail Modal -->
+    <div class="modal fade" id="emailEntryModal" tabindex="-1">
+        <div class="modal-dialog">
             <div class="modal-content">
-                <div class="modal-header bg-secondary text-white">
-                    <h5 class="modal-title"><i class="fas fa-envelope me-2"></i> E-Mail eintragen</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <div class="modal-header">
+                    <h5 class="modal-title">E-Mail-Adresse eingeben</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <form id="emailEntryForm">
-                    <input type="hidden" id="email_entry_id">
-                    <div class="modal-body">
-                        <div class="mb-2">
-                            <label class="form-label">Geräteträger</label>
-                            <input type="text" class="form-control" id="email_entry_name" disabled>
+                <div class="modal-body">
+                    <form id="emailForm">
+                        <div class="mb-3">
+                            <label for="emailInput" class="form-label">E-Mail-Adresse:</label>
+                            <input type="email" class="form-control" id="emailInput" required>
                         </div>
-                        <div class="mb-2">
-                            <label class="form-label">E-Mail Adresse</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fas fa-at"></i></span>
-                                <input type="email" class="form-control" id="email_entry_email" placeholder="name@beispiel.de" required>
-                            </div>
-                            <div class="form-text">Diese Adresse wird gespeichert und für Benachrichtigungen verwendet.</div>
-                        </div>
-                        <div class="alert alert-danger d-none" id="email_entry_error"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                        <button type="submit" class="btn btn-secondary">Speichern & Benachrichtigen</button>
-                    </div>
-                </form>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="button" class="btn btn-primary" onclick="saveEmailAndNotify()">Speichern & Benachrichtigen</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Atemschutz-Benachrichtigungsfunktionen
-        window.notifyAtemschutz = async function(id){
+        let currentUserId = null;
+
+        async function notifyAtemschutz(userId) {
+            console.log('DEBUG: Versuche E-Mail-Modal zu öffnen für ID:', userId);
+            
+            // Prüfe ob der Benutzer eine E-Mail hat
             try {
-                const relUrl = 'atemschutz-get.php?id='+encodeURIComponent(id);
-                let data = null;
-                try { data = await fetch(relUrl).then(r=>r.ok?r.json():null); } catch(_) { data = null; }
-                if (!data || data.success !== true) {
-                    const err = data && data.error ? String(data.error) : 'unbekannt';
-                    alert('Konnte Geräteträger nicht laden ('+err+').');
-                    return;
+                const response = await fetch('atemschutz-get.php');
+                const data = await response.json();
+                const user = data.find(u => u.id == userId);
+                
+                if (user && user.email) {
+                    // Benutzer hat E-Mail, sende Benachrichtigung
+                    await sendNotification(userId, user.email);
+                } else {
+                    // Benutzer hat keine E-Mail, öffne Modal
+                    currentUserId = userId;
+                    const modal = new bootstrap.Modal(document.getElementById('emailEntryModal'));
+                    modal.show();
                 }
-                let { email, first_name, last_name } = data.data || {};
-                if (!email) {
-                    // Modal öffnen
-                    const modalEl = document.getElementById('emailEntryModal');
-                    if (!modalEl) { alert('Modal nicht verfügbar.'); return; }
-                    document.getElementById('email_entry_id').value = String(id);
-                    document.getElementById('email_entry_name').value = `${last_name || ''}, ${first_name || ''}`.trim();
-                    document.getElementById('email_entry_email').value = '';
-                    document.getElementById('email_entry_error').classList.add('d-none');
-                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
-                    return;
+            } catch (error) {
+                console.error('Fehler beim Laden der Benutzerdaten:', error);
+                alert('Fehler beim Laden der Benutzerdaten');
+            }
+        }
+
+        async function notifyAllAtemschutz() {
+            try {
+                const response = await fetch('atemschutz-get.php');
+                const data = await response.json();
+                
+                for (const user of data) {
+                    if (user.email) {
+                        await sendNotification(user.id, user.email);
+                    }
                 }
-                // Mail aussenden
-                const notifyRel = 'atemschutz-notify.php';
-                let j = null;
-                try { j = await fetch(notifyRel, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[id] }) }).then(r=>r.ok?r.json():null); } catch(_) { j = null; }
-                if (j && j.success) { alert('E-Mail gesendet.'); } else { alert('Senden fehlgeschlagen.'); }
-            } catch(e){ alert('Fehler: '+e.message); }
+                
+                alert('Benachrichtigungen wurden gesendet!');
+            } catch (error) {
+                console.error('Fehler beim Senden der Benachrichtigungen:', error);
+                alert('Fehler beim Senden der Benachrichtigungen');
+            }
+        }
+
+        async function sendNotification(userId, email) {
+            try {
+                const response = await fetch('atemschutz-notify.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        email: email
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Benachrichtigung wurde gesendet!');
+                } else {
+                    alert('Fehler beim Senden der Benachrichtigung: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Fehler beim Senden der Benachrichtigung:', error);
+                alert('Fehler beim Senden der Benachrichtigung');
+            }
+        }
+
+        async function saveEmailAndNotify() {
+            const email = document.getElementById('emailInput').value;
+            
+            if (!email) {
+                alert('Bitte geben Sie eine E-Mail-Adresse ein');
+                return;
+            }
+            
+            try {
+                // Speichere E-Mail-Adresse
+                const saveResponse = await fetch('atemschutz-notify.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        email: email,
+                        action: 'save_email'
+                    })
+                });
+                
+                const saveResult = await saveResponse.json();
+                
+                if (saveResult.success) {
+                    // Sende Benachrichtigung
+                    await sendNotification(currentUserId, email);
+                    
+                    // Schließe Modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('emailEntryModal'));
+                    modal.hide();
+                    
+                    // Leere Eingabefeld
+                    document.getElementById('emailInput').value = '';
+                } else {
+                    alert('Fehler beim Speichern der E-Mail-Adresse: ' + saveResult.message);
+                }
+            } catch (error) {
+                console.error('Fehler beim Speichern der E-Mail-Adresse:', error);
+                alert('Fehler beim Speichern der E-Mail-Adresse');
+            }
         }
     </script>
 </body>
