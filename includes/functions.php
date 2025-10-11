@@ -231,6 +231,47 @@ function has_admin_access() {
 }
 
 /**
+ * Prüft ob der Benutzer Admin-Berechtigung hat (erweiterte Prüfung)
+ * Unterstützt sowohl alte role-basierte als auch neue permission-basierte Berechtigungen
+ */
+function hasAdminPermission($user_id = null) {
+    global $db;
+    
+    if (!$user_id) {
+        $user_id = $_SESSION['user_id'] ?? null;
+    }
+    
+    if (!$user_id) {
+        return false;
+    }
+    
+    try {
+        $stmt = $db->prepare("SELECT role, is_admin, can_settings FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$user) {
+            return false;
+        }
+        
+        // Prüfe alte role-basierte Berechtigung
+        if ($user['role'] === 'admin') {
+            return true;
+        }
+        
+        // Prüfe neue permission-basierte Berechtigung
+        if ($user['is_admin'] || $user['can_settings']) {
+            return true;
+        }
+        
+        return false;
+    } catch (Exception $e) {
+        error_log("Error checking admin permission: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * Prüft ob der aktuelle Benutzer eine bestimmte Berechtigung hat
  * @param string $permission Berechtigung (admin, reservations, users, settings, vehicles, atemschutz)
  * @return bool
