@@ -9,11 +9,14 @@
 // Einfache Datenbankverbindung
 $host = 'feuerwehr_mysql';
 $dbname = 'feuerwehr_app';
-$username = 'root';
 
-// Versuche die korrekten Anmeldedaten aus der Docker-Compose-Konfiguration
-// Standard MySQL-Anmeldedaten für Docker-Compose
+// Versuche zuerst mit dem feuerwehr_user (empfohlen)
+$usernames = ['feuerwehr_user', 'root'];
+
+// Korrekte Anmeldedaten aus der Docker-Compose-Konfiguration
 $passwords = [
+    'root_password_2024', // Das korrekte Root-Passwort aus docker-compose.yml
+    'feuerwehr_password', // Das Passwort für feuerwehr_user
     '', // Leeres Passwort (Standard)
     'root', 
     'feuerwehr123',
@@ -27,19 +30,13 @@ $passwords = [
 $db = null;
 $last_error = '';
 
-// Versuche zuerst mit der Standard-Konfiguration (leeres Passwort)
-try {
-    $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, '');
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    $last_error = $e->getMessage();
-    
-    // Falls das nicht funktioniert, versuche andere Passwörter
+// Versuche verschiedene Benutzer/Passwort-Kombinationen
+foreach ($usernames as $username) {
     foreach ($passwords as $password) {
         try {
             $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
             $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            break; // Erfolgreich verbunden
+            break 2; // Erfolgreich verbunden - breche beide Schleifen ab
         } catch (PDOException $e) {
             $last_error = $e->getMessage();
             continue;
@@ -49,14 +46,16 @@ try {
 
 // Falls immer noch keine Verbindung, versuche ohne Datenbankname
 if (!$db) {
-    foreach ($passwords as $password) {
-        try {
-            $db = new PDO("mysql:host=$host;charset=utf8", $username, $password);
-            $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            break;
-        } catch (PDOException $e) {
-            $last_error = $e->getMessage();
-            continue;
+    foreach ($usernames as $username) {
+        foreach ($passwords as $password) {
+            try {
+                $db = new PDO("mysql:host=$host;charset=utf8", $username, $password);
+                $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                break 2; // Erfolgreich verbunden
+            } catch (PDOException $e) {
+                $last_error = $e->getMessage();
+                continue;
+            }
         }
     }
 }
