@@ -11,19 +11,39 @@ $host = 'feuerwehr_mysql';
 $dbname = 'feuerwehr_app';
 $username = 'root';
 
-// Versuche verschiedene Passwörter und Konfigurationen
-$passwords = ['root', 'feuerwehr123', '', 'password', 'admin', 'mysql', '123456'];
+// Versuche die korrekten Anmeldedaten aus der Docker-Compose-Konfiguration
+// Standard MySQL-Anmeldedaten für Docker-Compose
+$passwords = [
+    '', // Leeres Passwort (Standard)
+    'root', 
+    'feuerwehr123',
+    'password',
+    'admin',
+    'mysql',
+    '123456',
+    'secret'
+];
+
 $db = null;
 $last_error = '';
 
-foreach ($passwords as $password) {
-    try {
-        $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
-        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        break; // Erfolgreich verbunden
-    } catch (PDOException $e) {
-        $last_error = $e->getMessage();
-        continue;
+// Versuche zuerst mit der Standard-Konfiguration (leeres Passwort)
+try {
+    $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, '');
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    $last_error = $e->getMessage();
+    
+    // Falls das nicht funktioniert, versuche andere Passwörter
+    foreach ($passwords as $password) {
+        try {
+            $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
+            $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            break; // Erfolgreich verbunden
+        } catch (PDOException $e) {
+            $last_error = $e->getMessage();
+            continue;
+        }
     }
 }
 
@@ -42,7 +62,7 @@ if (!$db) {
 }
 
 if (!$db) {
-    die("Datenbankverbindung fehlgeschlagen. Letzter Fehler: " . $last_error . "<br><br>Bitte prüfen Sie:<br>1. Docker-Compose-Konfiguration<br>2. MySQL-Container läuft<br>3. Korrekte Anmeldedaten");
+    die("Datenbankverbindung fehlgeschlagen. Letzter Fehler: " . $last_error . "<br><br>Debug-Informationen:<br>Host: $host<br>Datenbank: $dbname<br>Benutzer: $username<br><br>Bitte prüfen Sie die Docker-Compose-Konfiguration für die korrekten MySQL-Anmeldedaten.");
 }
 
 // Einfache Berechtigungsprüfung
