@@ -6,6 +6,7 @@ require_once '../includes/functions.php';
 header('Content-Type: application/json; charset=utf-8');
 
 if (!isset($_SESSION['user_id']) || (!has_permission('atemschutz') && !hasAdminPermission())) {
+    error_log("ATEMSCHUTZ NOTIFY: Access denied - user_id: " . ($_SESSION['user_id'] ?? 'null') . ", atemschutz: " . (has_permission('atemschutz') ? 'true' : 'false') . ", admin: " . (hasAdminPermission() ? 'true' : 'false'));
     echo json_encode(['success' => false, 'error' => 'forbidden']);
     exit;
 }
