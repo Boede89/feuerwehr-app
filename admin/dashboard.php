@@ -4,19 +4,30 @@
  */
 
 // Starte Session
-session_start();
+    session_start();
 
 // Einfache Datenbankverbindung
-try {
-    $host = 'feuerwehr_mysql';
-    $dbname = 'feuerwehr_app';
-    $username = 'root';
-    $password = 'feuerwehr123';
-    
-    $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    die("Datenbankverbindung fehlgeschlagen: " . $e->getMessage());
+$host = 'feuerwehr_mysql';
+$dbname = 'feuerwehr_app';
+$username = 'root';
+
+// Versuche verschiedene Passwörter
+$passwords = ['root', 'feuerwehr123', '', 'password', 'admin'];
+$db = null;
+
+foreach ($passwords as $password) {
+    try {
+        $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
+        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        break; // Erfolgreich verbunden
+    } catch (PDOException $e) {
+        // Versuche nächstes Passwort
+        continue;
+    }
+}
+
+if (!$db) {
+    die("Datenbankverbindung fehlgeschlagen. Bitte prüfen Sie die Anmeldedaten in docker-compose.yml");
 }
 
 // Einfache Berechtigungsprüfung
@@ -71,7 +82,7 @@ function has_permission($permission) {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
         return $user && $user["can_$permission"];
-    } catch (Exception $e) {
+                    } catch (Exception $e) {
         error_log("Error checking permission: " . $e->getMessage());
         return false;
     }
@@ -209,7 +220,7 @@ if ($canReservations) {
                             $streckeDiff = $streckeBis ? (int)$now->diff($streckeBis)->format('%r%a') : null;
                             $g263Diff = $g263Bis ? (int)$now->diff($g263Bis)->format('%r%a') : null;
                             $uebungDiff = $uebungBis ? (int)$now->diff($uebungBis)->format('%r%a') : null;
-                            
+
                             $status = 'ok';
                             if ($streckeDiff !== null && $streckeDiff < 0) $status = 'abgelaufen';
                             else if ($g263Diff !== null && $g263Diff < 0) $status = 'abgelaufen';
@@ -219,14 +230,14 @@ if ($canReservations) {
                             else if ($uebungDiff !== null && $uebungDiff < 30) $status = 'warnung';
                             
                             $items[] = array_merge($r, [
-                                'status' => $status,
+                                    'status' => $status,
                                 'strecke_diff' => $streckeDiff,
                                 'g263_diff' => $g263Diff,
                                 'uebung_diff' => $uebungDiff
                             ]);
                         }
                         ?>
-                        
+
                         <?php if (empty($items)): ?>
                             <div class="text-center text-muted py-4">
                                 <i class="fas fa-info-circle fa-2x mb-2"></i>
@@ -300,21 +311,21 @@ if ($canReservations) {
                                 <p>Keine ausstehenden Reservierungen.</p>
                             </div>
                         <?php else: ?>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Fahrzeug</th>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Fahrzeug</th>
                                             <th>Benutzer</th>
                                             <th>Von</th>
                                             <th>Bis</th>
                                             <th>Zweck</th>
                                             <th>Aktionen</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($pending_reservations as $reservation): ?>
-                                            <tr>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($pending_reservations as $reservation): ?>
+                                                <tr>
                                                 <td><?php echo htmlspecialchars($reservation['vehicle_name'] ?? 'Unbekannt'); ?></td>
                                                 <td><?php echo htmlspecialchars($reservation['user_name'] ?? 'Unbekannt'); ?></td>
                                                 <td><?php echo date('d.m.Y H:i', strtotime($reservation['start_time'])); ?></td>
@@ -326,12 +337,12 @@ if ($canReservations) {
                                                     </button>
                                                     <button class="btn btn-sm btn-danger" onclick="rejectReservation(<?php echo $reservation['id']; ?>)">
                                                         <i class="fas fa-times me-1"></i> Ablehnen
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
                             </div>
                         <?php endif; ?>
                     </div>
