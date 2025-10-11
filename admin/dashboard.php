@@ -1129,11 +1129,9 @@ try {
         // Benachrichtigung einzelner Geräteträger (mit E-Mail-Fallback)
         window.notifyAtemschutz = async function(id){
             try {
-                const absUrl = '/admin/atemschutz-get.php?id='+encodeURIComponent(id);
                 const relUrl = 'atemschutz-get.php?id='+encodeURIComponent(id);
                 let data = null;
-                try { data = await fetch(absUrl).then(r=>r.ok?r.json():null); } catch(_) { data = null; }
-                if (!data) { try { data = await fetch(relUrl).then(r=>r.ok?r.json():null); } catch(_) { data = null; } }
+                try { data = await fetch(relUrl).then(r=>r.ok?r.json():null); } catch(_) { data = null; }
                 if (!data || data.success !== true) {
                     const err = data && data.error ? String(data.error) : 'unbekannt';
                     alert('Konnte Geräteträger nicht laden ('+err+').');
@@ -1164,18 +1162,16 @@ try {
                     return;
                 }
                 // Mail auslösen
-                const notifyAbs = '/admin/atemschutz-notify.php';
                 const notifyRel = 'atemschutz-notify.php';
                 let j = null;
-                try { j = await fetch(notifyAbs, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[id] }) }).then(r=>r.ok?r.json():null); } catch(_) { j = null; }
-                if (!j) { try { j = await fetch(notifyRel, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[id] }) }).then(r=>r.ok?r.json():null); } catch(_) { j = null; } }
+                try { j = await fetch(notifyRel, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[id] }) }).then(r=>r.ok?r.json():null); } catch(_) { j = null; }
                 if (j && j.success) { alert('E-Mail gesendet.'); } else { alert('Senden fehlgeschlagen.'); }
             } catch(e){ alert('Fehler: '+e.message); }
         }
         // Benachrichtigung aller mit E-Mail
         window.notifyAllAtemschutz = async function(){
             try {
-                const res = await fetch('/admin/atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ all:true }) });
+                const res = await fetch('atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ all:true }) });
                 const j = await res.json();
                 if (j && j.success) { alert('E-Mails versendet: '+(j.sent||0)); } else { alert('Versand fehlgeschlagen.'); }
             } catch(e){ alert('Fehler: '+e.message); }
@@ -1193,7 +1189,7 @@ try {
                 if (!email) { err.textContent = 'Bitte E-Mail angeben.'; err.classList.remove('d-none'); return; }
                 try {
                     // bestehende Daten holen
-                    const r = await fetch('/admin/atemschutz-get.php?id='+encodeURIComponent(id));
+                    const r = await fetch('atemschutz-get.php?id='+encodeURIComponent(id));
                     const data = await r.json();
                     if (!data || data.success !== true) { throw new Error('Datensatz nicht gefunden'); }
                     const d = data.data || {};
@@ -1209,7 +1205,7 @@ try {
                     form.append('uebung_am', d.uebung_am || '');
                     await fetch('dashboard.php', { method:'POST', body: form });
                     // danach senden
-                    const res = await fetch('/admin/atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[Number(id)] }) });
+                    const res = await fetch('atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[Number(id)] }) });
                     const j = await res.json();
                     if (!j || !j.success) throw new Error('Versand fehlgeschlagen');
                     bootstrap.Modal.getInstance(document.getElementById('emailEntryModal'))?.hide();
