@@ -936,8 +936,7 @@ try {
     </div>
     <?php endif; ?>
 
-    <!-- Modal: E-Mail eintragen (schöne Variante statt Browser-Prompt) -->
-    <?php if ($canAtemschutz): ?>
+    <!-- Modal: E-Mail eintragen (schöne Variante statt Browser-Prompt) - immer verfügbar -->
     <div class="modal fade" id="emailEntryModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -970,7 +969,6 @@ try {
             </div>
         </div>
     </div>
-    <?php endif; ?>
 
     <script>
         // Wenn ein Ablehnungs-Modal geöffnet wird, Konflikt prüfen und ggf. Grund vorausfüllen
