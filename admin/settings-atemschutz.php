@@ -3,7 +3,7 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
-if (!isset($_SESSION['user_id']) || !has_permission('settings')) {
+if (!isset($_SESSION['user_id']) || !hasAdminPermission()) {
     header('Location: ../login.php?error=access_denied');
     exit;
 }

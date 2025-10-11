@@ -7,7 +7,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
     exit;
 }
-if (!has_admin_access()) {
+if (!hasAdminPermission()) {
     header('Location: ../login.php?error=access_denied');
     exit;
 }
