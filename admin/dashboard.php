@@ -1126,56 +1126,7 @@ try {
             });
         });
 
-        // Benachrichtigung einzelner Geräteträger (mit E-Mail-Fallback)
-        window.notifyAtemschutz = async function(id){
-            try {
-                const relUrl = 'atemschutz-get.php?id='+encodeURIComponent(id);
-                let data = null;
-                try { data = await fetch(relUrl).then(r=>r.ok?r.json():null); } catch(_) { data = null; }
-                if (!data || data.success !== true) {
-                    const err = data && data.error ? String(data.error) : 'unbekannt';
-                    alert('Konnte Geräteträger nicht laden ('+err+').');
-                    return;
-                }
-                let { email, first_name, last_name } = data.data || {};
-                if (!email) {
-                    // schönes Modal öffnen (mit Bootstrap-Fallback)
-                    const modalEl = document.getElementById('emailEntryModal');
-                    if (!modalEl) { alert('Modal nicht verfügbar.'); return; }
-                    const show = ()=>{ try { bootstrap.Modal.getOrCreateInstance(modalEl).show(); } catch(_) { alert('Modal kann nicht geöffnet werden.'); } };
-                    document.getElementById('email_entry_id').value = String(id);
-                    document.getElementById('email_entry_name').value = `${last_name || ''}, ${first_name || ''}`.trim();
-                    document.getElementById('email_entry_email').value = '';
-                    document.getElementById('email_entry_error').classList.add('d-none');
-                    if (window.bootstrap && bootstrap.Modal) { show(); }
-                    else {
-                        const existing = document.querySelector('script[data-dyn="bs-bundle"]');
-                        if (existing) existing.addEventListener('load', show);
-                        else {
-                            const s = document.createElement('script');
-                            s.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js';
-                            s.defer = true; s.async = true; s.setAttribute('data-dyn','bs-bundle');
-                            s.addEventListener('load', show);
-                            document.body.appendChild(s);
-                        }
-                    }
-                    return;
-                }
-                // Mail auslösen
-                const notifyRel = 'atemschutz-notify.php';
-                let j = null;
-                try { j = await fetch(notifyRel, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[id] }) }).then(r=>r.ok?r.json():null); } catch(_) { j = null; }
-                if (j && j.success) { alert('E-Mail gesendet.'); } else { alert('Senden fehlgeschlagen.'); }
-            } catch(e){ alert('Fehler: '+e.message); }
-        }
-        // Benachrichtigung aller mit E-Mail
-        window.notifyAllAtemschutz = async function(){
-            try {
-                const res = await fetch('atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ all:true }) });
-                const j = await res.json();
-                if (j && j.success) { alert('E-Mails versendet: '+(j.sent||0)); } else { alert('Versand fehlgeschlagen.'); }
-            } catch(e){ alert('Fehler: '+e.message); }
-        }
+        // Atemschutz-Benachrichtigungsfunktionen sind jetzt außerhalb des PHP-Blocks definiert
 
         // Submit für E-Mail-Eintragsmodal
         const emailForm = document.getElementById('emailEntryForm');
@@ -1228,5 +1179,58 @@ try {
         // Kein JS für Bearbeiten nötig – direkter Link zur Liste mit ?edit_id
     </script>
     <?php endif; ?>
+
+    <script>
+        // Atemschutz-Benachrichtigungsfunktionen (immer verfügbar)
+        window.notifyAtemschutz = async function(id){
+            try {
+                const relUrl = 'atemschutz-get.php?id='+encodeURIComponent(id);
+                let data = null;
+                try { data = await fetch(relUrl).then(r=>r.ok?r.json():null); } catch(_) { data = null; }
+                if (!data || data.success !== true) {
+                    const err = data && data.error ? String(data.error) : 'unbekannt';
+                    alert('Konnte Geräteträger nicht laden ('+err+').');
+                    return;
+                }
+                let { email, first_name, last_name } = data.data || {};
+                if (!email) {
+                    // schönes Modal öffnen (mit Bootstrap-Fallback)
+                    const modalEl = document.getElementById('emailEntryModal');
+                    if (!modalEl) { alert('Modal nicht verfügbar.'); return; }
+                    const show = ()=>{ try { bootstrap.Modal.getOrCreateInstance(modalEl).show(); } catch(_) { alert('Modal kann nicht geöffnet werden.'); } };
+                    document.getElementById('email_entry_id').value = String(id);
+                    document.getElementById('email_entry_name').value = `${last_name || ''}, ${first_name || ''}`.trim();
+                    document.getElementById('email_entry_email').value = '';
+                    document.getElementById('email_entry_error').classList.add('d-none');
+                    if (window.bootstrap && bootstrap.Modal) { show(); }
+                    else {
+                        const existing = document.querySelector('script[data-dyn="bs-bundle"]');
+                        if (existing) existing.addEventListener('load', show);
+                        else {
+                            const s = document.createElement('script');
+                            s.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js';
+                            s.defer = true; s.async = true; s.setAttribute('data-dyn','bs-bundle');
+                            s.addEventListener('load', show);
+                            document.body.appendChild(s);
+                        }
+                    }
+                    return;
+                }
+                // Mail auslösen
+                const notifyRel = 'atemschutz-notify.php';
+                let j = null;
+                try { j = await fetch(notifyRel, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids:[id] }) }).then(r=>r.ok?r.json():null); } catch(_) { j = null; }
+                if (j && j.success) { alert('E-Mail gesendet.'); } else { alert('Senden fehlgeschlagen.'); }
+            } catch(e){ alert('Fehler: '+e.message); }
+        }
+
+        window.notifyAllAtemschutz = async function(){
+            try {
+                const res = await fetch('atemschutz-notify.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ all:true }) });
+                const j = await res.json();
+                if (j && j.success) { alert('E-Mails versendet: '+(j.sent||0)); } else { alert('Versand fehlgeschlagen.'); }
+            } catch(e){ alert('Fehler: '+e.message); }
+        }
+    </script>
 </body>
 </html>
