@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Dashboard - Reparierte Version
  */
@@ -833,7 +833,6 @@ try {
     </div>
 
     <!-- Modal: Atemschutz-Träger bearbeiten (vom Dashboard) -->
-    <?php if ($canAtemschutz): ?>
     <div class="modal fade" id="editTraegerDashModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -1176,7 +1175,6 @@ try {
         // Prefill für Atemschutz-Dashboard-Edit-Modal
         // Kein JS für Bearbeiten nötig – direkter Link zur Liste mit ?edit_id
     </script>
-    <?php endif; ?>
 
     <script>
         // Atemschutz-Benachrichtigungsfunktionen (immer verfügbar)
