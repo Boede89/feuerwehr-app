@@ -104,16 +104,24 @@ try {
         $body .= "Mit freundlichen Grüßen\nIhre Feuerwehr";
     }
     
+    // Bestimme das Ablaufdatum für {expiry_date}
+    $expiryDate = '';
+    if (!empty($certificates)) {
+        // Verwende das erste (oder wichtigste) Ablaufdatum
+        $firstCert = $certificates[0];
+        $expiryDate = $firstCert['expiry_date'] ?? '';
+    }
+    
     // Platzhalter ersetzen
     $subject = str_replace(
-        ['{first_name}', '{last_name}'],
-        [$traeger['first_name'], $traeger['last_name']],
+        ['{first_name}', '{last_name}', '{expiry_date}'],
+        [$traeger['first_name'], $traeger['last_name'], $expiryDate],
         $subject
     );
     
     $body = str_replace(
-        ['{first_name}', '{last_name}'],
-        [$traeger['first_name'], $traeger['last_name']],
+        ['{first_name}', '{last_name}', '{expiry_date}'],
+        [$traeger['first_name'], $traeger['last_name'], $expiryDate],
         $body
     );
     
