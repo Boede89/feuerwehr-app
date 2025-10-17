@@ -15,6 +15,13 @@ if (!hasAdminPermission()) {
 $message = '';
 $error = '';
 
+// Sicherstellen, dass email_notifications Spalte existiert
+try {
+    $db->exec("ALTER TABLE users ADD COLUMN email_notifications TINYINT(1) DEFAULT 0");
+} catch (Exception $e) {
+    // Spalte existiert bereits, ignoriere Fehler
+}
+
 $settings = [];
 try {
     $stmt = $db->prepare('SELECT setting_key, setting_value FROM settings');
@@ -24,6 +31,24 @@ try {
     }
 } catch (Exception $e) {
     $error = 'Fehler beim Laden der Einstellungen: ' . $e->getMessage();
+}
+
+// Alle Benutzer laden für E-Mail-Benachrichtigungen
+$users = [];
+try {
+    $stmt = $db->query("SELECT id, first_name, last_name, email, user_role, email_notifications FROM users WHERE is_active = 1 ORDER BY first_name, last_name");
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $error = "Fehler beim Laden der Benutzer: " . $e->getMessage();
+}
+
+// Aktuelle E-Mail-Benachrichtigungseinstellungen laden
+$notification_users = [];
+try {
+    $stmt = $db->query("SELECT id FROM users WHERE email_notifications = 1 AND is_active = 1");
+    $notification_users = $stmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+    // Ignoriere Fehler
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -44,6 +69,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtUpsert = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
             foreach ($veh as $k => $v) {
                 $stmtUpsert->execute([$k, $v]);
+            }
+
+            // E-Mail-Benachrichtigungen speichern
+            $notification_users = $_POST['notification_users'] ?? [];
+            
+            // Alle Benutzer auf 0 setzen
+            $stmt = $db->prepare("UPDATE users SET email_notifications = 0");
+            $stmt->execute();
+            
+            // Ausgewählte Benutzer auf 1 setzen
+            if (!empty($notification_users)) {
+                $placeholders = str_repeat('?,', count($notification_users) - 1) . '?';
+                $stmt = $db->prepare("UPDATE users SET email_notifications = 1 WHERE id IN ($placeholders)");
+                $stmt->execute($notification_users);
             }
 
             $db->commit();
@@ -129,6 +168,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <textarea class="form-control" rows="4" name="vehicle_transfer_text" placeholder="Hier den Standardtext eintragen..."><?php echo htmlspecialchars($settings['vehicle_transfer_text'] ?? ''); ?></textarea>
                     <div class="form-text">Dieser Text erscheint im Fenster und kann per Button kopiert werden.</div>
                 </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <i class="fas fa-envelope"></i> E-Mail-Benachrichtigungen
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    Wählen Sie die Benutzer aus, die per E-Mail über neue Fahrzeugreservierungen benachrichtigt werden sollen.
+                </p>
+                
+                <div class="row">
+                    <?php foreach ($users as $user): ?>
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" 
+                                       name="notification_users[]" 
+                                       value="<?php echo htmlspecialchars($user['id']); ?>"
+                                       id="user_<?php echo htmlspecialchars($user['id']); ?>"
+                                       <?php echo in_array($user['id'], $notification_users) ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="user_<?php echo htmlspecialchars($user['id']); ?>">
+                                    <strong><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></strong>
+                                    <br>
+                                    <small class="text-muted">
+                                        <?php echo htmlspecialchars($user['email']); ?>
+                                        <span class="badge bg-<?php echo $user['user_role'] === 'admin' ? 'danger' : 'primary'; ?> ms-1">
+                                            <?php echo htmlspecialchars(ucfirst($user['user_role'])); ?>
+                                        </span>
+                                    </small>
+                                </label>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                
+                <?php if (empty($users)): ?>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Keine Benutzer gefunden.
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 
