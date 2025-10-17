@@ -82,10 +82,7 @@ try {
                 }
             }
             
-            // Sende Bestätigungs-E-Mail an Antragsteller
-            $subject = "✅ Atemschutzeintrag genehmigt - " . $entry['first_name'] . ' ' . $entry['last_name'];
-            $message = createAtemschutzApprovalEmailHTML($entry);
-            send_email($entry['email'], $subject, $message);
+            // E-Mail-Benachrichtigung für Genehmigung entfernt
             
             // Logge Aktivität
             log_activity($_SESSION['user_id'], 'atemschutz_entry_approved', "Atemschutzeintrag #$entry_id genehmigt");
