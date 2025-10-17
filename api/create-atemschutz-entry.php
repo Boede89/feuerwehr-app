@@ -50,6 +50,12 @@ try {
     $entry_date = $_POST['entry_date'] ?? '';
     $traeger_ids = $_POST['traeger'] ?? [];
     
+    // Debug-Logs
+    error_log("Create Atemschutz Entry - Entry Type: " . $entry_type);
+    error_log("Create Atemschutz Entry - Entry Date: " . $entry_date);
+    error_log("Create Atemschutz Entry - Traeger IDs: " . json_encode($traeger_ids));
+    error_log("Create Atemschutz Entry - User ID: " . ($_SESSION['user_id'] ?? 'nicht gesetzt'));
+    
     if (empty($entry_type) || empty($entry_date) || empty($traeger_ids)) {
         throw new Exception('Alle Felder müssen ausgefüllt werden');
     }
@@ -141,6 +147,8 @@ try {
         log_activity($_SESSION['user_id'], 'atemschutz_entry_created', "Atemschutzeintrag-Antrag #$entry_id erstellt ($entry_type)");
         
         $db->commit();
+        
+        error_log("Create Atemschutz Entry - Erfolgreich erstellt: Entry ID " . $entry_id);
         
         echo json_encode([
             'success' => true,
