@@ -57,6 +57,20 @@ try {
     }
     
     if ($action === 'approve') {
+        // Prüfe auf Konflikte vor der Genehmigung
+        $conflicts = checkReservationConflicts($reservation);
+        
+        if (!empty($conflicts)) {
+            // Konflikte gefunden - sende Warnung zurück
+            echo json_encode([
+                'success' => false, 
+                'has_conflicts' => true,
+                'conflicts' => $conflicts,
+                'message' => 'Konflikte gefunden. Bestätigung erforderlich.'
+            ]);
+            exit;
+        }
+        
         // Reservierung genehmigen
         $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
@@ -159,6 +173,87 @@ try {
         $db->commit();
         echo json_encode(['success' => true, 'message' => 'Reservierung wurde abgelehnt']);
         
+    } elseif ($action === 'approve_with_conflict_resolution') {
+        // Reservierung genehmigen und Konflikte lösen
+        $conflict_ids = $input['conflict_ids'] ?? [];
+        
+        if (!empty($conflict_ids)) {
+            // Storniere konfliktierende Reservierungen
+            foreach ($conflict_ids as $conflict_id) {
+                // Storniere Reservierung
+                $stmt = $db->prepare("UPDATE reservations SET status = 'cancelled', approved_by = ?, approved_at = NOW() WHERE id = ?");
+                $stmt->execute([$_SESSION['user_id'], $conflict_id]);
+                
+                // Lade stornierte Reservierung für E-Mail
+                $stmt = $db->prepare("SELECT * FROM reservations WHERE id = ?");
+                $stmt->execute([$conflict_id]);
+                $cancelled_reservation = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($cancelled_reservation) {
+                    // Sende Stornierungs-E-Mail
+                    $subject = "❌ Reservierung storniert - " . $cancelled_reservation['requester_name'];
+                    $message = createCancellationEmailHTML($cancelled_reservation);
+                    send_email($cancelled_reservation['requester_email'], $subject, $message);
+                    
+                    // Lösche Google Calendar Event
+                    try {
+                        $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
+                        $stmt->execute([$conflict_id]);
+                        $calendar_event = $stmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($calendar_event && !empty($calendar_event['google_event_id'])) {
+                            delete_google_calendar_event($calendar_event['google_event_id']);
+                        }
+                        
+                        // Lösche Calendar Event Eintrag
+                        $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
+                        $stmt->execute([$conflict_id]);
+                    } catch (Exception $e) {
+                        error_log("Google Calendar Löschung Fehler: " . $e->getMessage());
+                    }
+                    
+                    // Logge Aktivität
+                    log_activity($_SESSION['user_id'], 'reservation_cancelled', "Reservierung #$conflict_id storniert wegen Konflikt mit #$reservation_id");
+                }
+            }
+        }
+        
+        // Genehmige die ursprüngliche Reservierung
+        $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id'], $reservation_id]);
+        
+        // Google Calendar Event erstellen
+        try {
+            $vehicle_name = $reservation['vehicle_name'] ?? 'Unbekanntes Fahrzeug';
+            $location = $reservation['location'] ?? '';
+            
+            $google_event_id = create_google_calendar_event(
+                $vehicle_name . ' - ' . $reservation['reason'],
+                $reservation['reason'],
+                $reservation['start_datetime'],
+                $reservation['end_datetime'],
+                $reservation_id,
+                $location
+            );
+            
+            if ($google_event_id) {
+                error_log("Google Calendar Event erstellt: " . $google_event_id);
+            }
+        } catch (Exception $e) {
+            error_log("Google Calendar Fehler: " . $e->getMessage());
+        }
+        
+        // E-Mail an Antragsteller senden
+        $subject = "✅ Reservierung genehmigt - " . $reservation['requester_name'];
+        $message = createApprovalEmailHTML($reservation);
+        send_email($reservation['requester_email'], $subject, $message);
+        
+        // Aktivitätslog
+        log_activity($_SESSION['user_id'], 'reservation_approved', "Reservierung #$reservation_id genehmigt mit Konfliktlösung");
+        
+        $db->commit();
+        echo json_encode(['success' => true, 'message' => 'Reservierung wurde genehmigt und Konflikte gelöst']);
+        
     } else {
         throw new Exception('Ungültige Aktion');
     }
@@ -167,6 +262,149 @@ try {
     $db->rollBack();
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+}
+
+// Konfliktprüfung für Reservierung
+function checkReservationConflicts($reservation) {
+    global $db;
+    
+    $conflicts = [];
+    
+    // Prüfe auf Überschneidungen mit anderen genehmigten Reservierungen
+    $stmt = $db->prepare("
+        SELECT r2.id, r2.requester_name, r2.start_datetime, r2.end_datetime, r2.reason, v2.name as vehicle_name
+        FROM reservations r2
+        LEFT JOIN vehicles v2 ON r2.vehicle_id = v2.id
+        WHERE r2.vehicle_id = ? 
+        AND r2.status = 'approved'
+        AND r2.id != ?
+        AND (
+            (r2.start_datetime < ? AND r2.end_datetime > ?) OR
+            (r2.start_datetime < ? AND r2.end_datetime > ?) OR
+            (r2.start_datetime >= ? AND r2.end_datetime <= ?)
+        )
+        ORDER BY r2.start_datetime
+    ");
+    
+    $stmt->execute([
+        $reservation['vehicle_id'],
+        $reservation['id'],
+        $reservation['end_datetime'],
+        $reservation['start_datetime'],
+        $reservation['start_datetime'],
+        $reservation['end_datetime'],
+        $reservation['start_datetime'],
+        $reservation['end_datetime']
+    ]);
+    
+    $conflicts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Konflikte formatieren
+    $formatted_conflicts = [];
+    foreach ($conflicts as $conflict) {
+        $formatted_conflicts[] = [
+            'id' => $conflict['id'],
+            'requester_name' => $conflict['requester_name'],
+            'vehicle_name' => $conflict['vehicle_name'],
+            'start_datetime' => $conflict['start_datetime'],
+            'end_datetime' => $conflict['end_datetime'],
+            'reason' => $conflict['reason'],
+            'start_date' => date('d.m.Y', strtotime($conflict['start_datetime'])),
+            'start_time' => date('H:i', strtotime($conflict['start_datetime'])),
+            'end_time' => date('H:i', strtotime($conflict['end_datetime']))
+        ];
+    }
+    
+    return $formatted_conflicts;
+}
+
+// HTML-E-Mail für Stornierung erstellen
+function createCancellationEmailHTML($reservation) {
+    $vehicle_name = htmlspecialchars($reservation['vehicle_name'] ?? 'Unbekanntes Fahrzeug');
+    $requester_name = htmlspecialchars($reservation['requester_name'] ?? '');
+    $reason = htmlspecialchars($reservation['reason'] ?? '');
+    $location = htmlspecialchars($reservation['location'] ?? 'Nicht angegeben');
+    $start_date = date('d.m.Y', strtotime($reservation['start_datetime']));
+    $start_time = date('H:i', strtotime($reservation['start_datetime']));
+    $end_time = date('H:i', strtotime($reservation['end_datetime']));
+    
+    return '
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reservierung storniert</title>
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
+            .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
+            .header { background: linear-gradient(135deg, #dc3545, #e74c3c); color: white; padding: 30px; text-align: center; }
+            .header h1 { margin: 0; font-size: 28px; }
+            .header .icon { font-size: 48px; margin-bottom: 10px; }
+            .content { padding: 30px; }
+            .cancellation-badge { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; margin-bottom: 25px; text-align: center; font-weight: bold; }
+            .details { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .detail-row { display: flex; margin-bottom: 12px; align-items: center; }
+            .detail-label { font-weight: bold; color: #495057; width: 120px; flex-shrink: 0; }
+            .detail-value { color: #212529; }
+            .reason-box { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin: 20px 0; }
+            .reason-box h4 { margin-top: 0; color: #856404; }
+            .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; border-top: 1px solid #dee2e6; }
+            .highlight { color: #dc3545; font-weight: bold; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="icon">❌</div>
+                <h1>Reservierung storniert</h1>
+            </div>
+            <div class="content">
+                <div class="cancellation-badge">
+                    😔 Ihre Reservierung musste leider storniert werden
+                </div>
+                
+                <p>Hallo <strong>' . $requester_name . '</strong>,</p>
+                
+                <p>wir bedauern, Ihnen mitteilen zu müssen, dass Ihre Reservierung storniert werden musste, da es zu einer Überschneidung mit einer anderen Reservierung gekommen ist.</p>
+                
+                <div class="details">
+                    <h3 style="margin-top: 0; color: #495057;">📋 Stornierte Reservierung</h3>
+                    <div class="detail-row">
+                        <div class="detail-label">🚗 Fahrzeug:</div>
+                        <div class="detail-value highlight">' . $vehicle_name . '</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">📅 Datum:</div>
+                        <div class="detail-value">' . $start_date . '</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">🕐 Zeit:</div>
+                        <div class="detail-value">' . $start_time . ' - ' . $end_time . ' Uhr</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">📍 Standort:</div>
+                        <div class="detail-value">' . $location . '</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">📝 Grund:</div>
+                        <div class="detail-value">' . $reason . '</div>
+                    </div>
+                </div>
+                
+                <div class="reason-box">
+                    <h4>🔄 Stornierungsgrund</h4>
+                    <p>Ihre Reservierung musste storniert werden, da es zu einer Überschneidung mit einer anderen Reservierung gekommen ist. Wir entschuldigen uns für die Unannehmlichkeiten.</p>
+                </div>
+                
+                <p>Bitte wenden Sie sich bei Fragen gerne an uns. Wir helfen Ihnen gerne bei der Suche nach alternativen Terminen.</p>
+            </div>
+            <div class="footer">
+                <p><strong>Mit freundlichen Grüßen</strong><br>Ihre Feuerwehr</p>
+            </div>
+        </div>
+    </body>
+    </html>';
 }
 
 // HTML-E-Mail für Genehmigung erstellen
