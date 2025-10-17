@@ -47,6 +47,24 @@ $can_reservations = has_permission('reservations');
 $can_atemschutz = has_permission('atemschutz');
 $can_settings = has_permission('settings');
 
+// Sicherstellen, dass Berechtigungsspalten existieren
+try {
+    $db->exec("ALTER TABLE users ADD COLUMN can_reservations TINYINT(1) DEFAULT 1");
+    $db->exec("ALTER TABLE users ADD COLUMN can_users TINYINT(1) DEFAULT 0");
+    $db->exec("ALTER TABLE users ADD COLUMN can_settings TINYINT(1) DEFAULT 0");
+    $db->exec("ALTER TABLE users ADD COLUMN can_vehicles TINYINT(1) DEFAULT 0");
+    $db->exec("ALTER TABLE users ADD COLUMN can_atemschutz TINYINT(1) DEFAULT 0");
+} catch (Exception $e) {
+    // Spalten existieren bereits, ignoriere Fehler
+}
+
+// Debug: Berechtigungen anzeigen
+echo '<script>console.log("🔍 Dashboard Debug - Berechtigungen:");</script>';
+echo '<script>console.log("can_reservations:", ' . json_encode($can_reservations) . ');</script>';
+echo '<script>console.log("can_atemschutz:", ' . json_encode($can_atemschutz) . ');</script>';
+echo '<script>console.log("can_settings:", ' . json_encode($can_settings) . ');</script>';
+echo '<script>console.log("user_id:", ' . json_encode($_SESSION['user_id'] ?? 'nicht gesetzt') . ');</script>';
+
 // Reservierungen laden (nur wenn berechtigt)
 $pending_reservations = [];
 if ($can_reservations) {
@@ -61,8 +79,10 @@ if ($can_reservations) {
         ");
         $stmt->execute();
         $pending_reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo '<script>console.log("🔍 Reservierungen geladen:", ' . count($pending_reservations) . ');</script>';
+        echo '<script>console.log("Reservierungen:", ' . json_encode($pending_reservations) . ');</script>';
     } catch (Exception $e) {
-        // Fehler ignorieren
+        echo '<script>console.log("❌ Fehler beim Laden der Reservierungen:", ' . json_encode($e->getMessage()) . ');</script>';
     }
 }
 
@@ -378,14 +398,11 @@ if ($can_atemschutz) {
                             </div>
                         <?php endif; ?>
                     </div>
-                    <div class="card-footer d-flex justify-content-between">
+                    <div class="card-footer">
                         <a href="reservations.php" class="btn btn-primary">
                             <i class="fas fa-calendar-alt"></i> Alle Reservierungen verwalten
                         </a>
-                        <a href="settings-vehicle-reservations.php" class="btn btn-outline-secondary">
-                            <i class="fas fa-cog"></i> Einstellungen
-                        </a>
-                                                    </div>
+                    </div>
                 </div>
             </div>
                         </div>
