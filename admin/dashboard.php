@@ -57,7 +57,6 @@ try {
         'dashboard_layout' => 'vertical',
         'show_reservations' => '1',
         'show_atemschutz' => '1',
-        'show_users' => '1',
         'show_settings' => '1',
         'reservations_limit' => '10',
         'atemschutz_limit' => '10'
@@ -69,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $pref_key = $_POST['preference_key'] ?? '';
     $pref_value = $_POST['preference_value'] ?? '';
     
-    if ($pref_key && in_array($pref_key, ['show_reservations', 'show_atemschutz', 'show_users', 'show_settings', 'reservations_limit', 'atemschutz_limit'])) {
+    if ($pref_key && in_array($pref_key, ['show_reservations', 'show_atemschutz', 'show_settings', 'reservations_limit', 'atemschutz_limit'])) {
         try {
             $stmt = $db->prepare("
                 INSERT INTO user_dashboard_preferences (user_id, preference_key, preference_value) 
@@ -89,7 +88,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // Berechtigungen prüfen
 $can_reservations = has_permission('reservations');
 $can_atemschutz = has_permission('atemschutz');
-$can_users = has_permission('users');
 $can_settings = has_permission('settings');
 
 // Reservierungen laden (nur wenn berechtigt und aktiviert)
@@ -220,44 +218,57 @@ if ($can_atemschutz && ($dashboard_prefs['show_atemschutz'] ?? '1') === '1') {
         .dashboard-section {
             margin-bottom: 2rem;
         }
-        .certificate-item {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        .warning-item {
+            background: #fff;
+            border: 1px solid #dee2e6;
             border-radius: 0.5rem;
             padding: 1rem;
             margin-bottom: 0.75rem;
-            border: 1px solid #dee2e6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .certificate-header {
+        .warning-header {
             display: flex;
             justify-content-between;
             align-items: center;
             margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #e9ecef;
         }
-        .certificate-name {
+        .warning-name {
             font-weight: 600;
             color: #495057;
             margin: 0;
         }
-        .certificate-dates {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 0.75rem;
+        .warning-reasons {
+            margin-top: 0.5rem;
         }
-        .certificate-date {
+        .warning-reason {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.5rem;
-            background: white;
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 0.5rem;
+            background: #f8f9fa;
             border-radius: 0.375rem;
-            border: 1px solid #e9ecef;
+            border-left: 3px solid #dc3545;
         }
-        .certificate-label {
+        .warning-reason.warning {
+            border-left-color: #ffc107;
+        }
+        .warning-reason.ok {
+            border-left-color: #28a745;
+        }
+        .reason-label {
             font-size: 0.875rem;
             color: #6c757d;
             font-weight: 500;
         }
-        .certificate-value {
+        .reason-details {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .reason-date {
             font-size: 0.875rem;
             color: #495057;
         }
@@ -311,15 +322,6 @@ if ($can_atemschutz && ($dashboard_prefs['show_atemschutz'] ?? '1') === '1') {
                                 </label>
                             </li>
                             <?php endif; ?>
-                            <?php if ($can_users): ?>
-                            <li>
-                                <label class="dropdown-item preference-toggle">
-                                    <input type="checkbox" class="form-check-input me-2" id="show_users" 
-                                           <?php echo ($dashboard_prefs['show_users'] ?? '1') === '1' ? 'checked' : ''; ?>>
-                                    Benutzer
-                                </label>
-                            </li>
-                            <?php endif; ?>
                             <?php if ($can_settings): ?>
                             <li>
                                 <label class="dropdown-item preference-toggle">
@@ -348,12 +350,6 @@ if ($can_atemschutz && ($dashboard_prefs['show_atemschutz'] ?? '1') === '1') {
                     <?php if ($can_atemschutz): ?>
                     <a href="atemschutz.php" class="btn btn-danger">
                         <i class="fas fa-mask"></i> Atemschutz
-                    </a>
-                    <?php endif; ?>
-                    
-                    <?php if ($can_users): ?>
-                    <a href="users.php" class="btn btn-success">
-                        <i class="fas fa-users"></i> Benutzer
                     </a>
                     <?php endif; ?>
                     
@@ -442,38 +438,46 @@ if ($can_atemschutz && ($dashboard_prefs['show_atemschutz'] ?? '1') === '1') {
                             <div class="row">
                                 <?php foreach ($atemschutz_warnings as $traeger): ?>
                                 <div class="col-md-6 col-lg-4 mb-3">
-                                    <div class="certificate-item">
-                                        <div class="certificate-header">
-                                            <h6 class="certificate-name"><?php echo htmlspecialchars($traeger['first_name'] . ' ' . $traeger['last_name']); ?></h6>
+                                    <div class="warning-item">
+                                        <div class="warning-header">
+                                            <h6 class="warning-name"><?php echo htmlspecialchars($traeger['first_name'] . ' ' . $traeger['last_name']); ?></h6>
                                         </div>
-                                        <div class="certificate-dates">
-                                            <div class="certificate-date">
-                                                <span class="certificate-label">Strecke</span>
-                                                <div class="d-flex align-items-center">
-                                                    <span class="certificate-value me-2"><?php echo date('d.m.Y', strtotime($traeger['strecke_am'])); ?></span>
-                                                    <span class="badge status-badge status-<?php echo $traeger['strecke_status'] === 'Abgelaufen' ? 'expired' : ($traeger['strecke_status'] === 'Warnung' ? 'warning' : 'ok'); ?>">
+                                        <div class="warning-reasons">
+                                            <?php if ($traeger['strecke_status'] !== 'OK'): ?>
+                                            <div class="warning-reason <?php echo $traeger['strecke_status'] === 'Abgelaufen' ? '' : 'warning'; ?>">
+                                                <span class="reason-label">Strecke</span>
+                                                <div class="reason-details">
+                                                    <span class="reason-date"><?php echo date('d.m.Y', strtotime($traeger['strecke_am'])); ?></span>
+                                                    <span class="badge status-badge status-<?php echo $traeger['strecke_status'] === 'Abgelaufen' ? 'expired' : 'warning'; ?>">
                                                         <?php echo $traeger['strecke_status']; ?>
                                                     </span>
                                                 </div>
                                             </div>
-                                            <div class="certificate-date">
-                                                <span class="certificate-label">G26.3</span>
-                                                <div class="d-flex align-items-center">
-                                                    <span class="certificate-value me-2"><?php echo date('d.m.Y', strtotime($traeger['g263_am'])); ?></span>
-                                                    <span class="badge status-badge status-<?php echo $traeger['g263_status'] === 'Abgelaufen' ? 'expired' : ($traeger['g263_status'] === 'Warnung' ? 'warning' : 'ok'); ?>">
+                                            <?php endif; ?>
+                                            
+                                            <?php if ($traeger['g263_status'] !== 'OK'): ?>
+                                            <div class="warning-reason <?php echo $traeger['g263_status'] === 'Abgelaufen' ? '' : 'warning'; ?>">
+                                                <span class="reason-label">G26.3</span>
+                                                <div class="reason-details">
+                                                    <span class="reason-date"><?php echo date('d.m.Y', strtotime($traeger['g263_am'])); ?></span>
+                                                    <span class="badge status-badge status-<?php echo $traeger['g263_status'] === 'Abgelaufen' ? 'expired' : 'warning'; ?>">
                                                         <?php echo $traeger['g263_status']; ?>
                                                     </span>
                                                 </div>
                                             </div>
-                                            <div class="certificate-date">
-                                                <span class="certificate-label">Übung</span>
-                                                <div class="d-flex align-items-center">
-                                                    <span class="certificate-value me-2"><?php echo date('d.m.Y', strtotime($traeger['uebung_am'])); ?></span>
-                                                    <span class="badge status-badge status-<?php echo $traeger['uebung_status'] === 'Abgelaufen' ? 'expired' : ($traeger['uebung_status'] === 'Warnung' ? 'warning' : 'ok'); ?>">
+                                            <?php endif; ?>
+                                            
+                                            <?php if ($traeger['uebung_status'] !== 'OK'): ?>
+                                            <div class="warning-reason <?php echo $traeger['uebung_status'] === 'Abgelaufen' ? '' : 'warning'; ?>">
+                                                <span class="reason-label">Übung/Einsatz</span>
+                                                <div class="reason-details">
+                                                    <span class="reason-date"><?php echo date('d.m.Y', strtotime($traeger['uebung_am'])); ?></span>
+                                                    <span class="badge status-badge status-<?php echo $traeger['uebung_status'] === 'Abgelaufen' ? 'expired' : 'warning'; ?>">
                                                         <?php echo $traeger['uebung_status']; ?>
                                                     </span>
                                                 </div>
                                             </div>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </div>
@@ -485,38 +489,6 @@ if ($can_atemschutz && ($dashboard_prefs['show_atemschutz'] ?? '1') === '1') {
                         <a href="atemschutz.php" class="btn btn-danger w-100">
                             <i class="fas fa-mask"></i> Atemschutz verwalten
                         </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <?php endif; ?>
-
-        <!-- Debug Information (nur für Admins) -->
-        <?php if (has_permission('admin')): ?>
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0"><i class="fas fa-bug"></i> Debug Information</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h6>Session Information:</h6>
-                                <p><strong>Session ID:</strong> <?php echo session_id(); ?></p>
-                                <p><strong>PHP Version:</strong> <?php echo phpversion(); ?></p>
-                                <p><strong>Datenbankverbindung:</strong> <?php echo isset($db) && $db ? 'Erfolgreich' : 'Fehler'; ?></p>
-                            </div>
-                            <div class="col-md-6">
-                                <h6>Berechtigungen:</h6>
-                                <ul class="list-unstyled">
-                                    <li><i class="fas fa-<?php echo $can_reservations ? 'check text-success' : 'times text-danger'; ?>"></i> Reservierungen</li>
-                                    <li><i class="fas fa-<?php echo $can_atemschutz ? 'check text-success' : 'times text-danger'; ?>"></i> Atemschutz</li>
-                                    <li><i class="fas fa-<?php echo $can_users ? 'check text-success' : 'times text-danger'; ?>"></i> Benutzer</li>
-                                    <li><i class="fas fa-<?php echo $can_settings ? 'check text-success' : 'times text-danger'; ?>"></i> Einstellungen</li>
-                                </ul>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
