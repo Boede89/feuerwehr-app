@@ -38,37 +38,79 @@ try {
             'template_key' => 'strecke_warnung',
             'template_name' => 'Strecke - Erinnerung (Gelb)',
             'subject' => 'Erinnerung: Strecke-Zertifikat läuft bald ab',
-            'body' => '<p>Hallo {first_name} {last_name},</p><p>Ihr Strecke-Zertifikat läuft am <strong>{expiry_date}</strong> ab.</p><p>Bitte vereinbaren Sie rechtzeitig einen Termin für die Verlängerung.</p><p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>'
+            'body' => '<p>Hallo {first_name} {last_name},</p>
+
+<p>Ihr Strecke-Zertifikat läuft am <strong>{expiry_date}</strong> ab.</p>
+
+<p>Bitte vereinbaren Sie rechtzeitig einen Termin für die Verlängerung.</p>
+
+<p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>'
         ],
         [
             'template_key' => 'strecke_abgelaufen',
             'template_name' => 'Strecke - Aufforderung (Rot)',
             'subject' => 'ACHTUNG: Strecke-Zertifikat ist abgelaufen',
-            'body' => '<p>Hallo {first_name} {last_name},</p><p>Ihr Strecke-Zertifikat ist seit dem <strong style="color: red;">{expiry_date}</strong> abgelaufen!</p><p><strong style="color: red;">Sie dürfen bis zur Verlängerung nicht am Atemschutz teilnehmen.</strong></p><p>Bitte vereinbaren Sie <strong>SOFORT</strong> einen Termin für die Verlängerung.</p><p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>'
+            'body' => '<p>Hallo {first_name} {last_name},</p>
+
+<p>Ihr Strecke-Zertifikat ist seit dem <strong style="color: red;">{expiry_date}</strong> abgelaufen!</p>
+
+<p><strong style="color: red;">Sie dürfen bis zur Verlängerung nicht am Atemschutz teilnehmen.</strong></p>
+
+<p>Bitte vereinbaren Sie <strong>SOFORT</strong> einen Termin für die Verlängerung.</p>
+
+<p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>'
         ],
         [
             'template_key' => 'g263_warnung',
             'template_name' => 'G26.3 - Erinnerung (Gelb)',
             'subject' => 'Erinnerung: G26.3-Untersuchung läuft bald ab',
-            'body' => '<p>Hallo {first_name} {last_name},</p><p>Ihre G26.3-Untersuchung läuft am <strong>{expiry_date}</strong> ab.</p><p>Bitte vereinbaren Sie rechtzeitig einen Termin beim Betriebsarzt.</p><p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>'
+            'body' => '<p>Hallo {first_name} {last_name},</p>
+
+<p>Ihre G26.3-Untersuchung läuft am <strong>{expiry_date}</strong> ab.</p>
+
+<p>Bitte vereinbaren Sie rechtzeitig einen Termin beim Betriebsarzt.</p>
+
+<p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>'
         ],
         [
             'template_key' => 'g263_abgelaufen',
             'template_name' => 'G26.3 - Aufforderung (Rot)',
             'subject' => 'ACHTUNG: G26.3-Untersuchung ist abgelaufen',
-            'body' => '<p>Hallo {first_name} {last_name},</p><p>Ihre G26.3-Untersuchung ist seit dem <strong style="color: red;">{expiry_date}</strong> abgelaufen!</p><p><strong style="color: red;">Sie dürfen bis zur neuen Untersuchung nicht am Atemschutz teilnehmen.</strong></p><p>Bitte vereinbaren Sie <strong>SOFORT</strong> einen Termin beim Betriebsarzt.</p><p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>'
+            'body' => '<p>Hallo {first_name} {last_name},</p>
+
+<p>Ihre G26.3-Untersuchung ist seit dem <strong style="color: red;">{expiry_date}</strong> abgelaufen!</p>
+
+<p><strong style="color: red;">Sie dürfen bis zur neuen Untersuchung nicht am Atemschutz teilnehmen.</strong></p>
+
+<p>Bitte vereinbaren Sie <strong>SOFORT</strong> einen Termin beim Betriebsarzt.</p>
+
+<p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>'
         ],
         [
             'template_key' => 'uebung_warnung',
             'template_name' => 'Übung/Einsatz - Erinnerung (Gelb)',
             'subject' => 'Erinnerung: Übung/Einsatz-Zertifikat läuft bald ab',
-            'body' => '<p>Hallo {first_name} {last_name},</p><p>Ihr Übung/Einsatz-Zertifikat läuft am <strong>{expiry_date}</strong> ab.</p><p>Bitte nehmen Sie rechtzeitig an einer Übung oder einem Einsatz teil.</p><p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>'
+            'body' => '<p>Hallo {first_name} {last_name},</p>
+
+<p>Ihr Übung/Einsatz-Zertifikat läuft am <strong>{expiry_date}</strong> ab.</p>
+
+<p>Bitte nehmen Sie rechtzeitig an einer Übung oder einem Einsatz teil.</p>
+
+<p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>'
         ],
         [
             'template_key' => 'uebung_abgelaufen',
             'template_name' => 'Übung/Einsatz - Aufforderung (Rot)',
             'subject' => 'ACHTUNG: Übung/Einsatz-Zertifikat ist abgelaufen',
-            'body' => '<p>Hallo {first_name} {last_name},</p><p>Ihr Übung/Einsatz-Zertifikat ist seit dem <strong style="color: red;">{expiry_date}</strong> abgelaufen!</p><p><strong style="color: red;">Sie dürfen bis zur Teilnahme an einer Übung oder einem Einsatz nicht am Atemschutz teilnehmen.</strong></p><p>Bitte nehmen Sie <strong>SOFORT</strong> an einer Übung oder einem Einsatz teil.</p><p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>'
+            'body' => '<p>Hallo {first_name} {last_name},</p>
+
+<p>Ihr Übung/Einsatz-Zertifikat ist seit dem <strong style="color: red;">{expiry_date}</strong> abgelaufen!</p>
+
+<p><strong style="color: red;">Sie dürfen bis zur Teilnahme an einer Übung oder einem Einsatz nicht am Atemschutz teilnehmen.</strong></p>
+
+<p>Bitte nehmen Sie <strong>SOFORT</strong> an einer Übung oder einem Einsatz teil.</p>
+
+<p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>'
         ]
     ];
     
