@@ -297,146 +297,331 @@ if (!$isAdmin && !$canAtemschutz) {
                 <span class="badge bg-success">Tauglich: <?php echo (int)($okOrWarnCount ?? 0); ?></span>
             </div>
         </div>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'name','dir'=>$sort==='name' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Name</a></th>
-                        <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'age','dir'=>$sort==='age' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Alter</a></th>
-                        <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'strecke_bis','dir'=>$sort==='strecke_bis' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Strecke</a></th>
-                        <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'g263_bis','dir'=>$sort==='g263_bis' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">G26.3</a></th>
-                        <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'uebung_bis','dir'=>$sort==='uebung_bis' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Übung/Einsatz</a></th>
-                        <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'status','dir'=>$sort==='status' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Status</a></th>
-                        <th>Aktion</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($traeger)): ?>
-                        <tr>
-                            <td colspan="7" class="text-center text-muted py-4">Noch keine Geräteträger erfasst.</td>
-                        </tr>
-                    <?php else: ?>
-                            <?php foreach ($traeger as $t): ?>
-                            <?php
-                                $first = $t['first_name'] ?? '';
-                                $last = $t['last_name'] ?? '';
-                                $name = trim(($last ? $last : '') . ($first ? ', ' . $first : ''));
-                                $age = $calcAge($t['birthdate'] ?? null);
-                                $streckeAm = $fmtDate($t['strecke_am'] ?? null);
-                                $streckeBis = $bisStrecke($t['strecke_am'] ?? null);
-                                $g263Am = $fmtDate($t['g263_am'] ?? null);
-                                $g263Bis = $bisG263($t['g263_am'] ?? null, $age);
-                                $uebungAm = $fmtDate($t['uebung_am'] ?? null);
-                                $uebungBis = $bisUebung($t['uebung_am'] ?? null);
-                                $status = $t['status'] ?? 'Aktiv';
-                                    // Status anhand Bis-Daten bestimmen (inkl. Sonderfall: Übung abgelaufen)
-                                    $now = new DateTime('today');
-                                    $streckeExpired = false; $g263Expired = false; $uebungExpired = false;
-                                    $anyWarn = false;
-                                    if (!empty($t['strecke_bis'])) {
-                                        $diff = (int)$now->diff(new DateTime($t['strecke_bis']))->format('%r%a');
-                                        if ($diff < 0) { $streckeExpired = true; }
-                                        elseif ($diff <= $warnDays) { $anyWarn = true; }
-                                    }
-                                    if (!empty($t['g263_bis'])) {
-                                        $diff = (int)$now->diff(new DateTime($t['g263_bis']))->format('%r%a');
-                                        if ($diff < 0) { $g263Expired = true; }
-                                        elseif ($diff <= $warnDays) { $anyWarn = true; }
-                                    }
-                                    if (!empty($t['uebung_bis'])) {
-                                        $diff = (int)$now->diff(new DateTime($t['uebung_bis']))->format('%r%a');
-                                        if ($diff < 0) { $uebungExpired = true; }
-                                        elseif ($diff <= $warnDays) { $anyWarn = true; }
-                                    }
+        <!-- Mobile-optimierte Karten-Ansicht -->
+        <div class="d-md-none">
+            <?php if (empty($traeger)): ?>
+                <div class="text-center py-5">
+                    <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Keine Geräteträger gefunden</h5>
+                </div>
+            <?php else: ?>
+                <?php foreach ($traeger as $t): ?>
+                    <?php
+                        $first = $t['first_name'] ?? '';
+                        $last = $t['last_name'] ?? '';
+                        $name = trim(($last ? $last : '') . ($first ? ', ' . $first : ''));
+                        $age = $calcAge($t['birthdate'] ?? null);
+                        $streckeAm = $fmtDate($t['strecke_am'] ?? null);
+                        $streckeBis = $bisStrecke($t['strecke_am'] ?? null);
+                        $g263Am = $fmtDate($t['g263_am'] ?? null);
+                        $g263Bis = $bisG263($t['g263_am'] ?? null, $age);
+                        $uebungAm = $fmtDate($t['uebung_am'] ?? null);
+                        $uebungBis = $bisUebung($t['uebung_am'] ?? null);
+                        $status = $t['status'] ?? 'Aktiv';
+                        
+                        // Status anhand Bis-Daten bestimmen (inkl. Sonderfall: Übung abgelaufen)
+                        $now = new DateTime('today');
+                        $streckeExpired = false; $g263Expired = false; $uebungExpired = false;
+                        $anyWarn = false;
+                        if (!empty($t['strecke_bis'])) {
+                            $diff = (int)$now->diff(new DateTime($t['strecke_bis']))->format('%r%a');
+                            if ($diff < 0) { $streckeExpired = true; }
+                            elseif ($diff <= $warnDays) { $anyWarn = true; }
+                        }
+                        if (!empty($t['g263_bis'])) {
+                            $diff = (int)$now->diff(new DateTime($t['g263_bis']))->format('%r%a');
+                            if ($diff < 0) { $g263Expired = true; }
+                            elseif ($diff <= $warnDays) { $anyWarn = true; }
+                        }
+                        if (!empty($t['uebung_bis'])) {
+                            $diff = (int)$now->diff(new DateTime($t['uebung_bis']))->format('%r%a');
+                            if ($diff < 0) { $uebungExpired = true; }
+                            elseif ($diff <= $warnDays) { $anyWarn = true; }
+                        }
 
-                                    if ($streckeExpired || $g263Expired) {
-                                        $statusText = 'Abgelaufen';
-                                        $statusClass = 'bg-danger';
-                                    } elseif ($uebungExpired && !$streckeExpired && !$g263Expired) {
-                                        $statusText = 'Übung abgelaufen';
-                                        $statusClass = 'bg-danger';
-                                    } elseif ($anyWarn) {
-                                        $statusText = 'Warnung';
-                                        $statusClass = 'bg-warning text-dark';
-                                    } else {
-                                        $statusText = 'Tauglich';
-                                        $statusClass = 'bg-success';
-                                    }
-                            ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($name); ?></td>
-                                <td><?php echo htmlspecialchars($age); ?></td>
-                                <td>
-                                    <div>Am: <?php echo htmlspecialchars($streckeAm); ?></div>
-                                    <?php
-                                        $streckeBisDate = $t['strecke_bis'] ?? null;
-                                        $cls = '';
-                                        if ($streckeBisDate) {
-                                            $now = new DateTime('today');
-                                            $bis = new DateTime($streckeBisDate);
-                                            $diff = (int)$now->diff($bis)->format('%r%a');
-                                            if ($diff < 0) { $cls = 'bis-expired'; }
-                                            elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
-                                        }
-                                    ?>
-                                    <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($streckeBis); ?></span></div>
-                                </td>
-                                <td>
-                                    <div>Am: <?php echo htmlspecialchars($g263Am); ?></div>
-                                    <?php
-                                        $g263BisDate = $t['g263_bis'] ?? null;
-                                        $cls = '';
-                                        if ($g263BisDate) {
-                                            $now = new DateTime('today');
-                                            $bis = new DateTime($g263BisDate);
-                                            $diff = (int)$now->diff($bis)->format('%r%a');
-                                            if ($diff < 0) { $cls = 'bis-expired'; }
-                                            elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
-                                        }
-                                    ?>
-                                    <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($g263Bis); ?></span></div>
-                                </td>
-                                <td>
-                                    <div>Am: <?php echo htmlspecialchars($uebungAm); ?></div>
-                                    <?php
-                                        $uebungBisDate = $t['uebung_bis'] ?? null;
-                                        $cls = '';
-                                        if ($uebungBisDate) {
-                                            $now = new DateTime('today');
-                                            $bis = new DateTime($uebungBisDate);
-                                            $diff = (int)$now->diff($bis)->format('%r%a');
-                                            if ($diff < 0) { $cls = 'bis-expired'; }
-                                            elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
-                                        }
-                                    ?>
-                                    <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($uebungBis); ?></span></div>
-                                </td>
-                                <td>
-                                    <span class="badge status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($statusText); ?></span>
-                                </td>
-                                <td>
-                                    <div class="btn-group" role="group">
-                                        <button class="btn btn-sm btn-outline-primary" data-action="edit" data-id="<?php echo (int)$t['id']; ?>"
-                                            data-first_name="<?php echo htmlspecialchars($t['first_name'] ?? ''); ?>"
-                                            data-last_name="<?php echo htmlspecialchars($t['last_name'] ?? ''); ?>"
-                                            data-email="<?php echo htmlspecialchars($t['email'] ?? ''); ?>"
-                                            data-birthdate="<?php echo htmlspecialchars($t['birthdate'] ?? ''); ?>"
-                                            data-strecke_am="<?php echo htmlspecialchars($t['strecke_am'] ?? ''); ?>"
-                                            data-g263_am="<?php echo htmlspecialchars($t['g263_am'] ?? ''); ?>"
-                                            data-uebung_am="<?php echo htmlspecialchars($t['uebung_am'] ?? ''); ?>"
-                                        >
-                                            <i class="fas fa-pen"></i> Bearbeiten
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="<?php echo (int)$t['id']; ?>">
-                                            <i class="fas fa-trash"></i> Löschen
-                                        </button>
+                        if ($streckeExpired || $g263Expired) {
+                            $statusText = 'Abgelaufen';
+                            $statusClass = 'bg-danger';
+                        } elseif ($uebungExpired && !$streckeExpired && !$g263Expired) {
+                            $statusText = 'Übung abgelaufen';
+                            $statusClass = 'bg-danger';
+                        } elseif ($anyWarn) {
+                            $statusText = 'Warnung';
+                            $statusClass = 'bg-warning text-dark';
+                        } else {
+                            $statusText = 'Tauglich';
+                            $statusClass = 'bg-success';
+                        }
+                    ?>
+                    <div class="card mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0"><?php echo htmlspecialchars($name); ?></h6>
+                            <span class="badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($statusText); ?></span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <div class="text-muted small">Alter</div>
+                                    <div><?php echo htmlspecialchars($age); ?> Jahre</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-muted small">Status</div>
+                                    <div><span class="badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($statusText); ?></span></div>
+                                </div>
+                            </div>
+                            
+                            <hr class="my-3">
+                            
+                            <!-- Strecke -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <strong class="text-primary">Strecke</strong>
+                                </div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="text-muted small">Am:</div>
+                                        <div><?php echo htmlspecialchars($streckeAm); ?></div>
                                     </div>
-                                </td>
+                                    <div class="col-6">
+                                        <div class="text-muted small">Bis:</div>
+                                        <?php
+                                            $streckeBisDate = $t['strecke_bis'] ?? null;
+                                            $cls = '';
+                                            if ($streckeBisDate) {
+                                                $now = new DateTime('today');
+                                                $bis = new DateTime($streckeBisDate);
+                                                $diff = (int)$now->diff($bis)->format('%r%a');
+                                                if ($diff < 0) { $cls = 'bis-expired'; }
+                                                elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                            }
+                                        ?>
+                                        <div><span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($streckeBis); ?></span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- G26.3 -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <strong class="text-info">G26.3</strong>
+                                </div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="text-muted small">Am:</div>
+                                        <div><?php echo htmlspecialchars($g263Am); ?></div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="text-muted small">Bis:</div>
+                                        <?php
+                                            $g263BisDate = $t['g263_bis'] ?? null;
+                                            $cls = '';
+                                            if ($g263BisDate) {
+                                                $now = new DateTime('today');
+                                                $bis = new DateTime($g263BisDate);
+                                                $diff = (int)$now->diff($bis)->format('%r%a');
+                                                if ($diff < 0) { $cls = 'bis-expired'; }
+                                                elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                            }
+                                        ?>
+                                        <div><span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($g263Bis); ?></span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Übung -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <strong class="text-warning">Übung/Einsatz</strong>
+                                </div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="text-muted small">Am:</div>
+                                        <div><?php echo htmlspecialchars($uebungAm); ?></div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="text-muted small">Bis:</div>
+                                        <?php
+                                            $uebungBisDate = $t['uebung_bis'] ?? null;
+                                            $cls = '';
+                                            if ($uebungBisDate) {
+                                                $now = new DateTime('today');
+                                                $bis = new DateTime($uebungBisDate);
+                                                $diff = (int)$now->diff($bis)->format('%r%a');
+                                                if ($diff < 0) { $cls = 'bis-expired'; }
+                                                elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                            }
+                                        ?>
+                                        <div><span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($uebungBis); ?></span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Aktionen -->
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-outline-primary" data-action="edit" data-id="<?php echo (int)$t['id']; ?>"
+                                    data-first_name="<?php echo htmlspecialchars($t['first_name'] ?? ''); ?>"
+                                    data-last_name="<?php echo htmlspecialchars($t['last_name'] ?? ''); ?>"
+                                    data-email="<?php echo htmlspecialchars($t['email'] ?? ''); ?>"
+                                    data-birthdate="<?php echo htmlspecialchars($t['birthdate'] ?? ''); ?>"
+                                    data-strecke_am="<?php echo htmlspecialchars($t['strecke_am'] ?? ''); ?>"
+                                    data-g263_am="<?php echo htmlspecialchars($t['g263_am'] ?? ''); ?>"
+                                    data-uebung_am="<?php echo htmlspecialchars($t['uebung_am'] ?? ''); ?>"
+                                >
+                                    <i class="fas fa-pen"></i> Bearbeiten
+                                </button>
+                                <button class="btn btn-outline-danger" data-action="delete" data-id="<?php echo (int)$t['id']; ?>">
+                                    <i class="fas fa-trash"></i> Löschen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+        
+        <!-- Desktop-Tabellen-Ansicht -->
+        <div class="d-none d-md-block">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'name','dir'=>$sort==='name' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Name</a></th>
+                            <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'age','dir'=>$sort==='age' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Alter</a></th>
+                            <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'strecke_bis','dir'=>$sort==='strecke_bis' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Strecke</a></th>
+                            <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'g263_bis','dir'=>$sort==='g263_bis' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">G26.3</a></th>
+                            <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'uebung_bis','dir'=>$sort==='uebung_bis' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Übung/Einsatz</a></th>
+                            <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'status','dir'=>$sort==='status' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Status</a></th>
+                            <th>Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($traeger)): ?>
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">Noch keine Geräteträger erfasst.</td>
                             </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+                        <?php else: ?>
+                                <?php foreach ($traeger as $t): ?>
+                                <?php
+                                    $first = $t['first_name'] ?? '';
+                                    $last = $t['last_name'] ?? '';
+                                    $name = trim(($last ? $last : '') . ($first ? ', ' . $first : ''));
+                                    $age = $calcAge($t['birthdate'] ?? null);
+                                    $streckeAm = $fmtDate($t['strecke_am'] ?? null);
+                                    $streckeBis = $bisStrecke($t['strecke_am'] ?? null);
+                                    $g263Am = $fmtDate($t['g263_am'] ?? null);
+                                    $g263Bis = $bisG263($t['g263_am'] ?? null, $age);
+                                    $uebungAm = $fmtDate($t['uebung_am'] ?? null);
+                                    $uebungBis = $bisUebung($t['uebung_am'] ?? null);
+                                    $status = $t['status'] ?? 'Aktiv';
+                                        // Status anhand Bis-Daten bestimmen (inkl. Sonderfall: Übung abgelaufen)
+                                        $now = new DateTime('today');
+                                        $streckeExpired = false; $g263Expired = false; $uebungExpired = false;
+                                        $anyWarn = false;
+                                        if (!empty($t['strecke_bis'])) {
+                                            $diff = (int)$now->diff(new DateTime($t['strecke_bis']))->format('%r%a');
+                                            if ($diff < 0) { $streckeExpired = true; }
+                                            elseif ($diff <= $warnDays) { $anyWarn = true; }
+                                        }
+                                        if (!empty($t['g263_bis'])) {
+                                            $diff = (int)$now->diff(new DateTime($t['g263_bis']))->format('%r%a');
+                                            if ($diff < 0) { $g263Expired = true; }
+                                            elseif ($diff <= $warnDays) { $anyWarn = true; }
+                                        }
+                                        if (!empty($t['uebung_bis'])) {
+                                            $diff = (int)$now->diff(new DateTime($t['uebung_bis']))->format('%r%a');
+                                            if ($diff < 0) { $uebungExpired = true; }
+                                            elseif ($diff <= $warnDays) { $anyWarn = true; }
+                                        }
+
+                                        if ($streckeExpired || $g263Expired) {
+                                            $statusText = 'Abgelaufen';
+                                            $statusClass = 'bg-danger';
+                                        } elseif ($uebungExpired && !$streckeExpired && !$g263Expired) {
+                                            $statusText = 'Übung abgelaufen';
+                                            $statusClass = 'bg-danger';
+                                        } elseif ($anyWarn) {
+                                            $statusText = 'Warnung';
+                                            $statusClass = 'bg-warning text-dark';
+                                        } else {
+                                            $statusText = 'Tauglich';
+                                            $statusClass = 'bg-success';
+                                        }
+                                ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($name); ?></td>
+                                    <td><?php echo htmlspecialchars($age); ?></td>
+                                    <td>
+                                        <div>Am: <?php echo htmlspecialchars($streckeAm); ?></div>
+                                        <?php
+                                            $streckeBisDate = $t['strecke_bis'] ?? null;
+                                            $cls = '';
+                                            if ($streckeBisDate) {
+                                                $now = new DateTime('today');
+                                                $bis = new DateTime($streckeBisDate);
+                                                $diff = (int)$now->diff($bis)->format('%r%a');
+                                                if ($diff < 0) { $cls = 'bis-expired'; }
+                                                elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                            }
+                                        ?>
+                                        <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($streckeBis); ?></span></div>
+                                    </td>
+                                    <td>
+                                        <div>Am: <?php echo htmlspecialchars($g263Am); ?></div>
+                                        <?php
+                                            $g263BisDate = $t['g263_bis'] ?? null;
+                                            $cls = '';
+                                            if ($g263BisDate) {
+                                                $now = new DateTime('today');
+                                                $bis = new DateTime($g263BisDate);
+                                                $diff = (int)$now->diff($bis)->format('%r%a');
+                                                if ($diff < 0) { $cls = 'bis-expired'; }
+                                                elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                            }
+                                        ?>
+                                        <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($g263Bis); ?></span></div>
+                                    </td>
+                                    <td>
+                                        <div>Am: <?php echo htmlspecialchars($uebungAm); ?></div>
+                                        <?php
+                                            $uebungBisDate = $t['uebung_bis'] ?? null;
+                                            $cls = '';
+                                            if ($uebungBisDate) {
+                                                $now = new DateTime('today');
+                                                $bis = new DateTime($uebungBisDate);
+                                                $diff = (int)$now->diff($bis)->format('%r%a');
+                                                if ($diff < 0) { $cls = 'bis-expired'; }
+                                                elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                            }
+                                        ?>
+                                        <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($uebungBis); ?></span></div>
+                                    </td>
+                                    <td>
+                                        <span class="badge status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($statusText); ?></span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-outline-primary" data-action="edit" data-id="<?php echo (int)$t['id']; ?>"
+                                                data-first_name="<?php echo htmlspecialchars($t['first_name'] ?? ''); ?>"
+                                                data-last_name="<?php echo htmlspecialchars($t['last_name'] ?? ''); ?>"
+                                                data-email="<?php echo htmlspecialchars($t['email'] ?? ''); ?>"
+                                                data-birthdate="<?php echo htmlspecialchars($t['birthdate'] ?? ''); ?>"
+                                                data-strecke_am="<?php echo htmlspecialchars($t['strecke_am'] ?? ''); ?>"
+                                                data-g263_am="<?php echo htmlspecialchars($t['g263_am'] ?? ''); ?>"
+                                                data-uebung_am="<?php echo htmlspecialchars($t['uebung_am'] ?? ''); ?>"
+                                            >
+                                                <i class="fas fa-pen"></i> Bearbeiten
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="<?php echo (int)$t['id']; ?>">
+                                                <i class="fas fa-trash"></i> Löschen
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
