@@ -6,9 +6,13 @@ require_once '../includes/functions.php';
 header('Content-Type: application/json');
 
 try {
-    // Prüfe ob Benutzer eingeloggt ist
-    if (!is_logged_in()) {
-        throw new Exception('Nicht angemeldet');
+    // Prüfe ob Benutzer eingeloggt ist (optional für Atemschutzeinträge)
+    $user_id = null;
+    $user_name = 'Unbekannt';
+    
+    if (is_logged_in()) {
+        $user_id = $_SESSION['user_id'];
+        $user_name = ($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '');
     }
     
     // Stelle sicher, dass die Tabellen existieren
@@ -113,7 +117,7 @@ try {
         $stmt->execute([
             $entry_type,
             $entry_date,
-            $_SESSION['user_id']
+            $user_id
         ]);
         
         $entry_id = $db->lastInsertId();
@@ -139,7 +143,6 @@ try {
         $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         if (!empty($admins)) {
-            $requester_name = $_SESSION['first_name'] . ' ' . $_SESSION['last_name'];
             $entry_type_names = [
                 'einsatz' => 'Einsatz',
                 'uebung' => 'Übung',
@@ -148,15 +151,17 @@ try {
             ];
             
             $subject = "🔔 Neuer Atemschutzeintrag-Antrag - " . $entry_type_names[$entry_type];
-            $message = createAtemschutzEntryEmailHTML($entry_type, $entry_date, $requester_name, $traeger_ids);
+            $message = createAtemschutzEntryEmailHTML($entry_type, $entry_date, $user_name, $traeger_ids);
             
             foreach ($admins as $admin) {
                 send_email($admin['email'], $subject, $message);
             }
         }
         
-        // Logge Aktivität
-        log_activity($_SESSION['user_id'], 'atemschutz_entry_created', "Atemschutzeintrag-Antrag #$entry_id erstellt ($entry_type)");
+        // Logge Aktivität (nur wenn eingeloggt)
+        if ($user_id) {
+            log_activity($user_id, 'atemschutz_entry_created', "Atemschutzeintrag-Antrag #$entry_id erstellt ($entry_type)");
+        }
         
         $db->commit();
         

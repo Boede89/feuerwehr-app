@@ -120,18 +120,21 @@ if ($can_atemschutz) {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
         
-        // Lade offene Atemschutzeintrag-Anträge
-        $stmt = $db->prepare("
-            SELECT ae.*, u.first_name, u.last_name,
-                   GROUP_CONCAT(CONCAT(at.first_name, ' ', at.last_name) ORDER BY at.last_name, at.first_name SEPARATOR ', ') as traeger_names
-            FROM atemschutz_entries ae
-            JOIN users u ON ae.requester_id = u.id
-            LEFT JOIN atemschutz_entry_traeger aet ON ae.id = aet.entry_id
-            LEFT JOIN atemschutz_traeger at ON aet.traeger_id = at.id
-            WHERE ae.status = 'pending'
-            GROUP BY ae.id
-            ORDER BY ae.created_at DESC
-        ");
+                    // Lade offene Atemschutzeintrag-Anträge
+                    $stmt = $db->prepare("
+                        SELECT ae.*, 
+                               COALESCE(u.first_name, 'Unbekannt') as first_name, 
+                               COALESCE(u.last_name, '') as last_name,
+                               GROUP_CONCAT(CONCAT(at.first_name, ' ', at.last_name) ORDER BY at.last_name, at.first_name SEPARATOR ', ') as traeger_names,
+                               COUNT(aet.traeger_id) as traeger_count
+                        FROM atemschutz_entries ae
+                        LEFT JOIN users u ON ae.requester_id = u.id
+                        LEFT JOIN atemschutz_entry_traeger aet ON ae.id = aet.entry_id
+                        LEFT JOIN atemschutz_traeger at ON aet.traeger_id = at.id
+                        WHERE ae.status = 'pending'
+                        GROUP BY ae.id
+                        ORDER BY ae.created_at DESC
+                    ");
         $stmt->execute();
         $atemschutz_entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
@@ -641,7 +644,7 @@ if ($can_atemschutz) {
                                     <div class="card border-info">
                                         <div class="card-body">
                                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <h6 class="card-title text-info mb-0">
+                                                <h6 class="card-title text-dark mb-0">
                                                     <?php
                                                     $type_names = [
                                                         'einsatz' => 'Einsatz',
@@ -656,24 +659,37 @@ if ($can_atemschutz) {
                                             </div>
                                             
                                             <p class="card-text mb-2">
-                                                <strong>Antragsteller:</strong><br>
-                                                <?php echo htmlspecialchars($entry['first_name'] . ' ' . $entry['last_name']); ?>
-                                            </p>
-                                            
-                                            <p class="card-text mb-2">
                                                 <strong>Datum:</strong><br>
                                                 <?php echo date('d.m.Y', strtotime($entry['entry_date'])); ?>
                                             </p>
                                             
+                                            <?php if ($entry['traeger_count'] == 1): ?>
                                             <p class="card-text mb-3">
                                                 <strong>Geräteträger:</strong><br>
                                                 <small class="text-muted"><?php echo htmlspecialchars($entry['traeger_names'] ?? 'Keine'); ?></small>
                                             </p>
+                                            <?php else: ?>
+                                            <p class="card-text mb-3">
+                                                <strong>Geräteträger:</strong><br>
+                                                <small class="text-muted"><?php echo $entry['traeger_count']; ?> Geräteträger - siehe Details</small>
+                                            </p>
+                                            <?php endif; ?>
                                             
                                             <div class="d-grid gap-2">
+                                                <?php if ($entry['traeger_count'] == 1): ?>
+                                                <div class="btn-group" role="group">
+                                                    <button class="btn btn-success btn-sm" onclick="approveAtemschutzEntry(<?php echo $entry['id']; ?>)">
+                                                        <i class="fas fa-check me-1"></i>Genehmigen
+                                                    </button>
+                                                    <button class="btn btn-danger btn-sm" onclick="showAtemschutzRejectModal(<?php echo $entry['id']; ?>)">
+                                                        <i class="fas fa-times me-1"></i>Ablehnen
+                                                    </button>
+                                                </div>
+                                                <?php else: ?>
                                                 <button class="btn btn-outline-info btn-sm" onclick="showAtemschutzEntryDetails(<?php echo $entry['id']; ?>)">
                                                     <i class="fas fa-eye me-1"></i>Details anzeigen
                                                 </button>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </div>
