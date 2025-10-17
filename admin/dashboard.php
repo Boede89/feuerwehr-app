@@ -355,6 +355,45 @@ if ($can_atemschutz) {
             </div>
         </div>
     </div>
+
+    <!-- Konflikt-Warnung Modal -->
+    <div class="modal fade" id="conflictWarningModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Konflikte gefunden
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Warnung:</strong> Die Genehmigung dieser Reservierung würde zu Konflikten mit bestehenden Reservierungen führen.
+                    </div>
+                    
+                    <p>Folgende Reservierungen würden <strong>storniert</strong> werden:</p>
+                    
+                    <div id="conflictList" class="mb-3">
+                        <!-- Konflikte werden hier dynamisch eingefügt -->
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Hinweis:</strong> Die stornierten Antragsteller erhalten eine E-Mail-Benachrichtigung über die Stornierung.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Abbrechen
+                    </button>
+                    <button type="button" class="btn btn-warning" id="confirmConflictResolutionBtn" onclick="confirmConflictResolution()">
+                        <i class="fas fa-check me-1"></i>Bestätigen und Genehmigen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
             <a class="navbar-brand" href="../index.php">
@@ -1067,6 +1106,12 @@ if ($can_atemschutz) {
                     setTimeout(() => {
                         location.reload();
                     }, 2000);
+                } else if (data.has_conflicts) {
+                    // Konflikte gefunden - zeige Warnung
+                    approveBtn.disabled = false;
+                    approveBtn.innerHTML = originalText;
+                    
+                    showConflictWarning(data.conflicts);
                 } else {
                     approveBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
                     approveBtn.classList.remove('btn-success');
@@ -1091,6 +1136,109 @@ if ($can_atemschutz) {
                     approveBtn.innerHTML = originalText;
                     approveBtn.classList.remove('btn-danger');
                     approveBtn.classList.add('btn-success');
+                }, 3000);
+            });
+        }
+        
+        // Konflikt-Warnung anzeigen
+        function showConflictWarning(conflicts) {
+            const conflictList = document.getElementById('conflictList');
+            let conflictsHtml = '';
+            
+            conflicts.forEach(conflict => {
+                conflictsHtml += `
+                    <div class="card mb-2 border-danger">
+                        <div class="card-body p-3">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h6 class="card-title text-danger mb-2">
+                                        <i class="fas fa-calendar-times me-2"></i>${conflict.vehicle_name}
+                                    </h6>
+                                    <p class="card-text mb-1">
+                                        <strong>Antragsteller:</strong> ${conflict.requester_name}
+                                    </p>
+                                    <p class="card-text mb-1">
+                                        <strong>Zeitraum:</strong> ${conflict.start_date} von ${conflict.start_time} bis ${conflict.end_time}
+                                    </p>
+                                    <p class="card-text mb-0">
+                                        <strong>Grund:</strong> ${conflict.reason}
+                                    </p>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <span class="badge bg-danger">Wird storniert</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            conflictList.innerHTML = conflictsHtml;
+            
+            // Speichere Konflikt-IDs für spätere Verarbeitung
+            window.conflictIds = conflicts.map(c => c.id);
+            
+            // Zeige Modal
+            const modal = new bootstrap.Modal(document.getElementById('conflictWarningModal'));
+            modal.show();
+        }
+        
+        // Konfliktlösung bestätigen
+        function confirmConflictResolution() {
+            if (!window.currentReservationId || !window.conflictIds) return;
+            
+            const confirmBtn = document.getElementById('confirmConflictResolutionBtn');
+            const originalText = confirmBtn.innerHTML;
+            
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Verarbeite...';
+            
+            fetch('process-reservation.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'approve_with_conflict_resolution',
+                    reservation_id: window.currentReservationId,
+                    conflict_ids: window.conflictIds
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>Erfolgreich!';
+                    confirmBtn.classList.remove('btn-warning');
+                    confirmBtn.classList.add('btn-success');
+                    
+                    // Alle Modals schließen und Seite neu laden
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    confirmBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                    confirmBtn.classList.remove('btn-warning');
+                    confirmBtn.classList.add('btn-danger');
+                    
+                    setTimeout(() => {
+                        confirmBtn.disabled = false;
+                        confirmBtn.innerHTML = originalText;
+                        confirmBtn.classList.remove('btn-danger');
+                        confirmBtn.classList.add('btn-warning');
+                    }, 3000);
+                }
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                confirmBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                confirmBtn.classList.remove('btn-warning');
+                confirmBtn.classList.add('btn-danger');
+                
+                setTimeout(() => {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = originalText;
+                    confirmBtn.classList.remove('btn-danger');
+                    confirmBtn.classList.add('btn-warning');
                 }, 3000);
             });
         }
