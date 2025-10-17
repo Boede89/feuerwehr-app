@@ -86,6 +86,62 @@ if ($can_reservations) {
     }
 }
 
+// Atemschutzeintrag-Anträge laden (nur wenn berechtigt)
+$atemschutz_entries = [];
+if ($can_atemschutz) {
+    try {
+        // Stelle sicher, dass die Tabellen existieren
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS atemschutz_entries (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                entry_type ENUM('einsatz_uebung', 'atemschutzstrecke', 'g263') NOT NULL,
+                entry_date DATE NOT NULL,
+                reason TEXT NOT NULL,
+                requester_id INT NOT NULL,
+                status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+                rejection_reason TEXT NULL,
+                approved_by INT NULL,
+                approved_at TIMESTAMP NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+            )
+        ");
+        
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS atemschutz_entry_traeger (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                entry_id INT NOT NULL,
+                traeger_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (entry_id) REFERENCES atemschutz_entries(id) ON DELETE CASCADE,
+                FOREIGN KEY (traeger_id) REFERENCES atemschutz_traeger(id) ON DELETE CASCADE,
+                UNIQUE KEY unique_entry_traeger (entry_id, traeger_id)
+            )
+        ");
+        
+        // Lade offene Atemschutzeintrag-Anträge
+        $stmt = $db->prepare("
+            SELECT ae.*, u.first_name, u.last_name,
+                   GROUP_CONCAT(CONCAT(at.first_name, ' ', at.last_name) ORDER BY at.last_name, at.first_name SEPARATOR ', ') as traeger_names
+            FROM atemschutz_entries ae
+            JOIN users u ON ae.requester_id = u.id
+            LEFT JOIN atemschutz_entry_traeger aet ON ae.id = aet.entry_id
+            LEFT JOIN atemschutz_traeger at ON aet.traeger_id = at.id
+            WHERE ae.status = 'pending'
+            GROUP BY ae.id
+            ORDER BY ae.created_at DESC
+        ");
+        $stmt->execute();
+        $atemschutz_entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        error_log("Atemschutzeintrag-Anträge geladen: " . count($atemschutz_entries));
+    } catch (Exception $e) {
+        error_log("Fehler beim Laden der Atemschutzeintrag-Anträge: " . $e->getMessage());
+    }
+}
+
 // Atemschutz-Warnungen laden (nur wenn berechtigt)
 $atemschutz_warnings = [];
 if ($can_atemschutz) {
@@ -562,6 +618,80 @@ if ($can_atemschutz) {
 
         <!-- Atemschutz Bereich -->
         <?php if ($can_atemschutz): ?>
+        
+        <!-- Atemschutzeintrag-Anträge -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h6 class="m-0 font-weight-bold text-info">
+                            <i class="fas fa-clipboard-list"></i> Offene Atemschutzeintrag-Anträge (<?php echo count($atemschutz_entries); ?>)
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <?php if (empty($atemschutz_entries)): ?>
+                            <div class="text-center py-5">
+                                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                                <h5 class="text-muted">Keine offenen Anträge</h5>
+                                <p class="text-muted">Alle Atemschutzeintrag-Anträge wurden bearbeitet.</p>
+                            </div>
+                        <?php else: ?>
+                            <div class="row">
+                                <?php foreach ($atemschutz_entries as $entry): ?>
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    <div class="card border-info">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="card-title text-info mb-0">
+                                                    <?php
+                                                    $type_names = [
+                                                        'einsatz_uebung' => 'Einsatz/Übung',
+                                                        'atemschutzstrecke' => 'Atemschutzstrecke',
+                                                        'g263' => 'G26.3'
+                                                    ];
+                                                    echo $type_names[$entry['entry_type']] ?? $entry['entry_type'];
+                                                    ?>
+                                                </h6>
+                                                <span class="badge bg-info">Antrag</span>
+                                            </div>
+                                            
+                                            <p class="card-text mb-2">
+                                                <strong>Antragsteller:</strong><br>
+                                                <?php echo htmlspecialchars($entry['first_name'] . ' ' . $entry['last_name']); ?>
+                                            </p>
+                                            
+                                            <p class="card-text mb-2">
+                                                <strong>Datum:</strong><br>
+                                                <?php echo date('d.m.Y', strtotime($entry['entry_date'])); ?>
+                                            </p>
+                                            
+                                            <p class="card-text mb-2">
+                                                <strong>Geräteträger:</strong><br>
+                                                <small class="text-muted"><?php echo htmlspecialchars($entry['traeger_names'] ?? 'Keine'); ?></small>
+                                            </p>
+                                            
+                                            <p class="card-text mb-3">
+                                                <strong>Grund:</strong><br>
+                                                <small><?php echo htmlspecialchars(substr($entry['reason'], 0, 100)) . (strlen($entry['reason']) > 100 ? '...' : ''); ?></small>
+                                            </p>
+                                            
+                                            <div class="d-grid gap-2">
+                                                <button class="btn btn-outline-info btn-sm" onclick="showAtemschutzEntryDetails(<?php echo $entry['id']; ?>)">
+                                                    <i class="fas fa-eye me-1"></i>Details anzeigen
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Auffällige Geräteträger -->
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow">
@@ -1321,7 +1451,267 @@ if ($can_atemschutz) {
                 }, 3000);
             });
         }
+        
+        // Atemschutzeintrag-Details anzeigen
+        function showAtemschutzEntryDetails(entryId) {
+            window.currentAtemschutzEntryId = entryId;
+            
+            const detailsDiv = document.getElementById('atemschutzEntryDetails');
+            detailsDiv.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Lade Details...</div>';
+            
+            fetch('api/get-atemschutz-entry-details.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    entry_id: entryId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const entry = data.entry;
+                    const typeNames = {
+                        'einsatz_uebung': 'Einsatz/Übung',
+                        'atemschutzstrecke': 'Atemschutzstrecke',
+                        'g263': 'G26.3'
+                    };
+                    
+                    detailsDiv.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-info">Eintragstyp</h6>
+                                <p>${typeNames[entry.entry_type] || entry.entry_type}</p>
+                                
+                                <h6 class="text-info">Datum</h6>
+                                <p>${new Date(entry.entry_date).toLocaleDateString('de-DE')}</p>
+                                
+                                <h6 class="text-info">Antragsteller</h6>
+                                <p>${entry.first_name} ${entry.last_name}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-info">Geräteträger</h6>
+                                <p><small>${entry.traeger_names || 'Keine'}</small></p>
+                                
+                                <h6 class="text-info">Grund</h6>
+                                <p><small>${entry.reason}</small></p>
+                                
+                                <h6 class="text-info">Eingereicht am</h6>
+                                <p><small>${new Date(entry.created_at).toLocaleString('de-DE')}</small></p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    detailsDiv.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Details</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                detailsDiv.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Details</div>';
+            });
+            
+            const modal = new bootstrap.Modal(document.getElementById('atemschutzEntryDetailsModal'));
+            modal.show();
+        }
+        
+        // Atemschutzeintrag genehmigen
+        function approveAtemschutzEntry() {
+            if (!window.currentAtemschutzEntryId) return;
+            
+            const approveBtn = document.getElementById('approveAtemschutzBtn');
+            const originalText = approveBtn.innerHTML;
+            
+            approveBtn.disabled = true;
+            approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Genehmige...';
+            
+            fetch('api/process-atemschutz-entry.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'approve',
+                    entry_id: window.currentAtemschutzEntryId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    approveBtn.innerHTML = '<i class="fas fa-check me-1"></i>Genehmigt!';
+                    approveBtn.classList.remove('btn-success');
+                    approveBtn.classList.add('btn-success');
+                    
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    approveBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                    approveBtn.classList.remove('btn-success');
+                    approveBtn.classList.add('btn-danger');
+                    
+                    setTimeout(() => {
+                        approveBtn.disabled = false;
+                        approveBtn.innerHTML = originalText;
+                        approveBtn.classList.remove('btn-danger');
+                        approveBtn.classList.add('btn-success');
+                    }, 3000);
+                }
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                approveBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                approveBtn.classList.remove('btn-success');
+                approveBtn.classList.add('btn-danger');
+                
+                setTimeout(() => {
+                    approveBtn.disabled = false;
+                    approveBtn.innerHTML = originalText;
+                    approveBtn.classList.remove('btn-danger');
+                    approveBtn.classList.add('btn-success');
+                }, 3000);
+            });
+        }
+        
+        // Atemschutzeintrag-Ablehnung Modal anzeigen
+        function showAtemschutzRejectModal() {
+            const modal = new bootstrap.Modal(document.getElementById('atemschutzRejectModal'));
+            modal.show();
+        }
+        
+        // Atemschutzeintrag ablehnen bestätigen
+        function confirmAtemschutzReject() {
+            if (!window.currentAtemschutzEntryId) return;
+            
+            const reason = document.getElementById('atemschutzRejectReason').value.trim();
+            if (!reason) {
+                alert('Bitte geben Sie einen Ablehnungsgrund an.');
+                return;
+            }
+            
+            const rejectBtn = document.querySelector('#atemschutzRejectModal .btn-danger');
+            const originalText = rejectBtn.innerHTML;
+            
+            rejectBtn.disabled = true;
+            rejectBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Lehne ab...';
+            
+            fetch('api/process-atemschutz-entry.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'reject',
+                    entry_id: window.currentAtemschutzEntryId,
+                    reason: reason
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    rejectBtn.innerHTML = '<i class="fas fa-check me-1"></i>Abgelehnt!';
+                    rejectBtn.classList.remove('btn-danger');
+                    rejectBtn.classList.add('btn-success');
+                    
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    rejectBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                    rejectBtn.classList.remove('btn-danger');
+                    rejectBtn.classList.add('btn-warning');
+                    
+                    setTimeout(() => {
+                        rejectBtn.disabled = false;
+                        rejectBtn.innerHTML = originalText;
+                        rejectBtn.classList.remove('btn-warning');
+                        rejectBtn.classList.add('btn-danger');
+                    }, 3000);
+                }
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                rejectBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                rejectBtn.classList.remove('btn-danger');
+                rejectBtn.classList.add('btn-warning');
+                
+                setTimeout(() => {
+                    rejectBtn.disabled = false;
+                    rejectBtn.innerHTML = originalText;
+                    rejectBtn.classList.remove('btn-warning');
+                    rejectBtn.classList.add('btn-danger');
+                }, 3000);
+            });
+        }
     </script>
+    
+    <!-- Atemschutzeintrag-Details Modal -->
+    <div class="modal fade" id="atemschutzEntryDetailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-clipboard-list me-2"></i>Atemschutzeintrag-Details
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="atemschutzEntryDetails">
+                        <div class="text-center">
+                            <i class="fas fa-spinner fa-spin"></i> Lade Details...
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Schließen
+                    </button>
+                    <button type="button" class="btn btn-success" id="approveAtemschutzBtn" onclick="approveAtemschutzEntry()">
+                        <i class="fas fa-check me-1"></i>Genehmigen
+                    </button>
+                    <button type="button" class="btn btn-danger" id="rejectAtemschutzBtn" onclick="showAtemschutzRejectModal()">
+                        <i class="fas fa-times me-1"></i>Ablehnen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Atemschutzeintrag-Ablehnung Modal -->
+    <div class="modal fade" id="atemschutzRejectModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-times me-2"></i>Atemschutzeintrag ablehnen
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Achtung:</strong> Diese Aktion kann nicht rückgängig gemacht werden!
+                    </div>
+                    
+                    <p>Bitte geben Sie einen Grund für die Ablehnung an:</p>
+                    
+                    <div class="mb-3">
+                        <label for="atemschutzRejectReason" class="form-label">Ablehnungsgrund</label>
+                        <textarea class="form-control" id="atemschutzRejectReason" rows="4" placeholder="Grund für die Ablehnung eingeben...">Der Antrag entspricht nicht den Anforderungen.</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Abbrechen
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="confirmAtemschutzReject()">
+                        <i class="fas fa-times me-1"></i>Ablehnen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <style>
         .email-buttons {
             margin-top: 8px;
