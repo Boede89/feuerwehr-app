@@ -156,11 +156,6 @@ if ($can_atemschutz) {
             if ($has_warning) {
                 $atemschutz_warnings[] = $traeger;
             }
-            
-            // Begrenze auf 10 Einträge
-            if (count($atemschutz_warnings) >= 10) {
-                break;
-            }
         }
     } catch (Exception $e) {
         // Fehler ignorieren
@@ -400,7 +395,7 @@ if ($can_atemschutz) {
                 <div class="card shadow">
                     <div class="card-header">
                         <h6 class="m-0 font-weight-bold text-danger">
-                            <i class="fas fa-mask"></i> Atemschutz-Warnungen (<?php echo count($atemschutz_warnings); ?>)
+                            <i class="fas fa-mask"></i> Auffällige Geräteträger (<?php echo count($atemschutz_warnings); ?>)
                         </h6>
                     </div>
                     <div class="card-body">
