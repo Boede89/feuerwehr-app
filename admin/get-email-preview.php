@@ -66,12 +66,12 @@ try {
         $subjectPrefix = $hasExpired ? 'ACHTUNG: Mehrere Zertifikate sind abgelaufen' : 'Erinnerung: Mehrere Zertifikate laufen bald ab';
         
         $subject = $subjectPrefix;
-        $body = "Hallo {first_name} {last_name},\n\n";
+        $body = "<p>Hallo {first_name} {last_name},</p>";
         
         if ($hasExpired) {
-            $body .= "Folgende Zertifikate sind abgelaufen:\n\n";
+            $body .= "<p><strong style=\"color: red;\">Folgende Zertifikate sind abgelaufen:</strong></p><ul>";
         } else {
-            $body .= "Folgende Zertifikate laufen bald ab:\n\n";
+            $body .= "<p>Folgende Zertifikate laufen bald ab:</p><ul>";
         }
         
         foreach ($certificates as $cert) {
@@ -89,19 +89,20 @@ try {
             }
             
             $statusText = $cert['urgency'] === 'abgelaufen' ? 'ist abgelaufen' : 'läuft bald ab';
-            $body .= "• {$certName}: {$statusText} am {$cert['expiry_date']}\n";
+            $color = $cert['urgency'] === 'abgelaufen' ? 'red' : 'orange';
+            $body .= "<li><strong>{$certName}</strong>: <span style=\"color: {$color};\">{$statusText} am {$cert['expiry_date']}</span></li>";
         }
         
-        $body .= "\n";
+        $body .= "</ul>";
         
         if ($hasExpired) {
-            $body .= "Sie dürfen bis zur Verlängerung/Untersuchung nicht am Atemschutz teilnehmen.\n\n";
-            $body .= "Bitte vereinbaren Sie SOFORT die notwendigen Termine.\n\n";
+            $body .= "<p><strong style=\"color: red;\">Sie dürfen bis zur Verlängerung/Untersuchung nicht am Atemschutz teilnehmen.</strong></p>";
+            $body .= "<p>Bitte vereinbaren Sie <strong>SOFORT</strong> die notwendigen Termine.</p>";
         } else {
-            $body .= "Bitte vereinbaren Sie rechtzeitig die notwendigen Termine.\n\n";
+            $body .= "<p>Bitte vereinbaren Sie rechtzeitig die notwendigen Termine.</p>";
         }
         
-        $body .= "Mit freundlichen Grüßen\nIhre Feuerwehr";
+        $body .= "<p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>";
     }
     
     // Bestimme das Ablaufdatum für {expiry_date}
