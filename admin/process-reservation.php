@@ -128,14 +128,7 @@ try {
         
         // E-Mail an Antragsteller senden
         $subject = "✅ Reservierung genehmigt - " . $reservation['requester_name'];
-        $message = "Hallo " . $reservation['requester_name'] . ",\n\n";
-        $message .= "Ihre Reservierung wurde genehmigt.\n\n";
-        $message .= "Details:\n";
-        $message .= "- Fahrzeug: " . $reservation['vehicle_name'] . "\n";
-        $message .= "- Datum: " . date('d.m.Y', strtotime($reservation['start_datetime'])) . "\n";
-        $message .= "- Zeit: " . date('H:i', strtotime($reservation['start_datetime'])) . " - " . date('H:i', strtotime($reservation['end_datetime'])) . "\n";
-        $message .= "- Grund: " . $reservation['reason'] . "\n\n";
-        $message .= "Mit freundlichen Grüßen\nIhre Feuerwehr";
+        $message = createApprovalEmailHTML($reservation);
         
         send_email($reservation['requester_email'], $subject, $message);
         
@@ -156,16 +149,7 @@ try {
         
         // E-Mail an Antragsteller senden
         $subject = "❌ Reservierung abgelehnt - " . $reservation['requester_name'];
-        $message = "Hallo " . $reservation['requester_name'] . ",\n\n";
-        $message .= "Ihre Reservierung wurde leider abgelehnt.\n\n";
-        $message .= "Details:\n";
-        $message .= "- Fahrzeug: " . $reservation['vehicle_name'] . "\n";
-        $message .= "- Datum: " . date('d.m.Y', strtotime($reservation['start_datetime'])) . "\n";
-        $message .= "- Zeit: " . date('H:i', strtotime($reservation['start_datetime'])) . " - " . date('H:i', strtotime($reservation['end_datetime'])) . "\n";
-        $message .= "- Grund: " . $reservation['reason'] . "\n\n";
-        $message .= "Ablehnungsgrund:\n";
-        $message .= $reason . "\n\n";
-        $message .= "Mit freundlichen Grüßen\nIhre Feuerwehr";
+        $message = createRejectionEmailHTML($reservation, $reason);
         
         send_email($reservation['requester_email'], $subject, $message);
         
@@ -183,5 +167,177 @@ try {
     $db->rollBack();
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+}
+
+// HTML-E-Mail für Genehmigung erstellen
+function createApprovalEmailHTML($reservation) {
+    $vehicle_name = htmlspecialchars($reservation['vehicle_name'] ?? 'Unbekanntes Fahrzeug');
+    $requester_name = htmlspecialchars($reservation['requester_name'] ?? '');
+    $reason = htmlspecialchars($reservation['reason'] ?? '');
+    $location = htmlspecialchars($reservation['location'] ?? 'Nicht angegeben');
+    $start_date = date('d.m.Y', strtotime($reservation['start_datetime']));
+    $start_time = date('H:i', strtotime($reservation['start_datetime']));
+    $end_time = date('H:i', strtotime($reservation['end_datetime']));
+    
+    return '
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reservierung genehmigt</title>
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
+            .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
+            .header { background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 30px; text-align: center; }
+            .header h1 { margin: 0; font-size: 28px; }
+            .header .icon { font-size: 48px; margin-bottom: 10px; }
+            .content { padding: 30px; }
+            .success-badge { background: #d4edda; color: #155724; padding: 15px; border-radius: 8px; margin-bottom: 25px; text-align: center; font-weight: bold; }
+            .details { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .detail-row { display: flex; margin-bottom: 12px; align-items: center; }
+            .detail-label { font-weight: bold; color: #495057; width: 120px; flex-shrink: 0; }
+            .detail-value { color: #212529; }
+            .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; border-top: 1px solid #dee2e6; }
+            .highlight { color: #28a745; font-weight: bold; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="icon">✅</div>
+                <h1>Reservierung genehmigt!</h1>
+            </div>
+            <div class="content">
+                <div class="success-badge">
+                    🎉 Ihre Fahrzeugreservierung wurde erfolgreich genehmigt!
+                </div>
+                
+                <p>Hallo <strong>' . $requester_name . '</strong>,</p>
+                
+                <p>wir freuen uns, Ihnen mitteilen zu können, dass Ihre Reservierung genehmigt wurde.</p>
+                
+                <div class="details">
+                    <h3 style="margin-top: 0; color: #495057;">📋 Reservierungsdetails</h3>
+                    <div class="detail-row">
+                        <div class="detail-label">🚗 Fahrzeug:</div>
+                        <div class="detail-value highlight">' . $vehicle_name . '</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">📅 Datum:</div>
+                        <div class="detail-value">' . $start_date . '</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">🕐 Zeit:</div>
+                        <div class="detail-value">' . $start_time . ' - ' . $end_time . ' Uhr</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">📍 Standort:</div>
+                        <div class="detail-value">' . $location . '</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">📝 Grund:</div>
+                        <div class="detail-value">' . $reason . '</div>
+                    </div>
+                </div>
+                
+                <p>Bitte erscheinen Sie pünktlich zum vereinbarten Zeitpunkt. Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
+            </div>
+            <div class="footer">
+                <p><strong>Mit freundlichen Grüßen</strong><br>Ihre Feuerwehr</p>
+            </div>
+        </div>
+    </body>
+    </html>';
+}
+
+// HTML-E-Mail für Ablehnung erstellen
+function createRejectionEmailHTML($reservation, $rejection_reason) {
+    $vehicle_name = htmlspecialchars($reservation['vehicle_name'] ?? 'Unbekanntes Fahrzeug');
+    $requester_name = htmlspecialchars($reservation['requester_name'] ?? '');
+    $reason = htmlspecialchars($reservation['reason'] ?? '');
+    $location = htmlspecialchars($reservation['location'] ?? 'Nicht angegeben');
+    $start_date = date('d.m.Y', strtotime($reservation['start_datetime']));
+    $start_time = date('H:i', strtotime($reservation['start_datetime']));
+    $end_time = date('H:i', strtotime($reservation['end_datetime']));
+    $rejection_reason = htmlspecialchars($rejection_reason);
+    
+    return '
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reservierung abgelehnt</title>
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
+            .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
+            .header { background: linear-gradient(135deg, #dc3545, #e74c3c); color: white; padding: 30px; text-align: center; }
+            .header h1 { margin: 0; font-size: 28px; }
+            .header .icon { font-size: 48px; margin-bottom: 10px; }
+            .content { padding: 30px; }
+            .rejection-badge { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; margin-bottom: 25px; text-align: center; font-weight: bold; }
+            .details { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .detail-row { display: flex; margin-bottom: 12px; align-items: center; }
+            .detail-label { font-weight: bold; color: #495057; width: 120px; flex-shrink: 0; }
+            .detail-value { color: #212529; }
+            .rejection-reason { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin: 20px 0; }
+            .rejection-reason h4 { margin-top: 0; color: #856404; }
+            .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; border-top: 1px solid #dee2e6; }
+            .highlight { color: #dc3545; font-weight: bold; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="icon">❌</div>
+                <h1>Reservierung abgelehnt</h1>
+            </div>
+            <div class="content">
+                <div class="rejection-badge">
+                    😔 Leider mussten wir Ihre Reservierung ablehnen
+                </div>
+                
+                <p>Hallo <strong>' . $requester_name . '</strong>,</p>
+                
+                <p>wir bedauern, Ihnen mitteilen zu müssen, dass Ihre Reservierung nicht genehmigt werden konnte.</p>
+                
+                <div class="details">
+                    <h3 style="margin-top: 0; color: #495057;">📋 Reservierungsdetails</h3>
+                    <div class="detail-row">
+                        <div class="detail-label">🚗 Fahrzeug:</div>
+                        <div class="detail-value highlight">' . $vehicle_name . '</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">📅 Datum:</div>
+                        <div class="detail-value">' . $start_date . '</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">🕐 Zeit:</div>
+                        <div class="detail-value">' . $start_time . ' - ' . $end_time . ' Uhr</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">📍 Standort:</div>
+                        <div class="detail-value">' . $location . '</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">📝 Grund:</div>
+                        <div class="detail-value">' . $reason . '</div>
+                    </div>
+                </div>
+                
+                <div class="rejection-reason">
+                    <h4>🚫 Ablehnungsgrund</h4>
+                    <p>' . nl2br($rejection_reason) . '</p>
+                </div>
+                
+                <p>Bitte wenden Sie sich bei Fragen gerne an uns. Wir helfen Ihnen gerne bei der Suche nach alternativen Terminen.</p>
+            </div>
+            <div class="footer">
+                <p><strong>Mit freundlichen Grüßen</strong><br>Ihre Feuerwehr</p>
+            </div>
+        </div>
+    </body>
+    </html>';
 }
 ?>
