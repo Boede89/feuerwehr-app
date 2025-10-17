@@ -6,15 +6,7 @@ require_once '../includes/functions.php';
 header('Content-Type: application/json');
 
 try {
-    // Prüfe ob Benutzer eingeloggt ist
-    if (!is_logged_in()) {
-        throw new Exception('Nicht angemeldet');
-    }
-    
-    // Prüfe Atemschutz-Berechtigung
-    if (!has_permission('atemschutz')) {
-        throw new Exception('Keine Berechtigung für Atemschutz');
-    }
+    // Login ist für Atemschutzeinträge nicht erforderlich
     
     $input = json_decode(file_get_contents('php://input'), true);
     $action = $input['action'] ?? '';
