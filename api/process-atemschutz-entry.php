@@ -64,7 +64,7 @@ try {
                     // Aktualisiere Übung/Einsatz Datum
                     $stmt = $db->prepare("
                         UPDATE atemschutz_traeger 
-                        SET uebung_einsatz_am = ? 
+                        SET uebung_am = ? 
                         WHERE id = ?
                     ");
                     $stmt->execute([$entry['entry_date'], $traeger_id]);

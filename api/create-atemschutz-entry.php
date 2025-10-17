@@ -38,7 +38,7 @@ try {
             FOREIGN KEY (entry_id) REFERENCES atemschutz_entries(id) ON DELETE CASCADE,
             FOREIGN KEY (traeger_id) REFERENCES atemschutz_traeger(id) ON DELETE CASCADE,
             UNIQUE KEY unique_entry_traeger (entry_id, traeger_id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
     
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
