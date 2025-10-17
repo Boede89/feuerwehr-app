@@ -26,8 +26,11 @@ try {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+    
+    // Stelle sicher, dass die ENUM-Werte korrekt sind
+    $db->exec("ALTER TABLE atemschutz_entries MODIFY COLUMN entry_type ENUM('einsatz', 'uebung', 'atemschutzstrecke', 'g263') NOT NULL");
     
     $db->exec("
         CREATE TABLE IF NOT EXISTS atemschutz_entry_traeger (
@@ -51,10 +54,11 @@ try {
     $traeger_ids = $_POST['traeger'] ?? [];
     
     // Debug-Logs
-    error_log("Create Atemschutz Entry - Entry Type: " . $entry_type);
+    error_log("Create Atemschutz Entry - Entry Type: '" . $entry_type . "' (Length: " . strlen($entry_type) . ")");
     error_log("Create Atemschutz Entry - Entry Date: " . $entry_date);
     error_log("Create Atemschutz Entry - Traeger IDs: " . json_encode($traeger_ids));
     error_log("Create Atemschutz Entry - User ID: " . ($_SESSION['user_id'] ?? 'nicht gesetzt'));
+    error_log("Create Atemschutz Entry - POST Data: " . json_encode($_POST));
     
     if (empty($entry_type) || empty($entry_date) || empty($traeger_ids)) {
         throw new Exception('Alle Felder müssen ausgefüllt werden');
