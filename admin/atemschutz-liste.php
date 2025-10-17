@@ -146,7 +146,7 @@ if (!$isAdmin && !$canAtemschutz) {
 
         $selectParts = [];
         $wanted = [
-            'id','first_name','last_name','birthdate','strecke_am','g263_am','uebung_am','status'
+            'id','first_name','last_name','email','birthdate','strecke_am','g263_am','uebung_am','status'
         ];
         foreach ($wanted as $col) {
             if (in_array($col, $columns, true)) {
@@ -368,6 +368,12 @@ if (!$isAdmin && !$canAtemschutz) {
                                     <div class="text-muted small">Status</div>
                                     <div><span class="badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($statusText); ?></span></div>
                                 </div>
+                                <?php if (!empty($t['email'])): ?>
+                                <div class="col-12">
+                                    <div class="text-muted small">E-Mail</div>
+                                    <div><i class="fas fa-envelope me-1"></i><?php echo htmlspecialchars($t['email']); ?></div>
+                                </div>
+                                <?php endif; ?>
                             </div>
                             
                             <hr class="my-3">
@@ -487,6 +493,7 @@ if (!$isAdmin && !$canAtemschutz) {
                         <tr>
                             <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'name','dir'=>$sort==='name' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Name</a></th>
                             <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'age','dir'=>$sort==='age' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Alter</a></th>
+                            <th>E-Mail</th>
                             <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'strecke_bis','dir'=>$sort==='strecke_bis' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Strecke</a></th>
                             <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'g263_bis','dir'=>$sort==='g263_bis' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">G26.3</a></th>
                             <th><a href="?<?php echo http_build_query(array_merge($_GET,['sort'=>'uebung_bis','dir'=>$sort==='uebung_bis' && strtolower($dir)==='asc'?'desc':'asc'])); ?>" class="text-decoration-none">Übung/Einsatz</a></th>
@@ -497,7 +504,7 @@ if (!$isAdmin && !$canAtemschutz) {
                     <tbody>
                         <?php if (empty($traeger)): ?>
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">Noch keine Geräteträger erfasst.</td>
+                                <td colspan="8" class="text-center text-muted py-4">Noch keine Geräteträger erfasst.</td>
                             </tr>
                         <?php else: ?>
                                 <?php foreach ($traeger as $t): ?>
@@ -550,6 +557,13 @@ if (!$isAdmin && !$canAtemschutz) {
                                 <tr>
                                     <td><?php echo htmlspecialchars($name); ?></td>
                                     <td><?php echo htmlspecialchars($age); ?></td>
+                                    <td>
+                                        <?php if (!empty($t['email'])): ?>
+                                            <i class="fas fa-envelope me-1"></i><?php echo htmlspecialchars($t['email']); ?>
+                                        <?php else: ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <div>Am: <?php echo htmlspecialchars($streckeAm); ?></div>
                                         <?php
