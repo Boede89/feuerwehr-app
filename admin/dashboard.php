@@ -1,5 +1,8 @@
 ﻿<?php
 // Minimale Dashboard-Version - garantiert funktioniert
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
@@ -56,6 +59,16 @@ if (!$user) {
                         <p>Willkommen, <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>!</p>
                         <p>Benutzer ID: <?php echo $_SESSION['user_id']; ?></p>
                         <p>Rolle: <?php echo htmlspecialchars($_SESSION['role']); ?></p>
+                        
+                        <!-- Debug Information -->
+                        <div class="alert alert-info mt-3">
+                            <h5>Debug Information:</h5>
+                            <p><strong>Session ID:</strong> <?php echo session_id(); ?></p>
+                            <p><strong>PHP Version:</strong> <?php echo phpversion(); ?></p>
+                            <p><strong>Datenbankverbindung:</strong> <?php echo isset($db) && $db ? 'Erfolgreich' : 'Fehler'; ?></p>
+                            <p><strong>Session Data:</strong></p>
+                            <pre class="small"><?php print_r($_SESSION); ?></pre>
+                        </div>
                         
                         <div class="mt-4">
                             <h4>Verfügbare Bereiche:</h4>
