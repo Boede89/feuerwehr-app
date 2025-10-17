@@ -97,7 +97,7 @@ function send_email($to, $subject, $message, $headers = '') {
             if (empty($headers)) {
                 $headers = "From: $smtp_from_name <$smtp_from_email>\r\n";
                 $headers .= "Reply-To: $smtp_from_email\r\n";
-                $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+                $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
                 $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
             }
             
