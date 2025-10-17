@@ -388,9 +388,13 @@ if ($can_atemschutz) {
                                                 <span class="reason-label">Strecke</span>
                                                 <div class="reason-details">
                                                     <?php
-                                                    $streckeDate = new DateTime($traeger['strecke_am']);
+                                                    // Berechne das Ablaufdatum (1 Jahr nach Durchführung)
+                                                    $streckeAm = new DateTime($traeger['strecke_am']);
+                                                    $streckeBis = clone $streckeAm;
+                                                    $streckeBis->add(new DateInterval('P1Y')); // 1 Jahr hinzufügen
+                                                    
                                                     $now = new DateTime('today');
-                                                    $diff = (int)$now->diff($streckeDate)->format('%r%a');
+                                                    $diff = (int)$now->diff($streckeBis)->format('%r%a');
                                                     $cls = '';
                                                     if ($diff < 0) { 
                                                         $cls = 'bis-expired'; 
@@ -408,9 +412,20 @@ if ($can_atemschutz) {
                                                 <span class="reason-label">G26.3</span>
                                                 <div class="reason-details">
                                                     <?php
-                                                    $g263Date = new DateTime($traeger['g263_am']);
+                                                    // Berechne das Ablaufdatum (3 Jahre für unter 50, 1 Jahr für über 50)
+                                                    $g263Am = new DateTime($traeger['g263_am']);
+                                                    $birthdate = new DateTime($traeger['birthdate']);
+                                                    $age = $birthdate->diff(new DateTime())->y;
+                                                    
+                                                    $g263Bis = clone $g263Am;
+                                                    if ($age < 50) {
+                                                        $g263Bis->add(new DateInterval('P3Y')); // 3 Jahre für unter 50
+                                                    } else {
+                                                        $g263Bis->add(new DateInterval('P1Y')); // 1 Jahr für über 50
+                                                    }
+                                                    
                                                     $now = new DateTime('today');
-                                                    $diff = (int)$now->diff($g263Date)->format('%r%a');
+                                                    $diff = (int)$now->diff($g263Bis)->format('%r%a');
                                                     $cls = '';
                                                     if ($diff < 0) { 
                                                         $cls = 'bis-expired'; 
@@ -428,9 +443,13 @@ if ($can_atemschutz) {
                                                 <span class="reason-label">Übung/Einsatz</span>
                                                 <div class="reason-details">
                                                     <?php
-                                                    $uebungDate = new DateTime($traeger['uebung_am']);
+                                                    // Berechne das Ablaufdatum (1 Jahr nach Durchführung)
+                                                    $uebungAm = new DateTime($traeger['uebung_am']);
+                                                    $uebungBis = clone $uebungAm;
+                                                    $uebungBis->add(new DateInterval('P1Y')); // 1 Jahr hinzufügen
+                                                    
                                                     $now = new DateTime('today');
-                                                    $diff = (int)$now->diff($uebungDate)->format('%r%a');
+                                                    $diff = (int)$now->diff($uebungBis)->format('%r%a');
                                                     $cls = '';
                                                     if ($diff < 0) { 
                                                         $cls = 'bis-expired'; 
