@@ -240,6 +240,11 @@ require_once 'includes/functions.php';
         
         // Modal Event Listener
         document.getElementById('atemschutzModal').addEventListener('show.bs.modal', function() {
+            // Aktuelles Datum setzen
+            const today = new Date();
+            const todayString = today.toISOString().split('T')[0];
+            document.getElementById('entryDate').value = todayString;
+            
             loadTraeger();
         });
         
