@@ -42,8 +42,13 @@ $reason = $input['reason'] ?? '';
 try {
     $db->beginTransaction();
     
-    // Reservierung laden
-    $stmt = $db->prepare("SELECT * FROM reservations WHERE id = ? AND status = 'pending'");
+    // Reservierung mit Fahrzeugname laden
+    $stmt = $db->prepare("
+        SELECT r.*, v.name as vehicle_name 
+        FROM reservations r 
+        LEFT JOIN vehicles v ON r.vehicle_id = v.id 
+        WHERE r.id = ? AND r.status = 'pending'
+    ");
     $stmt->execute([$reservation_id]);
     $reservation = $stmt->fetch(PDO::FETCH_ASSOC);
     
@@ -56,8 +61,30 @@ try {
         $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
         
-        // Google Calendar Event erstellen (falls gewünscht)
-        // Hier könnte die Google Calendar Integration hinzugefügt werden
+        // Google Calendar Event erstellen
+        try {
+            $vehicle_name = $reservation['vehicle_name'] ?? 'Unbekanntes Fahrzeug';
+            $title = "Fahrzeugreservierung: " . $vehicle_name;
+            $location = $reservation['location'] ?? '';
+            
+            $google_event_id = create_google_calendar_event(
+                $title,
+                $reservation['reason'],
+                $reservation['start_datetime'],
+                $reservation['end_datetime'],
+                $reservation_id,
+                $location
+            );
+            
+            if ($google_event_id) {
+                error_log("Google Calendar Event erstellt: " . $google_event_id);
+            } else {
+                error_log("Google Calendar Event konnte nicht erstellt werden");
+            }
+        } catch (Exception $e) {
+            error_log("Google Calendar Fehler: " . $e->getMessage());
+            // Fehler ignorieren, da Reservierung trotzdem genehmigt werden soll
+        }
         
         // E-Mail an Antragsteller senden
         $subject = "✅ Reservierung genehmigt - " . $reservation['requester_name'];
