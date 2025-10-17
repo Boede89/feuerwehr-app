@@ -602,11 +602,11 @@ if ($can_atemschutz) {
                         <label class="form-label">E-Mail-Inhalt</label>
                         <div class="border rounded p-3 bg-light">
                             <div class="mb-2">
-                                <label class="form-label small">Betreff</label>
-                                <input type="text" class="form-control form-control-sm" id="emailSubject" readonly>
+                                <label class="form-label small">Betreff <span class="text-muted">(editierbar)</span></label>
+                                <input type="text" class="form-control form-control-sm" id="emailSubject" placeholder="E-Mail-Betreff wird hier geladen...">
                             </div>
                             <div>
-                                <label class="form-label small">Nachricht</label>
+                                <label class="form-label small">Nachricht <span class="text-muted">(editierbar)</span></label>
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <span></span>
                                     <button type="button" class="btn btn-sm btn-outline-secondary" id="resetEmailBtn">
@@ -726,8 +726,8 @@ if ($can_atemschutz) {
                     return;
                 }
                 
-                if (!subject || !body) {
-                    alert('Bitte geben Sie einen Betreff und Nachricht ein.');
+                if (!subject.trim() || !body.trim()) {
+                    alert('Bitte geben Sie einen Betreff und eine Nachricht ein.');
                     return;
                 }
                 
