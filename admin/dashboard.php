@@ -412,6 +412,68 @@ if ($can_atemschutz) {
                                     <div class="warning-item">
                                         <div class="warning-header">
                                             <h6 class="warning-name"><?php echo htmlspecialchars($traeger['first_name'] . ' ' . $traeger['last_name']); ?></h6>
+                                            <?php if (!empty($traeger['email'])): ?>
+                                            <div class="email-buttons">
+                                                <?php
+                                                // Status für jeden Zertifikatstyp bestimmen
+                                                $now = new DateTime('today');
+                                                
+                                                // Strecke Status
+                                                $streckeAm = new DateTime($traeger['strecke_am']);
+                                                $streckeBis = clone $streckeAm;
+                                                $streckeBis->add(new DateInterval('P1Y'));
+                                                $streckeDiff = (int)$now->diff($streckeBis)->format('%r%a');
+                                                $streckeUrgency = ($streckeDiff < 0) ? 'abgelaufen' : 'warnung';
+                                                $streckeClass = ($streckeDiff < 0) ? 'btn-outline-danger' : 'btn-outline-warning';
+                                                
+                                                // G26.3 Status
+                                                $g263Am = new DateTime($traeger['g263_am']);
+                                                $birthdate = new DateTime($traeger['birthdate']);
+                                                $age = $birthdate->diff(new DateTime())->y;
+                                                $g263Bis = clone $g263Am;
+                                                if ($age < 50) {
+                                                    $g263Bis->add(new DateInterval('P3Y'));
+                                                } else {
+                                                    $g263Bis->add(new DateInterval('P1Y'));
+                                                }
+                                                $g263Diff = (int)$now->diff($g263Bis)->format('%r%a');
+                                                $g263Urgency = ($g263Diff < 0) ? 'abgelaufen' : 'warnung';
+                                                $g263Class = ($g263Diff < 0) ? 'btn-outline-danger' : 'btn-outline-warning';
+                                                
+                                                // Übung Status
+                                                $uebungAm = new DateTime($traeger['uebung_am']);
+                                                $uebungBis = clone $uebungAm;
+                                                $uebungBis->add(new DateInterval('P1Y'));
+                                                $uebungDiff = (int)$now->diff($uebungBis)->format('%r%a');
+                                                $uebungUrgency = ($uebungDiff < 0) ? 'abgelaufen' : 'warnung';
+                                                $uebungClass = ($uebungDiff < 0) ? 'btn-outline-danger' : 'btn-outline-warning';
+                                                ?>
+                                                
+                                                <button class="btn btn-sm <?php echo $streckeClass; ?> email-btn" 
+                                                        data-traeger-id="<?php echo $traeger['id']; ?>"
+                                                        data-certificate-type="strecke" 
+                                                        data-urgency="<?php echo $streckeUrgency; ?>"
+                                                        title="Strecke-<?php echo ($streckeUrgency === 'abgelaufen') ? 'Aufforderung' : 'Erinnerung'; ?> senden">
+                                                    <i class="fas fa-envelope"></i> Strecke
+                                                </button>
+                                                
+                                                <button class="btn btn-sm <?php echo $g263Class; ?> email-btn" 
+                                                        data-traeger-id="<?php echo $traeger['id']; ?>"
+                                                        data-certificate-type="g263" 
+                                                        data-urgency="<?php echo $g263Urgency; ?>"
+                                                        title="G26.3-<?php echo ($g263Urgency === 'abgelaufen') ? 'Aufforderung' : 'Erinnerung'; ?> senden">
+                                                    <i class="fas fa-envelope"></i> G26.3
+                                                </button>
+                                                
+                                                <button class="btn btn-sm <?php echo $uebungClass; ?> email-btn" 
+                                                        data-traeger-id="<?php echo $traeger['id']; ?>"
+                                                        data-certificate-type="uebung" 
+                                                        data-urgency="<?php echo $uebungUrgency; ?>"
+                                                        title="Übung-<?php echo ($uebungUrgency === 'abgelaufen') ? 'Aufforderung' : 'Erinnerung'; ?> senden">
+                                                    <i class="fas fa-envelope"></i> Übung
+                                                </button>
+                                            </div>
+                                            <?php endif; ?>
                                         </div>
                                         <div class="warning-reasons">
                                             <?php
@@ -503,5 +565,87 @@ if ($can_atemschutz) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // E-Mail-Buttons Event Listener
+            document.querySelectorAll('.email-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const traegerId = this.dataset.traegerId;
+                    const certificateType = this.dataset.certificateType;
+                    const urgency = this.dataset.urgency;
+                    
+                    // Button während des Versands deaktivieren
+                    const originalText = this.innerHTML;
+                    this.disabled = true;
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sende...';
+                    
+                    // AJAX-Anfrage
+                    fetch('send-atemschutz-email.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `traeger_id=${traegerId}&certificate_type=${certificateType}&urgency=${urgency}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Erfolg anzeigen
+                            this.classList.remove('btn-outline-primary', 'btn-outline-info', 'btn-outline-warning');
+                            this.classList.add('btn-success');
+                            this.innerHTML = '<i class="fas fa-check"></i> Gesendet';
+                            
+                            // Nach 3 Sekunden zurücksetzen
+                            setTimeout(() => {
+                                this.disabled = false;
+                                this.classList.remove('btn-success');
+                                this.classList.add('btn-outline-primary', 'btn-outline-info', 'btn-outline-warning');
+                                this.innerHTML = originalText;
+                            }, 3000);
+                        } else {
+                            // Fehler anzeigen
+                            this.classList.remove('btn-outline-primary', 'btn-outline-info', 'btn-outline-warning');
+                            this.classList.add('btn-danger');
+                            this.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Fehler';
+                            
+                            // Nach 3 Sekunden zurücksetzen
+                            setTimeout(() => {
+                                this.disabled = false;
+                                this.classList.remove('btn-danger');
+                                this.classList.add('btn-outline-primary', 'btn-outline-info', 'btn-outline-warning');
+                                this.innerHTML = originalText;
+                            }, 3000);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Fehler:', error);
+                        this.disabled = false;
+                        this.innerHTML = originalText;
+                        alert('Fehler beim Senden der E-Mail');
+                    });
+                });
+            });
+        });
+    </script>
+    <style>
+        .email-buttons {
+            margin-top: 8px;
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .email-buttons .btn {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+        }
+        .warning-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .warning-name {
+            margin-bottom: 0;
+        }
+    </style>
 </body>
 </html>
