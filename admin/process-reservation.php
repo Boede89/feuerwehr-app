@@ -177,11 +177,14 @@ try {
         // Reservierung genehmigen und Konflikte lösen
         $conflict_ids = $input['conflict_ids'] ?? [];
         
+        error_log("Conflict Resolution - Reservation ID: " . $reservation_id);
+        error_log("Conflict Resolution - Conflict IDs: " . json_encode($conflict_ids));
+        
         if (!empty($conflict_ids)) {
             // Storniere konfliktierende Reservierungen
             foreach ($conflict_ids as $conflict_id) {
-                // Storniere Reservierung
-                $stmt = $db->prepare("UPDATE reservations SET status = 'cancelled', approved_by = ?, approved_at = NOW() WHERE id = ?");
+                // Storniere Reservierung (verwende 'rejected' als Status, da 'cancelled' möglicherweise nicht existiert)
+                $stmt = $db->prepare("UPDATE reservations SET status = 'rejected', approved_by = ?, approved_at = NOW() WHERE id = ?");
                 $stmt->execute([$_SESSION['user_id'], $conflict_id]);
                 
                 // Lade stornierte Reservierung für E-Mail
@@ -202,14 +205,18 @@ try {
                         $calendar_event = $stmt->fetch(PDO::FETCH_ASSOC);
                         
                         if ($calendar_event && !empty($calendar_event['google_event_id'])) {
-                            delete_google_calendar_event($calendar_event['google_event_id']);
+                            error_log("Lösche Google Calendar Event: " . $calendar_event['google_event_id']);
+                            $delete_result = delete_google_calendar_event($calendar_event['google_event_id']);
+                            error_log("Google Calendar Löschung Ergebnis: " . ($delete_result ? 'Erfolg' : 'Fehler'));
                         }
                         
                         // Lösche Calendar Event Eintrag
                         $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
                         $stmt->execute([$conflict_id]);
+                        error_log("Calendar Event Eintrag gelöscht für Reservierung: " . $conflict_id);
                     } catch (Exception $e) {
                         error_log("Google Calendar Löschung Fehler: " . $e->getMessage());
+                        // Fehler ignorieren, da Stornierung trotzdem fortgesetzt werden soll
                     }
                     
                     // Logge Aktivität
@@ -260,8 +267,10 @@ try {
     
 } catch (Exception $e) {
     $db->rollBack();
+    error_log("Process Reservation Error: " . $e->getMessage());
+    error_log("Process Reservation Error Trace: " . $e->getTraceAsString());
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => 'Server-Fehler: ' . $e->getMessage()]);
 }
 
 // Konfliktprüfung für Reservierung
