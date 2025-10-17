@@ -6,10 +6,7 @@ require_once '../includes/functions.php';
 header('Content-Type: application/json');
 
 try {
-    // Prüfe ob Benutzer eingeloggt ist
-    if (!is_logged_in()) {
-        throw new Exception('Nicht angemeldet');
-    }
+    // Login ist für Atemschutzeinträge nicht erforderlich
     
     // Stelle sicher, dass die Tabelle existiert (mit der korrekten Struktur)
     $db->exec("
