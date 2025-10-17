@@ -1,24 +1,12 @@
 ﻿<?php
 // Minimale Dashboard-Version - garantiert funktioniert
-    session_start();
-
-// Datenbankverbindung
-$host = "feuerwehr_mysql";
-$dbname = "feuerwehr_app";
-$username = "feuerwehr_user";
-$password = "feuerwehr_password";
-
-try {
-    $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    die("Datenbankfehler: " . $e->getMessage());
-}
+session_start();
+require_once '../config/database.php';
+require_once '../includes/functions.php';
 
 // Login-Prüfung
-if (!isset($_SESSION["user_id"])) {
-    header("Location: ../login.php");
-    exit();
+if (!is_logged_in()) {
+    redirect('../login.php');
 }
 
 // Benutzer laden
@@ -29,8 +17,7 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$user) {
     session_destroy();
-    header("Location: ../login.php");
-    exit();
+    redirect('../login.php');
 }
 ?>
 <!DOCTYPE html>
@@ -49,7 +36,7 @@ if (!$user) {
                 <i class="fas fa-fire"></i> Feuerwehr App
             </a>
             <div class="navbar-nav ms-auto">
-                <span class="navbar-text me-3">Hallo, <?php echo htmlspecialchars($user['name']); ?>!</span>
+                <span class="navbar-text me-3">Hallo, <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>!</span>
                 <a class="btn btn-outline-light btn-sm" href="../logout.php">
                     <i class="fas fa-sign-out-alt"></i> Abmelden
                 </a>
@@ -66,9 +53,9 @@ if (!$user) {
                     </div>
                     <div class="card-body">
                         <h1>Dashboard funktioniert!</h1>
-                        <p>Willkommen, <?php echo htmlspecialchars($user['name']); ?>!</p>
-                        <p>Benutzer ID: <?php echo $user['id']; ?></p>
-                        <p>Rolle: <?php echo htmlspecialchars($user['role']); ?></p>
+                        <p>Willkommen, <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>!</p>
+                        <p>Benutzer ID: <?php echo $_SESSION['user_id']; ?></p>
+                        <p>Rolle: <?php echo htmlspecialchars($_SESSION['role']); ?></p>
                         
                         <div class="mt-4">
                             <h4>Verfügbare Bereiche:</h4>
@@ -77,7 +64,7 @@ if (!$user) {
                                     <a href="atemschutz.php" class="btn btn-outline-danger w-100">
                                         <i class="fas fa-mask"></i> Atemschutz
                                     </a>
-                            </div>
+                                </div>
                                 <div class="col-md-3 mb-2">
                                     <a href="reservations.php" class="btn btn-outline-primary w-100">
                                         <i class="fas fa-calendar"></i> Reservierungen
@@ -86,30 +73,30 @@ if (!$user) {
                                 <div class="col-md-3 mb-2">
                                     <a href="users.php" class="btn btn-outline-success w-100">
                                         <i class="fas fa-users"></i> Benutzer
-                                                        </a>
-                                                    </div>
+                                    </a>
+                                </div>
                                 <div class="col-md-3 mb-2">
                                     <a href="settings.php" class="btn btn-outline-secondary w-100">
                                         <i class="fas fa-cog"></i> Einstellungen
-                            </a>
+                                    </a>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                                            </div>
-                                            
+                        
                         <div class="mt-4">
                             <h4>System-Status:</h4>
                             <div class="alert alert-success">
                                 <i class="fas fa-check-circle"></i> Datenbankverbindung erfolgreich
-                                            </div>
+                            </div>
                             <div class="alert alert-success">
                                 <i class="fas fa-check-circle"></i> Session aktiv
-                                            </div>
+                            </div>
                             <div class="alert alert-success">
                                 <i class="fas fa-check-circle"></i> Dashboard lädt korrekt
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
