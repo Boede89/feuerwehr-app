@@ -64,8 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservati
         
         if ($vehicle_id && $requester_name && $requester_email && $reason && $start_datetime && $end_datetime) {
             try {
-                $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([])]);
+                $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([]), 'pending']);
                 
                 $message = "Reservierung wurde trotz Konflikt erfolgreich eingereicht. Bitte beachten Sie, dass es Überschneidungen mit anderen Reservierungen geben kann.";
                 $redirect_to_home = true; // Flag für Weiterleitung setzen
@@ -221,8 +221,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 foreach ($vehicle_ids as $vehicle_id) {
                     try {
                         // Debug: Führe Datenbank-Insert aus
-                        $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([])]);
+                        $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([]), 'pending']);
                         $success_count++;
                         // Debug: Reservierung gespeichert
                     } catch(PDOException $e) {
