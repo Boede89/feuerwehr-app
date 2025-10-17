@@ -120,8 +120,7 @@ try {
         $stmt = $db->prepare("
             SELECT u.email, u.first_name, u.last_name 
             FROM users u 
-            WHERE u.is_active = 1 
-            AND u.can_atemschutz = 1
+            WHERE u.can_atemschutz = 1
         ");
         $stmt->execute();
         $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);

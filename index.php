@@ -243,6 +243,11 @@ require_once 'includes/functions.php';
             loadTraeger();
         });
         
+        // Modal Reset beim Schließen
+        document.getElementById('atemschutzModal').addEventListener('hidden.bs.modal', function() {
+            resetAtemschutzForm();
+        });
+        
         // Globale Variable für ausgewählte Geräteträger
         window.selectedTraeger = new Set();
         
@@ -280,6 +285,25 @@ require_once 'includes/functions.php';
                 countElement.classList.remove('bg-primary');
                 countElement.classList.add('bg-secondary');
             }
+        }
+        
+        // Formular zurücksetzen
+        function resetAtemschutzForm() {
+            // Formular-Felder zurücksetzen
+            document.getElementById('atemschutzForm').reset();
+            document.getElementById('entryDate').value = new Date().toISOString().split('T')[0];
+            
+            // Auswahl zurücksetzen
+            window.selectedTraeger.clear();
+            
+            // Karten zurücksetzen
+            document.querySelectorAll('.traeger-card .card').forEach(card => {
+                card.classList.remove('border-primary', 'bg-primary', 'text-white');
+                card.classList.add('border-light');
+            });
+            
+            // Zähler zurücksetzen
+            updateSelectedCount();
         }
         
         // Geräteträger laden
@@ -355,17 +379,7 @@ require_once 'includes/functions.php';
                     const modal = bootstrap.Modal.getInstance(document.getElementById('atemschutzModal'));
                     modal.hide();
                     // Formular zurücksetzen
-                    form.reset();
-                    document.getElementById('entryDate').value = new Date().toISOString().split('T')[0];
-                    // Auswahl zurücksetzen
-                    window.selectedTraeger.clear();
-                    // Karten zurücksetzen
-                    document.querySelectorAll('.traeger-card .card').forEach(card => {
-                        card.classList.remove('border-primary', 'bg-primary', 'text-white');
-                        card.classList.add('border-light');
-                    });
-                    // Zähler zurücksetzen
-                    updateSelectedCount();
+                    resetAtemschutzForm();
                 } else {
                     alert('Fehler: ' + data.message);
                 }
