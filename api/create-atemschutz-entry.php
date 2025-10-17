@@ -32,6 +32,15 @@ try {
     // Stelle sicher, dass die ENUM-Werte korrekt sind
     $db->exec("ALTER TABLE atemschutz_entries MODIFY COLUMN entry_type ENUM('einsatz', 'uebung', 'atemschutzstrecke', 'g263') NOT NULL");
     
+    // Entferne die reason Spalte falls sie existiert
+    try {
+        $db->exec("ALTER TABLE atemschutz_entries DROP COLUMN reason");
+        error_log("Create Atemschutz Entry - reason Spalte entfernt");
+    } catch (Exception $e) {
+        // Spalte existiert nicht, das ist OK
+        error_log("Create Atemschutz Entry - reason Spalte existiert nicht: " . $e->getMessage());
+    }
+    
     $db->exec("
         CREATE TABLE IF NOT EXISTS atemschutz_entry_traeger (
             id INT AUTO_INCREMENT PRIMARY KEY,
