@@ -948,9 +948,92 @@ if ($can_atemschutz) {
             // Reservierungs-ID für Genehmigen/Ablehnen speichern
             window.currentReservationId = reservation.id;
             
+            // Konfliktprüfung durchführen
+            checkReservationConflicts(reservation.id);
+            
             // Modal anzeigen
             const modal = new bootstrap.Modal(document.getElementById('reservationDetailsModal'));
             modal.show();
+        }
+        
+        // Konfliktprüfung für Reservierung
+        function checkReservationConflicts(reservationId) {
+            fetch('check-reservation-conflicts.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    reservation_id: reservationId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayConflictInfo(data);
+                } else {
+                    console.error('Konfliktprüfung fehlgeschlagen:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Fehler bei Konfliktprüfung:', error);
+            });
+        }
+        
+        // Konfliktinformationen anzeigen
+        function displayConflictInfo(data) {
+            const statusElement = document.getElementById('modalStatus');
+            
+            if (data.has_conflicts) {
+                // Konflikte gefunden - zeige Warnung
+                statusElement.innerHTML = `
+                    <span class="badge bg-warning text-dark me-2">Ausstehend</span>
+                    <span class="badge bg-danger">${data.conflict_count} Konflikt${data.conflict_count > 1 ? 'e' : ''}</span>
+                `;
+                
+                // Konflikte-Details hinzufügen
+                let conflictsHtml = '<div class="mt-3"><h6 class="text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Zeitüberschneidungen gefunden:</h6>';
+                conflictsHtml += '<div class="alert alert-warning">';
+                
+                data.conflicts.forEach(conflict => {
+                    conflictsHtml += `
+                        <div class="mb-2 p-2 border-start border-3 border-warning">
+                            <strong>${conflict.vehicle_name}</strong><br>
+                            <small class="text-muted">
+                                ${conflict.start_date} von ${conflict.start_time} bis ${conflict.end_time}<br>
+                                Antragsteller: ${conflict.requester_name}<br>
+                                Grund: ${conflict.reason}
+                            </small>
+                        </div>
+                    `;
+                });
+                
+                conflictsHtml += '</div></div>';
+                
+                // Konflikte nach dem Status-Element einfügen
+                const existingConflicts = document.getElementById('conflictDetails');
+                if (existingConflicts) {
+                    existingConflicts.remove();
+                }
+                
+                const conflictDiv = document.createElement('div');
+                conflictDiv.id = 'conflictDetails';
+                conflictDiv.innerHTML = conflictsHtml;
+                statusElement.parentNode.insertAdjacentElement('afterend', conflictDiv);
+                
+            } else {
+                // Keine Konflikte - zeige grünen Status
+                statusElement.innerHTML = `
+                    <span class="badge bg-warning text-dark me-2">Ausstehend</span>
+                    <span class="badge bg-success">Kein Konflikt</span>
+                `;
+                
+                // Entferne eventuell vorhandene Konflikt-Details
+                const existingConflicts = document.getElementById('conflictDetails');
+                if (existingConflicts) {
+                    existingConflicts.remove();
+                }
+            }
         }
         
         // Reservierung genehmigen
