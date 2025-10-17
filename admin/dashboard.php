@@ -1526,6 +1526,9 @@ if ($can_atemschutz) {
         
         // Atemschutzeintrag genehmigen
         function approveAtemschutzEntry(entryId) {
+            if (!entryId) {
+                entryId = window.currentAtemschutzEntryId;
+            }
             if (!entryId) return;
             
             const approveBtn = document.getElementById('approveAtemschutzBtn');
@@ -1703,10 +1706,10 @@ if ($can_atemschutz) {
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times me-1"></i>Schließen
                     </button>
-                    <button type="button" class="btn btn-success" id="approveAtemschutzBtn" onclick="approveAtemschutzEntry()">
+                    <button type="button" class="btn btn-success" id="approveAtemschutzBtn" onclick="approveAtemschutzEntry(window.currentAtemschutzEntryId)">
                         <i class="fas fa-check me-1"></i>Genehmigen
                     </button>
-                    <button type="button" class="btn btn-danger" id="rejectAtemschutzBtn" onclick="showAtemschutzRejectModal()">
+                    <button type="button" class="btn btn-danger" id="rejectAtemschutzBtn" onclick="showAtemschutzRejectModal(window.currentAtemschutzEntryId)">
                         <i class="fas fa-times me-1"></i>Ablehnen
                     </button>
                 </div>
