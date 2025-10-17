@@ -254,9 +254,74 @@ if ($can_atemschutz) {
     </style>
 </head>
 <body>
+    <!-- Details Modal für Reservierungen -->
+    <div class="modal fade" id="reservationDetailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-calendar-alt me-2"></i>Reservierungsdetails
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-truck me-2"></i>Fahrzeug
+                            </h6>
+                            <p id="modalVehicleName" class="mb-3"></p>
+                            
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-user me-2"></i>Antragsteller
+                            </h6>
+                            <p id="modalRequesterName" class="mb-3"></p>
+                            <p id="modalRequesterEmail" class="text-muted mb-3"></p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-calendar me-2"></i>Zeitraum
+                            </h6>
+                            <p id="modalDateTime" class="mb-3"></p>
+                            
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-map-marker-alt me-2"></i>Standort
+                            </h6>
+                            <p id="modalLocation" class="mb-3"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-clipboard-list me-2"></i>Grund
+                            </h6>
+                            <p id="modalReason" class="mb-3"></p>
+                            
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-info-circle me-2"></i>Status
+                            </h6>
+                            <p id="modalStatus" class="mb-3"></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Schließen
+                    </button>
+                    <button type="button" class="btn btn-danger" id="rejectBtn" onclick="rejectReservation()">
+                        <i class="fas fa-times me-1"></i>Ablehnen
+                    </button>
+                    <button type="button" class="btn btn-success" id="approveBtn" onclick="approveReservation()">
+                        <i class="fas fa-check me-1"></i>Genehmigen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">
+            <a class="navbar-brand" href="../index.php">
                 <i class="fas fa-fire"></i> Feuerwehr App
             </a>
             <div class="navbar-nav ms-auto">
@@ -355,6 +420,12 @@ if ($can_atemschutz) {
                                                 <i class="fas fa-clipboard-list text-warning"></i>
                                                 <span><?php echo htmlspecialchars(substr($reservation['reason'], 0, 80)); ?><?php echo strlen($reservation['reason']) > 80 ? '...' : ''; ?></span>
                                             </div>
+                                            
+                                            <div class="d-grid">
+                                                <button class="btn btn-outline-primary btn-sm" onclick="showReservationDetails(<?php echo htmlspecialchars(json_encode($reservation)); ?>)">
+                                                    <i class="fas fa-eye"></i> Details anzeigen
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
@@ -371,6 +442,7 @@ if ($can_atemschutz) {
                                             <th>Datum/Zeit</th>
                                             <th>Grund</th>
                                             <th>Status</th>
+                                            <th>Aktionen</th>
                                         </tr>
                                         </thead>
                                         <tbody>
@@ -390,6 +462,11 @@ if ($can_atemschutz) {
                                             </td>
                                             <td><?php echo htmlspecialchars(substr($reservation['reason'], 0, 50)); ?><?php echo strlen($reservation['reason']) > 50 ? '...' : ''; ?></td>
                                             <td><span class="badge bg-warning text-dark">Ausstehend</span></td>
+                                            <td>
+                                                <button class="btn btn-outline-primary btn-sm" onclick="showReservationDetails(<?php echo htmlspecialchars(json_encode($reservation)); ?>)">
+                                                    <i class="fas fa-eye"></i> Details
+                                                </button>
+                                            </td>
                                         </tr>
                                         <?php endforeach; ?>
                                         </tbody>
@@ -815,6 +892,155 @@ if ($can_atemschutz) {
                 sendEmailBtn.classList.add('btn-primary');
             });
         });
+        
+        // Reservierungsdetails anzeigen
+        function showReservationDetails(reservation) {
+            document.getElementById('modalVehicleName').textContent = reservation.vehicle_name;
+            document.getElementById('modalRequesterName').textContent = reservation.requester_name;
+            document.getElementById('modalRequesterEmail').textContent = reservation.requester_email;
+            document.getElementById('modalDateTime').innerHTML = 
+                '<strong>' + new Date(reservation.start_datetime).toLocaleDateString('de-DE') + '</strong><br>' +
+                '<small class="text-muted">' + 
+                new Date(reservation.start_datetime).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}) + 
+                ' - ' + 
+                new Date(reservation.end_datetime).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}) + 
+                '</small>';
+            document.getElementById('modalLocation').textContent = reservation.location || 'Nicht angegeben';
+            document.getElementById('modalReason').textContent = reservation.reason;
+            document.getElementById('modalStatus').innerHTML = '<span class="badge bg-warning text-dark">Ausstehend</span>';
+            
+            // Reservierungs-ID für Genehmigen/Ablehnen speichern
+            window.currentReservationId = reservation.id;
+            
+            // Modal anzeigen
+            const modal = new bootstrap.Modal(document.getElementById('reservationDetailsModal'));
+            modal.show();
+        }
+        
+        // Reservierung genehmigen
+        function approveReservation() {
+            if (!window.currentReservationId) return;
+            
+            const approveBtn = document.getElementById('approveBtn');
+            const originalText = approveBtn.innerHTML;
+            
+            approveBtn.disabled = true;
+            approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Genehmige...';
+            
+            fetch('process-reservation.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'approve',
+                    reservation_id: window.currentReservationId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    approveBtn.innerHTML = '<i class="fas fa-check me-1"></i>Genehmigt!';
+                    approveBtn.classList.remove('btn-success');
+                    approveBtn.classList.add('btn-success');
+                    
+                    // Modal nach 2 Sekunden schließen und Seite neu laden
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    approveBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                    approveBtn.classList.remove('btn-success');
+                    approveBtn.classList.add('btn-danger');
+                    
+                    setTimeout(() => {
+                        approveBtn.disabled = false;
+                        approveBtn.innerHTML = originalText;
+                        approveBtn.classList.remove('btn-danger');
+                        approveBtn.classList.add('btn-success');
+                    }, 3000);
+                }
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                approveBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                approveBtn.classList.remove('btn-success');
+                approveBtn.classList.add('btn-danger');
+                
+                setTimeout(() => {
+                    approveBtn.disabled = false;
+                    approveBtn.innerHTML = originalText;
+                    approveBtn.classList.remove('btn-danger');
+                    approveBtn.classList.add('btn-success');
+                }, 3000);
+            });
+        }
+        
+        // Reservierung ablehnen
+        function rejectReservation() {
+            if (!window.currentReservationId) return;
+            
+            const reason = prompt('Bitte geben Sie einen Grund für die Ablehnung ein:');
+            if (!reason || reason.trim() === '') {
+                alert('Bitte geben Sie einen Grund für die Ablehnung ein.');
+                return;
+            }
+            
+            const rejectBtn = document.getElementById('rejectBtn');
+            const originalText = rejectBtn.innerHTML;
+            
+            rejectBtn.disabled = true;
+            rejectBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Lehne ab...';
+            
+            fetch('process-reservation.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'reject',
+                    reservation_id: window.currentReservationId,
+                    reason: reason.trim()
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    rejectBtn.innerHTML = '<i class="fas fa-times me-1"></i>Abgelehnt!';
+                    rejectBtn.classList.remove('btn-danger');
+                    rejectBtn.classList.add('btn-danger');
+                    
+                    // Modal nach 2 Sekunden schließen und Seite neu laden
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    rejectBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                    rejectBtn.classList.remove('btn-danger');
+                    rejectBtn.classList.add('btn-danger');
+                    
+                    setTimeout(() => {
+                        rejectBtn.disabled = false;
+                        rejectBtn.innerHTML = originalText;
+                        rejectBtn.classList.remove('btn-danger');
+                        rejectBtn.classList.add('btn-danger');
+                    }, 3000);
+                }
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                rejectBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                rejectBtn.classList.remove('btn-danger');
+                rejectBtn.classList.add('btn-danger');
+                
+                setTimeout(() => {
+                    rejectBtn.disabled = false;
+                    rejectBtn.innerHTML = originalText;
+                    rejectBtn.classList.remove('btn-danger');
+                    rejectBtn.classList.add('btn-danger');
+                }, 3000);
+            });
+        }
     </script>
     <style>
         .email-buttons {

@@ -241,7 +241,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 // E-Mail an Admins und Genehmiger mit aktivierten Benachrichtigungen senden
                 $admin_emails = [];
                 try {
-                    $stmt = $db->prepare("SELECT email FROM users WHERE user_role IN ('admin', 'approver') AND is_active = 1 AND email_notifications = 1");
+                    $stmt = $db->prepare("SELECT email FROM users WHERE is_active = 1 AND email_notifications = 1");
                     $stmt->execute();
                     $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
                     echo '<script>console.log("🔍 Admin-E-Mails gefunden:", ' . count($admin_emails) . ');</script>';
