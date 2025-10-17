@@ -80,7 +80,7 @@ try {
     
     // Prüfe ob alle Geräteträger existieren
     $placeholders = str_repeat('?,', count($traeger_ids) - 1) . '?';
-    $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE id IN ($placeholders) AND is_active = 1");
+    $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE id IN ($placeholders) AND status = 'Aktiv'");
     $stmt->execute($traeger_ids);
     $existing_traeger = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
