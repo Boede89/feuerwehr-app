@@ -220,18 +220,11 @@ require_once 'includes/functions.php';
             }
         }
         
-        /* Grid Layout für bessere mobile Darstellung */
+        /* Vertikales Layout für bessere mobile Darstellung */
         #traegerList {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            display: flex;
+            flex-direction: column;
             gap: 0.5rem;
-        }
-        
-        @media (max-width: 576px) {
-            #traegerList {
-                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-                gap: 0.25rem;
-            }
         }
     </style>
     
