@@ -18,9 +18,12 @@ try {
     
     // Lade Atemschutzeintrag
     $stmt = $db->prepare("
-        SELECT ae.*, u.first_name, u.last_name, u.email
+        SELECT ae.*, 
+               COALESCE(u.first_name, 'Unbekannt') as first_name, 
+               COALESCE(u.last_name, '') as last_name, 
+               COALESCE(u.email, '') as email
         FROM atemschutz_entries ae
-        JOIN users u ON ae.requester_id = u.id
+        LEFT JOIN users u ON ae.requester_id = u.id
         WHERE ae.id = ? AND ae.status = 'pending'
     ");
     $stmt->execute([$entry_id]);
@@ -114,6 +117,14 @@ try {
             
             $db->commit();
             echo json_encode(['success' => true, 'message' => 'Atemschutzeintrag wurde abgelehnt']);
+            
+        } elseif ($action === 'delete') {
+            // Atemschutzeintrag löschen
+            $stmt = $db->prepare("DELETE FROM atemschutz_entries WHERE id = ?");
+            $stmt->execute([$entry_id]);
+            
+            $db->commit();
+            echo json_encode(['success' => true, 'message' => 'Atemschutzeintrag wurde gelöscht']);
             
         } else {
             throw new Exception('Ungültige Aktion');

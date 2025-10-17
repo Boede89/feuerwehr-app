@@ -1470,7 +1470,7 @@ if ($can_atemschutz) {
             const detailsDiv = document.getElementById('atemschutzEntryDetails');
             detailsDiv.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Lade Details...</div>';
             
-            fetch('api/get-atemschutz-entry-details.php', {
+            fetch('../api/get-atemschutz-entry-details.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1534,7 +1534,7 @@ if ($can_atemschutz) {
             approveBtn.disabled = true;
             approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Genehmige...';
             
-            fetch('api/process-atemschutz-entry.php', {
+            fetch('../api/process-atemschutz-entry.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1589,23 +1589,22 @@ if ($can_atemschutz) {
             }
         }
         
-        // Atemschutzeintrag ablehnen (ohne Grund)
+        // Atemschutzeintrag ablehnen (Antrag wird gelöscht)
         function rejectAtemschutzEntry(entryId) {
-            fetch('api/process-atemschutz-entry.php', {
+            fetch('../api/process-atemschutz-entry.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    action: 'reject',
-                    entry_id: entryId,
-                    reason: 'Antrag abgelehnt'
+                    action: 'delete',
+                    entry_id: entryId
                 })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Atemschutzeintrag erfolgreich abgelehnt.');
+                    alert('Atemschutzeintrag erfolgreich gelöscht.');
                     location.reload();
                 } else {
                     alert('Fehler: ' + data.message);
@@ -1613,7 +1612,7 @@ if ($can_atemschutz) {
             })
             .catch(error => {
                 console.error('Fehler:', error);
-                alert('Fehler beim Ablehnen des Atemschutzeintrags.');
+                alert('Fehler beim Löschen des Atemschutzeintrags.');
             });
         }
         
@@ -1633,7 +1632,7 @@ if ($can_atemschutz) {
             rejectBtn.disabled = true;
             rejectBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Lehne ab...';
             
-            fetch('api/process-atemschutz-entry.php', {
+            fetch('../api/process-atemschutz-entry.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
