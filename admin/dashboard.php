@@ -382,9 +382,9 @@ if ($can_atemschutz) {
                         <a href="reservations.php" class="btn btn-primary">
                             <i class="fas fa-calendar-alt"></i> Alle Reservierungen verwalten
                         </a>
-                        <a href="settings-reservations.php" class="btn btn-outline-secondary">
-                            <i class="fas fa-cog"></i> E-Mail-Einstellungen
-                                                        </a>
+                        <a href="settings-vehicle-reservations.php" class="btn btn-outline-secondary">
+                            <i class="fas fa-cog"></i> Einstellungen
+                        </a>
                                                     </div>
                 </div>
             </div>
