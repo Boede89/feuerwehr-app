@@ -140,18 +140,18 @@ if ($can_atemschutz) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        .status-badge {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.375rem;
+        .bis-badge { 
+            padding: .25rem .5rem; 
+            border-radius: .375rem; 
+            display: inline-block; 
         }
-        .status-expired {
-            background-color: #dc3545;
-            color: white;
+        .bis-warn { 
+            background-color: #fff3cd; 
+            color: #664d03; 
         }
-        .status-warning {
-            background-color: #ffc107;
-            color: #000;
+        .bis-expired { 
+            background-color: #dc3545; 
+            color: #fff; 
         }
         .warning-item {
             background: #fff;
@@ -185,10 +185,6 @@ if ($can_atemschutz) {
             margin-bottom: 0.5rem;
             background: #f8f9fa;
             border-radius: 0.375rem;
-            border-left: 3px solid #dc3545;
-        }
-        .warning-reason.warning {
-            border-left-color: #ffc107;
         }
         .reason-label {
             font-size: 0.875rem;
@@ -207,7 +203,7 @@ if ($can_atemschutz) {
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
             <a class="navbar-brand" href="#">
                 <i class="fas fa-fire"></i> Feuerwehr App
@@ -231,30 +227,27 @@ if ($can_atemschutz) {
         </div>
 
         <!-- Navigation Buttons -->
-        <div class="row g-4 mb-4">
+        <div class="row g-2 mb-4">
             <?php if ($can_reservations): ?>
             <div class="col-12 col-md-4">
-                <a href="reservations.php" class="btn btn-primary w-100 py-3">
-                    <i class="fas fa-calendar fa-2x mb-2 d-block"></i>
-                    <span class="fs-5">Reservierungen</span>
+                <a href="reservations.php" class="btn btn-primary w-100">
+                    <i class="fas fa-calendar"></i> Reservierungen
                 </a>
             </div>
             <?php endif; ?>
             
             <?php if ($can_atemschutz): ?>
             <div class="col-12 col-md-4">
-                <a href="atemschutz.php" class="btn btn-outline-danger w-100 py-3">
-                    <i class="fas fa-mask fa-2x mb-2 d-block"></i>
-                    <span class="fs-5">Atemschutz</span>
+                <a href="atemschutz.php" class="btn btn-outline-danger w-100">
+                    <i class="fas fa-mask"></i> Atemschutz
                 </a>
             </div>
             <?php endif; ?>
             
             <?php if ($can_settings): ?>
             <div class="col-12 col-md-4">
-                <a href="settings.php" class="btn btn-outline-secondary w-100 py-3">
-                    <i class="fas fa-cog fa-2x mb-2 d-block"></i>
-                    <span class="fs-5">Einstellungen</span>
+                <a href="settings.php" class="btn btn-outline-secondary w-100">
+                    <i class="fas fa-cog"></i> Einstellungen
                 </a>
             </div>
             <?php endif; ?>
@@ -391,37 +384,61 @@ if ($can_atemschutz) {
                                         </div>
                                         <div class="warning-reasons">
                                             <?php if ($traeger['strecke_status'] !== 'OK'): ?>
-                                            <div class="warning-reason <?php echo $traeger['strecke_status'] === 'Abgelaufen' ? '' : 'warning'; ?>">
+                                            <div class="warning-reason">
                                                 <span class="reason-label">Strecke</span>
                                                 <div class="reason-details">
-                                                    <span class="reason-date"><?php echo date('d.m.Y', strtotime($traeger['strecke_am'])); ?></span>
-                                                    <span class="badge status-badge status-<?php echo $traeger['strecke_status'] === 'Abgelaufen' ? 'expired' : 'warning'; ?>">
-                                                        <?php echo $traeger['strecke_status']; ?>
-                                                    </span>
+                                                    <?php
+                                                    $streckeDate = new DateTime($traeger['strecke_am']);
+                                                    $now = new DateTime('today');
+                                                    $diff = (int)$now->diff($streckeDate)->format('%r%a');
+                                                    $cls = '';
+                                                    if ($diff < 0) { 
+                                                        $cls = 'bis-expired'; 
+                                                    } elseif ($diff <= $warn_days) { 
+                                                        $cls = 'bis-warn'; 
+                                                    }
+                                                    ?>
+                                                    <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['strecke_am'])); ?></span>
                                                 </div>
                                             </div>
                                             <?php endif; ?>
                                             
                                             <?php if ($traeger['g263_status'] !== 'OK'): ?>
-                                            <div class="warning-reason <?php echo $traeger['g263_status'] === 'Abgelaufen' ? '' : 'warning'; ?>">
+                                            <div class="warning-reason">
                                                 <span class="reason-label">G26.3</span>
                                                 <div class="reason-details">
-                                                    <span class="reason-date"><?php echo date('d.m.Y', strtotime($traeger['g263_am'])); ?></span>
-                                                    <span class="badge status-badge status-<?php echo $traeger['g263_status'] === 'Abgelaufen' ? 'expired' : 'warning'; ?>">
-                                                        <?php echo $traeger['g263_status']; ?>
-                                                    </span>
+                                                    <?php
+                                                    $g263Date = new DateTime($traeger['g263_am']);
+                                                    $now = new DateTime('today');
+                                                    $diff = (int)$now->diff($g263Date)->format('%r%a');
+                                                    $cls = '';
+                                                    if ($diff < 0) { 
+                                                        $cls = 'bis-expired'; 
+                                                    } elseif ($diff <= $warn_days) { 
+                                                        $cls = 'bis-warn'; 
+                                                    }
+                                                    ?>
+                                                    <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['g263_am'])); ?></span>
                                                 </div>
                                             </div>
                                             <?php endif; ?>
                                             
                                             <?php if ($traeger['uebung_status'] !== 'OK'): ?>
-                                            <div class="warning-reason <?php echo $traeger['uebung_status'] === 'Abgelaufen' ? '' : 'warning'; ?>">
+                                            <div class="warning-reason">
                                                 <span class="reason-label">Übung/Einsatz</span>
                                                 <div class="reason-details">
-                                                    <span class="reason-date"><?php echo date('d.m.Y', strtotime($traeger['uebung_am'])); ?></span>
-                                                    <span class="badge status-badge status-<?php echo $traeger['uebung_status'] === 'Abgelaufen' ? 'expired' : 'warning'; ?>">
-                                                        <?php echo $traeger['uebung_status']; ?>
-                                                    </span>
+                                                    <?php
+                                                    $uebungDate = new DateTime($traeger['uebung_am']);
+                                                    $now = new DateTime('today');
+                                                    $diff = (int)$now->diff($uebungDate)->format('%r%a');
+                                                    $cls = '';
+                                                    if ($diff < 0) { 
+                                                        $cls = 'bis-expired'; 
+                                                    } elseif ($diff <= $warn_days) { 
+                                                        $cls = 'bis-warn'; 
+                                                    }
+                                                    ?>
+                                                    <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['uebung_am'])); ?></span>
                                                 </div>
                                             </div>
                                             <?php endif; ?>
