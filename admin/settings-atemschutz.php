@@ -115,20 +115,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Speichern der Warnschwelle fehlgeschlagen: ' . htmlspecialchars($e->getMessage());
         }
         
+        // Debug: POST-Daten loggen
+        error_log("E-Mail-Vorlagen POST-Daten: " . print_r($_POST['email_templates'] ?? 'NICHT GESETZT', true));
+        
         // E-Mail-Vorlagen speichern
-        if (isset($_POST['email_templates'])) {
+        if (isset($_POST['email_templates']) && is_array($_POST['email_templates'])) {
             try {
                 $stmt = $db->prepare("UPDATE email_templates SET subject = ?, body = ? WHERE template_key = ?");
+                $updatedCount = 0;
+                
                 foreach ($_POST['email_templates'] as $templateKey => $templateData) {
-                    $stmt->execute([
-                        $templateData['subject'] ?? '',
-                        $templateData['body'] ?? '',
-                        $templateKey
-                    ]);
+                    if (is_array($templateData) && isset($templateData['subject']) && isset($templateData['body'])) {
+                        $subject = trim($templateData['subject']);
+                        $body = trim($templateData['body']);
+                        
+                        error_log("Speichere Template '$templateKey': Subject='$subject', Body='" . substr($body, 0, 50) . "...'");
+                        
+                        $result = $stmt->execute([$subject, $body, $templateKey]);
+                        
+                        if ($result) {
+                            $updatedCount++;
+                            error_log("Template '$templateKey' erfolgreich gespeichert");
+                        } else {
+                            error_log("Template '$templateKey' Speicherung fehlgeschlagen");
+                        }
+                    } else {
+                        error_log("Template '$templateKey' hat ungültige Daten: " . print_r($templateData, true));
+                    }
                 }
-                $message = 'Einstellungen und E-Mail-Vorlagen gespeichert.';
+                
+                if ($updatedCount > 0) {
+                    $message = "Einstellungen und $updatedCount E-Mail-Vorlagen gespeichert.";
+                } else {
+                    $error = 'Keine E-Mail-Vorlagen konnten gespeichert werden.';
+                }
             } catch (Exception $e) {
                 $error = 'Speichern der E-Mail-Vorlagen fehlgeschlagen: ' . htmlspecialchars($e->getMessage());
+                error_log("E-Mail-Vorlagen Speicherfehler: " . $e->getMessage());
             }
         } else {
             $message = 'Einstellung gespeichert.';
