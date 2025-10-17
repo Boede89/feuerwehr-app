@@ -15,9 +15,8 @@ try {
     $db->exec("
         CREATE TABLE IF NOT EXISTS atemschutz_entries (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            entry_type ENUM('einsatz_uebung', 'atemschutzstrecke', 'g263') NOT NULL,
+            entry_type ENUM('einsatz', 'uebung', 'atemschutzstrecke', 'g263') NOT NULL,
             entry_date DATE NOT NULL,
-            reason TEXT NOT NULL,
             requester_id INT NOT NULL,
             status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
             rejection_reason TEXT NULL,
@@ -49,14 +48,13 @@ try {
     // Formulardaten validieren
     $entry_type = $_POST['entry_type'] ?? '';
     $entry_date = $_POST['entry_date'] ?? '';
-    $reason = trim($_POST['reason'] ?? '');
     $traeger_ids = $_POST['traeger'] ?? [];
     
-    if (empty($entry_type) || empty($entry_date) || empty($reason) || empty($traeger_ids)) {
+    if (empty($entry_type) || empty($entry_date) || empty($traeger_ids)) {
         throw new Exception('Alle Felder müssen ausgefüllt werden');
     }
     
-    if (!in_array($entry_type, ['einsatz_uebung', 'atemschutzstrecke', 'g263'])) {
+    if (!in_array($entry_type, ['einsatz', 'uebung', 'atemschutzstrecke', 'g263'])) {
         throw new Exception('Ungültiger Eintragstyp');
     }
     
@@ -90,13 +88,12 @@ try {
         // Erstelle Atemschutzeintrag-Antrag
         $stmt = $db->prepare("
             INSERT INTO atemschutz_entries 
-            (entry_type, entry_date, reason, requester_id, status, created_at) 
-            VALUES (?, ?, ?, ?, 'pending', NOW())
+            (entry_type, entry_date, requester_id, status, created_at) 
+            VALUES (?, ?, ?, 'pending', NOW())
         ");
         $stmt->execute([
             $entry_type,
             $entry_date,
-            $reason,
             $_SESSION['user_id']
         ]);
         
@@ -126,13 +123,14 @@ try {
         if (!empty($admins)) {
             $requester_name = $_SESSION['first_name'] . ' ' . $_SESSION['last_name'];
             $entry_type_names = [
-                'einsatz_uebung' => 'Einsatz/Übung',
+                'einsatz' => 'Einsatz',
+                'uebung' => 'Übung',
                 'atemschutzstrecke' => 'Atemschutzstrecke',
                 'g263' => 'G26.3'
             ];
             
             $subject = "🔔 Neuer Atemschutzeintrag-Antrag - " . $entry_type_names[$entry_type];
-            $message = createAtemschutzEntryEmailHTML($entry_type, $entry_date, $reason, $requester_name, $traeger_ids);
+            $message = createAtemschutzEntryEmailHTML($entry_type, $entry_date, $requester_name, $traeger_ids);
             
             foreach ($admins as $admin) {
                 send_email($admin['email'], $subject, $message);
@@ -165,11 +163,12 @@ try {
 }
 
 // HTML-E-Mail für Atemschutzeintrag-Antrag erstellen
-function createAtemschutzEntryEmailHTML($entry_type, $entry_date, $reason, $requester_name, $traeger_ids) {
+function createAtemschutzEntryEmailHTML($entry_type, $entry_date, $requester_name, $traeger_ids) {
     global $db;
     
     $entry_type_names = [
-        'einsatz_uebung' => 'Einsatz/Übung',
+        'einsatz' => 'Einsatz',
+        'uebung' => 'Übung',
         'atemschutzstrecke' => 'Atemschutzstrecke',
         'g263' => 'G26.3'
     ];
@@ -245,10 +244,6 @@ function createAtemschutzEntryEmailHTML($entry_type, $entry_date, $reason, $requ
                     <div class="detail-row">
                         <div class="detail-label">👤 Antragsteller:</div>
                         <div class="detail-value">' . htmlspecialchars($requester_name) . '</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">📝 Grund:</div>
-                        <div class="detail-value">' . htmlspecialchars($reason) . '</div>
                     </div>
                 </div>
                 

@@ -122,7 +122,8 @@ require_once 'includes/functions.php';
                                 </label>
                                 <select class="form-select" id="entryType" name="entry_type" required>
                                     <option value="">Bitte wählen...</option>
-                                    <option value="einsatz_uebung">Einsatz/Übung</option>
+                                    <option value="einsatz">Einsatz</option>
+                                    <option value="uebung">Übung</option>
                                     <option value="atemschutzstrecke">Atemschutzstrecke</option>
                                     <option value="g263">G26.3</option>
                                 </select>
@@ -146,13 +147,6 @@ require_once 'includes/functions.php';
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="reason" class="form-label">
-                                <i class="fas fa-clipboard-list me-1"></i>Grund
-                            </label>
-                            <textarea class="form-control" id="reason" name="reason" rows="3" placeholder="Grund für den Atemschutzeintrag eingeben..." required></textarea>
                         </div>
                     </form>
                 </div>
@@ -207,7 +201,6 @@ require_once 'includes/functions.php';
                                     <input class="form-check-input" type="checkbox" value="${traeger.id}" id="traeger_${traeger.id}" name="traeger[]">
                                     <label class="form-check-label" for="traeger_${traeger.id}">
                                         <strong>${traeger.first_name} ${traeger.last_name}</strong>
-                                        <small class="text-muted d-block">${traeger.status}</small>
                                     </label>
                                 </div>
                             `;
@@ -227,6 +220,13 @@ require_once 'includes/functions.php';
         document.getElementById('submitAtemschutzBtn').addEventListener('click', function() {
             const form = document.getElementById('atemschutzForm');
             const formData = new FormData(form);
+            
+            // Prüfe ob Eintragstyp ausgewählt wurde
+            const entryType = document.getElementById('entryType').value;
+            if (!entryType) {
+                alert('Bitte wählen Sie einen Eintragstyp aus.');
+                return;
+            }
             
             // Prüfe ob mindestens ein Geräteträger ausgewählt wurde
             const selectedTraeger = document.querySelectorAll('input[name="traeger[]"]:checked');
