@@ -379,10 +379,10 @@ try {
                                             </div>
                                             
                                             <div class="d-grid gap-2">
-                                                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
+                                                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
                                                     <i class="fas fa-eye"></i> Details
                                                 </button>
-                                                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $reservation['id']; ?>">
+                                                <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $reservation['id']; ?>" style="min-height: 38px; min-width: 100px;">
                                                     <i class="fas fa-trash"></i> Löschen
                                                 </button>
                                             </div>
@@ -550,7 +550,59 @@ try {
         </div>
     <?php endforeach; ?>
 
-    <!-- Lösch-Modals entfernt: nur noch 'Komplett löschen' vorhanden -->
+    <!-- Lösch-Modals für mobile Ansicht -->
+    <?php foreach ($reservations as $reservation): ?>
+    <div class="modal fade" id="deleteModal<?php echo $reservation['id']; ?>" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Reservierung löschen
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Achtung:</strong> Diese Aktion kann nicht rückgängig gemacht werden!
+                    </div>
+                    
+                    <p>Sind Sie sicher, dass Sie diese Reservierung löschen möchten?</p>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="fas fa-truck text-primary"></i>
+                                <?php echo htmlspecialchars($reservation['vehicle_name']); ?>
+                            </h6>
+                            <p class="card-text mb-1">
+                                <strong>Antragsteller:</strong> <?php echo htmlspecialchars($reservation['requester_name']); ?>
+                            </p>
+                            <p class="card-text mb-1">
+                                <strong>Datum:</strong> <?php echo format_datetime($reservation['start_datetime'], 'd.m.Y H:i'); ?>
+                            </p>
+                            <p class="card-text mb-0">
+                                <strong>Grund:</strong> <?php echo htmlspecialchars($reservation['reason']); ?>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Abbrechen
+                    </button>
+                    <form method="POST" class="d-inline">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash me-1"></i>Löschen
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endforeach; ?>
 
     <!-- Modal: Termine übertragen -->
     <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
