@@ -420,16 +420,19 @@ if ($can_atemschutz) {
                                         </div>
                                         <div class="warning-reasons">
                                             <?php
-                                            // Prüfe und zeige nur die problematischen Zertifikate
                                             $now = new DateTime('today');
                                             
-                                            // Strecke prüfen
+                                            // Strecke anzeigen
                                             $streckeAm = new DateTime($traeger['strecke_am']);
                                             $streckeBis = clone $streckeAm;
                                             $streckeBis->add(new DateInterval('P1Y'));
                                             $diff = (int)$now->diff($streckeBis)->format('%r%a');
-                                            if ($diff < 0 || $diff <= $warn_days) {
-                                                $cls = $diff < 0 ? 'bis-expired' : 'bis-warn';
+                                            $cls = '';
+                                            if ($diff < 0) {
+                                                $cls = 'bis-expired';
+                                            } elseif ($diff <= $warn_days) {
+                                                $cls = 'bis-warn';
+                                            }
                                             ?>
                                             <div class="warning-reason">
                                                 <span class="reason-label">Strecke</span>
@@ -437,10 +440,9 @@ if ($can_atemschutz) {
                                                     <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['strecke_am'])); ?></span>
                                                 </div>
                                             </div>
-                                            <?php } ?>
                                             
                                             <?php
-                                            // G26.3 prüfen
+                                            // G26.3 anzeigen
                                             $g263Am = new DateTime($traeger['g263_am']);
                                             $birthdate = new DateTime($traeger['birthdate']);
                                             $age = $birthdate->diff(new DateTime())->y;
@@ -453,8 +455,12 @@ if ($can_atemschutz) {
                                             }
                                             
                                             $diff = (int)$now->diff($g263Bis)->format('%r%a');
-                                            if ($diff < 0 || $diff <= $warn_days) {
-                                                $cls = $diff < 0 ? 'bis-expired' : 'bis-warn';
+                                            $cls = '';
+                                            if ($diff < 0) {
+                                                $cls = 'bis-expired';
+                                            } elseif ($diff <= $warn_days) {
+                                                $cls = 'bis-warn';
+                                            }
                                             ?>
                                             <div class="warning-reason">
                                                 <span class="reason-label">G26.3</span>
@@ -462,17 +468,20 @@ if ($can_atemschutz) {
                                                     <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['g263_am'])); ?></span>
                                                 </div>
                                             </div>
-                                            <?php } ?>
                                             
                                             <?php
-                                            // Übung prüfen
+                                            // Übung anzeigen
                                             $uebungAm = new DateTime($traeger['uebung_am']);
                                             $uebungBis = clone $uebungAm;
                                             $uebungBis->add(new DateInterval('P1Y'));
                                             
                                             $diff = (int)$now->diff($uebungBis)->format('%r%a');
-                                            if ($diff < 0 || $diff <= $warn_days) {
-                                                $cls = $diff < 0 ? 'bis-expired' : 'bis-warn';
+                                            $cls = '';
+                                            if ($diff < 0) {
+                                                $cls = 'bis-expired';
+                                            } elseif ($diff <= $warn_days) {
+                                                $cls = 'bis-warn';
+                                            }
                                             ?>
                                             <div class="warning-reason">
                                                 <span class="reason-label">Übung/Einsatz</span>
@@ -480,7 +489,6 @@ if ($can_atemschutz) {
                                                     <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['uebung_am'])); ?></span>
                                                 </div>
                                             </div>
-                                            <?php } ?>
                                         </div>
                                     </div>
                                 </div>
