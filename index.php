@@ -139,6 +139,7 @@ require_once 'includes/functions.php';
                         <div class="mb-3">
                             <label class="form-label">
                                 <i class="fas fa-users me-1"></i>Atemschutzgeräteträger
+                                <span id="selectedCount" class="badge bg-secondary ms-2">0 ausgewählt</span>
                             </label>
                             <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
                                 <div id="traegerList">
@@ -170,6 +171,70 @@ require_once 'includes/functions.php';
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
+    <style>
+        .traeger-card {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .traeger-card:hover .card {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .traeger-card .card {
+            border: 2px solid #e9ecef;
+            transition: all 0.2s ease;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .traeger-card .card.border-primary {
+            border-color: #0d6efd !important;
+            background-color: #0d6efd !important;
+            color: white !important;
+        }
+        
+        .traeger-card .card.border-light {
+            border-color: #e9ecef !important;
+            background-color: white !important;
+            color: #212529 !important;
+        }
+        
+        .traeger-card .card-title {
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+        
+        /* Mobile Optimierung */
+        @media (max-width: 768px) {
+            .traeger-card .card {
+                min-height: 50px;
+                padding: 0.75rem;
+            }
+            
+            .traeger-card .card-title {
+                font-size: 0.9rem;
+            }
+        }
+        
+        /* Grid Layout für bessere mobile Darstellung */
+        #traegerList {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 0.5rem;
+        }
+        
+        @media (max-width: 576px) {
+            #traegerList {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+                gap: 0.25rem;
+            }
+        }
+    </style>
+    
     <script>
         // Heutiges Datum setzen
         document.addEventListener('DOMContentLoaded', function() {
@@ -185,6 +250,45 @@ require_once 'includes/functions.php';
             loadTraeger();
         });
         
+        // Globale Variable für ausgewählte Geräteträger
+        window.selectedTraeger = new Set();
+        
+        // Geräteträger umschalten
+        function toggleTraeger(traegerId) {
+            const card = document.querySelector(`[data-traeger-id="${traegerId}"]`);
+            const cardBody = card.querySelector('.card');
+            
+            if (window.selectedTraeger.has(traegerId)) {
+                // Geräteträger abwählen
+                window.selectedTraeger.delete(traegerId);
+                cardBody.classList.remove('border-primary', 'bg-primary', 'text-white');
+                cardBody.classList.add('border-light');
+            } else {
+                // Geräteträger auswählen
+                window.selectedTraeger.add(traegerId);
+                cardBody.classList.remove('border-light');
+                cardBody.classList.add('border-primary', 'bg-primary', 'text-white');
+            }
+            
+            // Zähler aktualisieren
+            updateSelectedCount();
+        }
+        
+        // Zähler für ausgewählte Geräteträger aktualisieren
+        function updateSelectedCount() {
+            const count = window.selectedTraeger.size;
+            const countElement = document.getElementById('selectedCount');
+            countElement.textContent = `${count} ausgewählt`;
+            
+            if (count > 0) {
+                countElement.classList.remove('bg-secondary');
+                countElement.classList.add('bg-primary');
+            } else {
+                countElement.classList.remove('bg-primary');
+                countElement.classList.add('bg-secondary');
+            }
+        }
+        
         // Geräteträger laden
         function loadTraeger() {
             const traegerList = document.getElementById('traegerList');
@@ -197,11 +301,12 @@ require_once 'includes/functions.php';
                         let html = '';
                         data.traeger.forEach(traeger => {
                             html += `
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="checkbox" value="${traeger.id}" id="traeger_${traeger.id}" name="traeger[]">
-                                    <label class="form-check-label" for="traeger_${traeger.id}">
-                                        <strong>${traeger.first_name} ${traeger.last_name}</strong>
-                                    </label>
+                                <div class="traeger-card mb-2" data-traeger-id="${traeger.id}" onclick="toggleTraeger(${traeger.id})">
+                                    <div class="card h-100">
+                                        <div class="card-body p-3 text-center">
+                                            <h6 class="card-title mb-0">${traeger.first_name} ${traeger.last_name}</h6>
+                                        </div>
+                                    </div>
                                 </div>
                             `;
                         });
@@ -221,6 +326,11 @@ require_once 'includes/functions.php';
             const form = document.getElementById('atemschutzForm');
             const formData = new FormData(form);
             
+            // Füge ausgewählte Geräteträger hinzu
+            window.selectedTraeger.forEach(traegerId => {
+                formData.append('traeger[]', traegerId);
+            });
+            
             // Prüfe ob Eintragstyp ausgewählt wurde
             const entryType = document.getElementById('entryType').value;
             if (!entryType) {
@@ -229,8 +339,7 @@ require_once 'includes/functions.php';
             }
             
             // Prüfe ob mindestens ein Geräteträger ausgewählt wurde
-            const selectedTraeger = document.querySelectorAll('input[name="traeger[]"]:checked');
-            if (selectedTraeger.length === 0) {
+            if (window.selectedTraeger.size === 0) {
                 alert('Bitte wählen Sie mindestens einen Atemschutzgeräteträger aus.');
                 return;
             }
@@ -255,6 +364,15 @@ require_once 'includes/functions.php';
                     // Formular zurücksetzen
                     form.reset();
                     document.getElementById('entryDate').value = new Date().toISOString().split('T')[0];
+                    // Auswahl zurücksetzen
+                    window.selectedTraeger.clear();
+                    // Karten zurücksetzen
+                    document.querySelectorAll('.traeger-card .card').forEach(card => {
+                        card.classList.remove('border-primary', 'bg-primary', 'text-white');
+                        card.classList.add('border-light');
+                    });
+                    // Zähler zurücksetzen
+                    updateSelectedCount();
                 } else {
                     alert('Fehler: ' + data.message);
                 }
