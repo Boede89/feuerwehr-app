@@ -17,10 +17,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $traegerId = (int)($_POST['traeger_id'] ?? 0);
-$email = trim($_POST['email'] ?? '');
 $certificates = json_decode($_POST['certificates'] ?? '[]', true);
+$urgency = $_POST['urgency'] ?? 'warnung';
 
-if (!$traegerId || !$email || empty($certificates)) {
+if (!$traegerId || empty($certificates)) {
     echo json_encode(['success' => false, 'message' => 'Ungültige Parameter']);
     exit;
 }
@@ -35,10 +35,6 @@ try {
         echo json_encode(['success' => false, 'message' => 'Geräteträger nicht gefunden']);
         exit;
     }
-    
-    // E-Mail-Adresse aktualisieren
-    $stmt = $db->prepare("UPDATE atemschutz_traeger SET email = ? WHERE id = ?");
-    $stmt->execute([$email, $traegerId]);
     
     // E-Mail-Vorlagen für alle problematischen Zertifikate laden
     $templates = [];
@@ -66,7 +62,7 @@ try {
         $body = $template['body'];
     } else {
         // Mehrere Vorlagen kombinieren
-        $hasExpired = $certificates[0]['urgency'] === 'abgelaufen';
+        $hasExpired = $urgency === 'abgelaufen';
         $subjectPrefix = $hasExpired ? 'ACHTUNG: Mehrere Zertifikate sind abgelaufen' : 'Erinnerung: Mehrere Zertifikate laufen bald ab';
         
         $subject = $subjectPrefix;
@@ -121,47 +117,11 @@ try {
         $body
     );
     
-    // E-Mail senden (hier würde normalerweise PHPMailer oder ähnliches verwendet werden)
-    // Für Demo-Zwecke simulieren wir den Versand
-    $headers = [
-        'From: ' . ($_SESSION['email'] ?? 'noreply@feuerwehr.local'),
-        'Reply-To: ' . ($_SESSION['email'] ?? 'noreply@feuerwehr.local'),
-        'Content-Type: text/plain; charset=UTF-8',
-        'X-Mailer: Feuerwehr App'
-    ];
-    
-    $success = mail($email, $subject, $body, implode("\r\n", $headers));
-    
-    if ($success) {
-        // E-Mail-Versand in der Datenbank protokollieren
-        try {
-            $db->exec("CREATE TABLE IF NOT EXISTS email_log (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                traeger_id INT NOT NULL,
-                template_keys TEXT NOT NULL,
-                recipient_email VARCHAR(255) NOT NULL,
-                subject VARCHAR(200) NOT NULL,
-                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                sent_by INT NOT NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-            
-            $templateKeys = implode(',', array_map(function($cert) {
-                return $cert['type'] . '_' . $cert['urgency'];
-            }, $certificates));
-            
-            $stmt = $db->prepare("INSERT INTO email_log (traeger_id, template_keys, recipient_email, subject, sent_by) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$traegerId, $templateKeys, $email, $subject, $_SESSION['user_id']]);
-        } catch (Exception $e) {
-            // Logging-Fehler ignorieren
-        }
-        
-        echo json_encode([
-            'success' => true, 
-            'message' => 'E-Mail erfolgreich gesendet an ' . $email
-        ]);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'E-Mail konnte nicht gesendet werden']);
-    }
+    echo json_encode([
+        'success' => true,
+        'subject' => $subject,
+        'body' => $body
+    ]);
     
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => 'Fehler: ' . $e->getMessage()]);
