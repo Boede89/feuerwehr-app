@@ -21,20 +21,28 @@ try {
             id INT AUTO_INCREMENT PRIMARY KEY,
             entry_type ENUM('einsatz', 'uebung', 'atemschutzstrecke', 'g263') NOT NULL,
             entry_date DATE NOT NULL,
-            requester_id INT NOT NULL,
+            requester_id INT NULL,
             status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
             rejection_reason TEXT NULL,
             approved_by INT NULL,
             approved_at TIMESTAMP NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE SET NULL,
             FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
     
     // Stelle sicher, dass die ENUM-Werte korrekt sind
     $db->exec("ALTER TABLE atemschutz_entries MODIFY COLUMN entry_type ENUM('einsatz', 'uebung', 'atemschutzstrecke', 'g263') NOT NULL");
+    
+    // Stelle sicher, dass requester_id NULL sein kann
+    try {
+        $db->exec("ALTER TABLE atemschutz_entries MODIFY COLUMN requester_id INT NULL");
+        error_log("Create Atemschutz Entry - requester_id auf NULL geändert");
+    } catch (Exception $e) {
+        error_log("Create Atemschutz Entry - requester_id Änderung: " . $e->getMessage());
+    }
     
     // Entferne die reason Spalte falls sie existiert
     try {
