@@ -183,9 +183,18 @@ try {
         if (!empty($conflict_ids)) {
             // Storniere konfliktierende Reservierungen
             foreach ($conflict_ids as $conflict_id) {
-                // Storniere Reservierung (verwende 'rejected' als Status, da 'cancelled' möglicherweise nicht existiert)
-                $stmt = $db->prepare("UPDATE reservations SET status = 'rejected', approved_by = ?, approved_at = NOW() WHERE id = ?");
-                $stmt->execute([$_SESSION['user_id'], $conflict_id]);
+                // Storniere Reservierung - versuche zuerst 'cancelled', fallback zu 'rejected'
+                try {
+                    $stmt = $db->prepare("UPDATE reservations SET status = 'cancelled', approved_by = ?, approved_at = NOW() WHERE id = ?");
+                    $stmt->execute([$_SESSION['user_id'], $conflict_id]);
+                    error_log("Reservierung #$conflict_id auf 'cancelled' gesetzt");
+                } catch (Exception $e) {
+                    // Fallback zu 'rejected' falls 'cancelled' nicht existiert
+                    error_log("Status 'cancelled' nicht verfügbar, verwende 'rejected': " . $e->getMessage());
+                    $stmt = $db->prepare("UPDATE reservations SET status = 'rejected', approved_by = ?, approved_at = NOW() WHERE id = ?");
+                    $stmt->execute([$_SESSION['user_id'], $conflict_id]);
+                    error_log("Reservierung #$conflict_id auf 'rejected' gesetzt (Fallback)");
+                }
                 
                 // Lade stornierte Reservierung für E-Mail
                 $stmt = $db->prepare("SELECT * FROM reservations WHERE id = ?");

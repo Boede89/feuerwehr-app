@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         $stmt->execute([$reservation_id]);
         $reservation = $stmt->fetch();
         
-        if ($reservation && in_array($reservation['status'], ['approved', 'rejected'])) {
+        if ($reservation && in_array($reservation['status'], ['approved', 'rejected', 'cancelled'])) {
             // Hole Google Calendar Event ID vor dem Löschen
             $stmt = $db->prepare("SELECT google_event_id, start_datetime, end_datetime, title FROM calendar_events WHERE reservation_id = ?");
             $stmt->execute([$reservation_id]);
@@ -229,7 +229,7 @@ try {
         FROM reservations r 
         JOIN vehicles v ON r.vehicle_id = v.id 
         LEFT JOIN users u ON r.approved_by = u.id
-        WHERE r.status IN ('approved', 'rejected')
+        WHERE r.status IN ('approved', 'rejected', 'cancelled')
         ORDER BY r.created_at DESC
     ";
     
@@ -346,8 +346,16 @@ try {
                                                     <i class="fas fa-truck text-primary"></i>
                                                     <?php echo htmlspecialchars($reservation['vehicle_name']); ?>
                                                 </h6>
-                                                <span class="badge <?php echo $reservation['status'] === 'approved' ? 'bg-success' : 'bg-danger'; ?>">
-                                                    <?php echo $reservation['status'] === 'approved' ? 'Genehmigt' : 'Abgelehnt'; ?>
+                                                <span class="badge <?php 
+                                                    if ($reservation['status'] === 'approved') echo 'bg-success';
+                                                    elseif ($reservation['status'] === 'cancelled') echo 'bg-warning text-dark';
+                                                    else echo 'bg-danger';
+                                                ?>">
+                                                    <?php 
+                                                    if ($reservation['status'] === 'approved') echo 'Genehmigt';
+                                                    elseif ($reservation['status'] === 'cancelled') echo 'Storniert';
+                                                    else echo 'Abgelehnt';
+                                                    ?>
                                                 </span>
                                             </div>
                                             
@@ -421,8 +429,16 @@ try {
                                                         </span>
                                                     </td>
                                                     <td>
-                                                        <span class="badge <?php echo $reservation['status'] === 'approved' ? 'bg-success' : 'bg-danger'; ?>">
-                                                            <?php echo $reservation['status'] === 'approved' ? 'Genehmigt' : 'Abgelehnt'; ?>
+                                                        <span class="badge <?php 
+                                                            if ($reservation['status'] === 'approved') echo 'bg-success';
+                                                            elseif ($reservation['status'] === 'cancelled') echo 'bg-warning text-dark';
+                                                            else echo 'bg-danger';
+                                                        ?>">
+                                                            <?php 
+                                                            if ($reservation['status'] === 'approved') echo 'Genehmigt';
+                                                            elseif ($reservation['status'] === 'cancelled') echo 'Storniert';
+                                                            else echo 'Abgelehnt';
+                                                            ?>
                                                         </span>
                                                     </td>
                                                     <td>
@@ -492,8 +508,16 @@ try {
                                 
                                 <h6><i class="fas fa-info-circle text-secondary"></i> Status</h6>
                                 <p>
-                                    <span class="badge <?php echo $reservation['status'] === 'approved' ? 'bg-success' : 'bg-danger'; ?>">
-                                        <?php echo $reservation['status'] === 'approved' ? 'Genehmigt' : 'Abgelehnt'; ?>
+                                    <span class="badge <?php 
+                                        if ($reservation['status'] === 'approved') echo 'bg-success';
+                                        elseif ($reservation['status'] === 'cancelled') echo 'bg-warning text-dark';
+                                        else echo 'bg-danger';
+                                    ?>">
+                                        <?php 
+                                        if ($reservation['status'] === 'approved') echo 'Genehmigt';
+                                        elseif ($reservation['status'] === 'cancelled') echo 'Storniert';
+                                        else echo 'Abgelehnt';
+                                        ?>
                                     </span>
                                 </p>
                                 
@@ -508,8 +532,16 @@ try {
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <span class="badge <?php echo $reservation['status'] === 'approved' ? 'bg-success' : 'bg-danger'; ?> fs-6">
-                            <?php echo $reservation['status'] === 'approved' ? 'Genehmigt' : 'Abgelehnt'; ?>
+                        <span class="badge <?php 
+                            if ($reservation['status'] === 'approved') echo 'bg-success';
+                            elseif ($reservation['status'] === 'cancelled') echo 'bg-warning text-dark';
+                            else echo 'bg-danger';
+                        ?> fs-6">
+                            <?php 
+                            if ($reservation['status'] === 'approved') echo 'Genehmigt';
+                            elseif ($reservation['status'] === 'cancelled') echo 'Storniert';
+                            else echo 'Abgelehnt';
+                            ?>
                         </span>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
                     </div>
