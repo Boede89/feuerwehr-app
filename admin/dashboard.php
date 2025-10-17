@@ -1525,8 +1525,8 @@ if ($can_atemschutz) {
         }
         
         // Atemschutzeintrag genehmigen
-        function approveAtemschutzEntry() {
-            if (!window.currentAtemschutzEntryId) return;
+        function approveAtemschutzEntry(entryId) {
+            if (!entryId) return;
             
             const approveBtn = document.getElementById('approveAtemschutzBtn');
             const originalText = approveBtn.innerHTML;
@@ -1541,7 +1541,7 @@ if ($can_atemschutz) {
                 },
                 body: JSON.stringify({
                     action: 'approve',
-                    entry_id: window.currentAtemschutzEntryId
+                    entry_id: entryId
                 })
             })
             .then(response => response.json())
@@ -1583,9 +1583,38 @@ if ($can_atemschutz) {
         }
         
         // Atemschutzeintrag-Ablehnung Modal anzeigen
-        function showAtemschutzRejectModal() {
-            const modal = new bootstrap.Modal(document.getElementById('atemschutzRejectModal'));
-            modal.show();
+        function showAtemschutzRejectModal(entryId) {
+            if (confirm('Möchten Sie diesen Atemschutzeintrag wirklich ablehnen?')) {
+                rejectAtemschutzEntry(entryId);
+            }
+        }
+        
+        // Atemschutzeintrag ablehnen (ohne Grund)
+        function rejectAtemschutzEntry(entryId) {
+            fetch('api/process-atemschutz-entry.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'reject',
+                    entry_id: entryId,
+                    reason: 'Antrag abgelehnt'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Atemschutzeintrag erfolgreich abgelehnt.');
+                    location.reload();
+                } else {
+                    alert('Fehler: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                alert('Fehler beim Ablehnen des Atemschutzeintrags.');
+            });
         }
         
         // Atemschutzeintrag ablehnen bestätigen
