@@ -309,11 +309,47 @@ if ($can_atemschutz) {
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times me-1"></i>Schließen
                     </button>
-                    <button type="button" class="btn btn-danger" id="rejectBtn" onclick="rejectReservation()">
+                    <button type="button" class="btn btn-danger" id="rejectBtn" onclick="showRejectModal()">
                         <i class="fas fa-times me-1"></i>Ablehnen
                     </button>
                     <button type="button" class="btn btn-success" id="approveBtn" onclick="approveReservation()">
                         <i class="fas fa-check me-1"></i>Genehmigen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ablehnungsgrund Modal -->
+    <div class="modal fade" id="rejectReasonModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-times-circle me-2"></i>Reservierung ablehnen
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Hinweis:</strong> Bitte geben Sie einen Grund für die Ablehnung an. Dieser wird dem Antragsteller per E-Mail mitgeteilt.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="rejectReason" class="form-label">
+                            <i class="fas fa-comment me-1"></i>Ablehnungsgrund
+                        </label>
+                        <textarea class="form-control" id="rejectReason" rows="4" placeholder="Grund für die Ablehnung eingeben...">Das gewünschte Fahrzeug ist zu diesem Zeitpunkt bereits reserviert.</textarea>
+                        <div class="form-text">Der Grund wird dem Antragsteller per E-Mail übermittelt.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Abbrechen
+                    </button>
+                    <button type="button" class="btn btn-danger" id="confirmRejectBtn" onclick="confirmReject()">
+                        <i class="fas fa-times me-1"></i>Ablehnen
                     </button>
                 </div>
             </div>
@@ -478,8 +514,8 @@ if ($can_atemschutz) {
                     <div class="card-footer">
                         <a href="reservations.php" class="btn btn-primary">
                             <i class="fas fa-calendar-alt"></i> Alle Reservierungen verwalten
-                        </a>
-                    </div>
+                                                        </a>
+                                                    </div>
                 </div>
             </div>
                         </div>
@@ -976,21 +1012,34 @@ if ($can_atemschutz) {
             });
         }
         
-        // Reservierung ablehnen
-        function rejectReservation() {
+        // Ablehnungsmodal anzeigen
+        function showRejectModal() {
+            // Details Modal schließen
+            const detailsModal = bootstrap.Modal.getInstance(document.getElementById('reservationDetailsModal'));
+            if (detailsModal) {
+                detailsModal.hide();
+            }
+            
+            // Ablehnungsmodal anzeigen
+            const rejectModal = new bootstrap.Modal(document.getElementById('rejectReasonModal'));
+            rejectModal.show();
+        }
+        
+        // Reservierung ablehnen (bestätigen)
+        function confirmReject() {
             if (!window.currentReservationId) return;
             
-            const reason = prompt('Bitte geben Sie einen Grund für die Ablehnung ein:');
-            if (!reason || reason.trim() === '') {
+            const reason = document.getElementById('rejectReason').value.trim();
+            if (!reason) {
                 alert('Bitte geben Sie einen Grund für die Ablehnung ein.');
                 return;
             }
             
-            const rejectBtn = document.getElementById('rejectBtn');
-            const originalText = rejectBtn.innerHTML;
+            const confirmBtn = document.getElementById('confirmRejectBtn');
+            const originalText = confirmBtn.innerHTML;
             
-            rejectBtn.disabled = true;
-            rejectBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Lehne ab...';
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Lehne ab...';
             
             fetch('process-reservation.php', {
                 method: 'POST',
@@ -1000,44 +1049,44 @@ if ($can_atemschutz) {
                 body: JSON.stringify({
                     action: 'reject',
                     reservation_id: window.currentReservationId,
-                    reason: reason.trim()
+                    reason: reason
                 })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    rejectBtn.innerHTML = '<i class="fas fa-times me-1"></i>Abgelehnt!';
-                    rejectBtn.classList.remove('btn-danger');
-                    rejectBtn.classList.add('btn-danger');
+                    confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>Abgelehnt!';
+                    confirmBtn.classList.remove('btn-danger');
+                    confirmBtn.classList.add('btn-success');
                     
                     // Modal nach 2 Sekunden schließen und Seite neu laden
                     setTimeout(() => {
                         location.reload();
                     }, 2000);
                 } else {
-                    rejectBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
-                    rejectBtn.classList.remove('btn-danger');
-                    rejectBtn.classList.add('btn-danger');
+                    confirmBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                    confirmBtn.classList.remove('btn-danger');
+                    confirmBtn.classList.add('btn-warning');
                     
                     setTimeout(() => {
-                        rejectBtn.disabled = false;
-                        rejectBtn.innerHTML = originalText;
-                        rejectBtn.classList.remove('btn-danger');
-                        rejectBtn.classList.add('btn-danger');
+                        confirmBtn.disabled = false;
+                        confirmBtn.innerHTML = originalText;
+                        confirmBtn.classList.remove('btn-warning');
+                        confirmBtn.classList.add('btn-danger');
                     }, 3000);
                 }
             })
             .catch(error => {
                 console.error('Fehler:', error);
-                rejectBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
-                rejectBtn.classList.remove('btn-danger');
-                rejectBtn.classList.add('btn-danger');
+                confirmBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                confirmBtn.classList.remove('btn-danger');
+                confirmBtn.classList.add('btn-warning');
                 
                 setTimeout(() => {
-                    rejectBtn.disabled = false;
-                    rejectBtn.innerHTML = originalText;
-                    rejectBtn.classList.remove('btn-danger');
-                    rejectBtn.classList.add('btn-danger');
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = originalText;
+                    confirmBtn.classList.remove('btn-warning');
+                    confirmBtn.classList.add('btn-danger');
                 }, 3000);
             });
         }
