@@ -40,7 +40,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $first_name = sanitize_input($_POST['first_name'] ?? '');
         $last_name = sanitize_input($_POST['last_name'] ?? '');
         $user_role = 'user';
-        $email_notifications = isset($_POST['email_notifications']) ? 1 : 0;
         $is_active = isset($_POST['is_active']) ? 1 : 0;
         $password = $_POST['password'] ?? '';
         
@@ -65,8 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $error = "Passwort ist erforderlich.";
                     } else {
                         $password_hash = hash_password($password);
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, email_notifications, is_active, is_admin, can_reservations, can_atemschutz, can_users, can_settings, can_vehicles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $email_notifications, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles]);
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, can_reservations, can_atemschutz, can_users, can_settings, can_vehicles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles]);
                         $message = "Benutzer wurde erfolgreich hinzugefügt.";
                         log_activity($_SESSION['user_id'], 'user_added', "Benutzer '$username' hinzugefügt");
                         
@@ -77,11 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 } elseif ($action == 'edit') {
                     if (!empty($password)) {
                         $password_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $email_notifications, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, email_notifications = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, 'user', $email_notifications, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles, $user_id]);
                     }
                     $message = "Benutzer wurde erfolgreich aktualisiert.";
                     log_activity($_SESSION['user_id'], 'user_updated', "Benutzer '$username' aktualisiert");
@@ -118,7 +117,7 @@ if (isset($_GET['delete'])) {
 
 // Benutzer laden
 try {
-    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, email_notifications, is_active, created_at, is_admin, can_reservations, can_atemschutz, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
+    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, is_active, created_at, is_admin, can_reservations, can_atemschutz, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
     $stmt->execute();
     $users = $stmt->fetchAll();
 } catch(PDOException $e) {
@@ -201,7 +200,6 @@ try {
                                         <th>Name</th>
                                         <!-- Rolle entfernt -->
                                         <th>Berechtigungen</th>
-                                        <th>E-Mail-Benachrichtigungen</th>
                                         <th>Status</th>
                                         <th>Erstellt</th>
                                         <th>Aktionen</th>
@@ -228,13 +226,6 @@ try {
                                                 </div>
                                             </td>
                                             <td>
-                                                <?php if ($user['email_notifications']): ?>
-                                                    <span class="badge bg-success">Aktiviert</span>
-                                                <?php else: ?>
-                                                    <span class="badge bg-secondary">Deaktiviert</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td>
                                                 <?php if ($user['is_active']): ?>
                                                     <span class="badge bg-success">Aktiv</span>
                                                 <?php else: ?>
@@ -249,7 +240,6 @@ try {
                                                     data-email="<?php echo htmlspecialchars($user['email'], ENT_QUOTES); ?>"
                                                     data-first-name="<?php echo htmlspecialchars($user['first_name'], ENT_QUOTES); ?>"
                                                     data-last-name="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES); ?>"
-                                                    data-email-notifications="<?php echo (int)$user['email_notifications']; ?>"
                                                     data-is-active="<?php echo (int)$user['is_active']; ?>"
                                                     data-is-admin="<?php echo (int)$user['is_admin']; ?>"
                                                     data-can-reservations="<?php echo (int)$user['can_reservations']; ?>"
@@ -349,14 +339,6 @@ try {
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="email_notifications" name="email_notifications" checked>
-                                    <label class="form-check-label" for="email_notifications">
-                                        E-Mail-Benachrichtigungen
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="is_active" name="is_active" checked>
                                     <label class="form-check-label" for="is_active">
                                         Aktiv
@@ -393,7 +375,6 @@ try {
                 document.getElementById('first_name').value = '';
                 document.getElementById('last_name').value = '';
                 // Rolle entfällt, standardmäßig 'user'
-                document.getElementById('email_notifications').checked = true;
                 document.getElementById('is_active').checked = true;
                 document.getElementById('action').value = 'add';
                 document.getElementById('submitButton').textContent = 'Hinzufügen';
@@ -434,7 +415,6 @@ try {
                 document.getElementById('first_name').value = firstName;
                 document.getElementById('last_name').value = lastName;
                 // Rolle entfällt
-                document.getElementById('email_notifications').checked = emailNotifications == 1;
                 document.getElementById('is_active').checked = isActive == 1;
                 
                 // Berechtigungen setzen
@@ -472,7 +452,6 @@ try {
                     document.getElementById('email').value = this.dataset.email || '';
                     document.getElementById('first_name').value = this.dataset.firstName || '';
                     document.getElementById('last_name').value = this.dataset.lastName || '';
-                    document.getElementById('email_notifications').checked = getBool(this.dataset.emailNotifications);
                     document.getElementById('is_active').checked = getBool(this.dataset.isActive);
                     document.getElementById('is_admin').checked = getBool(this.dataset.isAdmin);
                     const canRes = getBool(this.dataset.canReservations);

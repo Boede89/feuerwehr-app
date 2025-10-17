@@ -70,7 +70,7 @@ $pending_reservations = [];
 if ($can_reservations) {
     try {
         $stmt = $db->prepare("
-            SELECT r.*, v.name as vehicle_name, v.type as vehicle_type 
+            SELECT r.*, v.name as vehicle_name
             FROM reservations r 
             JOIN vehicles v ON r.vehicle_id = v.id 
             WHERE r.status = 'pending' 
