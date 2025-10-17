@@ -97,35 +97,71 @@ if ($can_atemschutz) {
         
         $warn_date = date('Y-m-d', strtotime("+{$warn_days} days"));
         
+        // Lade alle aktiven Geräteträger und filtere dann in PHP
         $stmt = $db->prepare("
-            SELECT *, 
-                CASE 
-                    WHEN strecke_am <= CURDATE() THEN 'Abgelaufen'
-                    WHEN strecke_am <= ? THEN 'Warnung'
-                    ELSE 'OK'
-                END as strecke_status,
-                CASE 
-                    WHEN g263_am <= CURDATE() THEN 'Abgelaufen'
-                    WHEN g263_am <= ? THEN 'Warnung'
-                    ELSE 'OK'
-                END as g263_status,
-                CASE 
-                    WHEN uebung_am <= CURDATE() THEN 'Abgelaufen'
-                    WHEN uebung_am <= ? THEN 'Warnung'
-                    ELSE 'OK'
-                END as uebung_status
-            FROM atemschutz_traeger 
-            WHERE status = 'Aktiv' 
-            AND (strecke_am <= ? OR g263_am <= ? OR uebung_am <= ?)
-            ORDER BY 
-                CASE WHEN strecke_am <= CURDATE() THEN 1 ELSE 2 END,
-                CASE WHEN g263_am <= CURDATE() THEN 1 ELSE 2 END,
-                CASE WHEN uebung_am <= CURDATE() THEN 1 ELSE 2 END,
-                strecke_am ASC, g263_am ASC, uebung_am ASC
-            LIMIT 10
+            SELECT * FROM atemschutz_traeger 
+            WHERE status = 'Aktiv'
+            ORDER BY last_name ASC, first_name ASC
         ");
-        $stmt->execute([$warn_date, $warn_date, $warn_date, $warn_date, $warn_date, $warn_date]);
-        $atemschutz_warnings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->execute();
+        $all_traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Filtere nur die wirklich auffälligen Geräteträger
+        $atemschutz_warnings = [];
+        foreach ($all_traeger as $traeger) {
+            $has_warning = false;
+            
+            // Prüfe Strecke (1 Jahr Gültigkeit)
+            $streckeAm = new DateTime($traeger['strecke_am']);
+            $streckeBis = clone $streckeAm;
+            $streckeBis->add(new DateInterval('P1Y'));
+            $now = new DateTime('today');
+            $diff = (int)$now->diff($streckeBis)->format('%r%a');
+            if ($diff < 0 || $diff <= $warn_days) {
+                $has_warning = true;
+            }
+            
+            // Prüfe G26.3 (3 Jahre unter 50, 1 Jahr über 50)
+            if (!$has_warning) {
+                $g263Am = new DateTime($traeger['g263_am']);
+                $birthdate = new DateTime($traeger['birthdate']);
+                $age = $birthdate->diff(new DateTime())->y;
+                
+                $g263Bis = clone $g263Am;
+                if ($age < 50) {
+                    $g263Bis->add(new DateInterval('P3Y'));
+                } else {
+                    $g263Bis->add(new DateInterval('P1Y'));
+                }
+                
+                $diff = (int)$now->diff($g263Bis)->format('%r%a');
+                if ($diff < 0 || $diff <= $warn_days) {
+                    $has_warning = true;
+                }
+            }
+            
+            // Prüfe Übung (1 Jahr Gültigkeit)
+            if (!$has_warning) {
+                $uebungAm = new DateTime($traeger['uebung_am']);
+                $uebungBis = clone $uebungAm;
+                $uebungBis->add(new DateInterval('P1Y'));
+                
+                $diff = (int)$now->diff($uebungBis)->format('%r%a');
+                if ($diff < 0 || $diff <= $warn_days) {
+                    $has_warning = true;
+                }
+            }
+            
+            // Nur auffällige Geräteträger hinzufügen
+            if ($has_warning) {
+                $atemschutz_warnings[] = $traeger;
+            }
+            
+            // Begrenze auf 10 Einträge
+            if (count($atemschutz_warnings) >= 10) {
+                break;
+            }
+        }
     } catch (Exception $e) {
         // Fehler ignorieren
     }
@@ -383,84 +419,68 @@ if ($can_atemschutz) {
                                             <h6 class="warning-name"><?php echo htmlspecialchars($traeger['first_name'] . ' ' . $traeger['last_name']); ?></h6>
                                         </div>
                                         <div class="warning-reasons">
-                                            <?php if ($traeger['strecke_status'] !== 'OK'): ?>
+                                            <?php
+                                            // Prüfe und zeige nur die problematischen Zertifikate
+                                            $now = new DateTime('today');
+                                            
+                                            // Strecke prüfen
+                                            $streckeAm = new DateTime($traeger['strecke_am']);
+                                            $streckeBis = clone $streckeAm;
+                                            $streckeBis->add(new DateInterval('P1Y'));
+                                            $diff = (int)$now->diff($streckeBis)->format('%r%a');
+                                            if ($diff < 0 || $diff <= $warn_days) {
+                                                $cls = $diff < 0 ? 'bis-expired' : 'bis-warn';
+                                            ?>
                                             <div class="warning-reason">
                                                 <span class="reason-label">Strecke</span>
                                                 <div class="reason-details">
-                                                    <?php
-                                                    // Berechne das Ablaufdatum (1 Jahr nach Durchführung)
-                                                    $streckeAm = new DateTime($traeger['strecke_am']);
-                                                    $streckeBis = clone $streckeAm;
-                                                    $streckeBis->add(new DateInterval('P1Y')); // 1 Jahr hinzufügen
-                                                    
-                                                    $now = new DateTime('today');
-                                                    $diff = (int)$now->diff($streckeBis)->format('%r%a');
-                                                    $cls = '';
-                                                    if ($diff < 0) { 
-                                                        $cls = 'bis-expired'; 
-                                                    } elseif ($diff <= $warn_days) { 
-                                                        $cls = 'bis-warn'; 
-                                                    }
-                                                    ?>
                                                     <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['strecke_am'])); ?></span>
                                                 </div>
                                             </div>
-                                            <?php endif; ?>
+                                            <?php } ?>
                                             
-                                            <?php if ($traeger['g263_status'] !== 'OK'): ?>
+                                            <?php
+                                            // G26.3 prüfen
+                                            $g263Am = new DateTime($traeger['g263_am']);
+                                            $birthdate = new DateTime($traeger['birthdate']);
+                                            $age = $birthdate->diff(new DateTime())->y;
+                                            
+                                            $g263Bis = clone $g263Am;
+                                            if ($age < 50) {
+                                                $g263Bis->add(new DateInterval('P3Y'));
+                                            } else {
+                                                $g263Bis->add(new DateInterval('P1Y'));
+                                            }
+                                            
+                                            $diff = (int)$now->diff($g263Bis)->format('%r%a');
+                                            if ($diff < 0 || $diff <= $warn_days) {
+                                                $cls = $diff < 0 ? 'bis-expired' : 'bis-warn';
+                                            ?>
                                             <div class="warning-reason">
                                                 <span class="reason-label">G26.3</span>
                                                 <div class="reason-details">
-                                                    <?php
-                                                    // Berechne das Ablaufdatum (3 Jahre für unter 50, 1 Jahr für über 50)
-                                                    $g263Am = new DateTime($traeger['g263_am']);
-                                                    $birthdate = new DateTime($traeger['birthdate']);
-                                                    $age = $birthdate->diff(new DateTime())->y;
-                                                    
-                                                    $g263Bis = clone $g263Am;
-                                                    if ($age < 50) {
-                                                        $g263Bis->add(new DateInterval('P3Y')); // 3 Jahre für unter 50
-                                                    } else {
-                                                        $g263Bis->add(new DateInterval('P1Y')); // 1 Jahr für über 50
-                                                    }
-                                                    
-                                                    $now = new DateTime('today');
-                                                    $diff = (int)$now->diff($g263Bis)->format('%r%a');
-                                                    $cls = '';
-                                                    if ($diff < 0) { 
-                                                        $cls = 'bis-expired'; 
-                                                    } elseif ($diff <= $warn_days) { 
-                                                        $cls = 'bis-warn'; 
-                                                    }
-                                                    ?>
                                                     <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['g263_am'])); ?></span>
                                                 </div>
                                             </div>
-                                            <?php endif; ?>
+                                            <?php } ?>
                                             
-                                            <?php if ($traeger['uebung_status'] !== 'OK'): ?>
+                                            <?php
+                                            // Übung prüfen
+                                            $uebungAm = new DateTime($traeger['uebung_am']);
+                                            $uebungBis = clone $uebungAm;
+                                            $uebungBis->add(new DateInterval('P1Y'));
+                                            
+                                            $diff = (int)$now->diff($uebungBis)->format('%r%a');
+                                            if ($diff < 0 || $diff <= $warn_days) {
+                                                $cls = $diff < 0 ? 'bis-expired' : 'bis-warn';
+                                            ?>
                                             <div class="warning-reason">
                                                 <span class="reason-label">Übung/Einsatz</span>
                                                 <div class="reason-details">
-                                                    <?php
-                                                    // Berechne das Ablaufdatum (1 Jahr nach Durchführung)
-                                                    $uebungAm = new DateTime($traeger['uebung_am']);
-                                                    $uebungBis = clone $uebungAm;
-                                                    $uebungBis->add(new DateInterval('P1Y')); // 1 Jahr hinzufügen
-                                                    
-                                                    $now = new DateTime('today');
-                                                    $diff = (int)$now->diff($uebungBis)->format('%r%a');
-                                                    $cls = '';
-                                                    if ($diff < 0) { 
-                                                        $cls = 'bis-expired'; 
-                                                    } elseif ($diff <= $warn_days) { 
-                                                        $cls = 'bis-warn'; 
-                                                    }
-                                                    ?>
                                                     <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['uebung_am'])); ?></span>
                                                 </div>
                                             </div>
-                                            <?php endif; ?>
+                                            <?php } ?>
                                         </div>
                                     </div>
                                 </div>
