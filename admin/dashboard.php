@@ -1,15 +1,30 @@
-﻿<?php
-// Minimale Dashboard-Version - garantiert funktioniert
+<?php
+// Dashboard ohne Header-Probleme
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-session_start();
-require_once '../config/database.php';
-require_once '../includes/functions.php';
+// Session starten bevor alles andere
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Datenbankverbindung direkt hier
+$host = "mysql";
+$dbname = "feuerwehr_app";
+$username = "feuerwehr_user";
+$password = "feuerwehr_password";
+
+try {
+    $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("Datenbankfehler: " . $e->getMessage());
+}
 
 // Login-Prüfung
-if (!is_logged_in()) {
-    redirect('../login.php');
+if (!isset($_SESSION["user_id"])) {
+    echo '<script>window.location.href = "../login.php";</script>';
+    exit();
 }
 
 // Benutzer laden
@@ -20,7 +35,8 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$user) {
     session_destroy();
-    redirect('../login.php');
+    echo '<script>window.location.href = "../login.php";</script>';
+    exit();
 }
 ?>
 <!DOCTYPE html>
