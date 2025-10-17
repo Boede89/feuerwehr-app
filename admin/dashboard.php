@@ -412,68 +412,72 @@ if ($can_atemschutz) {
                                     <div class="warning-item">
                                         <div class="warning-header">
                                             <h6 class="warning-name"><?php echo htmlspecialchars($traeger['first_name'] . ' ' . $traeger['last_name']); ?></h6>
-                                            <?php if (!empty($traeger['email'])): ?>
                                             <div class="email-buttons">
-                                                <?php
-                                                // Status für jeden Zertifikatstyp bestimmen
-                                                $now = new DateTime('today');
-                                                
-                                                // Strecke Status
-                                                $streckeAm = new DateTime($traeger['strecke_am']);
-                                                $streckeBis = clone $streckeAm;
-                                                $streckeBis->add(new DateInterval('P1Y'));
-                                                $streckeDiff = (int)$now->diff($streckeBis)->format('%r%a');
-                                                $streckeUrgency = ($streckeDiff < 0) ? 'abgelaufen' : 'warnung';
-                                                $streckeClass = ($streckeDiff < 0) ? 'btn-outline-danger' : 'btn-outline-warning';
-                                                
-                                                // G26.3 Status
-                                                $g263Am = new DateTime($traeger['g263_am']);
-                                                $birthdate = new DateTime($traeger['birthdate']);
-                                                $age = $birthdate->diff(new DateTime())->y;
-                                                $g263Bis = clone $g263Am;
-                                                if ($age < 50) {
-                                                    $g263Bis->add(new DateInterval('P3Y'));
-                                                } else {
-                                                    $g263Bis->add(new DateInterval('P1Y'));
-                                                }
-                                                $g263Diff = (int)$now->diff($g263Bis)->format('%r%a');
-                                                $g263Urgency = ($g263Diff < 0) ? 'abgelaufen' : 'warnung';
-                                                $g263Class = ($g263Diff < 0) ? 'btn-outline-danger' : 'btn-outline-warning';
-                                                
-                                                // Übung Status
-                                                $uebungAm = new DateTime($traeger['uebung_am']);
-                                                $uebungBis = clone $uebungAm;
-                                                $uebungBis->add(new DateInterval('P1Y'));
-                                                $uebungDiff = (int)$now->diff($uebungBis)->format('%r%a');
-                                                $uebungUrgency = ($uebungDiff < 0) ? 'abgelaufen' : 'warnung';
-                                                $uebungClass = ($uebungDiff < 0) ? 'btn-outline-danger' : 'btn-outline-warning';
-                                                ?>
-                                                
-                                                <button class="btn btn-sm <?php echo $streckeClass; ?> email-btn" 
-                                                        data-traeger-id="<?php echo $traeger['id']; ?>"
-                                                        data-certificate-type="strecke" 
-                                                        data-urgency="<?php echo $streckeUrgency; ?>"
-                                                        title="Strecke-<?php echo ($streckeUrgency === 'abgelaufen') ? 'Aufforderung' : 'Erinnerung'; ?> senden">
-                                                    <i class="fas fa-envelope"></i> Strecke
-                                                </button>
-                                                
-                                                <button class="btn btn-sm <?php echo $g263Class; ?> email-btn" 
-                                                        data-traeger-id="<?php echo $traeger['id']; ?>"
-                                                        data-certificate-type="g263" 
-                                                        data-urgency="<?php echo $g263Urgency; ?>"
-                                                        title="G26.3-<?php echo ($g263Urgency === 'abgelaufen') ? 'Aufforderung' : 'Erinnerung'; ?> senden">
-                                                    <i class="fas fa-envelope"></i> G26.3
-                                                </button>
-                                                
-                                                <button class="btn btn-sm <?php echo $uebungClass; ?> email-btn" 
-                                                        data-traeger-id="<?php echo $traeger['id']; ?>"
-                                                        data-certificate-type="uebung" 
-                                                        data-urgency="<?php echo $uebungUrgency; ?>"
-                                                        title="Übung-<?php echo ($uebungUrgency === 'abgelaufen') ? 'Aufforderung' : 'Erinnerung'; ?> senden">
-                                                    <i class="fas fa-envelope"></i> Übung
-                                                </button>
+                                                <?php if (!empty($traeger['email'])): ?>
+                                                    <?php
+                                                    // Status für jeden Zertifikatstyp bestimmen
+                                                    $now = new DateTime('today');
+                                                    
+                                                    // Strecke Status
+                                                    $streckeAm = new DateTime($traeger['strecke_am']);
+                                                    $streckeBis = clone $streckeAm;
+                                                    $streckeBis->add(new DateInterval('P1Y'));
+                                                    $streckeDiff = (int)$now->diff($streckeBis)->format('%r%a');
+                                                    $streckeUrgency = ($streckeDiff < 0) ? 'abgelaufen' : 'warnung';
+                                                    $streckeClass = ($streckeDiff < 0) ? 'btn-outline-danger' : 'btn-outline-warning';
+                                                    
+                                                    // G26.3 Status
+                                                    $g263Am = new DateTime($traeger['g263_am']);
+                                                    $birthdate = new DateTime($traeger['birthdate']);
+                                                    $age = $birthdate->diff(new DateTime())->y;
+                                                    $g263Bis = clone $g263Am;
+                                                    if ($age < 50) {
+                                                        $g263Bis->add(new DateInterval('P3Y'));
+                                                    } else {
+                                                        $g263Bis->add(new DateInterval('P1Y'));
+                                                    }
+                                                    $g263Diff = (int)$now->diff($g263Bis)->format('%r%a');
+                                                    $g263Urgency = ($g263Diff < 0) ? 'abgelaufen' : 'warnung';
+                                                    $g263Class = ($g263Diff < 0) ? 'btn-outline-danger' : 'btn-outline-warning';
+                                                    
+                                                    // Übung Status
+                                                    $uebungAm = new DateTime($traeger['uebung_am']);
+                                                    $uebungBis = clone $uebungAm;
+                                                    $uebungBis->add(new DateInterval('P1Y'));
+                                                    $uebungDiff = (int)$now->diff($uebungBis)->format('%r%a');
+                                                    $uebungUrgency = ($uebungDiff < 0) ? 'abgelaufen' : 'warnung';
+                                                    $uebungClass = ($uebungDiff < 0) ? 'btn-outline-danger' : 'btn-outline-warning';
+                                                    ?>
+                                                    
+                                                    <button class="btn btn-sm <?php echo $streckeClass; ?> email-btn" 
+                                                            data-traeger-id="<?php echo $traeger['id']; ?>"
+                                                            data-certificate-type="strecke" 
+                                                            data-urgency="<?php echo $streckeUrgency; ?>"
+                                                            title="Strecke-<?php echo ($streckeUrgency === 'abgelaufen') ? 'Aufforderung' : 'Erinnerung'; ?> senden">
+                                                        <i class="fas fa-envelope"></i> Strecke
+                                                    </button>
+                                                    
+                                                    <button class="btn btn-sm <?php echo $g263Class; ?> email-btn" 
+                                                            data-traeger-id="<?php echo $traeger['id']; ?>"
+                                                            data-certificate-type="g263" 
+                                                            data-urgency="<?php echo $g263Urgency; ?>"
+                                                            title="G26.3-<?php echo ($g263Urgency === 'abgelaufen') ? 'Aufforderung' : 'Erinnerung'; ?> senden">
+                                                        <i class="fas fa-envelope"></i> G26.3
+                                                    </button>
+                                                    
+                                                    <button class="btn btn-sm <?php echo $uebungClass; ?> email-btn" 
+                                                            data-traeger-id="<?php echo $traeger['id']; ?>"
+                                                            data-certificate-type="uebung" 
+                                                            data-urgency="<?php echo $uebungUrgency; ?>"
+                                                            title="Übung-<?php echo ($uebungUrgency === 'abgelaufen') ? 'Aufforderung' : 'Erinnerung'; ?> senden">
+                                                        <i class="fas fa-envelope"></i> Übung
+                                                    </button>
+                                                <?php else: ?>
+                                                    <div class="text-muted small">
+                                                        <i class="fas fa-exclamation-triangle"></i> Keine E-Mail-Adresse hinterlegt
+                                                    </div>
+                                                <?php endif; ?>
                                             </div>
-                                            <?php endif; ?>
                                         </div>
                                         <div class="warning-reasons">
                                             <?php
