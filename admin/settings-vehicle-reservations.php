@@ -36,7 +36,7 @@ try {
 // Alle Benutzer laden für E-Mail-Benachrichtigungen
 $users = [];
 try {
-    $stmt = $db->query("SELECT id, first_name, last_name, email, user_role, email_notifications FROM users WHERE is_active = 1 ORDER BY first_name, last_name");
+    $stmt = $db->query("SELECT id, first_name, last_name, email, user_role, is_admin, email_notifications FROM users WHERE is_active = 1 ORDER BY first_name, last_name");
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $error = "Fehler beim Laden der Benutzer: " . $e->getMessage();
@@ -194,8 +194,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <br>
                                     <small class="text-muted">
                                         <?php echo htmlspecialchars($user['email']); ?>
-                                        <span class="badge bg-<?php echo $user['user_role'] === 'admin' ? 'danger' : 'primary'; ?> ms-1">
-                                            <?php echo htmlspecialchars(ucfirst($user['user_role'])); ?>
+                                        <span class="badge bg-<?php echo ($user['is_admin'] || $user['user_role'] === 'admin') ? 'danger' : 'primary'; ?> ms-1">
+                                            <?php echo ($user['is_admin'] || $user['user_role'] === 'admin') ? 'Admin' : 'User'; ?>
                                         </span>
                                     </small>
                                 </label>
