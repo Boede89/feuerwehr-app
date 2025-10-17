@@ -63,16 +63,8 @@ try {
         $body
     );
     
-    // E-Mail senden (hier würde normalerweise PHPMailer oder ähnliches verwendet werden)
-    // Für Demo-Zwecke simulieren wir den Versand
-    $headers = [
-        'From: ' . ($_SESSION['email'] ?? 'noreply@feuerwehr.local'),
-        'Reply-To: ' . ($_SESSION['email'] ?? 'noreply@feuerwehr.local'),
-        'Content-Type: text/plain; charset=UTF-8',
-        'X-Mailer: Feuerwehr App'
-    ];
-    
-    $success = mail($email, $finalSubject, $finalBody, implode("\r\n", $headers));
+    // E-Mail über die globale send_email() Funktion senden (verwendet SMTP-Einstellungen)
+    $success = send_email($email, $finalSubject, $finalBody);
     
     if ($success) {
         // E-Mail-Versand in der Datenbank protokollieren
