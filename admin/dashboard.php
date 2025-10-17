@@ -599,9 +599,26 @@ if ($can_atemschutz) {
                         <div class="form-text">Die E-Mail-Adresse wird für diesen Geräteträger gespeichert.</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">E-Mail-Vorschau</label>
-                        <div class="border rounded p-3 bg-light" id="emailPreview">
-                            <div class="text-muted">E-Mail-Inhalt wird hier angezeigt...</div>
+                        <label class="form-label">E-Mail-Inhalt</label>
+                        <div class="border rounded p-3 bg-light">
+                            <div class="mb-2">
+                                <label class="form-label small">Betreff</label>
+                                <input type="text" class="form-control form-control-sm" id="emailSubject" readonly>
+                            </div>
+                            <div>
+                                <label class="form-label small">Nachricht</label>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span></span>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="resetEmailBtn">
+                                        <i class="fas fa-undo"></i> Zurücksetzen
+                                    </button>
+                                </div>
+                                <textarea class="form-control" id="emailBody" rows="8" placeholder="E-Mail-Inhalt wird hier geladen..."></textarea>
+                                <div class="form-text">
+                                    <strong>Verfügbare Platzhalter:</strong>
+                                    <code>{first_name}</code> <code>{last_name}</code> <code>{expiry_date}</code>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -619,13 +636,17 @@ if ($can_atemschutz) {
     <script>
         let currentTraegerId = null;
         let currentCertificates = [];
+        let originalSubject = '';
+        let originalBody = '';
         
         document.addEventListener('DOMContentLoaded', function() {
             const emailModal = new bootstrap.Modal(document.getElementById('emailModal'));
             const modalTraegerName = document.getElementById('modalTraegerName');
             const modalEmail = document.getElementById('modalEmail');
-            const emailPreview = document.getElementById('emailPreview');
+            const emailSubject = document.getElementById('emailSubject');
+            const emailBody = document.getElementById('emailBody');
             const sendEmailBtn = document.getElementById('sendEmailBtn');
+            const resetEmailBtn = document.getElementById('resetEmailBtn');
             
             // E-Mail-Buttons Event Listener
             document.querySelectorAll('.email-btn').forEach(button => {
@@ -650,7 +671,8 @@ if ($can_atemschutz) {
             // E-Mail-Vorschau laden
             function loadEmailPreview() {
                 if (currentCertificates.length === 0) {
-                    emailPreview.innerHTML = '<div class="text-muted">Keine problematischen Zertifikate gefunden.</div>';
+                    emailSubject.value = '';
+                    emailBody.value = 'Keine problematischen Zertifikate gefunden.';
                     return;
                 }
                 
@@ -669,27 +691,43 @@ if ($can_atemschutz) {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        emailPreview.innerHTML = `
-                            <div class="mb-2"><strong>Betreff:</strong> ${data.subject}</div>
-                            <div><strong>Nachricht:</strong></div>
-                            <div class="mt-2" style="white-space: pre-line;">${data.body}</div>
-                        `;
+                        emailSubject.value = data.subject;
+                        emailBody.value = data.body;
+                        originalSubject = data.subject;
+                        originalBody = data.body;
                     } else {
-                        emailPreview.innerHTML = '<div class="text-danger">Fehler beim Laden der E-Mail-Vorschau.</div>';
+                        emailSubject.value = 'Fehler';
+                        emailBody.value = 'Fehler beim Laden der E-Mail-Vorschau.';
+                        originalSubject = '';
+                        originalBody = '';
                     }
                 })
                 .catch(error => {
                     console.error('Fehler:', error);
-                    emailPreview.innerHTML = '<div class="text-danger">Fehler beim Laden der E-Mail-Vorschau.</div>';
+                    emailSubject.value = 'Fehler';
+                    emailBody.value = 'Fehler beim Laden der E-Mail-Vorschau.';
                 });
             }
+            
+            // Zurücksetzen-Button
+            resetEmailBtn.addEventListener('click', function() {
+                emailSubject.value = originalSubject;
+                emailBody.value = originalBody;
+            });
             
             // E-Mail senden
             sendEmailBtn.addEventListener('click', function() {
                 const email = modalEmail.value.trim();
+                const subject = emailSubject.value.trim();
+                const body = emailBody.value.trim();
                 
                 if (!email) {
                     alert('Bitte geben Sie eine E-Mail-Adresse ein.');
+                    return;
+                }
+                
+                if (!subject || !body) {
+                    alert('Bitte geben Sie einen Betreff und Nachricht ein.');
                     return;
                 }
                 
@@ -704,7 +742,7 @@ if ($can_atemschutz) {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: `traeger_id=${currentTraegerId}&email=${encodeURIComponent(email)}&certificates=${encodeURIComponent(JSON.stringify(currentCertificates))}`
+                    body: `traeger_id=${currentTraegerId}&email=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&certificates=${encodeURIComponent(JSON.stringify(currentCertificates))}`
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -747,7 +785,10 @@ if ($can_atemschutz) {
             // Modal zurücksetzen beim Schließen
             emailModal._element.addEventListener('hidden.bs.modal', function() {
                 modalEmail.value = '';
-                emailPreview.innerHTML = '<div class="text-muted">E-Mail-Inhalt wird hier angezeigt...</div>';
+                emailSubject.value = '';
+                emailBody.value = '';
+                originalSubject = '';
+                originalBody = '';
                 sendEmailBtn.disabled = false;
                 sendEmailBtn.innerHTML = '<i class="fas fa-paper-plane"></i> E-Mail senden';
                 sendEmailBtn.classList.remove('btn-success', 'btn-danger');
