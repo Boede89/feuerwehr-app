@@ -102,7 +102,7 @@ class SimpleSMTP {
             $email_data .= "To: {$to_clean}\r\n";
             $email_data .= "Subject: {$subject_clean}\r\n";
             $email_data .= "MIME-Version: 1.0\r\n";
-            $email_data .= "Content-Type: text/html; charset=UTF-8\r\n";
+            $email_data .= "Content-Type: text/plain; charset=UTF-8\r\n";
             $email_data .= "Content-Transfer-Encoding: 8bit\r\n";
             $email_data .= "X-Mailer: PHP/" . phpversion() . "\r\n";
             $email_data .= "X-Priority: 3\r\n";
