@@ -94,9 +94,8 @@ if ($can_atemschutz) {
         $db->exec("
             CREATE TABLE IF NOT EXISTS atemschutz_entries (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                entry_type ENUM('einsatz_uebung', 'atemschutzstrecke', 'g263') NOT NULL,
+                entry_type ENUM('einsatz', 'uebung', 'atemschutzstrecke', 'g263') NOT NULL,
                 entry_date DATE NOT NULL,
-                reason TEXT NOT NULL,
                 requester_id INT NOT NULL,
                 status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
                 rejection_reason TEXT NULL,
@@ -645,7 +644,8 @@ if ($can_atemschutz) {
                                                 <h6 class="card-title text-info mb-0">
                                                     <?php
                                                     $type_names = [
-                                                        'einsatz_uebung' => 'Einsatz/Übung',
+                                                        'einsatz' => 'Einsatz',
+                                                        'uebung' => 'Übung',
                                                         'atemschutzstrecke' => 'Atemschutzstrecke',
                                                         'g263' => 'G26.3'
                                                     ];
@@ -665,14 +665,9 @@ if ($can_atemschutz) {
                                                 <?php echo date('d.m.Y', strtotime($entry['entry_date'])); ?>
                                             </p>
                                             
-                                            <p class="card-text mb-2">
+                                            <p class="card-text mb-3">
                                                 <strong>Geräteträger:</strong><br>
                                                 <small class="text-muted"><?php echo htmlspecialchars($entry['traeger_names'] ?? 'Keine'); ?></small>
-                                            </p>
-                                            
-                                            <p class="card-text mb-3">
-                                                <strong>Grund:</strong><br>
-                                                <small><?php echo htmlspecialchars(substr($entry['reason'], 0, 100)) . (strlen($entry['reason']) > 100 ? '...' : ''); ?></small>
                                             </p>
                                             
                                             <div class="d-grid gap-2">
@@ -1473,7 +1468,8 @@ if ($can_atemschutz) {
                 if (data.success) {
                     const entry = data.entry;
                     const typeNames = {
-                        'einsatz_uebung': 'Einsatz/Übung',
+                        'einsatz': 'Einsatz',
+                        'uebung': 'Übung',
                         'atemschutzstrecke': 'Atemschutzstrecke',
                         'g263': 'G26.3'
                     };
@@ -1493,9 +1489,6 @@ if ($can_atemschutz) {
                             <div class="col-md-6">
                                 <h6 class="text-info">Geräteträger</h6>
                                 <p><small>${entry.traeger_names || 'Keine'}</small></p>
-                                
-                                <h6 class="text-info">Grund</h6>
-                                <p><small>${entry.reason}</small></p>
                                 
                                 <h6 class="text-info">Eingereicht am</h6>
                                 <p><small>${new Date(entry.created_at).toLocaleString('de-DE')}</small></p>

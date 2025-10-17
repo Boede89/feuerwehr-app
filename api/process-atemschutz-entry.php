@@ -60,7 +60,7 @@ try {
             $traeger_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
             
             foreach ($traeger_ids as $traeger_id) {
-                if ($entry['entry_type'] === 'einsatz_uebung') {
+                if ($entry['entry_type'] === 'einsatz' || $entry['entry_type'] === 'uebung') {
                     // Aktualisiere Übung/Einsatz Datum
                     $stmt = $db->prepare("
                         UPDATE atemschutz_traeger 
@@ -144,7 +144,8 @@ try {
 // HTML-E-Mail für Atemschutzeintrag-Genehmigung erstellen
 function createAtemschutzApprovalEmailHTML($entry) {
     $type_names = [
-        'einsatz_uebung' => 'Einsatz/Übung',
+        'einsatz' => 'Einsatz',
+        'uebung' => 'Übung',
         'atemschutzstrecke' => 'Atemschutzstrecke',
         'g263' => 'G26.3'
     ];
@@ -200,10 +201,6 @@ function createAtemschutzApprovalEmailHTML($entry) {
                         <div class="detail-label">📅 Datum:</div>
                         <div class="detail-value">' . $formatted_date . '</div>
                     </div>
-                    <div class="detail-row">
-                        <div class="detail-label">📝 Grund:</div>
-                        <div class="detail-value">' . htmlspecialchars($entry['reason']) . '</div>
-                    </div>
                 </div>
                 
                 <p>Der Eintrag wurde in den entsprechenden Zertifikaten der beteiligten Geräteträger aktualisiert.</p>
@@ -219,7 +216,8 @@ function createAtemschutzApprovalEmailHTML($entry) {
 // HTML-E-Mail für Atemschutzeintrag-Ablehnung erstellen
 function createAtemschutzRejectionEmailHTML($entry, $reason) {
     $type_names = [
-        'einsatz_uebung' => 'Einsatz/Übung',
+        'einsatz' => 'Einsatz',
+        'uebung' => 'Übung',
         'atemschutzstrecke' => 'Atemschutzstrecke',
         'g263' => 'G26.3'
     ];
@@ -276,10 +274,6 @@ function createAtemschutzRejectionEmailHTML($entry, $reason) {
                     <div class="detail-row">
                         <div class="detail-label">📅 Datum:</div>
                         <div class="detail-value">' . $formatted_date . '</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">📝 Grund:</div>
-                        <div class="detail-value">' . htmlspecialchars($entry['reason']) . '</div>
                     </div>
                 </div>
                 
