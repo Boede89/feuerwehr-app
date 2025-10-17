@@ -246,7 +246,7 @@ function hasAdminPermission($user_id = null) {
     }
     
     try {
-        $stmt = $db->prepare("SELECT role, is_admin, can_settings FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT user_role, is_admin, can_settings FROM users WHERE id = ?");
         $stmt->execute([$user_id]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -255,7 +255,7 @@ function hasAdminPermission($user_id = null) {
         }
         
         // Prüfe alte role-basierte Berechtigung
-        if ($user['role'] === 'admin') {
+        if ($user['user_role'] === 'admin') {
             return true;
         }
         

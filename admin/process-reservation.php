@@ -11,9 +11,18 @@ if (!is_logged_in()) {
 }
 
 // Prüfe Admin-Berechtigung
-if (!hasAdminPermission()) {
+$is_admin = hasAdminPermission();
+$can_reservations = has_permission('reservations');
+
+// Debug-Informationen
+error_log("Process Reservation Debug - User ID: " . ($_SESSION['user_id'] ?? 'nicht gesetzt'));
+error_log("Process Reservation Debug - is_admin: " . ($is_admin ? 'true' : 'false'));
+error_log("Process Reservation Debug - can_reservations: " . ($can_reservations ? 'true' : 'false'));
+
+// Prüfe ob Benutzer Reservierungen verwalten kann (entweder Admin oder can_reservations)
+if (!$is_admin && !$can_reservations) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Keine Berechtigung']);
+    echo json_encode(['success' => false, 'message' => 'Keine Berechtigung für Reservierungen']);
     exit;
 }
 
