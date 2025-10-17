@@ -59,15 +59,61 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
                         error_log("RESERVATIONS DELETE: Google Calendar Event konnte nicht gelöscht werden: " . $google_event_id);
                     }
                 } else {
+                    // Event wird nicht gelöscht, aber Titel muss aktualisiert werden
                     error_log("RESERVATIONS DELETE: Google Event nicht gelöscht, es existieren noch " . $remaining_links . " weitere Verknüpfung(en) für " . $google_event_id);
+                    
+                    // Aktualisiere den Google Calendar Event Titel
+                    try {
+                        // Lade alle verbleibenden Reservierungen für dieses Event
+                        $stmt = $db->prepare("
+                            SELECT r.reason, v.name as vehicle_name
+                            FROM calendar_events ce
+                            JOIN reservations r ON ce.reservation_id = r.id
+                            JOIN vehicles v ON r.vehicle_id = v.id
+                            WHERE ce.google_event_id = ?
+                            ORDER BY v.name
+                        ");
+                        $stmt->execute([$google_event_id]);
+                        $remaining_reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                        
+                        if (!empty($remaining_reservations)) {
+                            // Erstelle neuen Titel mit verbleibenden Fahrzeugen
+                            $vehicles = array_unique(array_column($remaining_reservations, 'vehicle_name'));
+                            $reasons = array_unique(array_column($remaining_reservations, 'reason'));
+                            
+                            $new_title = implode(', ', $vehicles);
+                            if (count($reasons) === 1) {
+                                $new_title .= ' - ' . $reasons[0];
+                            }
+                            
+                            // Aktualisiere Google Calendar Event Titel
+                            $update_result = update_google_calendar_event_title($google_event_id, $new_title);
+                            
+                            if ($update_result) {
+                                // Aktualisiere auch den lokalen Titel
+                                $stmt = $db->prepare("UPDATE calendar_events SET title = ? WHERE google_event_id = ?");
+                                $stmt->execute([$new_title, $google_event_id]);
+                                
+                                error_log("RESERVATIONS DELETE: Google Calendar Event Titel aktualisiert: " . $new_title);
+                            } else {
+                                error_log("RESERVATIONS DELETE: Google Calendar Event Titel konnte nicht aktualisiert werden");
+                            }
+                        }
+                    } catch (Exception $e) {
+                        error_log("RESERVATIONS DELETE: Fehler beim Aktualisieren des Google Calendar Event Titels: " . $e->getMessage());
+                    }
                 }
             }
             
             $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
             $stmt->execute([$reservation_id]);
             
-                // Erfolgreiche Löschung - Google Calendar wurde ggf. gelöscht, wenn keine Verknüpfungen mehr bestanden
-                $message = "Reservierung erfolgreich gelöscht. Falls keine weiteren Reservierungen an diesem Termin hängen, wurde der Google Calendar Eintrag entfernt.";
+                // Erfolgreiche Löschung - Google Calendar wurde ggf. gelöscht oder aktualisiert
+                if ($remaining_links > 0) {
+                    $message = "Reservierung erfolgreich gelöscht. Der Google Calendar Eintrag wurde aktualisiert und zeigt nur noch die verbleibenden Fahrzeuge an.";
+                } else {
+                    $message = "Reservierung erfolgreich gelöscht. Der Google Calendar Eintrag wurde entfernt, da keine weiteren Reservierungen an diesem Termin vorhanden waren.";
+                }
         } else {
             $error = "Nur bearbeitete Reservierungen können gelöscht werden.";
         }
