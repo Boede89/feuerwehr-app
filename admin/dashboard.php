@@ -378,14 +378,17 @@ if ($can_atemschutz) {
                             </div>
                         <?php endif; ?>
                     </div>
-                    <div class="card-footer">
+                    <div class="card-footer d-flex justify-content-between">
                         <a href="reservations.php" class="btn btn-primary">
                             <i class="fas fa-calendar-alt"></i> Alle Reservierungen verwalten
                         </a>
-                    </div>
+                        <a href="settings-reservations.php" class="btn btn-outline-secondary">
+                            <i class="fas fa-cog"></i> E-Mail-Einstellungen
+                                                        </a>
+                                                    </div>
                 </div>
             </div>
-        </div>
+                        </div>
         <?php endif; ?>
 
         <!-- Atemschutz Bereich -->
@@ -509,7 +512,7 @@ if ($can_atemschutz) {
                                                 <span class="reason-label">Strecke</span>
                                                 <div class="reason-details">
                                                     <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['strecke_am'])); ?></span>
-                                                </div>
+                    </div>
                                             </div>
                                             
                                             <?php
@@ -627,7 +630,7 @@ if ($can_atemschutz) {
                     <button type="button" class="btn btn-primary" id="sendEmailBtn">
                         <i class="fas fa-paper-plane"></i> E-Mail senden
                     </button>
-                </div>
+                            </div>
             </div>
         </div>
     </div>
