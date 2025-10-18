@@ -329,15 +329,62 @@ $anzahlOptions = [
                     
                     console.log('Suche nach PA-Trägern:', searchData);
                     
-                    // Hier wird später die Suchfunktion implementiert
-                    alert('Die Suchfunktion wird in Kürze implementiert.\n\nGewählte Parameter:\n' + 
-                          'Datum: ' + uebungsDatum + '\n' +
-                          'Anzahl: ' + (anzahlPaTraeger === 'alle' ? 'Alle verfügbaren' : anzahlPaTraeger + ' PA-Träger') + '\n' +
-                          'Status: ' + statusFilter.join(', '));
+                    // Suche nach PA-Trägern durchführen
+                    searchPaTraeger(searchData);
                 } catch (error) {
                     console.error('Fehler beim Verarbeiten des Formulars:', error);
                     alert('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
                 }
+            }
+            
+            function searchPaTraeger(searchData) {
+                // Zeige Lade-Indikator
+                const submitButton = form.querySelector('button[type="submit"]');
+                const originalText = submitButton.innerHTML;
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Suche läuft...';
+                submitButton.disabled = true;
+                
+                fetch('../api/search-pa-traeger.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(searchData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Suchergebnisse in Session speichern und zur Ergebnisseite weiterleiten
+                        fetch('../api/save-search-results.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                results: data.traeger,
+                                params: searchData
+                            })
+                        })
+                        .then(() => {
+                            window.location.href = 'atemschutz-suchergebnisse.php';
+                        })
+                        .catch(error => {
+                            console.error('Fehler beim Speichern der Ergebnisse:', error);
+                            alert('Fehler beim Speichern der Suchergebnisse.');
+                        });
+                    } else {
+                        alert('Fehler bei der Suche: ' + (data.error || 'Unbekannter Fehler'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Fehler bei der Suche:', error);
+                    alert('Fehler bei der Suche. Bitte versuchen Sie es erneut.');
+                })
+                .finally(() => {
+                    // Button zurücksetzen
+                    submitButton.innerHTML = originalText;
+                    submitButton.disabled = false;
+                });
             }
         });
     </script>
