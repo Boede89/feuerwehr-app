@@ -98,9 +98,36 @@ try {
             'errors' => $errors
         ]);
     } else {
+        // Detaillierte Fehlermeldung
+        $errorMessage = 'E-Mail konnte an keinen Empfänger gesendet werden.';
+        if (!empty($errors)) {
+            $errorMessage .= ' Details: ' . implode(', ', $errors);
+        }
+        
+        // Prüfe SMTP-Einstellungen
+        $smtp_host = '';
+        $smtp_username = '';
+        $smtp_password = '';
+        try {
+            $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key IN ('smtp_host', 'smtp_username', 'smtp_password')");
+            $stmt->execute();
+            $smtp_settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+            $smtp_host = $smtp_settings['smtp_host'] ?? '';
+            $smtp_username = $smtp_settings['smtp_username'] ?? '';
+            $smtp_password = $smtp_settings['smtp_password'] ?? '';
+        } catch (Exception $e) {
+            error_log("Fehler beim Laden der SMTP-Einstellungen: " . $e->getMessage());
+        }
+        
+        if (empty($smtp_password)) {
+            $errorMessage .= ' SMTP-Passwort ist nicht konfiguriert. Bitte gehen Sie zu den Einstellungen und setzen Sie das Gmail App-Passwort.';
+        } elseif (empty($smtp_host) || empty($smtp_username)) {
+            $errorMessage .= ' SMTP-Einstellungen sind unvollständig. Bitte überprüfen Sie die Einstellungen.';
+        }
+        
         echo json_encode([
             'success' => false,
-            'error' => 'E-Mail konnte an keinen Empfänger gesendet werden.',
+            'error' => $errorMessage,
             'errors' => $errors
         ]);
     }
@@ -266,13 +293,14 @@ function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $htm
         
         $emailBody .= "\nErstellt am " . date('d.m.Y H:i') . " | Feuerwehr App v2.1\n";
         
-        // Headers
-        $headers = "From: $fromName <$from>\r\n";
-        $headers .= "Reply-To: $from\r\n";
-        $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+        // Verwende die konfigurierte send_email Funktion anstatt mail()
+        $result = send_email($to, $subject, $emailBody);
         
-        // E-Mail senden
-        $result = mail($to, $subject, $emailBody, $headers);
+        if ($result) {
+            error_log("PA-Träger E-Mail erfolgreich gesendet an: $to");
+        } else {
+            error_log("PA-Träger E-Mail fehlgeschlagen an: $to");
+        }
         
         return $result;
         
