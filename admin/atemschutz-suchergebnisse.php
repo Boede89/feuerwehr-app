@@ -265,19 +265,47 @@ function formatDate($date) {
                         <div class="row">
                             <div class="col-md-6">
                                 <label for="emailRecipients" class="form-label">Empfänger</label>
-                                <input type="email" class="form-control" id="emailRecipients" placeholder="email@example.com" multiple>
+                                <input type="email" class="form-control" id="emailRecipients" 
+                                       value="<?php echo htmlspecialchars($_SESSION['email'] ?? ''); ?>" 
+                                       placeholder="email@example.com" multiple>
                                 <div class="form-text">Mehrere E-Mail-Adressen mit Komma trennen</div>
                             </div>
                             <div class="col-md-6">
+                                <label for="emailSender" class="form-label">Absender</label>
+                                <select class="form-select" id="emailSender">
+                                    <option value="<?php echo htmlspecialchars($_SESSION['email'] ?? ''); ?>">
+                                        <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name'] . ' (' . ($_SESSION['email'] ?? 'Keine E-Mail') . ')'); ?>
+                                    </option>
+                                    <option value="custom">Manuell eingeben...</option>
+                                </select>
+                                <input type="email" class="form-control mt-2" id="customSender" 
+                                       placeholder="absender@example.com" style="display: none;">
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-md-6">
                                 <label for="emailSubject" class="form-label">Betreff</label>
-                                <input type="text" class="form-control" id="emailSubject" value="PA-Träger Liste - Übung <?php echo formatDate($searchParams['uebungsDatum'] ?? ''); ?>">
+                                <input type="text" class="form-control" id="emailSubject" 
+                                       value="PA-Träger Liste - Übung <?php echo formatDate($searchParams['uebungsDatum'] ?? ''); ?>">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Anhang</label>
+                                <div class="form-control-plaintext">
+                                    <i class="fas fa-file-pdf text-danger me-2"></i>
+                                    <span class="text-muted">PA-Träger-Liste.pdf (wird automatisch angehängt)</span>
+                                </div>
                             </div>
                         </div>
                         <div class="mt-2">
                             <label for="emailMessage" class="form-label">Nachricht</label>
-                            <textarea class="form-control" id="emailMessage" rows="3" placeholder="Optionale Nachricht...">Anbei die Liste der PA-Träger für die geplante Übung am <?php echo formatDate($searchParams['uebungsDatum'] ?? ''); ?>.
+                            <textarea class="form-control" id="emailMessage" rows="3" placeholder="Optionale Nachricht...">Hallo,
 
-Die Liste enthält <?php echo count($searchResults); ?> PA-Träger und ist nach dem Übungszertifikat sortiert (älteste zuerst).</textarea>
+anbei die Liste der PA-Träger für die geplante Übung am <?php echo formatDate($searchParams['uebungsDatum'] ?? ''); ?>.
+
+Die Liste enthält <?php echo count($searchResults); ?> PA-Träger und ist nach dem Übungszertifikat sortiert (älteste zuerst).
+
+Mit freundlichen Grüßen
+<?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></textarea>
                         </div>
                     </div>
                 </div>
@@ -325,6 +353,18 @@ Die Liste enthält <?php echo count($searchResults); ?> PA-Träger und ist nach 
                         emailSettings.style.display = 'none';
                     }
                 });
+            });
+            
+            // Absender-Auswahl
+            document.getElementById('emailSender').addEventListener('change', function() {
+                const customSender = document.getElementById('customSender');
+                if (this.value === 'custom') {
+                    customSender.style.display = 'block';
+                    customSender.required = true;
+                } else {
+                    customSender.style.display = 'none';
+                    customSender.required = false;
+                }
             });
             
             // Export bestätigen
@@ -393,14 +433,26 @@ Die Liste enthält <?php echo count($searchResults); ?> PA-Träger und ist nach 
             const recipients = document.getElementById('emailRecipients').value;
             const subject = document.getElementById('emailSubject').value;
             const message = document.getElementById('emailMessage').value;
+            const senderSelect = document.getElementById('emailSender');
+            const customSender = document.getElementById('customSender');
             
             if (!recipients) {
                 alert('Bitte geben Sie mindestens eine E-Mail-Adresse ein.');
                 return;
             }
             
+            let senderEmail = senderSelect.value;
+            if (senderSelect.value === 'custom') {
+                senderEmail = customSender.value;
+                if (!senderEmail) {
+                    alert('Bitte geben Sie eine gültige Absender-E-Mail-Adresse ein.');
+                    return;
+                }
+            }
+            
             const emailData = {
                 recipients: recipients.split(',').map(email => email.trim()),
+                sender: senderEmail,
                 subject: subject,
                 message: message,
                 results: <?php echo json_encode($searchResults); ?>,

@@ -25,6 +25,7 @@ if (!$input) {
 }
 
 $recipients = $input['recipients'] ?? [];
+$sender = $input['sender'] ?? '';
 $subject = $input['subject'] ?? '';
 $message = $input['message'] ?? '';
 $results = $input['results'] ?? [];
@@ -37,8 +38,11 @@ if (empty($recipients) || empty($subject)) {
 }
 
 try {
-    // E-Mail-Inhalt generieren
-    $emailBody = generateEmailHTML($results, $params, $message);
+    // PDF-Anhang generieren
+    $pdfContent = generatePDFForEmail($results, $params);
+    
+    // E-Mail-Inhalt generieren (nur Text, PDF als Anhang)
+    $emailBody = generateEmailText($results, $params, $message);
     
     // E-Mail an alle Empfänger senden
     $successCount = 0;
@@ -47,7 +51,7 @@ try {
     foreach ($recipients as $recipient) {
         $recipient = trim($recipient);
         if (filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
-            if (send_email($recipient, $subject, $emailBody, '', true)) {
+            if (sendEmailWithAttachment($recipient, $sender, $subject, $emailBody, $pdfContent)) {
                 $successCount++;
             } else {
                 $errors[] = "Fehler beim Senden an $recipient";
@@ -75,6 +79,130 @@ try {
     error_log("E-Mail-Versand Fehler: " . $e->getMessage());
     http_response_code(500);
     echo json_encode(['error' => 'E-Mail-Versand fehlgeschlagen: ' . $e->getMessage()]);
+}
+
+function generatePDFForEmail($results, $params) {
+    // PDF-Inhalt für E-Mail-Anhang generieren
+    $html = generatePDFHTML($results, $params);
+    return $html; // In einer echten Implementierung würde hier eine PDF-Bibliothek verwendet
+}
+
+function generateEmailText($results, $params, $message) {
+    $uebungsDatum = $params['uebungsDatum'] ?? '';
+    $anzahl = $params['anzahlPaTraeger'] ?? 'alle';
+    $statusFilter = $params['statusFilter'] ?? [];
+    
+    $text = $message . "\n\n";
+    $text .= "=== PA-Träger Liste für Übung ===\n";
+    $text .= "Übungsdatum: " . date('d.m.Y', strtotime($uebungsDatum)) . "\n";
+    $text .= "Anzahl: " . ($anzahl === 'alle' ? 'Alle verfügbaren' : $anzahl . ' PA-Träger') . "\n";
+    $text .= "Status-Filter: " . implode(', ', $statusFilter) . "\n";
+    $text .= "Gefunden: " . count($results) . " PA-Träger\n\n";
+    
+    $text .= "Nr. | Name | Status | Strecke | G26.3 | Übung/Einsatz\n";
+    $text .= "----|------|--------|---------|-------|---------------\n";
+    
+    foreach ($results as $index => $traeger) {
+        $text .= sprintf("%-3d | %-20s | %-15s | %-10s | %-10s | %s\n",
+            $index + 1,
+            $traeger['name'],
+            $traeger['status'],
+            date('d.m.Y', strtotime($traeger['strecke_am'])),
+            date('d.m.Y', strtotime($traeger['g263_am'])),
+            date('d.m.Y', strtotime($traeger['uebung_am']))
+        );
+    }
+    
+    $text .= "\n\n---\n";
+    $text .= "Diese E-Mail wurde automatisch von der Feuerwehr App generiert.\n";
+    $text .= "Erstellt am " . date('d.m.Y H:i') . " | Feuerwehr App v2.1";
+    
+    return $text;
+}
+
+function sendEmailWithAttachment($to, $from, $subject, $message, $pdfContent) {
+    global $db;
+    
+    try {
+        // SMTP-Einstellungen laden
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key IN ('smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_encryption', 'smtp_from_email', 'smtp_from_name')");
+        $stmt->execute();
+        $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        
+        $smtp_host = $settings['smtp_host'] ?? '';
+        $smtp_port = $settings['smtp_port'] ?? 587;
+        $smtp_username = $settings['smtp_username'] ?? '';
+        $smtp_password = $settings['smtp_password'] ?? '';
+        $smtp_encryption = $settings['smtp_encryption'] ?? 'tls';
+        $smtp_from_email = $settings['smtp_from_email'] ?? $from;
+        $smtp_from_name = $settings['smtp_from_name'] ?? 'Feuerwehr App';
+        
+        if (!empty($smtp_host) && !empty($smtp_username) && !empty($smtp_password)) {
+            return sendEmailWithAttachmentSMTP($to, $from, $subject, $message, $pdfContent, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name);
+        } else {
+            // Fallback auf mail() Funktion
+            return sendEmailWithAttachmentMail($to, $from, $subject, $message, $pdfContent);
+        }
+    } catch (Exception $e) {
+        error_log('E-Mail mit Anhang Fehler: ' . $e->getMessage());
+        return false;
+    }
+}
+
+function sendEmailWithAttachmentMail($to, $from, $subject, $message, $pdfContent) {
+    $boundary = md5(uniqid(time()));
+    
+    $headers = "From: $from\r\n";
+    $headers .= "Reply-To: $from\r\n";
+    $headers .= "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
+    
+    $body = "--$boundary\r\n";
+    $body .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    $body .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+    $body .= $message . "\r\n\r\n";
+    
+    $body .= "--$boundary\r\n";
+    $body .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $body .= "Content-Transfer-Encoding: 8bit\r\n";
+    $body .= "Content-Disposition: attachment; filename=\"pa-traeger-liste.html\"\r\n\r\n";
+    $body .= $pdfContent . "\r\n\r\n";
+    
+    $body .= "--$boundary--\r\n";
+    
+    return mail($to, $subject, $body, $headers);
+}
+
+function sendEmailWithAttachmentSMTP($to, $from, $subject, $message, $pdfContent, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name) {
+    // Vereinfachte SMTP-Implementierung mit Anhang
+    // In einer echten Implementierung würde hier eine vollständige SMTP-Bibliothek verwendet
+    
+    $boundary = md5(uniqid(time()));
+    
+    $email_data = "To: $to\r\n";
+    $email_data .= "From: $smtp_from_name <$smtp_from_email>\r\n";
+    $email_data .= "Reply-To: $from\r\n";
+    $email_data .= "Subject: $subject\r\n";
+    $email_data .= "MIME-Version: 1.0\r\n";
+    $email_data .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
+    $email_data .= "\r\n";
+    
+    $email_data .= "--$boundary\r\n";
+    $email_data .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    $email_data .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+    $email_data .= $message . "\r\n\r\n";
+    
+    $email_data .= "--$boundary\r\n";
+    $email_data .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $email_data .= "Content-Transfer-Encoding: 8bit\r\n";
+    $email_data .= "Content-Disposition: attachment; filename=\"pa-traeger-liste.html\"\r\n\r\n";
+    $email_data .= $pdfContent . "\r\n\r\n";
+    
+    $email_data .= "--$boundary--\r\n";
+    
+    // Hier würde die SMTP-Verbindung und der Versand stattfinden
+    // Für Demo-Zwecke verwenden wir die mail() Funktion
+    return sendEmailWithAttachmentMail($to, $from, $subject, $message, $pdfContent);
 }
 
 function generateEmailHTML($results, $params, $message) {

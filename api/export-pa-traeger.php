@@ -51,15 +51,14 @@ try {
 }
 
 function generatePDF($results, $params) {
-    // Einfache PDF-Generierung mit HTML
+    // HTML für PDF generieren
     $html = generatePDFHTML($results, $params);
     
-    // PDF-Header setzen
-    header('Content-Type: application/pdf');
-    header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.pdf"');
+    // HTML-Header setzen (für Browser-Darstellung)
+    header('Content-Type: text/html; charset=UTF-8');
+    header('Content-Disposition: inline; filename="pa-traeger-liste-' . date('Y-m-d') . '.html"');
     
-    // Für Demo-Zwecke: HTML als PDF ausgeben
-    // In einer echten Implementierung würde hier eine PDF-Bibliothek wie TCPDF oder mPDF verwendet
+    // HTML ausgeben (Browser kann dies als PDF drucken)
     echo $html;
 }
 
@@ -67,10 +66,12 @@ function generateExcel($results, $params) {
     // CSV-Format für Excel-Kompatibilität
     $csv = generateCSV($results, $params);
     
-    // Excel-Header setzen
-    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.xlsx"');
+    // CSV-Header setzen (Excel kann CSV öffnen)
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.csv"');
     
+    // BOM für UTF-8 hinzufügen (für korrekte Zeichen in Excel)
+    echo "\xEF\xBB\xBF";
     echo $csv;
 }
 
