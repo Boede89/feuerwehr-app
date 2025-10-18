@@ -60,6 +60,7 @@ try {
         $sender = $_SESSION['email'] ?? '';
         $senderName = ($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '');
     }
+    
     // PDF-Anhang generieren
     $pdfContent = generatePDFForEmail($results, $params);
     
@@ -105,8 +106,95 @@ try {
 
 function generatePDFForEmail($results, $params) {
     // PDF-Inhalt für E-Mail-Anhang generieren
-    $html = generatePDFHTML($results, $params);
-    return $html; // In einer echten Implementierung würde hier eine PDF-Bibliothek verwendet
+    $uebungsDatum = $params['uebungsDatum'] ?? '';
+    $anzahl = $params['anzahlPaTraeger'] ?? 'alle';
+    $statusFilter = $params['statusFilter'] ?? [];
+    
+    $html = '<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>PA-Träger Liste</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.4; }
+        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #dc3545; padding-bottom: 20px; }
+        .header h1 { color: #dc3545; margin-bottom: 10px; font-size: 28px; }
+        .header h2 { color: #6c757d; font-size: 18px; margin-bottom: 20px; }
+        .summary { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #dc3545; }
+        .summary h3 { margin-top: 0; color: #495057; font-size: 16px; }
+        .summary p { margin: 5px 0; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+        th, td { border: 1px solid #dee2e6; padding: 8px; text-align: left; }
+        th { background-color: #e9ecef; font-weight: bold; font-size: 13px; }
+        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; }
+        .status-tauglich { background-color: #d4edda; color: #155724; }
+        .status-warnung { background-color: #fff3cd; color: #856404; }
+        .status-abgelaufen { background-color: #f8d7da; color: #721c24; }
+        .status-uebung-abgelaufen { background-color: #f8d7da; color: #721c24; }
+        .footer { margin-top: 30px; text-align: center; color: #6c757d; font-size: 12px; border-top: 1px solid #dee2e6; padding-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔥 Feuerwehr App</h1>
+        <h2>PA-Träger Liste für Übung</h2>
+    </div>
+    
+    <div class="summary">
+        <h3>Suchkriterien</h3>
+        <p><strong>Übungsdatum:</strong> ' . date('d.m.Y', strtotime($uebungsDatum)) . '</p>
+        <p><strong>Anzahl:</strong> ' . ($anzahl === 'alle' ? 'Alle verfügbaren' : $anzahl . ' PA-Träger') . '</p>
+        <p><strong>Status-Filter:</strong> ' . implode(', ', $statusFilter) . '</p>
+        <p><strong>Gefunden:</strong> ' . count($results) . ' PA-Träger</p>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Strecke</th>
+                <th>G26.3</th>
+                <th>Übung/Einsatz</th>
+            </tr>
+        </thead>
+        <tbody>';
+    
+    foreach ($results as $index => $traeger) {
+        $statusClass = getStatusClass($traeger['status']);
+        $html .= '
+            <tr>
+                <td>' . ($index + 1) . '</td>
+                <td>' . htmlspecialchars($traeger['first_name'] . ' ' . $traeger['last_name']) . '</td>
+                <td><span class="status-badge ' . $statusClass . '">' . htmlspecialchars($traeger['status']) . '</span></td>
+                <td>' . date('d.m.Y', strtotime($traeger['strecke_am'])) . '</td>
+                <td>' . date('d.m.Y', strtotime($traeger['g263_am'])) . '</td>
+                <td>' . date('d.m.Y', strtotime($traeger['uebung_am'])) . ' (bis ' . date('d.m.Y', strtotime($traeger['uebung_bis'])) . ')</td>
+            </tr>';
+    }
+    
+    $html .= '
+        </tbody>
+    </table>
+    
+    <div class="footer">
+        <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v2.1</p>
+    </div>
+</body>
+</html>';
+    
+    return $html;
+}
+
+function getStatusClass($status) {
+    $statusClasses = [
+        'Tauglich' => 'status-tauglich',
+        'Warnung' => 'status-warnung',
+        'Abgelaufen' => 'status-abgelaufen',
+        'Übung abgelaufen' => 'status-uebung-abgelaufen'
+    ];
+    return $statusClasses[$status] ?? 'status-tauglich';
 }
 
 function generateEmailText($results, $params, $message) {
@@ -160,6 +248,7 @@ function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $pdf
         $smtp_from_name = $settings['smtp_from_name'] ?? $fromName;
         
         if (!empty($smtp_host) && !empty($smtp_username) && !empty($smtp_password)) {
+            // SMTP verwenden
             return sendEmailWithAttachmentSMTP($to, $smtp_from_email, $smtp_from_name, $subject, $message, $pdfContent, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption);
         } else {
             // Fallback auf mail() Funktion
@@ -224,7 +313,7 @@ function sendEmailWithAttachmentSMTP($to, $from, $fromName, $subject, $message, 
     
     // Hier würde die SMTP-Verbindung und der Versand stattfinden
     // Für Demo-Zwecke verwenden wir die mail() Funktion
-    return sendEmailWithAttachmentMail($to, $from, $subject, $message, $pdfContent);
+    return sendEmailWithAttachmentMail($to, $from, $fromName, $subject, $message, $pdfContent);
 }
 
 function generateEmailHTML($results, $params, $message) {
