@@ -1585,9 +1585,9 @@ if ($can_atemschutz) {
         
         // Atemschutzeintrag-Ablehnung Modal anzeigen
         function showAtemschutzRejectModal(entryId) {
-            if (confirm('Möchten Sie diesen Atemschutzeintrag wirklich ablehnen?')) {
-                rejectAtemschutzEntry(entryId);
-            }
+            window.currentAtemschutzRejectId = entryId;
+            const modal = new bootstrap.Modal(document.getElementById('atemschutzRejectConfirmModal'));
+            modal.show();
         }
         
         // Atemschutzeintrag ablehnen (Antrag wird gelöscht)
@@ -1605,15 +1605,18 @@ if ($can_atemschutz) {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Atemschutzeintrag erfolgreich gelöscht.');
-                    location.reload();
+                    // Zeige Erfolgsmeldung
+                    showAtemschutzSuccessMessage('Atemschutzeintrag erfolgreich gelöscht!');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
                 } else {
-                    alert('Fehler: ' + data.message);
+                    showAtemschutzErrorMessage('Fehler beim Löschen', data.message);
                 }
             })
             .catch(error => {
                 console.error('Fehler:', error);
-                alert('Fehler beim Löschen des Atemschutzeintrags.');
+                showAtemschutzErrorMessage('Netzwerkfehler', 'Es ist ein Fehler beim Löschen des Atemschutzeintrags aufgetreten.');
             });
         }
         
@@ -1681,6 +1684,72 @@ if ($can_atemschutz) {
                 }, 3000);
             });
         }
+        
+        // Hilfsfunktionen für schöne Meldungen
+        function showAtemschutzSuccessMessage(message) {
+            // Erstelle temporäre Toast-Nachricht
+            const toastHtml = `
+                <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="fas fa-check-circle me-2"></i>${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', toastHtml);
+            const toastElement = document.querySelector('.toast:last-child');
+            const toast = new bootstrap.Toast(toastElement);
+            toast.show();
+            
+            // Entferne das Element nach 5 Sekunden
+            setTimeout(() => {
+                if (toastElement && toastElement.parentNode) {
+                    toastElement.parentNode.removeChild(toastElement);
+                }
+            }, 5000);
+        }
+        
+        function showAtemschutzErrorMessage(title, message) {
+            // Erstelle temporäre Toast-Nachricht
+            const toastHtml = `
+                <div class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="fas fa-exclamation-triangle me-2"></i><strong>${title}:</strong> ${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', toastHtml);
+            const toastElement = document.querySelector('.toast:last-child');
+            const toast = new bootstrap.Toast(toastElement);
+            toast.show();
+            
+            // Entferne das Element nach 8 Sekunden
+            setTimeout(() => {
+                if (toastElement && toastElement.parentNode) {
+                    toastElement.parentNode.removeChild(toastElement);
+                }
+            }, 8000);
+        }
+        
+        // Event-Listener für Atemschutz-Ablehnungs-Bestätigung
+        document.addEventListener('DOMContentLoaded', function() {
+            const confirmRejectBtn = document.getElementById('confirmAtemschutzReject');
+            if (confirmRejectBtn) {
+                confirmRejectBtn.addEventListener('click', function() {
+                    if (window.currentAtemschutzRejectId) {
+                        rejectAtemschutzEntry(window.currentAtemschutzRejectId);
+                        // Modal schließen
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('atemschutzRejectConfirmModal'));
+                        modal.hide();
+                    }
+                });
+            }
+        });
     </script>
     
     <!-- Atemschutzeintrag-Details Modal -->
@@ -1770,5 +1839,34 @@ if ($can_atemschutz) {
             margin-bottom: 0;
         }
     </style>
+
+    <!-- Atemschutz Ablehnungs-Bestätigungs-Modal -->
+    <div class="modal fade" id="atemschutzRejectConfirmModal" tabindex="-1" aria-labelledby="atemschutzRejectConfirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-warning text-dark border-0">
+                    <h5 class="modal-title" id="atemschutzRejectConfirmModalLabel">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Bestätigung erforderlich
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <div class="mb-3">
+                        <i class="fas fa-trash-alt text-warning" style="font-size: 3rem;"></i>
+                    </div>
+                    <h6 class="text-warning mb-3">Atemschutzeintrag ablehnen</h6>
+                    <p class="text-muted mb-0">Möchten Sie diesen Atemschutzeintrag wirklich ablehnen?<br><strong>Diese Aktion kann nicht rückgängig gemacht werden.</strong></p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center">
+                    <button type="button" class="btn btn-secondary px-4 me-2" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Abbrechen
+                    </button>
+                    <button type="button" class="btn btn-warning px-4" id="confirmAtemschutzReject">
+                        <i class="fas fa-trash-alt me-2"></i>Ja, ablehnen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
