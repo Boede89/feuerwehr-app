@@ -38,8 +38,6 @@ if (empty($format) || empty($results)) {
 try {
     if ($format === 'pdf') {
         generatePDF($results, $params);
-    } elseif ($format === 'excel') {
-        generateExcel($results, $params);
     } else {
         http_response_code(400);
         echo json_encode(['error' => 'Unbekanntes Format']);
@@ -85,20 +83,6 @@ function generatePDF($results, $params) {
     echo $html;
 }
 
-function generateExcel($results, $params) {
-    // CSV-Format für Excel-Kompatibilität
-    $csv = generateCSV($results, $params);
-    
-    // CSV-Header setzen (Excel kann CSV öffnen)
-    header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.csv"');
-    header('Cache-Control: no-cache, must-revalidate');
-    header('Pragma: no-cache');
-    
-    // BOM für UTF-8 hinzufügen (für korrekte Zeichen in Excel)
-    echo "\xEF\xBB\xBF";
-    echo $csv;
-}
 
 function generatePDFHTML($results, $params) {
     $uebungsDatum = $params['uebungsDatum'] ?? '';
@@ -259,30 +243,4 @@ function generatePDFHTML($results, $params) {
     return $html;
 }
 
-function generateCSV($results, $params) {
-    $uebungsDatum = $params['uebungsDatum'] ?? '';
-    $anzahl = $params['anzahlPaTraeger'] ?? 'alle';
-    $statusFilter = $params['statusFilter'] ?? [];
-    
-    $csv = "PA-Träger Liste für Übung\n";
-    $csv .= "Erstellt am: " . date('d.m.Y H:i') . "\n";
-    $csv .= "Übungsdatum: " . date('d.m.Y', strtotime($uebungsDatum)) . "\n";
-    $csv .= "Anzahl: " . ($anzahl === 'alle' ? 'Alle verfügbaren' : $anzahl . ' PA-Träger') . "\n";
-    $csv .= "Status-Filter: " . implode(', ', $statusFilter) . "\n";
-    $csv .= "Gefunden: " . count($results) . " PA-Träger\n\n";
-    
-    $csv .= "#,Name,Status,Strecke,G26.3,Übung/Einsatz,Gültig bis\n";
-    
-    foreach ($results as $index => $traeger) {
-        $csv .= ($index + 1) . ',';
-        $csv .= '"' . $traeger['name'] . '",';
-        $csv .= '"' . $traeger['status'] . '",';
-        $csv .= date('d.m.Y', strtotime($traeger['strecke_am'])) . ',';
-        $csv .= date('d.m.Y', strtotime($traeger['g263_am'])) . ',';
-        $csv .= date('d.m.Y', strtotime($traeger['uebung_am'])) . ',';
-        $csv .= date('d.m.Y', strtotime($traeger['uebung_bis'])) . "\n";
-    }
-    
-    return $csv;
-}
 ?>

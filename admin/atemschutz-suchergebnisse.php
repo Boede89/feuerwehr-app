@@ -241,35 +241,26 @@ function formatDate($date) {
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <div class="card h-100 text-center export-option" data-format="pdf">
-                                <div class="card-body">
-                                    <i class="fas fa-file-pdf fa-3x text-danger mb-3"></i>
-                                    <h6 class="card-title">PDF-Liste</h6>
-                                    <p class="card-text small text-muted">Erstellt eine formatierte PDF-Datei mit der PA-Träger-Liste</p>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="card h-100 text-center export-option" data-format="pdf">
+                                        <div class="card-body">
+                                            <i class="fas fa-file-pdf fa-3x text-danger mb-3"></i>
+                                            <h6 class="card-title">PDF-Liste</h6>
+                                            <p class="card-text small text-muted">Erstellt eine formatierte PDF-Datei mit der PA-Träger-Liste</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card h-100 text-center export-option" data-format="email">
+                                        <div class="card-body">
+                                            <i class="fas fa-envelope fa-3x text-primary mb-3"></i>
+                                            <h6 class="card-title">E-Mail-Versand</h6>
+                                            <p class="card-text small text-muted">Sendet die Liste per E-Mail an Empfänger</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <div class="card h-100 text-center export-option" data-format="excel">
-                                <div class="card-body">
-                                    <i class="fas fa-file-excel fa-3x text-success mb-3"></i>
-                                    <h6 class="card-title">Excel-Export</h6>
-                                    <p class="card-text small text-muted">Exportiert die Daten als Excel-Tabelle (.xlsx)</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <div class="card h-100 text-center export-option" data-format="email">
-                                <div class="card-body">
-                                    <i class="fas fa-envelope fa-3x text-primary mb-3"></i>
-                                    <h6 class="card-title">E-Mail-Versand</h6>
-                                    <p class="card-text small text-muted">Sendet die Liste per E-Mail an Empfänger</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                     
                     <!-- E-Mail-Einstellungen (versteckt) -->
                     <div id="emailSettings" class="mt-3" style="display: none;">
