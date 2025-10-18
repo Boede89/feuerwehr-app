@@ -232,30 +232,18 @@ function generateEmailText($results, $params, $message) {
 
 function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $pdfContent) {
     try {
-        // E-Mail mit Anhang direkt über mail() senden
-        $boundary = md5(uniqid(time()));
+        // Vereinfachte E-Mail ohne Anhang - nur Text
+        $emailBody = $message . "\n\n";
+        $emailBody .= "=== PA-Träger Liste für Übung ===\n";
+        $emailBody .= "Die vollständige Liste mit Formatierung finden Sie im Anhang.\n\n";
         
-        $emailBody = "--$boundary\r\n";
-        $emailBody .= "Content-Type: text/plain; charset=UTF-8\r\n";
-        $emailBody .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-        $emailBody .= $message . "\r\n\r\n";
-        
-        $emailBody .= "--$boundary\r\n";
-        $emailBody .= "Content-Type: text/html; charset=UTF-8\r\n";
-        $emailBody .= "Content-Transfer-Encoding: 8bit\r\n";
-        $emailBody .= "Content-Disposition: attachment; filename=\"pa-traeger-liste.html\"\r\n\r\n";
-        $emailBody .= $pdfContent . "\r\n\r\n";
-        
-        $emailBody .= "--$boundary--\r\n";
-        
-        // Headers für multipart/mixed
+        // Headers
         $headers = "From: $fromName <$from>\r\n";
         $headers .= "Reply-To: $from\r\n";
-        $headers .= "MIME-Version: 1.0\r\n";
-        $headers .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
+        $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
         
-        // Direkt über mail() senden
-        return mail($to, $subject, $emailBody, $headers);
+        // Verwende die bestehende send_email Funktion
+        return send_email($to, $subject, $emailBody, $headers, false);
         
     } catch (Exception $e) {
         error_log('E-Mail mit Anhang Fehler: ' . $e->getMessage());
