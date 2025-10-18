@@ -62,6 +62,19 @@ function formatDate($date) {
             padding: 20px;
             margin-bottom: 30px;
         }
+        .export-option {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        .export-option:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        .export-option.selected {
+            border-color: #198754;
+            background-color: #f8fff9;
+        }
     </style>
 </head>
 <body>
@@ -194,12 +207,88 @@ function formatDate($date) {
                             <a href="atemschutz-uebung-planen.php" class="btn btn-primary me-2">
                                 <i class="fas fa-search me-2"></i>Neue Suche
                             </a>
-                            <button class="btn btn-success" onclick="exportResults()">
+                            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#exportModal">
                                 <i class="fas fa-download me-2"></i>Ergebnisse exportieren
                             </button>
                         </div>
                     </div>
                 <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="exportModalLabel">
+                        <i class="fas fa-download me-2"></i>Ergebnisse exportieren
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100 text-center export-option" data-format="pdf">
+                                <div class="card-body">
+                                    <i class="fas fa-file-pdf fa-3x text-danger mb-3"></i>
+                                    <h6 class="card-title">PDF-Liste</h6>
+                                    <p class="card-text small text-muted">Erstellt eine formatierte PDF-Datei mit der PA-Träger-Liste</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100 text-center export-option" data-format="excel">
+                                <div class="card-body">
+                                    <i class="fas fa-file-excel fa-3x text-success mb-3"></i>
+                                    <h6 class="card-title">Excel-Export</h6>
+                                    <p class="card-text small text-muted">Exportiert die Daten als Excel-Tabelle (.xlsx)</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100 text-center export-option" data-format="email">
+                                <div class="card-body">
+                                    <i class="fas fa-envelope fa-3x text-primary mb-3"></i>
+                                    <h6 class="card-title">E-Mail-Versand</h6>
+                                    <p class="card-text small text-muted">Sendet die Liste per E-Mail an Empfänger</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- E-Mail-Einstellungen (versteckt) -->
+                    <div id="emailSettings" class="mt-3" style="display: none;">
+                        <hr>
+                        <h6><i class="fas fa-envelope me-2"></i>E-Mail-Einstellungen</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="emailRecipients" class="form-label">Empfänger</label>
+                                <input type="email" class="form-control" id="emailRecipients" placeholder="email@example.com" multiple>
+                                <div class="form-text">Mehrere E-Mail-Adressen mit Komma trennen</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="emailSubject" class="form-label">Betreff</label>
+                                <input type="text" class="form-control" id="emailSubject" value="PA-Träger Liste - Übung <?php echo formatDate($searchParams['uebungsDatum'] ?? ''); ?>">
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <label for="emailMessage" class="form-label">Nachricht</label>
+                            <textarea class="form-control" id="emailMessage" rows="3" placeholder="Optionale Nachricht...">Anbei die Liste der PA-Träger für die geplante Übung am <?php echo formatDate($searchParams['uebungsDatum'] ?? ''); ?>.
+
+Die Liste enthält <?php echo count($searchResults); ?> PA-Träger und ist nach dem Übungszertifikat sortiert (älteste zuerst).</textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Abbrechen
+                    </button>
+                    <button type="button" class="btn btn-success" id="confirmExport" disabled>
+                        <i class="fas fa-download me-2"></i>Export starten
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -212,8 +301,132 @@ function formatDate($date) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function exportResults() {
-            alert('Export-Funktion wird in Kürze implementiert!\n\nGeplante Formate:\n- PDF-Liste\n- Excel-Export\n- E-Mail-Versand');
+        let selectedFormat = null;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Export-Optionen auswählbar machen
+            document.querySelectorAll('.export-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    // Alle Optionen deselektieren
+                    document.querySelectorAll('.export-option').forEach(opt => opt.classList.remove('selected'));
+                    
+                    // Diese Option auswählen
+                    this.classList.add('selected');
+                    selectedFormat = this.dataset.format;
+                    
+                    // Export-Button aktivieren
+                    document.getElementById('confirmExport').disabled = false;
+                    
+                    // E-Mail-Einstellungen anzeigen/verstecken
+                    const emailSettings = document.getElementById('emailSettings');
+                    if (selectedFormat === 'email') {
+                        emailSettings.style.display = 'block';
+                    } else {
+                        emailSettings.style.display = 'none';
+                    }
+                });
+            });
+            
+            // Export bestätigen
+            document.getElementById('confirmExport').addEventListener('click', function() {
+                if (!selectedFormat) return;
+                
+                const button = this;
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Export läuft...';
+                button.disabled = true;
+                
+                if (selectedFormat === 'email') {
+                    exportViaEmail();
+                } else {
+                    exportToFile(selectedFormat);
+                }
+                
+                // Button nach 3 Sekunden zurücksetzen
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }, 3000);
+            });
+        });
+        
+        function exportToFile(format) {
+            const searchData = {
+                format: format,
+                results: <?php echo json_encode($searchResults); ?>,
+                params: <?php echo json_encode($searchParams); ?>
+            };
+            
+            fetch('../api/export-pa-traeger.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(searchData)
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                }
+                throw new Error('Export fehlgeschlagen');
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `pa-traeger-liste-${new Date().toISOString().split('T')[0]}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                // Modal schließen
+                bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();
+            })
+            .catch(error => {
+                console.error('Export-Fehler:', error);
+                alert('Fehler beim Export: ' + error.message);
+            });
+        }
+        
+        function exportViaEmail() {
+            const recipients = document.getElementById('emailRecipients').value;
+            const subject = document.getElementById('emailSubject').value;
+            const message = document.getElementById('emailMessage').value;
+            
+            if (!recipients) {
+                alert('Bitte geben Sie mindestens eine E-Mail-Adresse ein.');
+                return;
+            }
+            
+            const emailData = {
+                recipients: recipients.split(',').map(email => email.trim()),
+                subject: subject,
+                message: message,
+                results: <?php echo json_encode($searchResults); ?>,
+                params: <?php echo json_encode($searchParams); ?>
+            };
+            
+            fetch('../api/email-pa-traeger.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(emailData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('E-Mail wurde erfolgreich versendet!');
+                    bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();
+                } else {
+                    alert('Fehler beim E-Mail-Versand: ' + (data.error || 'Unbekannter Fehler'));
+                }
+            })
+            .catch(error => {
+                console.error('E-Mail-Fehler:', error);
+                alert('Fehler beim E-Mail-Versand: ' + error.message);
+            });
         }
     </script>
 </body>
