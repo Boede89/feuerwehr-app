@@ -73,9 +73,9 @@ function generatePDF($results, $params) {
     </script>
     </head>', $html);
     
-    // HTML-Header setzen für Download
+    // HTML-Header setzen für Anzeige (nicht Download)
     header('Content-Type: text/html; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.pdf"');
+    header('Content-Disposition: inline; filename="pa-traeger-liste-' . date('Y-m-d') . '.html"');
     header('Cache-Control: no-cache, must-revalidate');
     header('Pragma: no-cache');
     
