@@ -589,7 +589,7 @@ Mit freundlichen Grüßen
                 html += `
                     <tr>
                         <td>${index + 1}</td>
-                        <td>${traeger.first_name} ${traeger.last_name}</td>
+                        <td>${(traeger.first_name || '')} ${(traeger.last_name || '')}</td>
                         <td><span class="status-badge ${statusClass}">${traeger.status}</span></td>
                         <td>${new Date(traeger.strecke_am).toLocaleDateString('de-DE')}</td>
                         <td>${new Date(traeger.g263_am).toLocaleDateString('de-DE')}</td>
