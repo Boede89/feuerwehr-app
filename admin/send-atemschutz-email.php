@@ -63,8 +63,11 @@ try {
         $body
     );
     
+    // Prüfe ob es sich um eine HTML-E-Mail handelt (mehrere Zertifikate)
+    $isHtmlEmail = strpos($finalBody, '<!DOCTYPE html>') !== false;
+    
     // E-Mail über die globale send_email() Funktion senden (verwendet SMTP-Einstellungen)
-    $success = send_email($email, $finalSubject, $finalBody);
+    $success = send_email($email, $finalSubject, $finalBody, $isHtmlEmail);
     
     if ($success) {
         // E-Mail-Versand in der Datenbank protokollieren

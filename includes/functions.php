@@ -71,7 +71,7 @@ function generate_token($length = 32) {
 /**
  * E-Mail senden
  */
-function send_email($to, $subject, $message, $headers = '') {
+function send_email($to, $subject, $message, $headers = '', $isHtml = false) {
     global $db;
     
     try {
@@ -91,13 +91,13 @@ function send_email($to, $subject, $message, $headers = '') {
         // Verwende Gmail SMTP direkt für zuverlässige E-Mail-Zustellung
         if (!empty($smtp_host) && !empty($smtp_username) && !empty($smtp_password)) {
             error_log("E-Mail wird über Gmail SMTP gesendet an: $to");
-            return send_email_smtp($to, $subject, $message, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name);
+            return send_email_smtp($to, $subject, $message, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name, $isHtml);
         } else {
             // Fallback auf mail() Funktion
             if (empty($headers)) {
                 $headers = "From: $smtp_from_name <$smtp_from_email>\r\n";
                 $headers .= "Reply-To: $smtp_from_email\r\n";
-                $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+                $headers .= "Content-Type: " . ($isHtml ? "text/html" : "text/plain") . "; charset=UTF-8\r\n";
                 $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
             }
             
@@ -114,12 +114,12 @@ function send_email($to, $subject, $message, $headers = '') {
 /**
  * E-Mail über SMTP senden (echte SMTP-Implementierung)
  */
-function send_email_smtp($to, $subject, $message, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $from_email, $from_name) {
+function send_email_smtp($to, $subject, $message, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $from_email, $from_name, $isHtml = false) {
     require_once 'smtp.php';
     
     try {
         $smtp = new SimpleSMTP($smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $from_email, $from_name);
-        $result = $smtp->send($to, $subject, $message);
+        $result = $smtp->send($to, $subject, $message, $isHtml);
         
         if ($result) {
             error_log("SMTP E-Mail erfolgreich gesendet an: $to");
