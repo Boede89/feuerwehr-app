@@ -411,42 +411,45 @@ Mit freundlichen Grüßen
         });
         
         function exportToFile(format) {
-            const searchData = {
-                format: format,
-                results: <?php echo json_encode($searchResults); ?>,
-                params: <?php echo json_encode($searchParams); ?>
-            };
+            // Daten für den Export vorbereiten
+            const results = <?php echo json_encode($searchResults); ?>;
+            const params = <?php echo json_encode($searchParams); ?>;
             
-            fetch('../api/export-pa-traeger.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(searchData)
-            })
-            .then(response => {
-                if (response.ok) {
-                    return response.blob();
-                }
-                throw new Error('Export fehlgeschlagen');
-            })
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `pa-traeger-liste-${new Date().toISOString().split('T')[0]}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-                
-                // Modal schließen
-                bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();
-            })
-            .catch(error => {
-                console.error('Export-Fehler:', error);
-                alert('Fehler beim Export: ' + error.message);
-            });
+            // Formular erstellen
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '../api/export-pa-traeger.php';
+            form.target = '_blank';
+            form.style.display = 'none';
+            
+            // Format hinzufügen
+            const formatInput = document.createElement('input');
+            formatInput.type = 'hidden';
+            formatInput.name = 'format';
+            formatInput.value = format;
+            form.appendChild(formatInput);
+            
+            // Ergebnisse hinzufügen
+            const resultsInput = document.createElement('input');
+            resultsInput.type = 'hidden';
+            resultsInput.name = 'results';
+            resultsInput.value = JSON.stringify(results);
+            form.appendChild(resultsInput);
+            
+            // Parameter hinzufügen
+            const paramsInput = document.createElement('input');
+            paramsInput.type = 'hidden';
+            paramsInput.name = 'params';
+            paramsInput.value = JSON.stringify(params);
+            form.appendChild(paramsInput);
+            
+            // Formular senden
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+            
+            // Modal schließen
+            bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();
         }
         
         function exportViaEmail() {

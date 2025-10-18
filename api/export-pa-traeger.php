@@ -10,23 +10,24 @@ if (!isset($_SESSION['user_id']) || (!has_permission('atemschutz') && !hasAdminP
     exit;
 }
 
-// POST-Daten empfangen
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Nur POST-Requests erlaubt']);
-    exit;
+// GET oder POST-Daten empfangen
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $format = $_GET['format'] ?? '';
+    $results = json_decode($_GET['results'] ?? '[]', true);
+    $params = json_decode($_GET['params'] ?? '{}', true);
+} else {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) {
+        // Fallback: POST-Daten als Form-Daten
+        $format = $_POST['format'] ?? '';
+        $results = json_decode($_POST['results'] ?? '[]', true);
+        $params = json_decode($_POST['params'] ?? '{}', true);
+    } else {
+        $format = $input['format'] ?? '';
+        $results = $input['results'] ?? [];
+        $params = $input['params'] ?? [];
+    }
 }
-
-$input = json_decode(file_get_contents('php://input'), true);
-if (!$input) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Ungültige JSON-Daten']);
-    exit;
-}
-
-$format = $input['format'] ?? '';
-$results = $input['results'] ?? [];
-$params = $input['params'] ?? [];
 
 if (empty($format) || empty($results)) {
     http_response_code(400);
@@ -51,14 +52,16 @@ try {
 }
 
 function generatePDF($results, $params) {
-    // Einfache PDF-Generierung mit HTML (Browser kann als PDF drucken)
+    // HTML für PDF generieren
     $html = generatePDFHTML($results, $params);
     
-    // HTML-Header setzen
+    // HTML-Header setzen (Browser kann als PDF drucken)
     header('Content-Type: text/html; charset=UTF-8');
-    header('Content-Disposition: inline; filename="pa-traeger-liste-' . date('Y-m-d') . '.html"');
+    header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.html"');
+    header('Cache-Control: no-cache, must-revalidate');
+    header('Pragma: no-cache');
     
-    // HTML mit Druck-Styles ausgeben
+    // HTML ausgeben
     echo $html;
 }
 
@@ -69,6 +72,8 @@ function generateExcel($results, $params) {
     // CSV-Header setzen (Excel kann CSV öffnen)
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.csv"');
+    header('Cache-Control: no-cache, must-revalidate');
+    header('Pragma: no-cache');
     
     // BOM für UTF-8 hinzufügen (für korrekte Zeichen in Excel)
     echo "\xEF\xBB\xBF";
