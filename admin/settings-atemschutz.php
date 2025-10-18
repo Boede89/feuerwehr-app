@@ -151,6 +151,9 @@ try {
 // Benutzer für Benachrichtigungseinstellungen laden
 $users = [];
 try {
+    // Stelle sicher, dass die atemschutz_notifications Spalte existiert
+    $db->exec("ALTER TABLE users ADD COLUMN atemschutz_notifications TINYINT(1) DEFAULT 0");
+    
     $stmt = $db->prepare("
         SELECT id, first_name, last_name, email, is_admin, user_role, 
                COALESCE(atemschutz_notifications, 0) as atemschutz_notifications
@@ -159,8 +162,14 @@ try {
     ");
     $stmt->execute();
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    error_log("Benutzer geladen: " . count($users) . " Benutzer gefunden");
+    if (empty($users)) {
+        error_log("Keine Benutzer in der Datenbank gefunden");
+    }
 } catch (Exception $e) { 
     error_log("Fehler beim Laden der Benutzer: " . $e->getMessage());
+    $error = "Fehler beim Laden der Benutzer: " . $e->getMessage();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
