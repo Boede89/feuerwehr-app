@@ -211,8 +211,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <div class="container-fluid mt-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h1 class="h3 mb-0"><i class="fas fa-lungs"></i> Atemschutz</h1>
-            <a href="atemschutz-uebung-planen.php" class="btn btn-success">
-                <i class="fas fa-calendar-plus me-2"></i>Übung planen
+            <a href="test-uebung-planen.php" class="btn btn-success">
+                <i class="fas fa-calendar-plus me-2"></i>Übung planen (Test)
             </a>
         </div>
 
