@@ -36,8 +36,21 @@ if (empty($recipients) || empty($subject)) {
     exit;
 }
 
-// Absender ist immer der angemeldete User
-$sender = $_SESSION['email'] ?? '';
+// Absender aus SMTP-Einstellungen laden
+$sender = '';
+$senderName = '';
+try {
+    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key IN ('smtp_from_email', 'smtp_from_name')");
+    $stmt->execute();
+    $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    
+    $sender = $settings['smtp_from_email'] ?? '';
+    $senderName = $settings['smtp_from_name'] ?? 'Feuerwehr App';
+} catch (Exception $e) {
+    // Fallback auf angemeldeten User
+    $sender = $_SESSION['email'] ?? '';
+    $senderName = ($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '');
+}
 
 try {
     // PDF-Anhang generieren
@@ -53,7 +66,7 @@ try {
     foreach ($recipients as $recipient) {
         $recipient = trim($recipient);
         if (filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
-            if (sendEmailWithAttachment($recipient, $sender, $subject, $emailBody, $pdfContent)) {
+            if (sendEmailWithAttachment($recipient, $sender, $senderName, $subject, $emailBody, $pdfContent)) {
                 $successCount++;
             } else {
                 $errors[] = "Fehler beim Senden an $recipient";
@@ -122,7 +135,7 @@ function generateEmailText($results, $params, $message) {
     return $text;
 }
 
-function sendEmailWithAttachment($to, $from, $subject, $message, $pdfContent) {
+function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $pdfContent) {
     global $db;
     
     try {
@@ -137,13 +150,13 @@ function sendEmailWithAttachment($to, $from, $subject, $message, $pdfContent) {
         $smtp_password = $settings['smtp_password'] ?? '';
         $smtp_encryption = $settings['smtp_encryption'] ?? 'tls';
         $smtp_from_email = $settings['smtp_from_email'] ?? $from;
-        $smtp_from_name = $settings['smtp_from_name'] ?? 'Feuerwehr App';
+        $smtp_from_name = $settings['smtp_from_name'] ?? $fromName;
         
         if (!empty($smtp_host) && !empty($smtp_username) && !empty($smtp_password)) {
-            return sendEmailWithAttachmentSMTP($to, $from, $subject, $message, $pdfContent, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name);
+            return sendEmailWithAttachmentSMTP($to, $smtp_from_email, $smtp_from_name, $subject, $message, $pdfContent, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption);
         } else {
             // Fallback auf mail() Funktion
-            return sendEmailWithAttachmentMail($to, $from, $subject, $message, $pdfContent);
+            return sendEmailWithAttachmentMail($to, $smtp_from_email, $smtp_from_name, $subject, $message, $pdfContent);
         }
     } catch (Exception $e) {
         error_log('E-Mail mit Anhang Fehler: ' . $e->getMessage());
@@ -151,10 +164,10 @@ function sendEmailWithAttachment($to, $from, $subject, $message, $pdfContent) {
     }
 }
 
-function sendEmailWithAttachmentMail($to, $from, $subject, $message, $pdfContent) {
+function sendEmailWithAttachmentMail($to, $from, $fromName, $subject, $message, $pdfContent) {
     $boundary = md5(uniqid(time()));
     
-    $headers = "From: $from\r\n";
+    $headers = "From: $fromName <$from>\r\n";
     $headers .= "Reply-To: $from\r\n";
     $headers .= "MIME-Version: 1.0\r\n";
     $headers .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
@@ -175,14 +188,14 @@ function sendEmailWithAttachmentMail($to, $from, $subject, $message, $pdfContent
     return mail($to, $subject, $body, $headers);
 }
 
-function sendEmailWithAttachmentSMTP($to, $from, $subject, $message, $pdfContent, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name) {
+function sendEmailWithAttachmentSMTP($to, $from, $fromName, $subject, $message, $pdfContent, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption) {
     // Vereinfachte SMTP-Implementierung mit Anhang
     // In einer echten Implementierung würde hier eine vollständige SMTP-Bibliothek verwendet
     
     $boundary = md5(uniqid(time()));
     
     $email_data = "To: $to\r\n";
-    $email_data .= "From: $smtp_from_name <$smtp_from_email>\r\n";
+    $email_data .= "From: $fromName <$from>\r\n";
     $email_data .= "Reply-To: $from\r\n";
     $email_data .= "Subject: $subject\r\n";
     $email_data .= "MIME-Version: 1.0\r\n";
