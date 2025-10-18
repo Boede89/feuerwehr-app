@@ -23,7 +23,7 @@ class SimpleSMTP {
         $this->from_name = $from_name;
     }
     
-    public function send($to, $subject, $message) {
+    public function send($to, $subject, $message, $isHtml = false) {
         try {
             // Verbindung herstellen
             $this->connection = fsockopen($this->host, $this->port, $errno, $errstr, 30);
@@ -102,7 +102,7 @@ class SimpleSMTP {
             $email_data .= "To: {$to_clean}\r\n";
             $email_data .= "Subject: {$subject_clean}\r\n";
             $email_data .= "MIME-Version: 1.0\r\n";
-            $email_data .= "Content-Type: text/html; charset=UTF-8\r\n";
+            $email_data .= "Content-Type: " . ($isHtml ? "text/html" : "text/plain") . "; charset=UTF-8\r\n";
             $email_data .= "Content-Transfer-Encoding: 8bit\r\n";
             $email_data .= "X-Mailer: PHP/" . phpversion() . "\r\n";
             $email_data .= "X-Priority: 3\r\n";
