@@ -53,29 +53,9 @@ function generatePDF($results, $params) {
     // HTML für PDF generieren
     $html = generatePDFHTML($results, $params);
     
-    // JavaScript für automatischen PDF-Download hinzufügen
-    $html = str_replace('</head>', '
-    <script>
-        // Automatisch PDF drucken beim Laden
-        window.onload = function() {
-            setTimeout(function() {
-                // PDF-Dialog öffnen
-                window.print();
-            }, 100);
-        };
-        
-        // Nach dem Drucken das Fenster schließen
-        window.onafterprint = function() {
-            setTimeout(function() {
-                window.close();
-            }, 500);
-        };
-    </script>
-    </head>', $html);
-    
-    // HTML-Header setzen für Anzeige (nicht Download)
+    // HTML-Header setzen für Download
     header('Content-Type: text/html; charset=UTF-8');
-    header('Content-Disposition: inline; filename="pa-traeger-liste-' . date('Y-m-d') . '.html"');
+    header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.html"');
     header('Cache-Control: no-cache, must-revalidate');
     header('Pragma: no-cache');
     
