@@ -179,13 +179,7 @@ if (!$isAdmin && !$canAtemschutz) {
             'strecke_bis' => 'strecke_bis',
             'g263_bis' => 'g263_bis',
             'uebung_bis' => 'uebung_bis',
-            'status' => 'CASE 
-                WHEN status = "Tauglich" THEN 1
-                WHEN status = "Warnung" THEN 2
-                WHEN status = "Abgelaufen" THEN 3
-                WHEN status = "Übung abgelaufen" THEN 4
-                ELSE 5
-            END, status',
+            'status' => 'name_full', // Status wird in PHP sortiert
         ];
         $orderExpr = $orderMap[$sort] ?? 'name_full';
         $order = "ORDER BY $orderExpr $dir";
@@ -194,6 +188,32 @@ if (!$isAdmin && !$canAtemschutz) {
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
         $traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // PHP-basierte Sortierung für Status (falls SQL-Sortierung nicht funktioniert)
+        if ($sort === 'status') {
+            $statusOrder = [
+                'Tauglich' => 1,
+                'Warnung' => 2,
+                'Abgelaufen' => 3,
+                'Übung abgelaufen' => 4
+            ];
+            
+            usort($traeger, function($a, $b) use ($statusOrder, $dir) {
+                $aOrder = $statusOrder[$a['status']] ?? 999;
+                $bOrder = $statusOrder[$b['status']] ?? 999;
+                
+                if ($aOrder === $bOrder) {
+                    // Bei gleichem Status alphabetisch nach Namen sortieren
+                    return strcmp($a['name_full'], $b['name_full']);
+                }
+                
+                if ($dir === 'ASC') {
+                    return $aOrder <=> $bOrder;
+                } else {
+                    return $bOrder <=> $aOrder;
+                }
+            });
+        }
 
         // Zählwerte vorbereiten: Gesamt und Tauglich/Warnung (ohne abgelaufen / "Übung abgelaufen")
         $totalCount = count($traeger);
