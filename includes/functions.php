@@ -362,7 +362,7 @@ function get_admin_navigation() {
     
     // Atemschutz (sichtbar für Benutzer mit Atemschutz-Recht)
     if (has_permission('atemschutz')) {
-        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="atemschutz.php"><i class="fas fa-lungs"></i> Atemschutz</a></li>';
+        $nav_items[] = '<li class="nav-item"><a class="nav-link" href="atemschutz.php"><i class="fas fa-user-shield"></i> Atemschutz</a></li>';
     }
 
     // Einstellungen - nur für Einstellungen-Recht (inkl. Fahrzeuge und Benutzer)
