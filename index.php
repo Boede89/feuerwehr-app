@@ -12,6 +12,70 @@ require_once 'includes/functions.php';
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
+    <style>
+        .atemschutz-icon {
+            position: relative;
+            display: inline-block;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .atemschutz-icon:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+        }
+        
+        .atemschutz-icon .fa-user-shield {
+            font-size: 2.5rem;
+            color: white;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .atemschutz-mask {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 30px;
+            height: 30px;
+            background: #ffc107;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.4);
+            animation: pulse 2s infinite;
+        }
+        
+        .atemschutz-mask .fa-mask {
+            font-size: 1rem;
+            color: #dc3545;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+        
+        .feature-card:hover .atemschutz-icon {
+            transform: scale(1.1);
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -88,11 +152,16 @@ require_once 'includes/functions.php';
                         <div class="card h-100 shadow-sm feature-card">
                             <div class="card-body text-center p-4">
                                 <div class="feature-icon mb-3">
-                                    <i class="fas fa-mask text-info"></i>
+                                    <div class="atemschutz-icon">
+                                        <i class="fas fa-user-shield"></i>
+                                        <div class="atemschutz-mask">
+                                            <i class="fas fa-mask"></i>
+                                        </div>
+                                    </div>
                                 </div>
                                 <h5 class="card-title">Atemschutzeintrag erstellen</h5>
                                 <p class="card-text">Erstellen Sie einen neuen Atemschutzeintrag für Einsatz/Übung, Atemschutzstrecke oder G26.3.</p>
-                                <button class="btn btn-outline-info btn-lg" data-bs-toggle="modal" data-bs-target="#atemschutzModal">
+                                <button class="btn btn-danger btn-lg" data-bs-toggle="modal" data-bs-target="#atemschutzModal">
                                     <i class="fas fa-plus"></i> Eintrag erstellen
                                 </button>
                             </div>
