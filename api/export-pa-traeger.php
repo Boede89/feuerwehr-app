@@ -51,18 +51,17 @@ try {
 }
 
 function generatePDF($results, $params) {
-    // Echte PDF generieren
-    $pdfContent = generatePDFForDownload($results, $params);
+    // HTML für PDF generieren
+    $html = generatePDFForDownload($results, $params);
     
-    // PDF-Header setzen
-    header('Content-Type: application/pdf');
-    header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.pdf"');
+    // HTML-Header setzen für PDF-Download
+    header('Content-Type: text/html; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.html"');
     header('Cache-Control: no-cache, must-revalidate');
     header('Pragma: no-cache');
-    header('Content-Length: ' . strlen($pdfContent));
     
-    // PDF ausgeben
-    echo $pdfContent;
+    // HTML ausgeben
+    echo $html;
 }
 
 

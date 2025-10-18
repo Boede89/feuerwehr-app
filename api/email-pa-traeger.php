@@ -231,14 +231,9 @@ function generateEmailText($results, $params, $message) {
     return $text;
 }
 
-function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $pdfContent) {
+function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $htmlContent) {
     try {
-        // PDF temporär speichern
-        $tempDir = sys_get_temp_dir();
-        $tempFile = $tempDir . '/pa-traeger-liste-' . uniqid() . '.pdf';
-        file_put_contents($tempFile, $pdfContent);
-        
-        // E-Mail mit PDF-Anhang senden
+        // E-Mail mit HTML-Anhang senden
         $boundary = md5(uniqid(time()));
         
         // E-Mail-Body mit Anhang
@@ -247,13 +242,14 @@ function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $pdf
         $emailBody .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
         $emailBody .= $message . "\r\n\r\n";
         $emailBody .= "=== PA-Träger Liste für Übung ===\r\n";
-        $emailBody .= "Die vollständige Liste finden Sie im PDF-Anhang.\r\n\r\n";
+        $emailBody .= "Die vollständige Liste finden Sie im HTML-Anhang.\r\n";
+        $emailBody .= "Öffnen Sie die Datei im Browser und drucken Sie sie als PDF.\r\n\r\n";
         
         $emailBody .= "--$boundary\r\n";
-        $emailBody .= "Content-Type: application/pdf\r\n";
-        $emailBody .= "Content-Transfer-Encoding: base64\r\n";
-        $emailBody .= "Content-Disposition: attachment; filename=\"pa-traeger-liste.pdf\"\r\n\r\n";
-        $emailBody .= chunk_split(base64_encode($pdfContent)) . "\r\n";
+        $emailBody .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $emailBody .= "Content-Transfer-Encoding: 8bit\r\n";
+        $emailBody .= "Content-Disposition: attachment; filename=\"pa-traeger-liste.html\"\r\n\r\n";
+        $emailBody .= $htmlContent . "\r\n";
         
         $emailBody .= "--$boundary--\r\n";
         
@@ -266,15 +262,10 @@ function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $pdf
         // E-Mail senden
         $result = mail($to, $subject, $emailBody, $headers);
         
-        // Temporäre Datei löschen
-        if (file_exists($tempFile)) {
-            unlink($tempFile);
-        }
-        
         return $result;
         
     } catch (Exception $e) {
-        error_log('E-Mail mit PDF-Anhang Fehler: ' . $e->getMessage());
+        error_log('E-Mail mit HTML-Anhang Fehler: ' . $e->getMessage());
         return false;
     }
 }
