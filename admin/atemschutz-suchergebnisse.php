@@ -276,7 +276,7 @@ function formatDate($date) {
                         <hr>
                         <h6><i class="fas fa-envelope me-2"></i>E-Mail-Einstellungen</h6>
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-12">
                                 <label for="emailRecipients" class="form-label">Empfänger</label>
                                 <select class="form-select" id="emailRecipients">
                                     <option value="<?php echo htmlspecialchars($_SESSION['email'] ?? ''); ?>">
@@ -292,14 +292,6 @@ function formatDate($date) {
                                 <input type="email" class="form-control mt-2" id="customRecipients" 
                                        placeholder="empfaenger@example.com" style="display: none;">
                                 <div class="form-text mt-1">Mehrere E-Mail-Adressen mit Komma trennen</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Absender</label>
-                                <div class="form-control-plaintext">
-                                    <i class="fas fa-user me-2"></i>
-                                    <span class="text-muted"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?> (<?php echo htmlspecialchars($_SESSION['email'] ?? 'Keine E-Mail'); ?>)</span>
-                                </div>
-                                <div class="form-text">Der angemeldete Benutzer sendet die E-Mail</div>
                             </div>
                         </div>
                         <div class="row mt-2">
