@@ -53,16 +53,6 @@ function formatDate($date) {
             font-size: 0.8rem;
             padding: 4px 8px;
         }
-        .traeger-card {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .traeger-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-        .certificate-info {
-            font-size: 0.9rem;
-        }
         .certificate-date {
             font-weight: 600;
         }
@@ -145,54 +135,67 @@ function formatDate($date) {
                         </a>
                     </div>
                 <?php else: ?>
-                    <div class="row">
-                        <?php foreach ($searchResults as $traeger): ?>
-                        <div class="col-md-6 col-lg-4 mb-4">
-                            <div class="card traeger-card h-100">
-                                <div class="card-header d-flex justify-content-between align-items-center">
-                                    <h6 class="mb-0"><?php echo htmlspecialchars($traeger['name']); ?></h6>
-                                    <span class="badge <?php echo getStatusClass($traeger['status']); ?> status-badge">
-                                        <?php echo htmlspecialchars($traeger['status']); ?>
-                                    </span>
-                                </div>
-                                <div class="card-body">
-                                    <div class="certificate-info">
-                                        <div class="mb-2">
-                                            <strong>Strecke:</strong><br>
-                                            <span class="certificate-date"><?php echo formatDate($traeger['strecke_am']); ?></span>
-                                        </div>
-                                        <div class="mb-2">
-                                            <strong>G26.3:</strong><br>
-                                            <span class="certificate-date"><?php echo formatDate($traeger['g263_am']); ?></span>
-                                        </div>
-                                        <div class="mb-2">
-                                            <strong>Übung/Einsatz:</strong><br>
-                                            <span class="certificate-date"><?php echo formatDate($traeger['uebung_am']); ?></span>
-                                            <small class="text-muted d-block">
-                                                (gültig bis: <?php echo formatDate($traeger['uebung_bis']); ?>)
-                                            </small>
-                                        </div>
-                                        <?php if (!empty($traeger['email'])): ?>
-                                        <div class="mt-3">
-                                            <strong>E-Mail:</strong><br>
-                                            <a href="mailto:<?php echo htmlspecialchars($traeger['email']); ?>" class="text-decoration-none">
-                                                <i class="fas fa-envelope me-1"></i><?php echo htmlspecialchars($traeger['email']); ?>
-                                            </a>
-                                        </div>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                                <div class="card-footer">
-                                    <div class="d-grid">
-                                        <button class="btn btn-outline-primary btn-sm" 
-                                                onclick="selectTraeger(<?php echo $traeger['id']; ?>, '<?php echo htmlspecialchars($traeger['name']); ?>')">
-                                            <i class="fas fa-check me-1"></i>Auswählen
-                                        </button>
-                                    </div>
-                                </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-list me-2"></i>Gefundene PA-Träger
+                                <span class="badge bg-primary ms-2"><?php echo count($searchResults); ?></span>
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 60px;">#</th>
+                                            <th>Name</th>
+                                            <th>Status</th>
+                                            <th>Strecke</th>
+                                            <th>G26.3</th>
+                                            <th>Übung/Einsatz</th>
+                                            <th>E-Mail</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($searchResults as $index => $traeger): ?>
+                                        <tr>
+                                            <td class="fw-bold text-muted"><?php echo $index + 1; ?></td>
+                                            <td>
+                                                <strong><?php echo htmlspecialchars($traeger['name']); ?></strong>
+                                            </td>
+                                            <td>
+                                                <span class="badge <?php echo getStatusClass($traeger['status']); ?> status-badge">
+                                                    <?php echo htmlspecialchars($traeger['status']); ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="certificate-date"><?php echo formatDate($traeger['strecke_am']); ?></span>
+                                            </td>
+                                            <td>
+                                                <span class="certificate-date"><?php echo formatDate($traeger['g263_am']); ?></span>
+                                            </td>
+                                            <td>
+                                                <span class="certificate-date"><?php echo formatDate($traeger['uebung_am']); ?></span>
+                                                <br>
+                                                <small class="text-muted">
+                                                    <i class="fas fa-calendar-alt me-1"></i>bis <?php echo formatDate($traeger['uebung_bis']); ?>
+                                                </small>
+                                            </td>
+                                            <td>
+                                                <?php if (!empty($traeger['email'])): ?>
+                                                    <a href="mailto:<?php echo htmlspecialchars($traeger['email']); ?>" class="text-decoration-none">
+                                                        <i class="fas fa-envelope me-1"></i><?php echo htmlspecialchars($traeger['email']); ?>
+                                                    </a>
+                                                <?php else: ?>
+                                                    <span class="text-muted">-</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                        <?php endforeach; ?>
                     </div>
 
                     <!-- Aktions-Buttons -->
@@ -219,10 +222,6 @@ function formatDate($date) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function selectTraeger(id, name) {
-            alert('PA-Träger "' + name + '" wurde ausgewählt!\n\nHier können später weitere Aktionen implementiert werden:\n- Zur Übung hinzufügen\n- Kontakt aufnehmen\n- Details anzeigen');
-        }
-        
         function exportResults() {
             alert('Export-Funktion wird in Kürze implementiert!\n\nGeplante Formate:\n- PDF-Liste\n- Excel-Export\n- E-Mail-Versand');
         }
