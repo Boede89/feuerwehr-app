@@ -25,7 +25,6 @@ if (!$input) {
 }
 
 $recipients = $input['recipients'] ?? [];
-$sender = $input['sender'] ?? '';
 $subject = $input['subject'] ?? '';
 $message = $input['message'] ?? '';
 $results = $input['results'] ?? [];
@@ -36,6 +35,9 @@ if (empty($recipients) || empty($subject)) {
     echo json_encode(['error' => 'Empfänger und Betreff sind erforderlich']);
     exit;
 }
+
+// Absender ist immer der angemeldete User
+$sender = $_SESSION['email'] ?? '';
 
 try {
     // PDF-Anhang generieren

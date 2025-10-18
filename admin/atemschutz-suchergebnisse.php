@@ -13,6 +13,19 @@ if (!isset($_SESSION['user_id']) || (!has_permission('atemschutz') && !hasAdminP
 $searchResults = $_SESSION['pa_traeger_search_results'] ?? [];
 $searchParams = $_SESSION['pa_traeger_search_params'] ?? [];
 
+// SMTP-Einstellungen für E-Mail-Auswahl laden
+$smtpFromEmail = '';
+try {
+    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'smtp_from_email' LIMIT 1");
+    $stmt->execute();
+    $setting = $stmt->fetch();
+    if ($setting) {
+        $smtpFromEmail = $setting['setting_value'];
+    }
+} catch (Exception $e) {
+    // Fehler ignorieren
+}
+
 // Session-Daten löschen
 unset($_SESSION['pa_traeger_search_results']);
 unset($_SESSION['pa_traeger_search_params']);
@@ -265,21 +278,28 @@ function formatDate($date) {
                         <div class="row">
                             <div class="col-md-6">
                                 <label for="emailRecipients" class="form-label">Empfänger</label>
-                                <input type="email" class="form-control" id="emailRecipients" 
-                                       value="<?php echo htmlspecialchars($_SESSION['email'] ?? ''); ?>" 
-                                       placeholder="email@example.com" multiple>
-                                <div class="form-text">Mehrere E-Mail-Adressen mit Komma trennen</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="emailSender" class="form-label">Absender</label>
-                                <select class="form-select" id="emailSender">
+                                <select class="form-select" id="emailRecipients">
                                     <option value="<?php echo htmlspecialchars($_SESSION['email'] ?? ''); ?>">
                                         <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name'] . ' (' . ($_SESSION['email'] ?? 'Keine E-Mail') . ')'); ?>
                                     </option>
+                                    <?php if (!empty($smtpFromEmail) && $smtpFromEmail !== ($_SESSION['email'] ?? '')): ?>
+                                    <option value="<?php echo htmlspecialchars($smtpFromEmail); ?>">
+                                        SMTP-Absender (<?php echo htmlspecialchars($smtpFromEmail); ?>)
+                                    </option>
+                                    <?php endif; ?>
                                     <option value="custom">Manuell eingeben...</option>
                                 </select>
-                                <input type="email" class="form-control mt-2" id="customSender" 
-                                       placeholder="absender@example.com" style="display: none;">
+                                <input type="email" class="form-control mt-2" id="customRecipients" 
+                                       placeholder="empfaenger@example.com" style="display: none;">
+                                <div class="form-text mt-1">Mehrere E-Mail-Adressen mit Komma trennen</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Absender</label>
+                                <div class="form-control-plaintext">
+                                    <i class="fas fa-user me-2"></i>
+                                    <span class="text-muted"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?> (<?php echo htmlspecialchars($_SESSION['email'] ?? 'Keine E-Mail'); ?>)</span>
+                                </div>
+                                <div class="form-text">Der angemeldete Benutzer sendet die E-Mail</div>
                             </div>
                         </div>
                         <div class="row mt-2">
@@ -355,15 +375,15 @@ Mit freundlichen Grüßen
                 });
             });
             
-            // Absender-Auswahl
-            document.getElementById('emailSender').addEventListener('change', function() {
-                const customSender = document.getElementById('customSender');
+            // Empfänger-Auswahl
+            document.getElementById('emailRecipients').addEventListener('change', function() {
+                const customRecipients = document.getElementById('customRecipients');
                 if (this.value === 'custom') {
-                    customSender.style.display = 'block';
-                    customSender.required = true;
+                    customRecipients.style.display = 'block';
+                    customRecipients.required = true;
                 } else {
-                    customSender.style.display = 'none';
-                    customSender.required = false;
+                    customRecipients.style.display = 'none';
+                    customRecipients.required = false;
                 }
             });
             
@@ -430,29 +450,27 @@ Mit freundlichen Grüßen
         }
         
         function exportViaEmail() {
-            const recipients = document.getElementById('emailRecipients').value;
+            const recipientsSelect = document.getElementById('emailRecipients');
+            const customRecipients = document.getElementById('customRecipients');
             const subject = document.getElementById('emailSubject').value;
             const message = document.getElementById('emailMessage').value;
-            const senderSelect = document.getElementById('emailSender');
-            const customSender = document.getElementById('customSender');
             
-            if (!recipients) {
-                alert('Bitte geben Sie mindestens eine E-Mail-Adresse ein.');
-                return;
-            }
-            
-            let senderEmail = senderSelect.value;
-            if (senderSelect.value === 'custom') {
-                senderEmail = customSender.value;
-                if (!senderEmail) {
-                    alert('Bitte geben Sie eine gültige Absender-E-Mail-Adresse ein.');
+            let recipients = recipientsSelect.value;
+            if (recipientsSelect.value === 'custom') {
+                recipients = customRecipients.value;
+                if (!recipients) {
+                    alert('Bitte geben Sie mindestens eine E-Mail-Adresse ein.');
                     return;
                 }
             }
             
+            if (!recipients) {
+                alert('Bitte wählen Sie einen Empfänger aus.');
+                return;
+            }
+            
             const emailData = {
                 recipients: recipients.split(',').map(email => email.trim()),
-                sender: senderEmail,
                 subject: subject,
                 message: message,
                 results: <?php echo json_encode($searchResults); ?>,

@@ -51,14 +51,14 @@ try {
 }
 
 function generatePDF($results, $params) {
-    // HTML für PDF generieren
+    // Einfache PDF-Generierung mit HTML (Browser kann als PDF drucken)
     $html = generatePDFHTML($results, $params);
     
-    // HTML-Header setzen (für Browser-Darstellung)
+    // HTML-Header setzen
     header('Content-Type: text/html; charset=UTF-8');
     header('Content-Disposition: inline; filename="pa-traeger-liste-' . date('Y-m-d') . '.html"');
     
-    // HTML ausgeben (Browser kann dies als PDF drucken)
+    // HTML mit Druck-Styles ausgeben
     echo $html;
 }
 
@@ -86,25 +86,104 @@ function generatePDFHTML($results, $params) {
     <meta charset="UTF-8">
     <title>PA-Träger Liste</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .header h1 { color: #dc3545; margin-bottom: 10px; }
-        .header h2 { color: #6c757d; font-size: 18px; margin-bottom: 20px; }
-        .summary { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-        .summary h3 { margin-top: 0; color: #495057; }
-        .summary p { margin: 5px 0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #dee2e6; padding: 8px; text-align: left; }
-        th { background-color: #e9ecef; font-weight: bold; }
-        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+        }
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            line-height: 1.4;
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 30px; 
+            border-bottom: 2px solid #dc3545;
+            padding-bottom: 20px;
+        }
+        .header h1 { 
+            color: #dc3545; 
+            margin-bottom: 10px; 
+            font-size: 28px;
+        }
+        .header h2 { 
+            color: #6c757d; 
+            font-size: 18px; 
+            margin-bottom: 20px; 
+        }
+        .summary { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin-bottom: 20px; 
+            border-left: 4px solid #dc3545;
+        }
+        .summary h3 { 
+            margin-top: 0; 
+            color: #495057; 
+            font-size: 16px;
+        }
+        .summary p { 
+            margin: 5px 0; 
+            font-size: 14px;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 20px; 
+            font-size: 12px;
+        }
+        th, td { 
+            border: 1px solid #dee2e6; 
+            padding: 8px; 
+            text-align: left; 
+        }
+        th { 
+            background-color: #e9ecef; 
+            font-weight: bold; 
+            font-size: 13px;
+        }
+        .status-badge { 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-size: 11px; 
+            font-weight: bold; 
+            display: inline-block;
+        }
         .status-tauglich { background-color: #d4edda; color: #155724; }
         .status-warnung { background-color: #fff3cd; color: #856404; }
         .status-abgelaufen { background-color: #f8d7da; color: #721c24; }
         .status-uebung-abgelaufen { background-color: #f8d7da; color: #721c24; }
-        .footer { margin-top: 30px; text-align: center; color: #6c757d; font-size: 12px; }
+        .footer { 
+            margin-top: 30px; 
+            text-align: center; 
+            color: #6c757d; 
+            font-size: 12px; 
+            border-top: 1px solid #dee2e6;
+            padding-top: 15px;
+        }
+        .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .print-button:hover {
+            background: #c82333;
+        }
     </style>
 </head>
 <body>
+    <button class="print-button no-print" onclick="window.print()">
+        🖨️ Als PDF drucken
+    </button>
+    
     <div class="header">
         <h1>🔥 Feuerwehr App</h1>
         <h2>PA-Träger Liste für Übung</h2>
