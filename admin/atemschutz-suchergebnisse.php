@@ -153,7 +153,6 @@ function formatDate($date) {
                                             <th>Strecke</th>
                                             <th>G26.3</th>
                                             <th>Übung/Einsatz</th>
-                                            <th>E-Mail</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -180,15 +179,6 @@ function formatDate($date) {
                                                 <small class="text-muted">
                                                     <i class="fas fa-calendar-alt me-1"></i>bis <?php echo formatDate($traeger['uebung_bis']); ?>
                                                 </small>
-                                            </td>
-                                            <td>
-                                                <?php if (!empty($traeger['email'])): ?>
-                                                    <a href="mailto:<?php echo htmlspecialchars($traeger['email']); ?>" class="text-decoration-none">
-                                                        <i class="fas fa-envelope me-1"></i><?php echo htmlspecialchars($traeger['email']); ?>
-                                                    </a>
-                                                <?php else: ?>
-                                                    <span class="text-muted">-</span>
-                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                         <?php endforeach; ?>
