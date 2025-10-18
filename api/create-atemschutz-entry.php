@@ -145,7 +145,7 @@ try {
         $stmt = $db->prepare("
             SELECT u.email, u.first_name, u.last_name 
             FROM users u 
-            WHERE u.can_atemschutz = 1
+            WHERE u.atemschutz_notifications = 1
         ");
         $stmt->execute();
         $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);

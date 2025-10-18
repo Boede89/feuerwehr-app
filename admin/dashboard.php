@@ -627,7 +627,7 @@ if ($can_atemschutz) {
                 <div class="card shadow">
                     <div class="card-header">
                         <h6 class="m-0 font-weight-bold text-info">
-                            <i class="fas fa-clipboard-list"></i> Offene Atemschutzeintrag-Anträge (<?php echo count($atemschutz_entries); ?>)
+                            <i class="fas fa-clipboard-list"></i> Offene Atemschutzeinträge (<?php echo count($atemschutz_entries); ?>)
                         </h6>
                     </div>
                     <div class="card-body">
@@ -1499,8 +1499,6 @@ if ($can_atemschutz) {
                                 <h6 class="text-info">Datum</h6>
                                 <p>${new Date(entry.entry_date).toLocaleDateString('de-DE')}</p>
                                 
-                                <h6 class="text-info">Antragsteller</h6>
-                                <p>${entry.first_name} ${entry.last_name}</p>
                             </div>
                             <div class="col-md-6">
                                 <h6 class="text-info">Geräteträger</h6>

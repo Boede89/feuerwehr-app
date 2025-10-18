@@ -148,6 +148,20 @@ try {
     $emailTemplates = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { /* ignore */ }
 
+// Benutzer für Benachrichtigungseinstellungen laden
+$users = [];
+try {
+    $stmt = $db->prepare("
+        SELECT id, first_name, last_name, email, is_admin, user_role, 
+               COALESCE(atemschutz_notifications, 0) as atemschutz_notifications
+        FROM users 
+        WHERE is_active = 1 
+        ORDER BY last_name, first_name
+    ");
+    $stmt->execute();
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) { /* ignore */ }
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
@@ -204,6 +218,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $message = 'Einstellung gespeichert.';
         }
+        
+        // Atemschutz-Benachrichtigungseinstellungen speichern
+        if (isset($_POST['action']) && $_POST['action'] === 'update_atemschutz_notifications') {
+            try {
+                // Stelle sicher, dass die Spalte existiert
+                $db->exec("ALTER TABLE users ADD COLUMN atemschutz_notifications TINYINT(1) DEFAULT 0");
+            } catch (Exception $e) {
+                // Spalte existiert bereits
+            }
+            
+            // Alle Benutzer auf 0 setzen
+            $stmt = $db->prepare("UPDATE users SET atemschutz_notifications = 0");
+            $stmt->execute();
+            
+            // Ausgewählte Benutzer auf 1 setzen
+            if (isset($_POST['atemschutz_notifications']) && is_array($_POST['atemschutz_notifications'])) {
+                $placeholders = str_repeat('?,', count($_POST['atemschutz_notifications']) - 1) . '?';
+                $stmt = $db->prepare("UPDATE users SET atemschutz_notifications = 1 WHERE id IN ($placeholders)");
+                $stmt->execute($_POST['atemschutz_notifications']);
+            }
+            
+            $message = "Benachrichtigungseinstellungen erfolgreich aktualisiert.";
+        }
     }
 }
 ?>
@@ -253,8 +290,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
+        <!-- Navigation Buttons -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary active" id="warnschwelleBtn" onclick="showSection('warnschwelle')">
+                        <i class="fas fa-triangle-exclamation"></i> Warnschwelle
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="emailTemplatesBtn" onclick="showSection('emailTemplates')">
+                        <i class="fas fa-envelope"></i> E-Mail-Vorlagen
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="notificationsBtn" onclick="showSection('notifications')">
+                        <i class="fas fa-bell"></i> Benachrichtigungseinstellungen
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Warnschwelle -->
-        <div class="card mb-4">
+        <div class="card mb-4" id="warnschwelleSection">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-triangle-exclamation"></i> Warnschwelle</h5>
             </div>
@@ -279,7 +333,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <!-- E-Mail-Vorlagen -->
-        <div class="card">
+        <div class="card" id="emailTemplatesSection" style="display: none;">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-envelope"></i> E-Mail-Vorlagen</h5>
             </div>
@@ -327,9 +381,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </form>
             </div>
         </div>
+
+        <!-- Benachrichtigungseinstellungen -->
+        <div class="card mb-4" id="notificationsSection" style="display: none;">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-bell"></i> Benachrichtigungseinstellungen</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" id="notificationsForm">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                    <input type="hidden" name="action" value="update_atemschutz_notifications">
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Hinweis:</strong> Wählen Sie die Benutzer aus, die bei neuen Atemschutzeintrag-Anträgen per E-Mail benachrichtigt werden sollen.
+                    </div>
+                    
+                    <div class="row">
+                        <?php foreach ($users as $user): ?>
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" 
+                                               name="atemschutz_notifications[]" 
+                                               value="<?php echo $user['id']; ?>"
+                                               id="user_<?php echo $user['id']; ?>"
+                                               <?php echo $user['atemschutz_notifications'] ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="user_<?php echo $user['id']; ?>">
+                                            <strong><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></strong>
+                                            <br>
+                                            <small class="text-muted">
+                                                <?php echo htmlspecialchars($user['email']); ?>
+                                                <span class="badge <?php echo ($user['is_admin'] || $user['user_role'] === 'admin') ? 'bg-danger' : 'bg-secondary'; ?> ms-1">
+                                                    <?php echo ($user['is_admin'] || $user['user_role'] === 'admin') ? 'Admin' : 'User'; ?>
+                                                </span>
+                                            </small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Benachrichtigungseinstellungen speichern
+                        </button>
+                        <a href="settings.php" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function showSection(sectionName) {
+            // Alle Sektionen verstecken
+            document.getElementById('warnschwelleSection').style.display = 'none';
+            document.getElementById('emailTemplatesSection').style.display = 'none';
+            document.getElementById('notificationsSection').style.display = 'none';
+            
+            // Alle Buttons deaktivieren
+            document.getElementById('warnschwelleBtn').classList.remove('active');
+            document.getElementById('emailTemplatesBtn').classList.remove('active');
+            document.getElementById('notificationsBtn').classList.remove('active');
+            
+            // Gewählte Sektion anzeigen
+            document.getElementById(sectionName + 'Section').style.display = 'block';
+            document.getElementById(sectionName + 'Btn').classList.add('active');
+        }
+    </script>
 </body>
 </html>
 
