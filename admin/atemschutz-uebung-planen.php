@@ -97,7 +97,7 @@ $anzahlOptions = [
         .status-tauglich { background-color: #d4edda; color: #155724; }
         .status-warnung { background-color: #fff3cd; color: #856404; }
         .status-abgelaufen { background-color: #f8d7da; color: #721c24; }
-        .status-uebung-abgelaufen { background-color: #e2e3e5; color: #383d41; }
+        .status-uebung-abgelaufen { background-color: #f8d7da; color: #721c24; }
     </style>
 </head>
 <body>
