@@ -181,10 +181,10 @@ $anzahlOptions = [
                                                     <input class="form-check-input" type="checkbox" 
                                                            id="status_<?php echo strtolower(str_replace(' ', '_', $value)); ?>" 
                                                            name="statusFilter[]" value="<?php echo $value; ?>"
-                                                           <?php echo in_array($value, ['Tauglich', 'Warnung']) ? 'checked' : ''; ?>>
+                                                           <?php echo in_array($value, ['Tauglich', 'Warnung', 'Übung abgelaufen']) ? 'checked' : ''; ?>>
                                                     <label class="form-check-label d-flex align-items-center" 
                                                            for="status_<?php echo strtolower(str_replace(' ', '_', $value)); ?>">
-                                                        <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $value)); ?> me-2">
+                                                        <span class="status-badge status-<?php echo strtolower(str_replace([' ', 'ü'], ['-', 'ue'], $value)); ?> me-2">
                                                             <?php echo $label; ?>
                                                         </span>
                                                     </label>
