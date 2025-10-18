@@ -121,16 +121,26 @@ function generatePDFForDownload($results, $params) {
         <tbody>';
     
     foreach ($results as $index => $traeger) {
-        $name = ($traeger['first_name'] ?? '') . ' ' . ($traeger['last_name'] ?? '');
-        $statusClass = 'status-' . strtolower(str_replace([' ', 'ü'], ['-', 'ue'], $traeger['status']));
+        // Debug: Prüfe ob Daten vorhanden sind
+        $firstName = $traeger['first_name'] ?? $traeger['name'] ?? '';
+        $lastName = $traeger['last_name'] ?? '';
+        $name = trim($firstName . ' ' . $lastName);
+        
+        // Fallback: Wenn name leer ist, versuche 'name' Feld
+        if (empty($name)) {
+            $name = $traeger['name'] ?? 'Unbekannt';
+        }
+        
+        $status = $traeger['status'] ?? 'Unbekannt';
+        $statusClass = 'status-' . strtolower(str_replace([' ', 'ü'], ['-', 'ue'], $status));
         
         $html .= '<tr>
             <td>' . ($index + 1) . '</td>
             <td><strong>' . htmlspecialchars($name) . '</strong></td>
-            <td><span class="status-badge ' . $statusClass . '">' . htmlspecialchars($traeger['status']) . '</span></td>
-            <td>' . date('d.m.Y', strtotime($traeger['strecke_am'])) . '</td>
-            <td>' . date('d.m.Y', strtotime($traeger['g263_am'])) . '</td>
-            <td>' . date('d.m.Y', strtotime($traeger['uebung_am'])) . '<br><small>bis ' . date('d.m.Y', strtotime($traeger['uebung_bis'])) . '</small></td>
+            <td><span class="status-badge ' . $statusClass . '">' . htmlspecialchars($status) . '</span></td>
+            <td>' . date('d.m.Y', strtotime($traeger['strecke_am'] ?? 'now')) . '</td>
+            <td>' . date('d.m.Y', strtotime($traeger['g263_am'] ?? 'now')) . '</td>
+            <td>' . date('d.m.Y', strtotime($traeger['uebung_am'] ?? 'now')) . '<br><small>bis ' . date('d.m.Y', strtotime($traeger['uebung_bis'] ?? 'now')) . '</small></td>
         </tr>';
     }
     
