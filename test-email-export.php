@@ -32,7 +32,8 @@ try {
             'status' => 'Tauglich',
             'strecke_am' => '2024-01-15',
             'g263_am' => '2024-01-10',
-            'uebung_am' => '2024-01-20'
+            'uebung_am' => '2024-01-20',
+            'uebung_bis' => '2025-01-20'
         ],
         [
             'first_name' => 'Anna',
@@ -40,7 +41,17 @@ try {
             'status' => 'Warnung',
             'strecke_am' => '2023-12-01',
             'g263_am' => '2023-11-15',
-            'uebung_am' => '2023-12-10'
+            'uebung_am' => '2023-12-10',
+            'uebung_bis' => '2024-12-10'
+        ],
+        [
+            'first_name' => 'Peter',
+            'last_name' => 'Feuerwehrmann',
+            'status' => 'Abgelaufen',
+            'strecke_am' => '2023-06-01',
+            'g263_am' => '2023-05-15',
+            'uebung_am' => '2023-06-10',
+            'uebung_bis' => '2024-06-10'
         ]
     ];
     
