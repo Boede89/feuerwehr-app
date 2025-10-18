@@ -247,13 +247,14 @@ function generateEmailText($results, $params, $message) {
     $text .= "----|------|--------|---------|-------|---------------\n";
     
     foreach ($results as $index => $traeger) {
+        $name = trim(($traeger['first_name'] ?? '') . ' ' . ($traeger['last_name'] ?? ''));
         $text .= sprintf("%-3d | %-20s | %-15s | %-10s | %-10s | %s\n",
             $index + 1,
-            $traeger['name'],
-            $traeger['status'],
-            date('d.m.Y', strtotime($traeger['strecke_am'])),
-            date('d.m.Y', strtotime($traeger['g263_am'])),
-            date('d.m.Y', strtotime($traeger['uebung_am']))
+            substr($name, 0, 20),
+            substr($traeger['status'] ?? '', 0, 15),
+            date('d.m.Y', strtotime($traeger['strecke_am'] ?? '')),
+            date('d.m.Y', strtotime($traeger['g263_am'] ?? '')),
+            date('d.m.Y', strtotime($traeger['uebung_am'] ?? ''))
         );
     }
     
@@ -266,35 +267,11 @@ function generateEmailText($results, $params, $message) {
 
 function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $htmlContent) {
     try {
-        // Vereinfachte E-Mail ohne Anhang - nur Text mit Liste
-        $emailBody = $message . "\n\n";
-        $emailBody .= "=== PA-Träger Liste für Übung ===\n\n";
+        // Erstelle schöne HTML-E-Mail
+        $htmlBody = generateBeautifulEmailHTML($htmlContent['results'] ?? [], $htmlContent, $message);
         
-        // Liste direkt in E-Mail einbetten
-        $emailBody .= "Übungsdatum: " . date('d.m.Y', strtotime($htmlContent['uebungsDatum'] ?? '')) . "\n";
-        $emailBody .= "Anzahl: " . ($htmlContent['anzahlPaTraeger'] === 'alle' ? 'Alle verfügbaren' : $htmlContent['anzahlPaTraeger'] . ' PA-Träger') . "\n";
-        $emailBody .= "Status-Filter: " . implode(', ', $htmlContent['statusFilter'] ?? []) . "\n";
-        $emailBody .= "Gefunden: " . count($htmlContent['results'] ?? []) . " PA-Träger\n\n";
-        
-        $emailBody .= "Nr. | Name | Status | Strecke | G26.3 | Übung/Einsatz\n";
-        $emailBody .= str_repeat("-", 80) . "\n";
-        
-        foreach ($htmlContent['results'] ?? [] as $index => $traeger) {
-            $name = ($traeger['first_name'] ?? '') . ' ' . ($traeger['last_name'] ?? '');
-            $emailBody .= sprintf("%-3d | %-20s | %-15s | %-10s | %-10s | %s\n",
-                $index + 1,
-                substr($name, 0, 20),
-                substr($traeger['status'] ?? '', 0, 15),
-                date('d.m.Y', strtotime($traeger['strecke_am'] ?? '')),
-                date('d.m.Y', strtotime($traeger['g263_am'] ?? '')),
-                date('d.m.Y', strtotime($traeger['uebung_am'] ?? ''))
-            );
-        }
-        
-        $emailBody .= "\nErstellt am " . date('d.m.Y H:i') . " | Feuerwehr App v2.1\n";
-        
-        // Verwende die konfigurierte send_email Funktion anstatt mail()
-        $result = send_email($to, $subject, $emailBody);
+        // Verwende die konfigurierte send_email Funktion mit HTML
+        $result = send_email($to, $subject, $htmlBody, '', true);
         
         if ($result) {
             error_log("PA-Träger E-Mail erfolgreich gesendet an: $to");
@@ -310,6 +287,266 @@ function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $htm
     }
 }
 
+
+function generateBeautifulEmailHTML($results, $htmlContent, $message) {
+    $uebungsDatum = $htmlContent['uebungsDatum'] ?? '';
+    $anzahl = $htmlContent['anzahlPaTraeger'] ?? 'alle';
+    $statusFilter = $htmlContent['statusFilter'] ?? [];
+    
+    $html = '<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PA-Träger Liste</title>
+    <style>
+        body { 
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #f8f9fa; 
+            line-height: 1.6;
+        }
+        .email-container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+            overflow: hidden;
+        }
+        .header { 
+            background: linear-gradient(135deg, #dc3545, #c82333); 
+            color: white; 
+            padding: 30px; 
+            text-align: center; 
+        }
+        .header h1 { 
+            margin: 0; 
+            font-size: 32px; 
+            font-weight: bold;
+        }
+        .header h2 { 
+            margin: 10px 0 0 0; 
+            font-size: 20px; 
+            opacity: 0.9; 
+            font-weight: 300;
+        }
+        .content { 
+            padding: 30px; 
+        }
+        .message-box { 
+            background: #e3f2fd; 
+            border-left: 4px solid #2196f3; 
+            padding: 20px; 
+            margin-bottom: 25px; 
+            border-radius: 8px;
+            font-style: italic;
+        }
+        .summary { 
+            background: #f8f9fa; 
+            padding: 25px; 
+            border-radius: 10px; 
+            margin-bottom: 30px; 
+            border: 1px solid #e9ecef;
+        }
+        .summary h3 { 
+            margin-top: 0; 
+            color: #495057; 
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .summary-item {
+            display: flex;
+            align-items: center;
+        }
+        .summary-icon {
+            font-size: 20px;
+            margin-right: 10px;
+        }
+        .summary-text {
+            font-size: 14px;
+            color: #6c757d;
+        }
+        .summary-value {
+            font-weight: bold;
+            color: #495057;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 20px; 
+            font-size: 14px;
+            background: white;
+        }
+        th, td { 
+            border: 1px solid #dee2e6; 
+            padding: 15px 12px; 
+            text-align: left; 
+        }
+        th { 
+            background: linear-gradient(135deg, #e9ecef, #dee2e6); 
+            font-weight: bold; 
+            color: #495057; 
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        tr:hover {
+            background-color: #e3f2fd;
+        }
+        .status-badge { 
+            padding: 8px 16px; 
+            border-radius: 20px; 
+            font-size: 12px; 
+            font-weight: bold; 
+            display: inline-block;
+            text-align: center;
+            min-width: 80px;
+        }
+        .status-tauglich { 
+            background-color: #d4edda; 
+            color: #155724; 
+        }
+        .status-warnung { 
+            background-color: #fff3cd; 
+            color: #856404; 
+        }
+        .status-abgelaufen { 
+            background-color: #f8d7da; 
+            color: #721c24; 
+        }
+        .status-uebung-abgelaufen { 
+            background-color: #f8d7da; 
+            color: #721c24; 
+        }
+        .name-cell {
+            font-weight: bold;
+            color: #495057;
+        }
+        .date-cell {
+            font-family: "Courier New", monospace;
+            font-size: 13px;
+            color: #6c757d;
+        }
+        .footer { 
+            background: #f8f9fa; 
+            padding: 25px; 
+            text-align: center; 
+            color: #6c757d; 
+            font-size: 13px; 
+            border-top: 1px solid #dee2e6; 
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+        .count-badge {
+            background: #dc3545;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>🔥 Feuerwehr App</h1>
+            <h2>PA-Träger Liste für Übung</h2>
+        </div>
+        
+        <div class="content">
+            <div class="message-box">
+                <strong>📧 Nachricht:</strong><br>
+                ' . nl2br(htmlspecialchars($message)) . '
+            </div>
+            
+            <div class="summary">
+                <h3>📋 Suchkriterien</h3>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <span class="summary-icon">📅</span>
+                        <div>
+                            <div class="summary-text">Übungsdatum</div>
+                            <div class="summary-value">' . date('d.m.Y', strtotime($uebungsDatum)) . '</div>
+                        </div>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-icon">👥</span>
+                        <div>
+                            <div class="summary-text">Anzahl</div>
+                            <div class="summary-value">' . ($anzahl === 'alle' ? 'Alle verfügbaren' : $anzahl . ' PA-Träger') . '</div>
+                        </div>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-icon">🔍</span>
+                        <div>
+                            <div class="summary-text">Status-Filter</div>
+                            <div class="summary-value">' . implode(', ', $statusFilter) . '</div>
+                        </div>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-icon">✅</span>
+                        <div>
+                            <div class="summary-text">Gefunden</div>
+                            <div class="summary-value">' . count($results) . ' PA-Träger <span class="count-badge">' . count($results) . '</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 60px;">#</th>
+                        <th>Name</th>
+                        <th style="width: 120px;">Status</th>
+                        <th style="width: 100px;">Strecke</th>
+                        <th style="width: 100px;">G26.3</th>
+                        <th style="width: 120px;">Übung/Einsatz</th>
+                    </tr>
+                </thead>
+                <tbody>';
+    
+    foreach ($results as $index => $traeger) {
+        $name = trim(($traeger['first_name'] ?? '') . ' ' . ($traeger['last_name'] ?? ''));
+        $statusClass = 'status-' . strtolower(str_replace([' ', 'ü'], ['-', 'ue'], $traeger['status'] ?? ''));
+        
+        $html .= '<tr>
+            <td style="font-weight: bold; color: #6c757d; text-align: center;">' . ($index + 1) . '</td>
+            <td class="name-cell">' . htmlspecialchars($name) . '</td>
+            <td><span class="status-badge ' . $statusClass . '">' . htmlspecialchars($traeger['status'] ?? '') . '</span></td>
+            <td class="date-cell">' . date('d.m.Y', strtotime($traeger['strecke_am'] ?? '')) . '</td>
+            <td class="date-cell">' . date('d.m.Y', strtotime($traeger['g263_am'] ?? '')) . '</td>
+            <td class="date-cell">' . date('d.m.Y', strtotime($traeger['uebung_am'] ?? '')) . '<br><small style="color: #adb5bd;">bis ' . date('d.m.Y', strtotime($traeger['uebung_bis'] ?? '')) . '</small></td>
+        </tr>';
+    }
+    
+    $html .= '</tbody>
+            </table>
+        </div>
+        
+        <div class="footer">
+            <p><strong>📧 Diese E-Mail wurde automatisch von der Feuerwehr App generiert</strong></p>
+            <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v2.1</p>
+        </div>
+    </div>
+</body>
+</html>';
+    
+    return $html;
+}
 
 function generateEmailHTML($results, $params, $message) {
     $uebungsDatum = $params['uebungsDatum'] ?? '';
