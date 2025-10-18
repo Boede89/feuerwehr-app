@@ -189,7 +189,61 @@ if (!$isAdmin && !$canAtemschutz) {
         $stmt->execute($params);
         $traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // PHP-basierte Sortierung für Status (falls SQL-Sortierung nicht funktioniert)
+        // Status für alle Einträge berechnen (vor Sortierung)
+        $now = new DateTime('today');
+        foreach ($traeger as &$tRow) {
+            $streckeExpired = false; 
+            $g263Expired = false; 
+            $uebungExpired = false;
+            
+            if (!empty($tRow['strecke_bis'])) {
+                $diff = (int)$now->diff(new DateTime($tRow['strecke_bis']))->format('%r%a');
+                if ($diff < 0) { $streckeExpired = true; }
+            }
+            if (!empty($tRow['g263_bis'])) {
+                $diff = (int)$now->diff(new DateTime($tRow['g263_bis']))->format('%r%a');
+                if ($diff < 0) { $g263Expired = true; }
+            }
+            if (!empty($tRow['uebung_bis'])) {
+                $diff = (int)$now->diff(new DateTime($tRow['uebung_bis']))->format('%r%a');
+                if ($diff < 0) { $uebungExpired = true; }
+            }
+            
+            // Status berechnen
+            if ($streckeExpired || $g263Expired || $uebungExpired) {
+                if ($uebungExpired) {
+                    $tRow['status'] = 'Übung abgelaufen';
+                } else {
+                    $tRow['status'] = 'Abgelaufen';
+                }
+            } else {
+                // Prüfe auf Warnung (innerhalb der nächsten 30 Tage)
+                $warnDays = 30;
+                $streckeWarn = false; $g263Warn = false; $uebungWarn = false;
+                
+                if (!empty($tRow['strecke_bis'])) {
+                    $diff = (int)$now->diff(new DateTime($tRow['strecke_bis']))->format('%r%a');
+                    if ($diff >= 0 && $diff <= $warnDays) { $streckeWarn = true; }
+                }
+                if (!empty($tRow['g263_bis'])) {
+                    $diff = (int)$now->diff(new DateTime($tRow['g263_bis']))->format('%r%a');
+                    if ($diff >= 0 && $diff <= $warnDays) { $g263Warn = true; }
+                }
+                if (!empty($tRow['uebung_bis'])) {
+                    $diff = (int)$now->diff(new DateTime($tRow['uebung_bis']))->format('%r%a');
+                    if ($diff >= 0 && $diff <= $warnDays) { $uebungWarn = true; }
+                }
+                
+                if ($streckeWarn || $g263Warn || $uebungWarn) {
+                    $tRow['status'] = 'Warnung';
+                } else {
+                    $tRow['status'] = 'Tauglich';
+                }
+            }
+        }
+        unset($tRow); // Referenz löschen
+        
+        // PHP-basierte Sortierung für Status
         if ($sort === 'status') {
             $statusOrder = [
                 'Tauglich' => 1,
@@ -218,22 +272,8 @@ if (!$isAdmin && !$canAtemschutz) {
         // Zählwerte vorbereiten: Gesamt und Tauglich/Warnung (ohne abgelaufen / "Übung abgelaufen")
         $totalCount = count($traeger);
         $okOrWarnCount = 0;
-        $now = new DateTime('today');
         foreach ($traeger as $tRow) {
-            $streckeExpired = false; $g263Expired = false; $uebungExpired = false;
-            if (!empty($tRow['strecke_bis'])) {
-                $diff = (int)$now->diff(new DateTime($tRow['strecke_bis']))->format('%r%a');
-                if ($diff < 0) { $streckeExpired = true; }
-            }
-            if (!empty($tRow['g263_bis'])) {
-                $diff = (int)$now->diff(new DateTime($tRow['g263_bis']))->format('%r%a');
-                if ($diff < 0) { $g263Expired = true; }
-            }
-            if (!empty($tRow['uebung_bis'])) {
-                $diff = (int)$now->diff(new DateTime($tRow['uebung_bis']))->format('%r%a');
-                if ($diff < 0) { $uebungExpired = true; }
-            }
-            if (!$streckeExpired && !$g263Expired && !$uebungExpired) { // Tauglich oder Warnung
+            if ($tRow['status'] === 'Tauglich' || $tRow['status'] === 'Warnung') {
                 $okOrWarnCount++;
             }
         }
