@@ -329,6 +329,7 @@ $anzahlOptions = [
                     console.error('Fehler beim Verarbeiten des Formulars:', error);
                     alert('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
                 }
+            }
         });
     </script>
 </body>
