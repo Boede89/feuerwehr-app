@@ -184,7 +184,16 @@ $anzahlOptions = [
                                                            <?php echo in_array($value, ['Tauglich', 'Warnung', 'Übung abgelaufen']) ? 'checked' : ''; ?>>
                                                     <label class="form-check-label d-flex align-items-center" 
                                                            for="status_<?php echo strtolower(str_replace(' ', '_', $value)); ?>">
-                                                        <span class="status-badge status-<?php echo strtolower(str_replace([' ', 'ü'], ['-', 'ue'], $value)); ?> me-2">
+                                                        <span class="status-badge status-<?php 
+                                                            // Explizite CSS-Klassen-Zuordnung
+                                                            $cssClasses = [
+                                                                'Tauglich' => 'tauglich',
+                                                                'Warnung' => 'warnung', 
+                                                                'Abgelaufen' => 'abgelaufen',
+                                                                'Übung abgelaufen' => 'uebung-abgelaufen'
+                                                            ];
+                                                            echo $cssClasses[$value] ?? 'tauglich';
+                                                        ?> me-2">
                                                             <?php echo $label; ?>
                                                         </span>
                                                     </label>
