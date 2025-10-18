@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once 'pdf-generator.php';
 
 // Berechtigung prüfen
 if (!isset($_SESSION['user_id']) || (!has_permission('atemschutz') && !hasAdminPermission())) {
@@ -50,17 +51,18 @@ try {
 }
 
 function generatePDF($results, $params) {
-    // HTML für PDF generieren
-    $html = generatePDFHTML($results, $params);
+    // Echte PDF generieren
+    $pdfContent = generatePDFForDownload($results, $params);
     
-    // HTML-Header setzen für Download
-    header('Content-Type: text/html; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.html"');
+    // PDF-Header setzen
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.pdf"');
     header('Cache-Control: no-cache, must-revalidate');
     header('Pragma: no-cache');
+    header('Content-Length: ' . strlen($pdfContent));
     
-    // HTML ausgeben
-    echo $html;
+    // PDF ausgeben
+    echo $pdfContent;
 }
 
 

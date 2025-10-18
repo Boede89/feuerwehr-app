@@ -7,6 +7,7 @@ ini_set('log_errors', 1);
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once 'pdf-generator.php';
 
 // JSON-Header setzen
 header('Content-Type: application/json; charset=UTF-8');
@@ -62,7 +63,7 @@ try {
     }
     
     // PDF-Anhang generieren
-    $pdfContent = generatePDFForEmail($results, $params);
+    $pdfContent = generatePDFForDownload($results, $params);
     
     // E-Mail-Inhalt generieren (nur Text, PDF als Anhang)
     $emailBody = generateEmailText($results, $params, $message);
@@ -232,21 +233,48 @@ function generateEmailText($results, $params, $message) {
 
 function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $pdfContent) {
     try {
-        // Vereinfachte E-Mail ohne Anhang - nur Text
-        $emailBody = $message . "\n\n";
-        $emailBody .= "=== PA-Träger Liste für Übung ===\n";
-        $emailBody .= "Die vollständige Liste mit Formatierung finden Sie im Anhang.\n\n";
+        // PDF temporär speichern
+        $tempDir = sys_get_temp_dir();
+        $tempFile = $tempDir . '/pa-traeger-liste-' . uniqid() . '.pdf';
+        file_put_contents($tempFile, $pdfContent);
         
-        // Headers
+        // E-Mail mit PDF-Anhang senden
+        $boundary = md5(uniqid(time()));
+        
+        // E-Mail-Body mit Anhang
+        $emailBody = "--$boundary\r\n";
+        $emailBody .= "Content-Type: text/plain; charset=UTF-8\r\n";
+        $emailBody .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+        $emailBody .= $message . "\r\n\r\n";
+        $emailBody .= "=== PA-Träger Liste für Übung ===\r\n";
+        $emailBody .= "Die vollständige Liste finden Sie im PDF-Anhang.\r\n\r\n";
+        
+        $emailBody .= "--$boundary\r\n";
+        $emailBody .= "Content-Type: application/pdf\r\n";
+        $emailBody .= "Content-Transfer-Encoding: base64\r\n";
+        $emailBody .= "Content-Disposition: attachment; filename=\"pa-traeger-liste.pdf\"\r\n\r\n";
+        $emailBody .= chunk_split(base64_encode($pdfContent)) . "\r\n";
+        
+        $emailBody .= "--$boundary--\r\n";
+        
+        // Headers für multipart/mixed
         $headers = "From: $fromName <$from>\r\n";
         $headers .= "Reply-To: $from\r\n";
-        $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+        $headers .= "MIME-Version: 1.0\r\n";
+        $headers .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
         
-        // Verwende die bestehende send_email Funktion
-        return send_email($to, $subject, $emailBody, $headers, false);
+        // E-Mail senden
+        $result = mail($to, $subject, $emailBody, $headers);
+        
+        // Temporäre Datei löschen
+        if (file_exists($tempFile)) {
+            unlink($tempFile);
+        }
+        
+        return $result;
         
     } catch (Exception $e) {
-        error_log('E-Mail mit Anhang Fehler: ' . $e->getMessage());
+        error_log('E-Mail mit PDF-Anhang Fehler: ' . $e->getMessage());
         return false;
     }
 }
