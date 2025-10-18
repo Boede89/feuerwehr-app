@@ -211,9 +211,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <div class="container-fluid mt-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h1 class="h3 mb-0"><i class="fas fa-lungs"></i> Atemschutz</h1>
-            <a href="test-uebung-planen.php" class="btn btn-success">
-                <i class="fas fa-calendar-plus me-2"></i>Übung planen (Test)
-            </a>
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-12">
+                <a href="test-uebung-planen.php" class="btn btn-success btn-lg">
+                    <i class="fas fa-calendar-plus me-2"></i>Übung planen (Test)
+                </a>
+            </div>
         </div>
 
 		<div class="row g-4 mb-4">
@@ -502,6 +507,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 });
             }
         })();
+    });
+    
+    // Test für Übung planen Button
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM geladen - suche nach Übung planen Button...');
+        
+        const uebungButton = document.querySelector('a[href="test-uebung-planen.php"]');
+        console.log('Übung planen Button gefunden:', uebungButton);
+        
+        if (uebungButton) {
+            uebungButton.addEventListener('click', function(e) {
+                console.log('Übung planen Button geklickt!');
+                // Lass den Link normal funktionieren
+            });
+        } else {
+            console.error('Übung planen Button nicht gefunden!');
+        }
     });
     </script>
 
