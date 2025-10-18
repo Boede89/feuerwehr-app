@@ -247,7 +247,8 @@ function generateEmailText($results, $params, $message) {
     $text .= "----|------|--------|---------|-------|---------------\n";
     
     foreach ($results as $index => $traeger) {
-        $name = trim(($traeger['first_name'] ?? '') . ' ' . ($traeger['last_name'] ?? ''));
+        // Verwende das 'name' Feld aus der API oder kombiniere first_name + last_name
+        $name = $traeger['name'] ?? trim(($traeger['first_name'] ?? '') . ' ' . ($traeger['last_name'] ?? ''));
         $text .= sprintf("%-3d | %-20s | %-15s | %-10s | %-10s | %s\n",
             $index + 1,
             substr($name, 0, 20),
@@ -520,7 +521,8 @@ function generateBeautifulEmailHTML($results, $htmlContent, $message) {
                 <tbody>';
     
     foreach ($results as $index => $traeger) {
-        $name = trim(($traeger['first_name'] ?? '') . ' ' . ($traeger['last_name'] ?? ''));
+        // Verwende das 'name' Feld aus der API oder kombiniere first_name + last_name
+        $name = $traeger['name'] ?? trim(($traeger['first_name'] ?? '') . ' ' . ($traeger['last_name'] ?? ''));
         $statusClass = 'status-' . strtolower(str_replace([' ', 'ü'], ['-', 'ue'], $traeger['status'] ?? ''));
         
         $html .= '<tr>
