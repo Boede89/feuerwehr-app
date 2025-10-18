@@ -152,7 +152,15 @@ try {
 $users = [];
 try {
     // Stelle sicher, dass die atemschutz_notifications Spalte existiert
-    $db->exec("ALTER TABLE users ADD COLUMN atemschutz_notifications TINYINT(1) DEFAULT 0");
+    try {
+        $db->exec("ALTER TABLE users ADD COLUMN atemschutz_notifications TINYINT(1) DEFAULT 0");
+        error_log("atemschutz_notifications Spalte hinzugefügt");
+    } catch (Exception $e) {
+        // Spalte existiert bereits, das ist OK
+        if (strpos($e->getMessage(), 'Duplicate column name') === false) {
+            error_log("Unerwarteter Fehler beim Hinzufügen der Spalte: " . $e->getMessage());
+        }
+    }
     
     $stmt = $db->prepare("
         SELECT id, first_name, last_name, email, is_admin, user_role, 
