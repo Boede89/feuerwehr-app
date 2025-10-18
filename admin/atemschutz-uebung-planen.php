@@ -251,48 +251,84 @@ $anzahlOptions = [
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.getElementById('uebungPlanenForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // Formular-Daten sammeln
-            const formData = new FormData(this);
-            const uebungsDatum = formData.get('uebungsDatum');
-            const anzahlPaTraeger = formData.get('anzahlPaTraeger');
-            const statusFilter = formData.getAll('statusFilter[]');
-            
-            // Validierung
-            if (!uebungsDatum) {
-                alert('Bitte wählen Sie ein Übungsdatum aus.');
-                return;
-            }
-            
-            if (statusFilter.length === 0) {
-                alert('Bitte wählen Sie mindestens einen Status aus.');
-                return;
-            }
-            
-            // Daten für die Suche vorbereiten
-            const searchData = {
-                uebungsDatum: uebungsDatum,
-                anzahlPaTraeger: anzahlPaTraeger,
-                statusFilter: statusFilter
-            };
-            
-            console.log('Suche nach PA-Trägern:', searchData);
-            
-            // Hier wird später die Suchfunktion implementiert
-            alert('Die Suchfunktion wird in Kürze implementiert.\n\nGewählte Parameter:\n' + 
-                  'Datum: ' + uebungsDatum + '\n' +
-                  'Anzahl: ' + (anzahlPaTraeger === 'alle' ? 'Alle verfügbaren' : anzahlPaTraeger + ' PA-Träger') + '\n' +
-                  'Status: ' + statusFilter.join(', '));
-        });
-        
-        // Heutiges Datum als Standard setzen, falls nicht bereits gesetzt
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM geladen, initialisiere Übung planen...');
+            
+            // Heutiges Datum als Standard setzen, falls nicht bereits gesetzt
             const datumInput = document.getElementById('uebungsDatum');
-            if (!datumInput.value) {
-                datumInput.value = new Date().toISOString().split('T')[0];
+            if (datumInput) {
+                if (!datumInput.value) {
+                    datumInput.value = new Date().toISOString().split('T')[0];
+                }
+                console.log('Datum-Input gefunden:', datumInput.value);
+            } else {
+                console.error('Datum-Input nicht gefunden!');
             }
+            
+            // Formular-Event-Listener hinzufügen
+            const form = document.getElementById('uebungPlanenForm');
+            console.log('Formular gefunden:', form);
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    console.log('Formular-Submit erkannt');
+                    handleFormSubmit();
+                });
+                
+                // Zusätzlicher Click-Event für den Button
+                const submitButton = form.querySelector('button[type="submit"]');
+                if (submitButton) {
+                    submitButton.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        console.log('Button-Click erkannt');
+                        handleFormSubmit();
+                    });
+                }
+            } else {
+                console.error('Formular nicht gefunden!');
+            }
+            
+            function handleFormSubmit() {
+                try {
+                    console.log('Verarbeite Formular...');
+                    
+                    // Formular-Daten sammeln
+                    const formData = new FormData(form);
+                    const uebungsDatum = formData.get('uebungsDatum');
+                    const anzahlPaTraeger = formData.get('anzahlPaTraeger');
+                    const statusFilter = formData.getAll('statusFilter[]');
+                    
+                    console.log('Formular-Daten:', { uebungsDatum, anzahlPaTraeger, statusFilter });
+                    
+                    // Validierung
+                    if (!uebungsDatum) {
+                        alert('Bitte wählen Sie ein Übungsdatum aus.');
+                        return;
+                    }
+                    
+                    if (statusFilter.length === 0) {
+                        alert('Bitte wählen Sie mindestens einen Status aus.');
+                        return;
+                    }
+                    
+                    // Daten für die Suche vorbereiten
+                    const searchData = {
+                        uebungsDatum: uebungsDatum,
+                        anzahlPaTraeger: anzahlPaTraeger,
+                        statusFilter: statusFilter
+                    };
+                    
+                    console.log('Suche nach PA-Trägern:', searchData);
+                    
+                    // Hier wird später die Suchfunktion implementiert
+                    alert('Die Suchfunktion wird in Kürze implementiert.\n\nGewählte Parameter:\n' + 
+                          'Datum: ' + uebungsDatum + '\n' +
+                          'Anzahl: ' + (anzahlPaTraeger === 'alle' ? 'Alle verfügbaren' : anzahlPaTraeger + ' PA-Träger') + '\n' +
+                          'Status: ' + statusFilter.join(', '));
+                } catch (error) {
+                    console.error('Fehler beim Verarbeiten des Formulars:', error);
+                    alert('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
+                }
         });
     </script>
 </body>
