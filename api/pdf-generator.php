@@ -1,183 +1,148 @@
 <?php
-// Einfache PDF-Generierung für PA-Träger-Liste
-class SimplePDF {
-    private $content = '';
-    private $pageWidth = 210; // A4 width in mm
-    private $pageHeight = 297; // A4 height in mm
-    private $margin = 20;
-    private $currentY = 0;
-    private $lineHeight = 6;
-    
-    public function __construct() {
-        $this->currentY = $this->pageHeight - $this->margin;
-    }
-    
-    public function addHeader($title) {
-        $this->content .= "BT\n";
-        $this->content .= "/F1 16 Tf\n";
-        $this->content .= ($this->margin) . " " . $this->currentY . " Td\n";
-        $this->content .= "(" . $this->escape($title) . ") Tj\n";
-        $this->currentY -= 20;
-        $this->content .= "ET\n";
-    }
-    
-    public function addText($text, $fontSize = 10) {
-        $this->content .= "BT\n";
-        $this->content .= "/F1 " . $fontSize . " Tf\n";
-        $this->content .= ($this->margin) . " " . $this->currentY . " Td\n";
-        $this->content .= "(" . $this->escape($text) . ") Tj\n";
-        $this->currentY -= $this->lineHeight;
-        $this->content .= "ET\n";
-    }
-    
-    public function addTable($headers, $rows) {
-        $colWidths = [20, 60, 30, 30, 30, 30]; // Column widths
-        $startX = $this->margin;
-        
-        // Header
-        $this->content .= "BT\n";
-        $this->content .= "/F1 10 Tf\n";
-        $x = $startX;
-        foreach ($headers as $i => $header) {
-            $this->content .= $x . " " . $this->currentY . " Td\n";
-            $this->content .= "(" . $this->escape($header) . ") Tj\n";
-            $x += $colWidths[$i];
-        }
-        $this->currentY -= 15;
-        $this->content .= "ET\n";
-        
-        // Rows
-        foreach ($rows as $row) {
-            $x = $startX;
-            foreach ($row as $i => $cell) {
-                $this->content .= "BT\n";
-                $this->content .= "/F1 9 Tf\n";
-                $this->content .= $x . " " . $this->currentY . " Td\n";
-                $this->content .= "(" . $this->escape($cell) . ") Tj\n";
-                $this->content .= "ET\n";
-                $x += $colWidths[$i];
-            }
-            $this->currentY -= 12;
-        }
-    }
-    
-    private function escape($text) {
-        return str_replace(['(', ')', '\\'], ['\\(', '\\)', '\\\\'], $text);
-    }
-    
-    public function generate() {
-        $pdf = "%PDF-1.4\n";
-        
-        // Catalog
-        $pdf .= "1 0 obj\n";
-        $pdf .= "<<\n";
-        $pdf .= "/Type /Catalog\n";
-        $pdf .= "/Pages 2 0 R\n";
-        $pdf .= ">>\n";
-        $pdf .= "endobj\n";
-        
-        // Pages
-        $pdf .= "2 0 obj\n";
-        $pdf .= "<<\n";
-        $pdf .= "/Type /Pages\n";
-        $pdf .= "/Kids [3 0 R]\n";
-        $pdf .= "/Count 1\n";
-        $pdf .= ">>\n";
-        $pdf .= "endobj\n";
-        
-        // Page
-        $pdf .= "3 0 obj\n";
-        $pdf .= "<<\n";
-        $pdf .= "/Type /Page\n";
-        $pdf .= "/Parent 2 0 R\n";
-        $pdf .= "/MediaBox [0 0 " . ($this->pageWidth * 2.834) . " " . ($this->pageHeight * 2.834) . "]\n";
-        $pdf .= "/Contents 4 0 R\n";
-        $pdf .= "/Resources 5 0 R\n";
-        $pdf .= ">>\n";
-        $pdf .= "endobj\n";
-        
-        // Content
-        $pdf .= "4 0 obj\n";
-        $pdf .= "<<\n";
-        $pdf .= "/Length " . strlen($this->content) . "\n";
-        $pdf .= ">>\n";
-        $pdf .= "stream\n";
-        $pdf .= $this->content;
-        $pdf .= "endstream\n";
-        $pdf .= "endobj\n";
-        
-        // Resources
-        $pdf .= "5 0 obj\n";
-        $pdf .= "<<\n";
-        $pdf .= "/Font <<\n";
-        $pdf .= "/F1 6 0 R\n";
-        $pdf .= ">>\n";
-        $pdf .= ">>\n";
-        $pdf .= "endobj\n";
-        
-        // Font
-        $pdf .= "6 0 obj\n";
-        $pdf .= "<<\n";
-        $pdf .= "/Type /Font\n";
-        $pdf .= "/Subtype /Type1\n";
-        $pdf .= "/BaseFont /Helvetica\n";
-        $pdf .= ">>\n";
-        $pdf .= "endobj\n";
-        
-        // XRef
-        $xref = "xref\n";
-        $xref .= "0 7\n";
-        $xref .= "0000000000 65535 f \n";
-        $xref .= "0000000009 00000 n \n";
-        $xref .= "0000000058 00000 n \n";
-        $xref .= "0000000115 00000 n \n";
-        $xref .= "0000000204 00000 n \n";
-        $xref .= "0000000271 00000 n \n";
-        $xref .= "0000000368 00000 n \n";
-        
-        // Trailer
-        $trailer = "trailer\n";
-        $trailer .= "<<\n";
-        $trailer .= "/Size 7\n";
-        $trailer .= "/Root 1 0 R\n";
-        $trailer .= ">>\n";
-        $trailer .= "startxref\n";
-        $trailer .= "0000000000\n";
-        $trailer .= "%%EOF\n";
-        
-        return $pdf . $xref . $trailer;
-    }
-}
-
+// Vereinfachte PDF-Generierung mit HTML-to-PDF Ansatz
 function generatePDFForDownload($results, $params) {
-    $pdf = new SimplePDF();
+    $uebungsDatum = $params['uebungsDatum'] ?? '';
+    $anzahl = $params['anzahlPaTraeger'] ?? 'alle';
+    $statusFilter = $params['statusFilter'] ?? [];
     
-    // Header
-    $pdf->addHeader("Feuerwehr App - PA-Träger Liste");
-    $pdf->addText("Übungsdatum: " . date('d.m.Y', strtotime($params['uebungsDatum'] ?? '')));
-    $pdf->addText("Anzahl: " . ($params['anzahlPaTraeger'] === 'alle' ? 'Alle verfügbaren' : $params['anzahlPaTraeger'] . ' PA-Träger'));
-    $pdf->addText("Status-Filter: " . implode(', ', $params['statusFilter'] ?? []));
-    $pdf->addText("Gefunden: " . count($results) . " PA-Träger");
-    $pdf->addText(""); // Leerzeile
+    // HTML für PDF generieren
+    $html = '<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>PA-Träger Liste</title>
+    <style>
+        @page {
+            margin: 20mm;
+            size: A4;
+        }
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 0;
+            line-height: 1.4;
+            font-size: 12px;
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 20px; 
+            border-bottom: 2px solid #dc3545;
+            padding-bottom: 15px;
+        }
+        .header h1 { 
+            color: #dc3545; 
+            margin: 0 0 10px 0; 
+            font-size: 24px;
+        }
+        .header h2 { 
+            color: #6c757d; 
+            font-size: 16px; 
+            margin: 0; 
+        }
+        .summary { 
+            background: #f8f9fa; 
+            padding: 12px; 
+            border-radius: 5px; 
+            margin-bottom: 15px; 
+            border-left: 4px solid #dc3545;
+        }
+        .summary h3 { 
+            margin: 0 0 8px 0; 
+            color: #495057; 
+            font-size: 14px;
+        }
+        .summary p { 
+            margin: 3px 0; 
+            font-size: 12px;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 15px; 
+            font-size: 10px;
+        }
+        th, td { 
+            border: 1px solid #dee2e6; 
+            padding: 6px; 
+            text-align: left; 
+            vertical-align: top;
+        }
+        th { 
+            background-color: #e9ecef; 
+            font-weight: bold; 
+            font-size: 11px;
+        }
+        .status-badge { 
+            padding: 2px 6px; 
+            border-radius: 3px; 
+            font-size: 9px; 
+            font-weight: bold; 
+            display: inline-block;
+        }
+        .status-tauglich { background-color: #d4edda; color: #155724; }
+        .status-warnung { background-color: #fff3cd; color: #856404; }
+        .status-abgelaufen { background-color: #f8d7da; color: #721c24; }
+        .status-uebung-abgelaufen { background-color: #f8d7da; color: #721c24; }
+        .footer { 
+            margin-top: 20px; 
+            text-align: center; 
+            color: #6c757d; 
+            font-size: 10px; 
+            border-top: 1px solid #dee2e6;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔥 Feuerwehr App</h1>
+        <h2>PA-Träger Liste für Übung</h2>
+    </div>
     
-    // Tabelle
-    $headers = ['Nr.', 'Name', 'Status', 'Strecke', 'G26.3', 'Übung/Einsatz'];
-    $rows = [];
+    <div class="summary">
+        <h3>Suchkriterien</h3>
+        <p><strong>Übungsdatum:</strong> ' . date('d.m.Y', strtotime($uebungsDatum)) . '</p>
+        <p><strong>Anzahl:</strong> ' . ($anzahl === 'alle' ? 'Alle verfügbaren' : $anzahl . ' PA-Träger') . '</p>
+        <p><strong>Status-Filter:</strong> ' . implode(', ', $statusFilter) . '</p>
+        <p><strong>Gefunden:</strong> ' . count($results) . ' PA-Träger</p>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 40px;">#</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Strecke</th>
+                <th>G26.3</th>
+                <th>Übung/Einsatz</th>
+            </tr>
+        </thead>
+        <tbody>';
     
     foreach ($results as $index => $traeger) {
         $name = ($traeger['first_name'] ?? '') . ' ' . ($traeger['last_name'] ?? '');
-        $rows[] = [
-            $index + 1,
-            substr($name, 0, 20),
-            substr($traeger['status'], 0, 15),
-            date('d.m.Y', strtotime($traeger['strecke_am'])),
-            date('d.m.Y', strtotime($traeger['g263_am'])),
-            date('d.m.Y', strtotime($traeger['uebung_am']))
-        ];
+        $statusClass = 'status-' . strtolower(str_replace([' ', 'ü'], ['-', 'ue'], $traeger['status']));
+        
+        $html .= '<tr>
+            <td>' . ($index + 1) . '</td>
+            <td><strong>' . htmlspecialchars($name) . '</strong></td>
+            <td><span class="status-badge ' . $statusClass . '">' . htmlspecialchars($traeger['status']) . '</span></td>
+            <td>' . date('d.m.Y', strtotime($traeger['strecke_am'])) . '</td>
+            <td>' . date('d.m.Y', strtotime($traeger['g263_am'])) . '</td>
+            <td>' . date('d.m.Y', strtotime($traeger['uebung_am'])) . '<br><small>bis ' . date('d.m.Y', strtotime($traeger['uebung_bis'])) . '</small></td>
+        </tr>';
     }
     
-    $pdf->addTable($headers, $rows);
+    $html .= '</tbody>
+    </table>
     
-    return $pdf->generate();
+    <div class="footer">
+        <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v2.1</p>
+    </div>
+</body>
+</html>';
+    
+    return $html;
 }
 ?>
