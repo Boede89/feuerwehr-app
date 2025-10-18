@@ -1,26 +1,34 @@
 <?php
+// Fehlerbehandlung aktivieren
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
+// JSON-Header setzen
+header('Content-Type: application/json; charset=UTF-8');
+
 // Berechtigung prüfen
 if (!isset($_SESSION['user_id']) || (!has_permission('atemschutz') && !hasAdminPermission())) {
     http_response_code(403);
-    echo json_encode(['error' => 'Zugriff verweigert']);
+    echo json_encode(['success' => false, 'error' => 'Zugriff verweigert']);
     exit;
 }
 
 // POST-Daten empfangen
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode(['error' => 'Nur POST-Requests erlaubt']);
+    echo json_encode(['success' => false, 'error' => 'Nur POST-Requests erlaubt']);
     exit;
 }
 
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) {
     http_response_code(400);
-    echo json_encode(['error' => 'Ungültige JSON-Daten']);
+    echo json_encode(['success' => false, 'error' => 'Ungültige JSON-Daten']);
     exit;
 }
 
@@ -32,27 +40,26 @@ $params = $input['params'] ?? [];
 
 if (empty($recipients) || empty($subject)) {
     http_response_code(400);
-    echo json_encode(['error' => 'Empfänger und Betreff sind erforderlich']);
+    echo json_encode(['success' => false, 'error' => 'Empfänger und Betreff sind erforderlich']);
     exit;
 }
 
-// Absender aus SMTP-Einstellungen laden
-$sender = '';
-$senderName = '';
 try {
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key IN ('smtp_from_email', 'smtp_from_name')");
-    $stmt->execute();
-    $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-    
-    $sender = $settings['smtp_from_email'] ?? '';
-    $senderName = $settings['smtp_from_name'] ?? 'Feuerwehr App';
-} catch (Exception $e) {
-    // Fallback auf angemeldeten User
-    $sender = $_SESSION['email'] ?? '';
-    $senderName = ($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '');
-}
-
-try {
+    // Absender aus SMTP-Einstellungen laden
+    $sender = '';
+    $senderName = '';
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key IN ('smtp_from_email', 'smtp_from_name')");
+        $stmt->execute();
+        $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        
+        $sender = $settings['smtp_from_email'] ?? '';
+        $senderName = $settings['smtp_from_name'] ?? 'Feuerwehr App';
+    } catch (Exception $e) {
+        // Fallback auf angemeldeten User
+        $sender = $_SESSION['email'] ?? '';
+        $senderName = ($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '');
+    }
     // PDF-Anhang generieren
     $pdfContent = generatePDFForEmail($results, $params);
     
@@ -93,7 +100,7 @@ try {
 } catch (Exception $e) {
     error_log("E-Mail-Versand Fehler: " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => 'E-Mail-Versand fehlgeschlagen: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'E-Mail-Versand fehlgeschlagen: ' . $e->getMessage()]);
 }
 
 function generatePDFForEmail($results, $params) {
