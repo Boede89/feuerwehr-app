@@ -299,7 +299,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </nav>
 
     <div class="container-fluid mt-4">
-        <h1 class="h3 mb-4"><i class="fas fa-lungs"></i> Atemschutz – Einstellungen</h1>
+        <h1 class="h3 mb-4"><i class="fas fa-user-shield"></i> Atemschutz – Einstellungen</h1>
 
         <?php if ($message): ?>
             <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>

@@ -504,7 +504,7 @@ if ($can_atemschutz) {
             <?php if ($can_atemschutz): ?>
             <div class="col-12 col-md-4">
                 <a href="atemschutz.php" class="btn btn-outline-danger w-100">
-                    <i class="fas fa-mask"></i> Atemschutz
+                    <i class="fas fa-user-shield"></i> Atemschutz
                 </a>
             </div>
             <?php endif; ?>
@@ -724,7 +724,7 @@ if ($can_atemschutz) {
                 <div class="card shadow">
                     <div class="card-header">
                         <h6 class="m-0 font-weight-bold text-danger">
-                            <i class="fas fa-mask"></i> Auffällige Geräteträger (<?php echo count($atemschutz_warnings); ?>)
+                            <i class="fas fa-user-shield"></i> Auffällige Geräteträger (<?php echo count($atemschutz_warnings); ?>)
                         </h6>
                     </div>
                     <div class="card-body">
@@ -898,7 +898,7 @@ if ($can_atemschutz) {
                     </div>
                     <div class="card-footer">
                         <a href="atemschutz.php" class="btn btn-danger">
-                            <i class="fas fa-mask"></i> Atemschutz verwalten
+                            <i class="fas fa-user-shield"></i> Atemschutz verwalten
                         </a>
                     </div>
                 </div>

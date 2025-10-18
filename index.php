@@ -33,7 +33,7 @@ require_once 'includes/functions.php';
             box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
         }
         
-        .atemschutz-icon .fa-mask {
+        .atemschutz-icon .fa-user-shield {
             font-size: 3rem;
             color: white;
             position: relative;
@@ -133,7 +133,7 @@ require_once 'includes/functions.php';
                             <div class="card-body text-center p-4">
                                 <div class="feature-icon mb-3">
                                     <div class="atemschutz-icon">
-                                        <i class="fas fa-mask"></i>
+                                        <i class="fas fa-user-shield"></i>
                                     </div>
                                 </div>
                                 <h5 class="card-title">Atemschutzeintrag erstellen</h5>
@@ -155,7 +155,7 @@ require_once 'includes/functions.php';
             <div class="modal-content">
                 <div class="modal-header bg-info text-white">
                     <h5 class="modal-title">
-                        <i class="fas fa-mask me-2"></i>Atemschutzeintrag erstellen
+                        <i class="fas fa-user-shield me-2"></i>Atemschutzeintrag erstellen
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>

@@ -266,7 +266,7 @@ if (isset($_POST['test_email_btn'])) {
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-lungs"></i> Atemschutz – Einstellungen</h5>
+                        <h5 class="card-title"><i class="fas fa-user-shield"></i> Atemschutz – Einstellungen</h5>
                         <p class="text-muted">Schwellwert für Ablaufwarnungen (z.B. 90 Tage) festlegen.</p>
                         <div class="mt-auto">
                             <a class="btn btn-primary" href="settings-atemschutz.php">
