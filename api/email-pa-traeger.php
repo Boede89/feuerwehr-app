@@ -62,10 +62,7 @@ try {
         $senderName = ($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '');
     }
     
-    // PDF-Anhang generieren
-    $pdfContent = generatePDFForDownload($results, $params);
-    
-    // E-Mail-Inhalt generieren (nur Text, PDF als Anhang)
+    // E-Mail-Inhalt generieren (nur Text mit Liste)
     $emailBody = generateEmailText($results, $params, $message);
     
     // E-Mail an alle Empfänger senden
@@ -75,7 +72,16 @@ try {
     foreach ($recipients as $recipient) {
         $recipient = trim($recipient);
         if (filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
-            if (sendEmailWithAttachment($recipient, $sender, $senderName, $subject, $emailBody, $pdfContent)) {
+            // Daten für E-Mail zusammenstellen
+            $emailData = [
+                'results' => $results,
+                'params' => $params,
+                'uebungsDatum' => $params['uebungsDatum'] ?? '',
+                'anzahlPaTraeger' => $params['anzahlPaTraeger'] ?? 'alle',
+                'statusFilter' => $params['statusFilter'] ?? []
+            ];
+            
+            if (sendEmailWithAttachment($recipient, $sender, $senderName, $subject, $message, $emailData)) {
                 $successCount++;
             } else {
                 $errors[] = "Fehler beim Senden an $recipient";
@@ -233,31 +239,37 @@ function generateEmailText($results, $params, $message) {
 
 function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $htmlContent) {
     try {
-        // E-Mail mit HTML-Anhang senden
-        $boundary = md5(uniqid(time()));
+        // Vereinfachte E-Mail ohne Anhang - nur Text mit Liste
+        $emailBody = $message . "\n\n";
+        $emailBody .= "=== PA-Träger Liste für Übung ===\n\n";
         
-        // E-Mail-Body mit Anhang
-        $emailBody = "--$boundary\r\n";
-        $emailBody .= "Content-Type: text/plain; charset=UTF-8\r\n";
-        $emailBody .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-        $emailBody .= $message . "\r\n\r\n";
-        $emailBody .= "=== PA-Träger Liste für Übung ===\r\n";
-        $emailBody .= "Die vollständige Liste finden Sie im HTML-Anhang.\r\n";
-        $emailBody .= "Öffnen Sie die Datei im Browser und drucken Sie sie als PDF.\r\n\r\n";
+        // Liste direkt in E-Mail einbetten
+        $emailBody .= "Übungsdatum: " . date('d.m.Y', strtotime($htmlContent['uebungsDatum'] ?? '')) . "\n";
+        $emailBody .= "Anzahl: " . ($htmlContent['anzahlPaTraeger'] === 'alle' ? 'Alle verfügbaren' : $htmlContent['anzahlPaTraeger'] . ' PA-Träger') . "\n";
+        $emailBody .= "Status-Filter: " . implode(', ', $htmlContent['statusFilter'] ?? []) . "\n";
+        $emailBody .= "Gefunden: " . count($htmlContent['results'] ?? []) . " PA-Träger\n\n";
         
-        $emailBody .= "--$boundary\r\n";
-        $emailBody .= "Content-Type: text/html; charset=UTF-8\r\n";
-        $emailBody .= "Content-Transfer-Encoding: 8bit\r\n";
-        $emailBody .= "Content-Disposition: attachment; filename=\"pa-traeger-liste.html\"\r\n\r\n";
-        $emailBody .= $htmlContent . "\r\n";
+        $emailBody .= "Nr. | Name | Status | Strecke | G26.3 | Übung/Einsatz\n";
+        $emailBody .= str_repeat("-", 80) . "\n";
         
-        $emailBody .= "--$boundary--\r\n";
+        foreach ($htmlContent['results'] ?? [] as $index => $traeger) {
+            $name = ($traeger['first_name'] ?? '') . ' ' . ($traeger['last_name'] ?? '');
+            $emailBody .= sprintf("%-3d | %-20s | %-15s | %-10s | %-10s | %s\n",
+                $index + 1,
+                substr($name, 0, 20),
+                substr($traeger['status'] ?? '', 0, 15),
+                date('d.m.Y', strtotime($traeger['strecke_am'] ?? '')),
+                date('d.m.Y', strtotime($traeger['g263_am'] ?? '')),
+                date('d.m.Y', strtotime($traeger['uebung_am'] ?? ''))
+            );
+        }
         
-        // Headers für multipart/mixed
+        $emailBody .= "\nErstellt am " . date('d.m.Y H:i') . " | Feuerwehr App v2.1\n";
+        
+        // Headers
         $headers = "From: $fromName <$from>\r\n";
         $headers .= "Reply-To: $from\r\n";
-        $headers .= "MIME-Version: 1.0\r\n";
-        $headers .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
+        $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
         
         // E-Mail senden
         $result = mail($to, $subject, $emailBody, $headers);
@@ -265,7 +277,7 @@ function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $htm
         return $result;
         
     } catch (Exception $e) {
-        error_log('E-Mail mit HTML-Anhang Fehler: ' . $e->getMessage());
+        error_log('E-Mail-Versand Fehler: ' . $e->getMessage());
         return false;
     }
 }
