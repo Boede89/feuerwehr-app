@@ -73,9 +73,9 @@ function generatePDF($results, $params) {
     </script>
     </head>', $html);
     
-    // HTML-Header setzen
+    // HTML-Header setzen für Download
     header('Content-Type: text/html; charset=UTF-8');
-    header('Content-Disposition: inline; filename="pa-traeger-liste-' . date('Y-m-d') . '.html"');
+    header('Content-Disposition: attachment; filename="pa-traeger-liste-' . date('Y-m-d') . '.html"');
     header('Cache-Control: no-cache, must-revalidate');
     header('Pragma: no-cache');
     
@@ -223,7 +223,7 @@ function generatePDFHTML($results, $params) {
         $statusClass = 'status-' . strtolower(str_replace([' ', 'ü'], ['-', 'ue'], $traeger['status']));
         $html .= '<tr>
             <td>' . ($index + 1) . '</td>
-            <td><strong>' . htmlspecialchars($traeger['name']) . '</strong></td>
+            <td><strong>' . htmlspecialchars(($traeger['first_name'] ?? '') . ' ' . ($traeger['last_name'] ?? '')) . '</strong></td>
             <td><span class="status-badge ' . $statusClass . '">' . htmlspecialchars($traeger['status']) . '</span></td>
             <td>' . date('d.m.Y', strtotime($traeger['strecke_am'])) . '</td>
             <td>' . date('d.m.Y', strtotime($traeger['g263_am'])) . '</td>

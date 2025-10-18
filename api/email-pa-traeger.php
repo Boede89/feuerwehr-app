@@ -166,7 +166,7 @@ function generatePDFForEmail($results, $params) {
         $html .= '
             <tr>
                 <td>' . ($index + 1) . '</td>
-                <td>' . htmlspecialchars($traeger['first_name'] . ' ' . $traeger['last_name']) . '</td>
+                <td>' . htmlspecialchars(($traeger['first_name'] ?? '') . ' ' . ($traeger['last_name'] ?? '')) . '</td>
                 <td><span class="status-badge ' . $statusClass . '">' . htmlspecialchars($traeger['status']) . '</span></td>
                 <td>' . date('d.m.Y', strtotime($traeger['strecke_am'])) . '</td>
                 <td>' . date('d.m.Y', strtotime($traeger['g263_am'])) . '</td>
@@ -232,7 +232,7 @@ function generateEmailText($results, $params, $message) {
 
 function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $pdfContent) {
     try {
-        // E-Mail mit Anhang über die bestehende send_email Funktion senden
+        // E-Mail mit Anhang direkt über mail() senden
         $boundary = md5(uniqid(time()));
         
         $emailBody = "--$boundary\r\n";
@@ -254,8 +254,8 @@ function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $pdf
         $headers .= "MIME-Version: 1.0\r\n";
         $headers .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
         
-        // Verwende die bestehende send_email Funktion
-        return send_email($to, $subject, $emailBody, $headers, false);
+        // Direkt über mail() senden
+        return mail($to, $subject, $emailBody, $headers);
         
     } catch (Exception $e) {
         error_log('E-Mail mit Anhang Fehler: ' . $e->getMessage());
