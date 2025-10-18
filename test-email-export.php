@@ -23,12 +23,13 @@ try {
         }
     }
     
-    // 2. Test-Daten erstellen
+    // 2. Test-Daten erstellen (wie von der API geliefert)
     echo "<h2>2. Test-Daten erstellen:</h2>";
     $testResults = [
         [
-            'first_name' => 'Max',
-            'last_name' => 'Mustermann',
+            'id' => 1,
+            'name' => 'Max Mustermann',
+            'email' => 'max.mustermann@feuerwehr.de',
             'status' => 'Tauglich',
             'strecke_am' => '2024-01-15',
             'g263_am' => '2024-01-10',
@@ -36,8 +37,9 @@ try {
             'uebung_bis' => '2025-01-20'
         ],
         [
-            'first_name' => 'Anna',
-            'last_name' => 'Musterfrau',
+            'id' => 2,
+            'name' => 'Anna Musterfrau',
+            'email' => 'anna.musterfrau@feuerwehr.de',
             'status' => 'Warnung',
             'strecke_am' => '2023-12-01',
             'g263_am' => '2023-11-15',
@@ -45,8 +47,9 @@ try {
             'uebung_bis' => '2024-12-10'
         ],
         [
-            'first_name' => 'Peter',
-            'last_name' => 'Feuerwehrmann',
+            'id' => 3,
+            'name' => 'Peter Feuerwehrmann',
+            'email' => 'peter.feuerwehrmann@feuerwehr.de',
             'status' => 'Abgelaufen',
             'strecke_am' => '2023-06-01',
             'g263_am' => '2023-05-15',
