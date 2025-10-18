@@ -17,10 +17,12 @@ try {
     
     // Lade Atemschutzeintrag-Details
     $stmt = $db->prepare("
-        SELECT ae.*, u.first_name, u.last_name,
+        SELECT ae.*, 
+               COALESCE(u.first_name, 'Unbekannt') as first_name, 
+               COALESCE(u.last_name, '') as last_name,
                GROUP_CONCAT(CONCAT(at.first_name, ' ', at.last_name) ORDER BY at.last_name, at.first_name SEPARATOR ', ') as traeger_names
         FROM atemschutz_entries ae
-        JOIN users u ON ae.requester_id = u.id
+        LEFT JOIN users u ON ae.requester_id = u.id
         LEFT JOIN atemschutz_entry_traeger aet ON ae.id = aet.entry_id
         LEFT JOIN atemschutz_traeger at ON aet.traeger_id = at.id
         WHERE ae.id = ?
