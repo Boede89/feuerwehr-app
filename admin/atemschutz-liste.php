@@ -179,7 +179,13 @@ if (!$isAdmin && !$canAtemschutz) {
             'strecke_bis' => 'strecke_bis',
             'g263_bis' => 'g263_bis',
             'uebung_bis' => 'uebung_bis',
-            'status' => 'status',
+            'status' => 'CASE 
+                WHEN status = "Tauglich" THEN 1
+                WHEN status = "Warnung" THEN 2
+                WHEN status = "Abgelaufen" THEN 3
+                WHEN status = "Übung abgelaufen" THEN 4
+                ELSE 5
+            END, status',
         ];
         $orderExpr = $orderMap[$sort] ?? 'name_full';
         $order = "ORDER BY $orderExpr $dir";
