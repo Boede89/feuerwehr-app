@@ -425,19 +425,19 @@ require_once 'includes/functions.php';
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Atemschutzeintrag erfolgreich erstellt! Der Antrag wurde zur Genehmigung eingereicht.');
+                    showSuccessModal('Atemschutzeintrag erfolgreich erstellt!', 'Der Antrag wurde zur Genehmigung eingereicht und wird von den zuständigen Personen bearbeitet.');
                     // Modal schließen
                     const modal = bootstrap.Modal.getInstance(document.getElementById('atemschutzModal'));
                     modal.hide();
                     // Formular zurücksetzen
                     resetAtemschutzForm();
                 } else {
-                    alert('Fehler: ' + data.message);
+                    showErrorModal('Fehler beim Erstellen', data.message);
                 }
             })
             .catch(error => {
                 console.error('Fehler:', error);
-                alert('Fehler beim Erstellen des Atemschutzeintrags.');
+                showErrorModal('Netzwerkfehler', 'Es ist ein Fehler beim Erstellen des Atemschutzeintrags aufgetreten. Bitte versuchen Sie es erneut.');
             })
             .finally(() => {
                 // Button wieder aktivieren
@@ -445,6 +445,73 @@ require_once 'includes/functions.php';
                 submitBtn.innerHTML = originalText;
             });
         });
+        
+        // Funktionen für schöne Modals
+        function showSuccessModal(title, message) {
+            document.getElementById('successTitle').textContent = title;
+            document.getElementById('successMessage').textContent = message;
+            const modal = new bootstrap.Modal(document.getElementById('successModal'));
+            modal.show();
+        }
+        
+        function showErrorModal(title, message) {
+            document.getElementById('errorTitle').textContent = title;
+            document.getElementById('errorMessage').textContent = message;
+            const modal = new bootstrap.Modal(document.getElementById('errorModal'));
+            modal.show();
+        }
     </script>
+
+    <!-- Success Modal -->
+    <div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-success text-white border-0">
+                    <h5 class="modal-title" id="successModalLabel">
+                        <i class="fas fa-check-circle me-2"></i>Erfolgreich!
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <div class="mb-3">
+                        <i class="fas fa-check-circle text-success" style="font-size: 3rem;"></i>
+                    </div>
+                    <h6 id="successTitle" class="text-success mb-3"></h6>
+                    <p id="successMessage" class="text-muted mb-0"></p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center">
+                    <button type="button" class="btn btn-success px-4" data-bs-dismiss="modal">
+                        <i class="fas fa-thumbs-up me-2"></i>Verstanden
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-danger text-white border-0">
+                    <h5 class="modal-title" id="errorModalLabel">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Fehler!
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <div class="mb-3">
+                        <i class="fas fa-exclamation-triangle text-danger" style="font-size: 3rem;"></i>
+                    </div>
+                    <h6 id="errorTitle" class="text-danger mb-3"></h6>
+                    <p id="errorMessage" class="text-muted mb-0"></p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center">
+                    <button type="button" class="btn btn-danger px-4" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Schließen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
