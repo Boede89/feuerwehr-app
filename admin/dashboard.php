@@ -187,51 +187,67 @@ if ($can_atemschutz) {
         // Filtere nur die wirklich auffälligen Geräteträger
         $atemschutz_warnings = [];
         foreach ($all_traeger as $traeger) {
-            $has_warning = false;
+            $now = new DateTime('today');
+            $streckeExpired = false; $g263Expired = false; $uebungExpired = false;
+            $streckeWarn = false; $g263Warn = false; $uebungWarn = false;
             
             // Prüfe Strecke (1 Jahr Gültigkeit)
             $streckeAm = new DateTime($traeger['strecke_am']);
             $streckeBis = clone $streckeAm;
             $streckeBis->add(new DateInterval('P1Y'));
-            $now = new DateTime('today');
             $diff = (int)$now->diff($streckeBis)->format('%r%a');
-            if ($diff < 0 || $diff <= $warn_days) {
-                $has_warning = true;
+            if ($diff < 0) {
+                $streckeExpired = true;
+            } elseif ($diff <= $warn_days) {
+                $streckeWarn = true;
             }
             
             // Prüfe G26.3 (3 Jahre unter 50, 1 Jahr über 50)
-            if (!$has_warning) {
-                $g263Am = new DateTime($traeger['g263_am']);
-                $birthdate = new DateTime($traeger['birthdate']);
-                $age = $birthdate->diff(new DateTime())->y;
-                
-                $g263Bis = clone $g263Am;
-                if ($age < 50) {
-                    $g263Bis->add(new DateInterval('P3Y'));
-                } else {
-                    $g263Bis->add(new DateInterval('P1Y'));
-                }
-                
-                $diff = (int)$now->diff($g263Bis)->format('%r%a');
-                if ($diff < 0 || $diff <= $warn_days) {
-                    $has_warning = true;
-                }
+            $g263Am = new DateTime($traeger['g263_am']);
+            $birthdate = new DateTime($traeger['birthdate']);
+            $age = $birthdate->diff(new DateTime())->y;
+            
+            $g263Bis = clone $g263Am;
+            if ($age < 50) {
+                $g263Bis->add(new DateInterval('P3Y'));
+            } else {
+                $g263Bis->add(new DateInterval('P1Y'));
+            }
+            
+            $diff = (int)$now->diff($g263Bis)->format('%r%a');
+            if ($diff < 0) {
+                $g263Expired = true;
+            } elseif ($diff <= $warn_days) {
+                $g263Warn = true;
             }
             
             // Prüfe Übung (1 Jahr Gültigkeit)
-            if (!$has_warning) {
-                $uebungAm = new DateTime($traeger['uebung_am']);
-                $uebungBis = clone $uebungAm;
-                $uebungBis->add(new DateInterval('P1Y'));
-                
-                $diff = (int)$now->diff($uebungBis)->format('%r%a');
-                if ($diff < 0 || $diff <= $warn_days) {
-                    $has_warning = true;
-                }
+            $uebungAm = new DateTime($traeger['uebung_am']);
+            $uebungBis = clone $uebungAm;
+            $uebungBis->add(new DateInterval('P1Y'));
+            
+            $diff = (int)$now->diff($uebungBis)->format('%r%a');
+            if ($diff < 0) {
+                $uebungExpired = true;
+            } elseif ($diff <= $warn_days) {
+                $uebungWarn = true;
             }
             
-            // Nur auffällige Geräteträger hinzufügen
-            if ($has_warning) {
+            // Status berechnen
+            $status = 'Tauglich';
+            if ($streckeExpired || $g263Expired || $uebungExpired) {
+                if ($uebungExpired && !$streckeExpired && !$g263Expired) {
+                    $status = 'Übung abgelaufen';
+                } else {
+                    $status = 'Abgelaufen';
+                }
+            } elseif ($streckeWarn || $g263Warn || $uebungWarn) {
+                $status = 'Warnung';
+            }
+            
+            // Nur auffällige Geräteträger hinzufügen (alle außer Tauglich)
+            if ($status !== 'Tauglich') {
+                $traeger['calculated_status'] = $status;
                 $atemschutz_warnings[] = $traeger;
             }
         }
