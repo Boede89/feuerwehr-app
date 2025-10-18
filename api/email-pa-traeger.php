@@ -231,90 +231,38 @@ function generateEmailText($results, $params, $message) {
 }
 
 function sendEmailWithAttachment($to, $from, $fromName, $subject, $message, $pdfContent) {
-    global $db;
-    
     try {
-        // SMTP-Einstellungen laden
-        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key IN ('smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_encryption', 'smtp_from_email', 'smtp_from_name')");
-        $stmt->execute();
-        $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        // E-Mail mit Anhang über die bestehende send_email Funktion senden
+        $boundary = md5(uniqid(time()));
         
-        $smtp_host = $settings['smtp_host'] ?? '';
-        $smtp_port = $settings['smtp_port'] ?? 587;
-        $smtp_username = $settings['smtp_username'] ?? '';
-        $smtp_password = $settings['smtp_password'] ?? '';
-        $smtp_encryption = $settings['smtp_encryption'] ?? 'tls';
-        $smtp_from_email = $settings['smtp_from_email'] ?? $from;
-        $smtp_from_name = $settings['smtp_from_name'] ?? $fromName;
+        $emailBody = "--$boundary\r\n";
+        $emailBody .= "Content-Type: text/plain; charset=UTF-8\r\n";
+        $emailBody .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+        $emailBody .= $message . "\r\n\r\n";
         
-        if (!empty($smtp_host) && !empty($smtp_username) && !empty($smtp_password)) {
-            // SMTP verwenden
-            return sendEmailWithAttachmentSMTP($to, $smtp_from_email, $smtp_from_name, $subject, $message, $pdfContent, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption);
-        } else {
-            // Fallback auf mail() Funktion
-            return sendEmailWithAttachmentMail($to, $smtp_from_email, $smtp_from_name, $subject, $message, $pdfContent);
-        }
+        $emailBody .= "--$boundary\r\n";
+        $emailBody .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $emailBody .= "Content-Transfer-Encoding: 8bit\r\n";
+        $emailBody .= "Content-Disposition: attachment; filename=\"pa-traeger-liste.html\"\r\n\r\n";
+        $emailBody .= $pdfContent . "\r\n\r\n";
+        
+        $emailBody .= "--$boundary--\r\n";
+        
+        // Headers für multipart/mixed
+        $headers = "From: $fromName <$from>\r\n";
+        $headers .= "Reply-To: $from\r\n";
+        $headers .= "MIME-Version: 1.0\r\n";
+        $headers .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
+        
+        // Verwende die bestehende send_email Funktion
+        return send_email($to, $subject, $emailBody, $headers, false);
+        
     } catch (Exception $e) {
         error_log('E-Mail mit Anhang Fehler: ' . $e->getMessage());
         return false;
     }
 }
 
-function sendEmailWithAttachmentMail($to, $from, $fromName, $subject, $message, $pdfContent) {
-    $boundary = md5(uniqid(time()));
-    
-    $headers = "From: $fromName <$from>\r\n";
-    $headers .= "Reply-To: $from\r\n";
-    $headers .= "MIME-Version: 1.0\r\n";
-    $headers .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
-    
-    $body = "--$boundary\r\n";
-    $body .= "Content-Type: text/plain; charset=UTF-8\r\n";
-    $body .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-    $body .= $message . "\r\n\r\n";
-    
-    $body .= "--$boundary\r\n";
-    $body .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $body .= "Content-Transfer-Encoding: 8bit\r\n";
-    $body .= "Content-Disposition: attachment; filename=\"pa-traeger-liste.html\"\r\n\r\n";
-    $body .= $pdfContent . "\r\n\r\n";
-    
-    $body .= "--$boundary--\r\n";
-    
-    return mail($to, $subject, $body, $headers);
-}
-
-function sendEmailWithAttachmentSMTP($to, $from, $fromName, $subject, $message, $pdfContent, $smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption) {
-    // Vereinfachte SMTP-Implementierung mit Anhang
-    // In einer echten Implementierung würde hier eine vollständige SMTP-Bibliothek verwendet
-    
-    $boundary = md5(uniqid(time()));
-    
-    $email_data = "To: $to\r\n";
-    $email_data .= "From: $fromName <$from>\r\n";
-    $email_data .= "Reply-To: $from\r\n";
-    $email_data .= "Subject: $subject\r\n";
-    $email_data .= "MIME-Version: 1.0\r\n";
-    $email_data .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
-    $email_data .= "\r\n";
-    
-    $email_data .= "--$boundary\r\n";
-    $email_data .= "Content-Type: text/plain; charset=UTF-8\r\n";
-    $email_data .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-    $email_data .= $message . "\r\n\r\n";
-    
-    $email_data .= "--$boundary\r\n";
-    $email_data .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $email_data .= "Content-Transfer-Encoding: 8bit\r\n";
-    $email_data .= "Content-Disposition: attachment; filename=\"pa-traeger-liste.html\"\r\n\r\n";
-    $email_data .= $pdfContent . "\r\n\r\n";
-    
-    $email_data .= "--$boundary--\r\n";
-    
-    // Hier würde die SMTP-Verbindung und der Versand stattfinden
-    // Für Demo-Zwecke verwenden wir die mail() Funktion
-    return sendEmailWithAttachmentMail($to, $from, $fromName, $subject, $message, $pdfContent);
-}
 
 function generateEmailHTML($results, $params, $message) {
     $uebungsDatum = $params['uebungsDatum'] ?? '';

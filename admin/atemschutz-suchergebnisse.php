@@ -242,16 +242,25 @@ function formatDate($date) {
                 </div>
                 <div class="modal-body">
                             <div class="row">
-                                <div class="col-md-6 mb-3">
+                                <div class="col-md-4 mb-3">
                                     <div class="card h-100 text-center export-option" data-format="pdf">
                                         <div class="card-body">
-                                            <i class="fas fa-file-pdf fa-3x text-danger mb-3"></i>
-                                            <h6 class="card-title">PDF-Liste</h6>
-                                            <p class="card-text small text-muted">Erstellt eine formatierte PDF-Datei mit der PA-Träger-Liste</p>
+                                            <i class="fas fa-download fa-3x text-danger mb-3"></i>
+                                            <h6 class="card-title">PDF-Herunterladen</h6>
+                                            <p class="card-text small text-muted">Lädt eine PDF-Datei mit der PA-Träger-Liste herunter</p>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-6 mb-3">
+                                <div class="col-md-4 mb-3">
+                                    <div class="card h-100 text-center export-option" data-format="print">
+                                        <div class="card-body">
+                                            <i class="fas fa-print fa-3x text-success mb-3"></i>
+                                            <h6 class="card-title">PDF-Drucken</h6>
+                                            <p class="card-text small text-muted">Öffnet die Liste direkt im Druckdialog</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
                                     <div class="card h-100 text-center export-option" data-format="email">
                                         <div class="card-body">
                                             <i class="fas fa-envelope fa-3x text-primary mb-3"></i>
@@ -394,45 +403,221 @@ Mit freundlichen Grüßen
         });
         
         function exportToFile(format) {
-            // Daten für den Export vorbereiten
-            const results = <?php echo json_encode($searchResults); ?>;
-            const params = <?php echo json_encode($searchParams); ?>;
-            
-            // Formular erstellen
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '../api/export-pa-traeger.php';
-            form.target = '_blank';
-            form.style.display = 'none';
-            
-            // Format hinzufügen
-            const formatInput = document.createElement('input');
-            formatInput.type = 'hidden';
-            formatInput.name = 'format';
-            formatInput.value = format;
-            form.appendChild(formatInput);
-            
-            // Ergebnisse hinzufügen
-            const resultsInput = document.createElement('input');
-            resultsInput.type = 'hidden';
-            resultsInput.name = 'results';
-            resultsInput.value = JSON.stringify(results);
-            form.appendChild(resultsInput);
-            
-            // Parameter hinzufügen
-            const paramsInput = document.createElement('input');
-            paramsInput.type = 'hidden';
-            paramsInput.name = 'params';
-            paramsInput.value = JSON.stringify(params);
-            form.appendChild(paramsInput);
-            
-            // Formular senden
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
+            if (format === 'print') {
+                // PDF-Drucken: Direkt im neuen Fenster öffnen
+                printPDF();
+            } else {
+                // PDF-Herunterladen: Formular-basierter Download
+                const results = <?php echo json_encode($searchResults); ?>;
+                const params = <?php echo json_encode($searchParams); ?>;
+                
+                // Formular erstellen
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '../api/export-pa-traeger.php';
+                form.target = '_blank';
+                form.style.display = 'none';
+                
+                // Format hinzufügen
+                const formatInput = document.createElement('input');
+                formatInput.type = 'hidden';
+                formatInput.name = 'format';
+                formatInput.value = format;
+                form.appendChild(formatInput);
+                
+                // Ergebnisse hinzufügen
+                const resultsInput = document.createElement('input');
+                resultsInput.type = 'hidden';
+                resultsInput.name = 'results';
+                resultsInput.value = JSON.stringify(results);
+                form.appendChild(resultsInput);
+                
+                // Parameter hinzufügen
+                const paramsInput = document.createElement('input');
+                paramsInput.type = 'hidden';
+                paramsInput.name = 'params';
+                paramsInput.value = JSON.stringify(params);
+                form.appendChild(paramsInput);
+                
+                // Formular senden
+                document.body.appendChild(form);
+                form.submit();
+                document.body.removeChild(form);
+            }
             
             // Modal schließen
             bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();
+        }
+        
+        function printPDF() {
+            // PDF-Drucken: HTML direkt im neuen Fenster öffnen
+            const results = <?php echo json_encode($searchResults); ?>;
+            const params = <?php echo json_encode($searchParams); ?>;
+            
+            // HTML für Druck generieren
+            const printHTML = generatePrintHTML(results, params);
+            
+            // Neues Fenster öffnen
+            const printWindow = window.open('', '_blank', 'width=800,height=600');
+            printWindow.document.write(printHTML);
+            printWindow.document.close();
+            
+            // Automatisch drucken
+            printWindow.onload = function() {
+                printWindow.print();
+            };
+        }
+        
+        function generatePrintHTML(results, params) {
+            const uebungsDatum = params.uebungsDatum || '';
+            const anzahl = params.anzahlPaTraeger || 'alle';
+            const statusFilter = params.statusFilter || [];
+            
+            let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>PA-Träger Liste - Druck</title>
+    <style>
+        @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+        }
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            line-height: 1.4;
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 30px; 
+            border-bottom: 2px solid #dc3545;
+            padding-bottom: 20px;
+        }
+        .header h1 { 
+            color: #dc3545; 
+            margin-bottom: 10px; 
+            font-size: 28px;
+        }
+        .header h2 { 
+            color: #6c757d; 
+            font-size: 18px; 
+            margin-bottom: 20px; 
+        }
+        .summary { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin-bottom: 20px; 
+            border-left: 4px solid #dc3545;
+        }
+        .summary h3 { 
+            margin-top: 0; 
+            color: #495057; 
+            font-size: 16px;
+        }
+        .summary p { 
+            margin: 5px 0; 
+            font-size: 14px;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 20px; 
+            font-size: 12px;
+        }
+        th, td { 
+            border: 1px solid #dee2e6; 
+            padding: 8px; 
+            text-align: left; 
+        }
+        th { 
+            background-color: #e9ecef; 
+            font-weight: bold; 
+            font-size: 13px;
+        }
+        .status-badge { 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-size: 11px; 
+            font-weight: bold; 
+            display: inline-block;
+        }
+        .status-tauglich { background-color: #d4edda; color: #155724; }
+        .status-warnung { background-color: #fff3cd; color: #856404; }
+        .status-abgelaufen { background-color: #f8d7da; color: #721c24; }
+        .status-uebung-abgelaufen { background-color: #f8d7da; color: #721c24; }
+        .footer { 
+            margin-top: 30px; 
+            text-align: center; 
+            color: #6c757d; 
+            font-size: 12px; 
+            border-top: 1px solid #dee2e6;
+            padding-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔥 Feuerwehr App</h1>
+        <h2>PA-Träger Liste für Übung</h2>
+    </div>
+    
+    <div class="summary">
+        <h3>Suchkriterien</h3>
+        <p><strong>Übungsdatum:</strong> ${new Date(uebungsDatum).toLocaleDateString('de-DE')}</p>
+        <p><strong>Anzahl:</strong> ${anzahl === 'alle' ? 'Alle verfügbaren' : anzahl + ' PA-Träger'}</p>
+        <p><strong>Status-Filter:</strong> ${statusFilter.join(', ')}</p>
+        <p><strong>Gefunden:</strong> ${results.length} PA-Träger</p>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Strecke</th>
+                <th>G26.3</th>
+                <th>Übung/Einsatz</th>
+            </tr>
+        </thead>
+        <tbody>`;
+            
+            results.forEach((traeger, index) => {
+                const statusClass = getStatusClass(traeger.status);
+                html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${traeger.first_name} ${traeger.last_name}</td>
+                        <td><span class="status-badge ${statusClass}">${traeger.status}</span></td>
+                        <td>${new Date(traeger.strecke_am).toLocaleDateString('de-DE')}</td>
+                        <td>${new Date(traeger.g263_am).toLocaleDateString('de-DE')}</td>
+                        <td>${new Date(traeger.uebung_am).toLocaleDateString('de-DE')} (bis ${new Date(traeger.uebung_bis).toLocaleDateString('de-DE')})</td>
+                    </tr>`;
+            });
+            
+            html += `
+        </tbody>
+    </table>
+    
+    <div class="footer">
+        <p>Erstellt am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')} | Feuerwehr App v2.1</p>
+    </div>
+</body>
+</html>`;
+            
+            return html;
+        }
+        
+        function getStatusClass(status) {
+            const statusClasses = {
+                'Tauglich': 'status-tauglich',
+                'Warnung': 'status-warnung',
+                'Abgelaufen': 'status-abgelaufen',
+                'Übung abgelaufen': 'status-uebung-abgelaufen'
+            };
+            return statusClasses[status] || 'status-tauglich';
         }
         
         function exportViaEmail() {
