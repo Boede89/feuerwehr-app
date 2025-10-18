@@ -155,12 +155,13 @@ try {
         SELECT id, first_name, last_name, email, is_admin, user_role, 
                COALESCE(atemschutz_notifications, 0) as atemschutz_notifications
         FROM users 
-        WHERE is_active = 1 
         ORDER BY last_name, first_name
     ");
     $stmt->execute();
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) { /* ignore */ }
+} catch (Exception $e) { 
+    error_log("Fehler beim Laden der Benutzer: " . $e->getMessage());
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
