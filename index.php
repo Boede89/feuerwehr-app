@@ -33,31 +33,11 @@ require_once 'includes/functions.php';
             box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
         }
         
-        .atemschutz-icon .fa-user-shield {
-            font-size: 2.5rem;
+        .atemschutz-icon .fa-mask {
+            font-size: 3rem;
             color: white;
             position: relative;
             z-index: 2;
-        }
-        
-        .atemschutz-mask {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            width: 30px;
-            height: 30px;
-            background: #ffc107;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.4);
-            animation: pulse 2s infinite;
-        }
-        
-        .atemschutz-mask .fa-mask {
-            font-size: 1rem;
-            color: #dc3545;
         }
         
         @keyframes pulse {
@@ -153,15 +133,12 @@ require_once 'includes/functions.php';
                             <div class="card-body text-center p-4">
                                 <div class="feature-icon mb-3">
                                     <div class="atemschutz-icon">
-                                        <i class="fas fa-user-shield"></i>
-                                        <div class="atemschutz-mask">
-                                            <i class="fas fa-mask"></i>
-                                        </div>
+                                        <i class="fas fa-mask"></i>
                                     </div>
                                 </div>
                                 <h5 class="card-title">Atemschutzeintrag erstellen</h5>
                                 <p class="card-text">Erstellen Sie einen neuen Atemschutzeintrag für Einsatz/Übung, Atemschutzstrecke oder G26.3.</p>
-                                <button class="btn btn-danger btn-lg" data-bs-toggle="modal" data-bs-target="#atemschutzModal">
+                                <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#atemschutzModal">
                                     <i class="fas fa-plus"></i> Eintrag erstellen
                                 </button>
                             </div>
