@@ -3,6 +3,10 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
+// Fehlerbehandlung aktivieren
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 // Admin-Berechtigung prüfen
 if (!isset($_SESSION['user_id'])) {
     header('Location: ../login.php');
@@ -11,13 +15,17 @@ if (!isset($_SESSION['user_id'])) {
 
 // Prüfen ob Benutzer Admin ist
 $user_id = $_SESSION['user_id'];
-$stmt = $db->prepare("SELECT user_role, is_admin, can_settings FROM users WHERE id = ?");
-$stmt->execute([$user_id]);
-$user = $stmt->fetch(PDO::FETCH_ASSOC);
+try {
+    $stmt = $db->prepare("SELECT user_role, is_admin, can_settings FROM users WHERE id = ?");
+    $stmt->execute([$user_id]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if (!$user || ($user['user_role'] !== 'admin' && $user['is_admin'] != 1 && $user['can_settings'] != 1)) {
-    header('Location: ../login.php');
-    exit;
+    if (!$user || ($user['user_role'] !== 'admin' && $user['is_admin'] != 1 && $user['can_settings'] != 1)) {
+        header('Location: ../login.php');
+        exit;
+    }
+} catch (Exception $e) {
+    die("Datenbankfehler: " . $e->getMessage());
 }
 
 // Feedback-Status aktualisieren

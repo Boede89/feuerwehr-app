@@ -475,26 +475,48 @@ require_once 'includes/functions.php';
         });
         
         // Feedback absenden
-        document.getElementById('submitFeedbackBtn').addEventListener('click', function() {
+        const submitFeedbackBtn = document.getElementById('submitFeedbackBtn');
+        if (!submitFeedbackBtn) {
+            console.error('Feedback Submit Button nicht gefunden!');
+            return;
+        }
+        
+        submitFeedbackBtn.addEventListener('click', function() {
             const form = document.getElementById('feedbackForm');
+            if (!form) {
+                console.error('Feedback Form nicht gefunden!');
+                alert('Fehler: Formular nicht gefunden');
+                return;
+            }
+            
             const formData = new FormData(form);
             
             // Prüfe ob alle Pflichtfelder ausgefüllt sind
-            const feedbackType = document.getElementById('feedbackType').value;
-            const subject = document.getElementById('feedbackSubject').value.trim();
-            const message = document.getElementById('feedbackMessage').value.trim();
+            const feedbackType = document.getElementById('feedbackType');
+            const subject = document.getElementById('feedbackSubject');
+            const message = document.getElementById('feedbackMessage');
             
-            if (!feedbackType) {
+            if (!feedbackType || !subject || !message) {
+                console.error('Feedback Formular-Elemente nicht gefunden!');
+                alert('Fehler: Formular-Elemente nicht gefunden');
+                return;
+            }
+            
+            const feedbackTypeValue = feedbackType.value;
+            const subjectValue = subject.value.trim();
+            const messageValue = message.value.trim();
+            
+            if (!feedbackTypeValue) {
                 alert('Bitte wählen Sie eine Art des Feedbacks aus.');
                 return;
             }
             
-            if (!subject) {
+            if (!subjectValue) {
                 alert('Bitte geben Sie einen Betreff ein.');
                 return;
             }
             
-            if (!message) {
+            if (!messageValue) {
                 alert('Bitte geben Sie eine Nachricht ein.');
                 return;
             }
