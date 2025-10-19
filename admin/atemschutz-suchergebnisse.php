@@ -624,19 +624,18 @@ Mit freundlichen Grüßen
             
             results.forEach((traeger, index) => {
                 const statusClass = getStatusClass(traeger.status);
-                const fullName = `${(traeger.first_name || '')} ${(traeger.last_name || '')}`.trim();
+                const fullName = traeger.name || 'Name nicht verfügbar';
                 
                 // Debug: Namen prüfen
                 console.log(`Geräteträger ${index + 1}:`, {
-                    first_name: traeger.first_name,
-                    last_name: traeger.last_name,
+                    name: traeger.name,
                     fullName: fullName
                 });
                 
                 html += `
                     <tr>
                         <td>${index + 1}</td>
-                        <td><strong>${fullName || 'Name nicht verfügbar'}</strong></td>
+                        <td><strong>${fullName}</strong></td>
                         <td><span class="status-badge ${statusClass}">${traeger.status}</span></td>
                         <td>${traeger.strecke_am ? new Date(traeger.strecke_am).toLocaleDateString('de-DE') : 'N/A'}</td>
                         <td>${traeger.g263_am ? new Date(traeger.g263_am).toLocaleDateString('de-DE') : 'N/A'}</td>
