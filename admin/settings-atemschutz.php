@@ -262,6 +262,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             $message = "Benachrichtigungseinstellungen erfolgreich aktualisiert.";
+            
+            // Benutzerliste neu laden nach dem Speichern
+            try {
+                $stmt = $db->prepare("
+                    SELECT id, first_name, last_name, email, is_admin, user_role, 
+                           COALESCE(atemschutz_notifications, 0) as atemschutz_notifications
+                    FROM users 
+                    ORDER BY last_name, first_name
+                ");
+                $stmt->execute();
+                $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (Exception $e) {
+                error_log("Fehler beim Neuladen der Benutzer: " . $e->getMessage());
+            }
         }
     }
 }
