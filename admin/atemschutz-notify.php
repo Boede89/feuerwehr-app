@@ -222,13 +222,23 @@ try {
         if (empty($templates)) { continue; }
         
         // Kombinierte E-Mail erstellen
-        if (count($templates) === 1) {
-            // Nur eine Vorlage
-            $template = $templates[0];
-            $subject = $template['subject'];
-            $body = $template['body'];
+        if (count($certificates) === 1) {
+            // Nur ein Zertifikat - verwende die entsprechende Vorlage
+            $templateKey = $certificates[0]['type'] . '_' . $certificates[0]['urgency'];
+            $stmt = $db->prepare("SELECT * FROM email_templates WHERE template_key = ?");
+            $stmt->execute([$templateKey]);
+            $template = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($template) {
+                $subject = $template['subject'];
+                $body = $template['body'];
+            } else {
+                // Fallback
+                $subject = 'Atemschutz-Zertifikat Benachrichtigung';
+                $body = createCombinedAtemschutzEmail($traeger, $certificates, $certificates[0]['urgency'] === 'abgelaufen');
+            }
         } else {
-            // Mehrere Vorlagen kombinieren
+            // Mehrere Zertifikate - verwende kombinierte E-Mail
             $hasExpired = in_array('abgelaufen', array_column($certificates, 'urgency'));
             $subjectPrefix = $hasExpired ? 'ACHTUNG: Mehrere Zertifikate sind abgelaufen' : 'Erinnerung: Mehrere Zertifikate laufen bald ab';
             
@@ -277,47 +287,119 @@ try {
 function createCombinedAtemschutzEmail($traeger, $certificates, $hasExpired) {
     $name = $traeger['first_name'] . ' ' . $traeger['last_name'];
     
-    $html = '<h2>Atemschutz-Hinweis</h2>';
-    $html .= '<p>Hallo ' . htmlspecialchars($name) . ',</p>';
+    $html = '<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atemschutz-Zertifikat Benachrichtigung</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f8f9fa; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #dc3545, #c82333); color: white; padding: 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: bold; }
+        .header .subtitle { margin: 10px 0 0 0; font-size: 16px; opacity: 0.9; }
+        .content { padding: 30px; }
+        .alert { padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid; }
+        .alert-warning { background-color: #fff3cd; border-color: #ffc107; color: #856404; }
+        .alert-danger { background-color: #f8d7da; border-color: #dc3545; color: #721c24; }
+        .certificate-list { background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .certificate-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #dee2e6; }
+        .certificate-item:last-child { border-bottom: none; }
+        .certificate-name { font-weight: bold; color: #495057; }
+        .certificate-status { padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; }
+        .status-expired { background-color: #dc3545; color: white; }
+        .status-warning { background-color: #ffc107; color: #212529; }
+        .footer { background-color: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; }
+        .icon { font-size: 20px; margin-right: 10px; }
+        .urgent-notice { background-color: #dc3545; color: white; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="icon">🔥</i> Feuerwehr Atemschutz</h1>
+            <div class="subtitle">Zertifikat Benachrichtigung</div>
+        </div>
+        
+        <div class="content">
+            <h2>Hallo ' . htmlspecialchars($name) . ',</h2>';
     
     if ($hasExpired) {
-        $html .= '<p><strong style="color: #dc3545;">ACHTUNG: Mehrere Ihrer Atemschutz-Zertifikate sind abgelaufen!</strong></p>';
+        $html .= '<div class="alert alert-danger">
+                    <h3><i class="icon">⚠️</i> ACHTUNG: Zertifikate abgelaufen</h3>
+                    <p>Folgende Atemschutz-Zertifikate benötigen Ihre Aufmerksamkeit:</p>
+                </div>';
     } else {
-        $html .= '<p><strong style="color: #ffc107;">Erinnerung: Mehrere Ihrer Atemschutz-Zertifikate laufen bald ab!</strong></p>';
+        $html .= '<div class="alert alert-warning">
+                    <h3><i class="icon">⚠️</i> Erinnerung: Zertifikate laufen bald ab</h3>
+                    <p>Folgende Atemschutz-Zertifikate benötigen Ihre Aufmerksamkeit:</p>
+                </div>';
     }
     
-    $html .= '<p>Folgende Zertifikate benötigen Ihre Aufmerksamkeit:</p>';
-    $html .= '<ul>';
+    $html .= '<div class="certificate-list">
+                <h4>📋 Zertifikat-Status:</h4>';
     
     foreach ($certificates as $cert) {
-        $status = $cert['urgency'] === 'abgelaufen' ? 'ABGELAUFEN' : 'Läuft bald ab';
-        $color = $cert['urgency'] === 'abgelaufen' ? '#dc3545' : '#ffc107';
+        $status = $cert['urgency'] === 'abgelaufen' ? 'Abgelaufen' : 'Läuft bald ab';
+        $statusClass = $cert['urgency'] === 'abgelaufen' ? 'status-expired' : 'status-warning';
         $days = $cert['days'];
         
-        $html .= '<li>';
-        $html .= '<strong>' . htmlspecialchars($cert['name']) . '</strong> - ';
-        $html .= '<span style="color: ' . $color . '; font-weight: bold;">' . $status . '</span>';
-        $html .= ' (Ablaufdatum: ' . date('d.m.Y', strtotime($cert['expiry_date'])) . ')';
-        
-        if ($cert['urgency'] === 'abgelaufen') {
-            $html .= ' - <strong>Seit ' . $days . ' Tag' . ($days !== 1 ? 'en' : '') . ' abgelaufen!</strong>';
-        } else {
-            $html .= ' - <strong>Noch ' . $days . ' Tag' . ($days !== 1 ? 'e' : '') . ' gültig</strong>';
-        }
-        
-        $html .= '</li>';
+        $html .= '<div class="certificate-item">
+                    <div class="certificate-name">' . htmlspecialchars($cert['name']) . '</div>
+                    <div class="certificate-status ' . $statusClass . '">' . $status . '</div>
+                </div>
+                <div style="font-size: 14px; color: #6c757d; margin-top: 5px;">
+                    Ablaufdatum: ' . date('d.m.Y', strtotime($cert['expiry_date'])) . '
+                </div>';
     }
     
-    $html .= '</ul>';
+    $html .= '</div>';
     
     if ($hasExpired) {
-        $html .= '<p><strong style="color: #dc3545;">WICHTIG: Sie dürfen bis zur Verlängerung nicht am Atemschutz teilnehmen!</strong></p>';
-        $html .= '<p>Bitte vereinbaren Sie <strong>SOFORT</strong> einen Termin für die Verlängerung aller abgelaufenen Zertifikate.</p>';
+        $html .= '<div class="urgent-notice">
+                    ⚠️ ACHTUNG: Sie dürfen bis zur Verlängerung/Untersuchung nicht am Atemschutz teilnehmen!
+                </div>
+                <div class="alert alert-danger">
+                    <h4>🚨 Sofortige Maßnahmen erforderlich:</h4>
+                    <ul>
+                        <li>Vereinbaren Sie <strong>SOFORT</strong> die notwendigen Termine</li>
+                        <li>Kontaktieren Sie die zuständigen Stellen</li>
+                        <li>Informieren Sie Ihre Vorgesetzten über die Situation</li>
+                    </ul>
+                </div>';
     } else {
-        $html .= '<p>Bitte vereinbaren Sie rechtzeitig einen Termin für die Verlängerung der bald ablaufenden Zertifikate.</p>';
+        $html .= '<div class="alert alert-warning">
+                    <h4>📅 Rechtzeitige Maßnahmen erforderlich:</h4>
+                    <ul>
+                        <li>Vereinbaren Sie rechtzeitig die notwendigen Termine</li>
+                        <li>Kontaktieren Sie die zuständigen Stellen</li>
+                        <li>Planen Sie die Verlängerung der Zertifikate</li>
+                    </ul>
+                </div>';
     }
     
-    $html .= '<p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>';
+    $html .= '<div style="background-color: #e9ecef; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h4>📞 Kontakt & Unterstützung:</h4>
+                <p>Bei Fragen oder Problemen wenden Sie sich bitte an:</p>
+                <ul>
+                    <li>Ihre direkten Vorgesetzten</li>
+                    <li>Die Atemschutz-Abteilung</li>
+                    <li>Die Verwaltung</li>
+                </ul>
+            </div>
+            
+            <p>Mit freundlichen Grüßen,<br>
+            <strong>Ihre Feuerwehr</strong></p>
+        </div>
+        
+        <div class="footer">
+            <p>Diese E-Mail wurde automatisch generiert. Bitte antworten Sie nicht direkt auf diese E-Mail.</p>
+            <p>© 2025 Feuerwehr - Atemschutz Management System</p>
+        </div>
+    </div>
+</body>
+</html>';
     
     return $html;
 }
