@@ -250,7 +250,7 @@ try {
         );
         
         try {
-            send_email($to, $subject, $body);
+            send_email($to, $subject, $body, '', true); // HTML-E-Mail aktivieren
             $sent++;
         } catch (Exception $e) {
             error_log("E-Mail-Versand fehlgeschlagen für {$traeger['first_name']} {$traeger['last_name']}: " . $e->getMessage());
