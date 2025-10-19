@@ -250,6 +250,13 @@ $html .= '
     </div>
     
     <script>
+        // Automatisch Druckdialog öffnen beim Laden der Datei
+        window.onload = function() {
+            setTimeout(function() {
+                window.print();
+            }, 1000);
+        };
+        
         // Nach dem Drucken Fenster schließen (optional)
         window.onafterprint = function() {
             // Fenster schließen nur wenn es ein Popup ist
