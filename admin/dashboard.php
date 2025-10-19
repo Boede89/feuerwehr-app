@@ -1996,7 +1996,7 @@ if ($can_atemschutz) {
         .edit-controls {
             position: fixed;
             top: 20px;
-            right: 200px;
+            right: 400px;
             z-index: 1000;
         }
         
