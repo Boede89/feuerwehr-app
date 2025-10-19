@@ -440,16 +440,26 @@ Mit freundlichen Grüßen
                     }
                     return response.blob();
                 })
-                .then(blob => {
-                    // PDF-Download starten
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `PA_Traeger_Liste_${new Date().toISOString().slice(0, 16).replace('T', '_')}.pdf`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    window.URL.revokeObjectURL(url);
+                .then(response => {
+                    // HTML-Content in neuem Fenster öffnen
+                    return response.text();
+                })
+                .then(html => {
+                    // Neues Fenster öffnen und HTML anzeigen
+                    const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+                    if (printWindow) {
+                        printWindow.document.write(html);
+                        printWindow.document.close();
+                        
+                        // Automatisch drucken nach kurzer Verzögerung
+                        printWindow.onload = function() {
+                            setTimeout(() => {
+                                printWindow.print();
+                            }, 1000);
+                        };
+                    } else {
+                        alert('Pop-up-Blocker verhindert das Öffnen des Fensters. Bitte erlauben Sie Pop-ups für diese Seite.');
+                    }
                 })
                 .catch(error => {
                     console.error('PDF-Generierung Fehler:', error);
