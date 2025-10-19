@@ -84,6 +84,32 @@ function formatDate($date) {
             transform: translateY(-5px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         }
+        
+        .construction-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        .construction-text {
+            color: #ffc107;
+            font-weight: bold;
+            font-size: 16px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            transform: rotate(-15deg);
+            background: rgba(255, 193, 7, 0.2);
+            padding: 8px 16px;
+            border: 2px solid #ffc107;
+            border-radius: 4px;
+        }
         .export-option.selected {
             border-color: #198754;
             background-color: #f8fff9;
@@ -243,11 +269,14 @@ function formatDate($date) {
                 <div class="modal-body">
                             <div class="row">
                                 <div class="col-md-4 mb-3">
-                                    <div class="card h-100 text-center export-option" data-format="pdf">
+                                    <div class="card h-100 text-center export-option" data-format="pdf" style="position: relative;">
                                         <div class="card-body">
                                             <i class="fas fa-download fa-3x text-danger mb-3"></i>
                                             <h6 class="card-title">PDF-Herunterladen</h6>
                                             <p class="card-text small text-muted">Lädt eine PDF-Datei mit der PA-Träger-Liste herunter</p>
+                                        </div>
+                                        <div class="construction-overlay">
+                                            <div class="construction-text">Under Construction</div>
                                         </div>
                                     </div>
                                 </div>
@@ -261,11 +290,14 @@ function formatDate($date) {
                                     </div>
                                 </div>
                                 <div class="col-md-4 mb-3">
-                                    <div class="card h-100 text-center export-option" data-format="email">
+                                    <div class="card h-100 text-center export-option" data-format="email" style="position: relative;">
                                         <div class="card-body">
                                             <i class="fas fa-envelope fa-3x text-primary mb-3"></i>
                                             <h6 class="card-title">E-Mail-Versand</h6>
                                             <p class="card-text small text-muted">Sendet die Liste per E-Mail an Empfänger</p>
+                                        </div>
+                                        <div class="construction-overlay">
+                                            <div class="construction-text">Under Construction</div>
                                         </div>
                                     </div>
                                 </div>
