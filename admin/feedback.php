@@ -28,6 +28,11 @@ try {
     die("Datenbankfehler: " . $e->getMessage());
 }
 
+// Debug: POST-Daten loggen
+if (!empty($_POST)) {
+    error_log("POST Data: " . json_encode($_POST));
+}
+
 // Feedback-Status aktualisieren
 if ($_POST['action'] ?? '' === 'update_status') {
     $feedback_id = (int)($_POST['feedback_id'] ?? 0);
@@ -61,7 +66,7 @@ if ($_POST['action'] ?? '' === 'update_status') {
 }
 
 // Feedback löschen (nur geschlossene)
-if ($_POST['action'] ?? '' === 'delete_feedback') {
+if (isset($_POST['action']) && $_POST['action'] === 'delete_feedback') {
     $feedback_id = (int)($_POST['feedback_id'] ?? 0);
     
     if ($feedback_id > 0) {
