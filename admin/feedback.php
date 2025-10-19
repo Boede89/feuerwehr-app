@@ -36,11 +36,26 @@ if ($_POST['action'] ?? '' === 'update_status') {
     
     if ($feedback_id > 0 && in_array($status, ['new', 'in_progress', 'resolved', 'closed'])) {
         try {
+            // Debug: Aktuellen Status vor Update prüfen
+            $check_stmt = $db->prepare("SELECT status FROM feedback WHERE id = ?");
+            $check_stmt->execute([$feedback_id]);
+            $old_status = $check_stmt->fetch(PDO::FETCH_ASSOC);
+            
             $stmt = $db->prepare("UPDATE feedback SET status = ?, admin_notes = ?, updated_at = NOW() WHERE id = ?");
             $stmt->execute([$status, $admin_notes, $feedback_id]);
-            $success_message = "Status erfolgreich aktualisiert";
+            
+            // Debug: Neuen Status nach Update prüfen
+            $check_stmt->execute([$feedback_id]);
+            $new_status = $check_stmt->fetch(PDO::FETCH_ASSOC);
+            
+            $success_message = "Status erfolgreich aktualisiert von '{$old_status['status']}' zu '{$new_status['status']}'";
+            
+            // Debug-Log
+            error_log("Feedback Status Update: ID=$feedback_id, Old={$old_status['status']}, New={$new_status['status']}");
+            
         } catch (Exception $e) {
             $error_message = "Fehler beim Aktualisieren: " . $e->getMessage();
+            error_log("Feedback Update Error: " . $e->getMessage());
         }
     }
 }
@@ -99,6 +114,11 @@ $sql = "
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $feedback_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Debug: Feedback-Liste loggen
+error_log("Feedback Query: $sql");
+error_log("Feedback Params: " . json_encode($params));
+error_log("Feedback Count: " . count($feedback_list));
 
 // Statistiken
 $stats_sql = "SELECT status, COUNT(*) as count FROM feedback GROUP BY status";
