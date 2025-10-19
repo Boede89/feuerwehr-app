@@ -101,18 +101,159 @@ try {
     foreach ($targets as $t) {
         $to = trim((string)($t['email'] ?? ''));
         if ($to === '') { continue; }
-        $name = trim(($t['last_name'] ?? '') . ', ' . ($t['first_name'] ?? ''));
-        $subject = 'Hinweis Atemschutz – Überprüfung erforderlich';
-        $html = '<h2>Atemschutz-Hinweis</h2>'
-              . '<p>Guten Tag ' . htmlspecialchars($name) . ',</p>'
-              . '<p>Bitte prüfen Sie Ihre Atemschutz-Termine (Strecke, G26.3, Übung/Einsatz). ' 
-              . 'Dieser Hinweis wurde automatisch von der Feuerwehr-App versendet.</p>'
-              . '<p>Vielen Dank!</p>';
+        
+        // Detaillierte Zertifikats-Informationen für diesen Geräteträger laden
+        $stmt = $db->prepare("
+            SELECT 
+                id, first_name, last_name, email,
+                strecke_am, g263_am, uebung_am,
+                CASE 
+                    WHEN strecke_am IS NULL THEN NULL
+                    ELSE DATEDIFF(strecke_am, CURDATE())
+                END as strecke_diff,
+                CASE 
+                    WHEN g263_am IS NULL THEN NULL
+                    ELSE DATEDIFF(g263_am, CURDATE())
+                END as g263_diff,
+                CASE 
+                    WHEN uebung_am IS NULL THEN NULL
+                    ELSE DATEDIFF(uebung_am, CURDATE())
+                END as uebung_diff
+            FROM atemschutz_traeger 
+            WHERE id = ?
+        ");
+        $stmt->execute([$t['id']]);
+        $traeger = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$traeger) { continue; }
+        
+        // Problematic certificates sammeln
+        $certificates = [];
+        $warnDays = 90; // Standard-Warnung
+        
+        // Warnschwelle aus Einstellungen laden
         try {
-            send_email($to, $subject, $html);
+            $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'atemschutz_warn_days' LIMIT 1");
+            $stmt->execute();
+            $val = $stmt->fetchColumn();
+            if ($val !== false && is_numeric($val)) { 
+                $warnDays = (int)$val; 
+            }
+        } catch (Exception $e) { /* ignore */ }
+        
+        // Strecke prüfen
+        if ($traeger['strecke_diff'] !== null) {
+            if ($traeger['strecke_diff'] < 0) {
+                $certificates[] = [
+                    'type' => 'strecke',
+                    'name' => 'Strecke-Zertifikat',
+                    'expiry_date' => $traeger['strecke_am'],
+                    'urgency' => 'abgelaufen',
+                    'days' => abs($traeger['strecke_diff'])
+                ];
+            } elseif ($traeger['strecke_diff'] <= $warnDays) {
+                $certificates[] = [
+                    'type' => 'strecke',
+                    'name' => 'Strecke-Zertifikat',
+                    'expiry_date' => $traeger['strecke_am'],
+                    'urgency' => 'warnung',
+                    'days' => $traeger['strecke_diff']
+                ];
+            }
+        }
+        
+        // G26.3 prüfen
+        if ($traeger['g263_diff'] !== null) {
+            if ($traeger['g263_diff'] < 0) {
+                $certificates[] = [
+                    'type' => 'g263',
+                    'name' => 'G26.3-Zertifikat',
+                    'expiry_date' => $traeger['g263_am'],
+                    'urgency' => 'abgelaufen',
+                    'days' => abs($traeger['g263_diff'])
+                ];
+            } elseif ($traeger['g263_diff'] <= $warnDays) {
+                $certificates[] = [
+                    'type' => 'g263',
+                    'name' => 'G26.3-Zertifikat',
+                    'expiry_date' => $traeger['g263_am'],
+                    'urgency' => 'warnung',
+                    'days' => $traeger['g263_diff']
+                ];
+            }
+        }
+        
+        // Übung prüfen
+        if ($traeger['uebung_diff'] !== null) {
+            if ($traeger['uebung_diff'] < 0) {
+                $certificates[] = [
+                    'type' => 'uebung',
+                    'name' => 'Übung/Einsatz',
+                    'expiry_date' => $traeger['uebung_am'],
+                    'urgency' => 'abgelaufen',
+                    'days' => abs($traeger['uebung_diff'])
+                ];
+            } elseif ($traeger['uebung_diff'] <= $warnDays) {
+                $certificates[] = [
+                    'type' => 'uebung',
+                    'name' => 'Übung/Einsatz',
+                    'expiry_date' => $traeger['uebung_am'],
+                    'urgency' => 'warnung',
+                    'days' => $traeger['uebung_diff']
+                ];
+            }
+        }
+        
+        if (empty($certificates)) { continue; }
+        
+        // E-Mail-Vorlagen laden und kombinieren
+        $templates = [];
+        foreach ($certificates as $cert) {
+            $templateKey = $cert['type'] . '_' . $cert['urgency'];
+            $stmt = $db->prepare("SELECT * FROM email_templates WHERE template_key = ?");
+            $stmt->execute([$templateKey]);
+            $template = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($template) {
+                $templates[] = $template;
+            }
+        }
+        
+        if (empty($templates)) { continue; }
+        
+        // Kombinierte E-Mail erstellen
+        if (count($templates) === 1) {
+            // Nur eine Vorlage
+            $template = $templates[0];
+            $subject = $template['subject'];
+            $body = $template['body'];
+        } else {
+            // Mehrere Vorlagen kombinieren
+            $hasExpired = in_array('abgelaufen', array_column($certificates, 'urgency'));
+            $subjectPrefix = $hasExpired ? 'ACHTUNG: Mehrere Zertifikate sind abgelaufen' : 'Erinnerung: Mehrere Zertifikate laufen bald ab';
+            
+            $subject = $subjectPrefix;
+            $body = createCombinedAtemschutzEmail($traeger, $certificates, $hasExpired);
+        }
+        
+        // Platzhalter ersetzen
+        $subject = str_replace(
+            ['{first_name}', '{last_name}', '{expiry_date}'],
+            [$traeger['first_name'], $traeger['last_name'], $certificates[0]['expiry_date'] ?? ''],
+            $subject
+        );
+        
+        $body = str_replace(
+            ['{first_name}', '{last_name}', '{expiry_date}'],
+            [$traeger['first_name'], $traeger['last_name'], $certificates[0]['expiry_date'] ?? ''],
+            $body
+        );
+        
+        try {
+            send_email($to, $subject, $body);
             $sent++;
         } catch (Exception $e) {
-            // Versandfehler ignorieren, nächster Empfänger
+            error_log("E-Mail-Versand fehlgeschlagen für {$traeger['first_name']} {$traeger['last_name']}: " . $e->getMessage());
         }
     }
 
@@ -128,6 +269,57 @@ try {
     echo json_encode(['success' => true, 'sent' => $sent]);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+}
+
+/**
+ * Erstellt eine kombinierte E-Mail für mehrere abgelaufene/bald ablaufende Zertifikate
+ */
+function createCombinedAtemschutzEmail($traeger, $certificates, $hasExpired) {
+    $name = $traeger['first_name'] . ' ' . $traeger['last_name'];
+    
+    $html = '<h2>Atemschutz-Hinweis</h2>';
+    $html .= '<p>Hallo ' . htmlspecialchars($name) . ',</p>';
+    
+    if ($hasExpired) {
+        $html .= '<p><strong style="color: #dc3545;">ACHTUNG: Mehrere Ihrer Atemschutz-Zertifikate sind abgelaufen!</strong></p>';
+    } else {
+        $html .= '<p><strong style="color: #ffc107;">Erinnerung: Mehrere Ihrer Atemschutz-Zertifikate laufen bald ab!</strong></p>';
+    }
+    
+    $html .= '<p>Folgende Zertifikate benötigen Ihre Aufmerksamkeit:</p>';
+    $html .= '<ul>';
+    
+    foreach ($certificates as $cert) {
+        $status = $cert['urgency'] === 'abgelaufen' ? 'ABGELAUFEN' : 'Läuft bald ab';
+        $color = $cert['urgency'] === 'abgelaufen' ? '#dc3545' : '#ffc107';
+        $days = $cert['days'];
+        
+        $html .= '<li>';
+        $html .= '<strong>' . htmlspecialchars($cert['name']) . '</strong> - ';
+        $html .= '<span style="color: ' . $color . '; font-weight: bold;">' . $status . '</span>';
+        $html .= ' (Ablaufdatum: ' . date('d.m.Y', strtotime($cert['expiry_date'])) . ')';
+        
+        if ($cert['urgency'] === 'abgelaufen') {
+            $html .= ' - <strong>Seit ' . $days . ' Tag' . ($days !== 1 ? 'en' : '') . ' abgelaufen!</strong>';
+        } else {
+            $html .= ' - <strong>Noch ' . $days . ' Tag' . ($days !== 1 ? 'e' : '') . ' gültig</strong>';
+        }
+        
+        $html .= '</li>';
+    }
+    
+    $html .= '</ul>';
+    
+    if ($hasExpired) {
+        $html .= '<p><strong style="color: #dc3545;">WICHTIG: Sie dürfen bis zur Verlängerung nicht am Atemschutz teilnehmen!</strong></p>';
+        $html .= '<p>Bitte vereinbaren Sie <strong>SOFORT</strong> einen Termin für die Verlängerung aller abgelaufenen Zertifikate.</p>';
+    } else {
+        $html .= '<p>Bitte vereinbaren Sie rechtzeitig einen Termin für die Verlängerung der bald ablaufenden Zertifikate.</p>';
+    }
+    
+    $html .= '<p>Mit freundlichen Grüßen<br>Ihre Feuerwehr</p>';
+    
+    return $html;
 }
 
 
