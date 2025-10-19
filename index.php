@@ -211,7 +211,10 @@ require_once 'includes/functions.php';
 
     <footer class="bg-light mt-5 py-4">
         <div class="container text-center">
-            <p class="text-muted mb-0">&copy; 2025 Boedes Feuerwehr App&nbsp;&nbsp;Version: 2.1&nbsp;&nbsp;Alle Rechte vorbehalten</p>
+            <p class="text-muted mb-3">&copy; 2025 Boedes Feuerwehr App&nbsp;&nbsp;Version: 2.1&nbsp;&nbsp;Alle Rechte vorbehalten</p>
+            <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#feedbackModal">
+                <i class="fas fa-comment-dots me-1"></i>Feedback & Wünsche
+            </button>
         </div>
     </footer>
 
@@ -460,6 +463,75 @@ require_once 'includes/functions.php';
             const modal = new bootstrap.Modal(document.getElementById('errorModal'));
             modal.show();
         }
+        
+        // Feedback Formular zurücksetzen
+        function resetFeedbackForm() {
+            document.getElementById('feedbackForm').reset();
+        }
+        
+        // Feedback Modal Event Listener
+        document.getElementById('feedbackModal').addEventListener('hidden.bs.modal', function() {
+            resetFeedbackForm();
+        });
+        
+        // Feedback absenden
+        document.getElementById('submitFeedbackBtn').addEventListener('click', function() {
+            const form = document.getElementById('feedbackForm');
+            const formData = new FormData(form);
+            
+            // Prüfe ob alle Pflichtfelder ausgefüllt sind
+            const feedbackType = document.getElementById('feedbackType').value;
+            const subject = document.getElementById('feedbackSubject').value.trim();
+            const message = document.getElementById('feedbackMessage').value.trim();
+            
+            if (!feedbackType) {
+                alert('Bitte wählen Sie eine Art des Feedbacks aus.');
+                return;
+            }
+            
+            if (!subject) {
+                alert('Bitte geben Sie einen Betreff ein.');
+                return;
+            }
+            
+            if (!message) {
+                alert('Bitte geben Sie eine Nachricht ein.');
+                return;
+            }
+            
+            // Button deaktivieren
+            const submitBtn = document.getElementById('submitFeedbackBtn');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Wird gesendet...';
+            
+            fetch('api/submit-feedback.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showSuccessModal('Feedback gesendet!', 'Vielen Dank für Ihr Feedback. Die Administratoren wurden benachrichtigt.');
+                    // Modal schließen
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('feedbackModal'));
+                    modal.hide();
+                    // Formular zurücksetzen
+                    resetFeedbackForm();
+                } else {
+                    showErrorModal('Fehler beim Senden', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                showErrorModal('Netzwerkfehler', 'Es ist ein Fehler beim Senden des Feedbacks aufgetreten. Bitte versuchen Sie es erneut.');
+            })
+            .finally(() => {
+                // Button wieder aktivieren
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            });
+        });
     </script>
 
     <!-- Success Modal -->
@@ -508,6 +580,66 @@ require_once 'includes/functions.php';
                 <div class="modal-footer border-0 justify-content-center">
                     <button type="button" class="btn btn-danger px-4" data-bs-dismiss="modal">
                         <i class="fas fa-times me-2"></i>Schließen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div class="modal fade" id="feedbackModal" tabindex="-1" aria-labelledby="feedbackModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="feedbackModalLabel">
+                        <i class="fas fa-comment-dots me-2"></i>Feedback & Wünsche
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="feedbackForm">
+                        <div class="mb-3">
+                            <label for="feedbackType" class="form-label">
+                                <i class="fas fa-tag me-1"></i>Art des Feedbacks
+                            </label>
+                            <select class="form-select" id="feedbackType" name="feedback_type" required>
+                                <option value="">Bitte wählen...</option>
+                                <option value="bug">Fehler melden</option>
+                                <option value="feature">Funktionswunsch</option>
+                                <option value="improvement">Verbesserungsvorschlag</option>
+                                <option value="general">Allgemeines Feedback</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="feedbackSubject" class="form-label">
+                                <i class="fas fa-heading me-1"></i>Betreff
+                            </label>
+                            <input type="text" class="form-control" id="feedbackSubject" name="subject" placeholder="Kurze Beschreibung des Problems oder Wunsches" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="feedbackMessage" class="form-label">
+                                <i class="fas fa-comment me-1"></i>Nachricht
+                            </label>
+                            <textarea class="form-control" id="feedbackMessage" name="message" rows="5" placeholder="Beschreiben Sie bitte ausführlich Ihr Anliegen..." required></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="feedbackEmail" class="form-label">
+                                <i class="fas fa-envelope me-1"></i>Ihre E-Mail (optional)
+                            </label>
+                            <input type="email" class="form-control" id="feedbackEmail" name="email" placeholder="Für Rückfragen (optional)">
+                            <div class="form-text">Falls Sie eine Antwort wünschen, geben Sie bitte Ihre E-Mail-Adresse an.</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Abbrechen
+                    </button>
+                    <button type="button" class="btn btn-info" id="submitFeedbackBtn">
+                        <i class="fas fa-paper-plane me-1"></i>Feedback senden
                     </button>
                 </div>
             </div>

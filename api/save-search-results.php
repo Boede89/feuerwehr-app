@@ -33,3 +33,6 @@ $_SESSION['pa_traeger_search_params'] = $params;
 
 echo json_encode(['success' => true]);
 ?>
+
+
+

@@ -160,3 +160,4 @@ try {
     echo json_encode(['error' => 'Fehler bei der Suche: ' . $e->getMessage()]);
 }
 ?>
+

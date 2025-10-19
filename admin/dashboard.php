@@ -510,12 +510,73 @@ if ($can_atemschutz) {
             <?php endif; ?>
             
             <?php if ($can_settings): ?>
-            <div class="col-12 col-md-4">
+            <div class="col-12 col-md-3">
                 <a href="settings.php" class="btn btn-outline-secondary w-100">
                     <i class="fas fa-cog"></i> Einstellungen
                 </a>
             </div>
             <?php endif; ?>
+            
+            <div class="col-12 col-md-3">
+                <a href="feedback.php" class="btn btn-outline-info w-100">
+                    <i class="fas fa-comment-dots"></i> Feedback
+                </a>
+            </div>
+        </div>
+
+        <!-- Feedback-Statistiken -->
+        <?php
+        // Feedback-Statistiken laden
+        $feedback_stats = [];
+        try {
+            $stmt = $db->query("SELECT status, COUNT(*) as count FROM feedback GROUP BY status");
+            $feedback_stats = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        } catch (Exception $e) {
+            // Tabelle existiert möglicherweise noch nicht
+        }
+        ?>
+        
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="m-0 font-weight-bold text-info">
+                            <i class="fas fa-comment-dots"></i> Feedback-Übersicht
+                        </h6>
+                        <a href="feedback.php" class="btn btn-sm btn-outline-info">
+                            <i class="fas fa-eye"></i> Alle anzeigen
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <div class="border rounded p-3">
+                                    <h4 class="text-primary mb-1"><?php echo $feedback_stats['new'] ?? 0; ?></h4>
+                                    <small class="text-muted">Neue</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border rounded p-3">
+                                    <h4 class="text-warning mb-1"><?php echo $feedback_stats['in_progress'] ?? 0; ?></h4>
+                                    <small class="text-muted">In Bearbeitung</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border rounded p-3">
+                                    <h4 class="text-success mb-1"><?php echo $feedback_stats['resolved'] ?? 0; ?></h4>
+                                    <small class="text-muted">Gelöst</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border rounded p-3">
+                                    <h4 class="text-secondary mb-1"><?php echo $feedback_stats['closed'] ?? 0; ?></h4>
+                                    <small class="text-muted">Geschlossen</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Reservierungen Bereich -->

@@ -3,40 +3,24 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-echo "<!-- Debug: PHP gestartet -->\n";
-
 session_start();
-echo "<!-- Debug: Session gestartet -->\n";
-
 require_once '../config/database.php';
-echo "<!-- Debug: Database geladen -->\n";
-
 require_once '../includes/functions.php';
-echo "<!-- Debug: Functions geladen -->\n";
 
 // Berechtigung prüfen
 if (!isset($_SESSION['user_id'])) {
-    echo "<!-- Debug: Keine Session -->\n";
     header('Location: ../login.php?error=access_denied');
     exit;
 }
-
-echo "<!-- Debug: Session OK, User ID: " . $_SESSION['user_id'] . " -->\n";
 
 $hasPermission = has_permission('atemschutz') || hasAdminPermission();
-echo "<!-- Debug: Berechtigung: " . ($hasPermission ? 'JA' : 'NEIN') . " -->\n";
-
 if (!$hasPermission) {
-    echo "<!-- Debug: Keine Berechtigung -->\n";
     header('Location: ../login.php?error=access_denied');
     exit;
 }
-
-echo "<!-- Debug: Berechtigung OK -->\n";
 
 // Heutiges Datum für Vorauswahl
 $today = date('Y-m-d');
-echo "<!-- Debug: Heute: $today -->\n";
 ?>
 
 <!DOCTYPE html>
