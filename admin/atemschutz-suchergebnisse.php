@@ -255,7 +255,7 @@ function formatDate($date) {
                                     <div class="card h-100 text-center export-option" data-format="print">
                                         <div class="card-body">
                                             <i class="fas fa-print fa-3x text-success mb-3"></i>
-                                            <h6 class="card-title">PDF-Drucken</h6>
+                                            <h6 class="card-title">Drucken</h6>
                                             <p class="card-text small text-muted">Öffnet die Liste direkt im Druckdialog</p>
                                         </div>
                                     </div>
@@ -407,42 +407,53 @@ Mit freundlichen Grüßen
                 // PDF-Drucken: Direkt im neuen Fenster öffnen
                 printPDF();
             } else {
-                // PDF-Herunterladen: Formular-basierter Download
+                // PDF-Herunterladen: Echte PDF-Generierung
                 const results = <?php echo json_encode($searchResults); ?>;
                 const params = <?php echo json_encode($searchParams); ?>;
                 
-                // Formular erstellen
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '../api/export-pa-traeger.php';
-                form.target = '_blank';
-                form.style.display = 'none';
+                // Button während der Generierung deaktivieren
+                const button = event.target.closest('.export-option');
+                const originalContent = button.innerHTML;
+                button.innerHTML = '<div class="card-body"><i class="fas fa-spinner fa-spin fa-3x text-primary mb-3"></i><h6 class="card-title">PDF wird erstellt...</h6></div>';
+                button.style.pointerEvents = 'none';
                 
-                // Format hinzufügen
-                const formatInput = document.createElement('input');
-                formatInput.type = 'hidden';
-                formatInput.name = 'format';
-                formatInput.value = format;
-                form.appendChild(formatInput);
-                
-                // Ergebnisse hinzufügen
-                const resultsInput = document.createElement('input');
-                resultsInput.type = 'hidden';
-                resultsInput.name = 'results';
-                resultsInput.value = JSON.stringify(results);
-                form.appendChild(resultsInput);
-                
-                // Parameter hinzufügen
-                const paramsInput = document.createElement('input');
-                paramsInput.type = 'hidden';
-                paramsInput.name = 'params';
-                paramsInput.value = JSON.stringify(params);
-                form.appendChild(paramsInput);
-                
-                // Formular senden
-                document.body.appendChild(form);
-                form.submit();
-                document.body.removeChild(form);
+                // PDF über API generieren
+                fetch('api/generate-pdf.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        results: results,
+                        params: params
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('PDF-Generierung fehlgeschlagen');
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    // PDF-Download starten
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `PA_Traeger_Liste_${new Date().toISOString().slice(0, 16).replace('T', '_')}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                })
+                .catch(error => {
+                    console.error('PDF-Generierung Fehler:', error);
+                    alert('Fehler beim Erstellen der PDF-Datei: ' + error.message);
+                })
+                .finally(() => {
+                    // Button wieder aktivieren
+                    button.innerHTML = originalContent;
+                    button.style.pointerEvents = 'auto';
+                });
             }
             
             // Modal schließen
