@@ -391,7 +391,9 @@ Mit freundlichen Grüßen
                 if (selectedFormat === 'email') {
                     exportViaEmail();
                 } else {
-                    exportToFile(selectedFormat);
+                    // Das ausgewählte Element als Parameter übergeben
+                    const selectedOption = document.querySelector('.export-option.selected');
+                    exportToFile(selectedFormat, selectedOption);
                 }
                 
                 // Button nach 3 Sekunden zurücksetzen
@@ -402,7 +404,7 @@ Mit freundlichen Grüßen
             });
         });
         
-        function exportToFile(format) {
+        function exportToFile(format, clickedElement) {
             if (format === 'print') {
                 // PDF-Drucken: Direkt im neuen Fenster öffnen
                 printPDF();
@@ -412,10 +414,14 @@ Mit freundlichen Grüßen
                 const params = <?php echo json_encode($searchParams); ?>;
                 
                 // Button während der Generierung deaktivieren
-                const button = event.target.closest('.export-option');
-                const originalContent = button.innerHTML;
-                button.innerHTML = '<div class="card-body"><i class="fas fa-spinner fa-spin fa-3x text-primary mb-3"></i><h6 class="card-title">PDF wird erstellt...</h6></div>';
-                button.style.pointerEvents = 'none';
+                const button = clickedElement ? clickedElement.closest('.export-option') : null;
+                let originalContent = '';
+                
+                if (button) {
+                    originalContent = button.innerHTML;
+                    button.innerHTML = '<div class="card-body"><i class="fas fa-spinner fa-spin fa-3x text-primary mb-3"></i><h6 class="card-title">PDF wird erstellt...</h6></div>';
+                    button.style.pointerEvents = 'none';
+                }
                 
                 // PDF über API generieren
                 fetch('api/generate-pdf.php', {
@@ -451,8 +457,10 @@ Mit freundlichen Grüßen
                 })
                 .finally(() => {
                     // Button wieder aktivieren
-                    button.innerHTML = originalContent;
-                    button.style.pointerEvents = 'auto';
+                    if (button && originalContent) {
+                        button.innerHTML = originalContent;
+                        button.style.pointerEvents = 'auto';
+                    }
                 });
             }
             
