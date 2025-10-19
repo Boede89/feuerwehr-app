@@ -285,6 +285,9 @@ require_once 'includes/functions.php';
             
             // Geräteträger laden
             loadTraeger();
+            
+            // Feedback-System initialisieren
+            initializeFeedbackSystem();
         });
         
         // Modal Event Listener
@@ -469,21 +472,28 @@ require_once 'includes/functions.php';
             document.getElementById('feedbackForm').reset();
         }
         
-        // Feedback Modal Event Listener
-        const feedbackModal = document.getElementById('feedbackModal');
-        if (feedbackModal) {
-            feedbackModal.addEventListener('hidden.bs.modal', function() {
-                resetFeedbackForm();
-            });
-        }
-        
-        // Feedback absenden
-        const submitFeedbackBtn = document.getElementById('submitFeedbackBtn');
-        if (!submitFeedbackBtn) {
-            console.error('Feedback Submit Button nicht gefunden!');
-        } else {
-            console.log('Feedback Submit Button gefunden, Event Listener wird hinzugefügt');
-            submitFeedbackBtn.addEventListener('click', function() {
+        // Feedback-System initialisieren
+        function initializeFeedbackSystem() {
+            console.log('Initialisiere Feedback-System...');
+            
+            // Feedback Modal Event Listener
+            const feedbackModal = document.getElementById('feedbackModal');
+            if (feedbackModal) {
+                feedbackModal.addEventListener('hidden.bs.modal', function() {
+                    resetFeedbackForm();
+                });
+                console.log('Feedback Modal gefunden');
+            } else {
+                console.error('Feedback Modal nicht gefunden!');
+            }
+            
+            // Feedback absenden
+            const submitFeedbackBtn = document.getElementById('submitFeedbackBtn');
+            if (!submitFeedbackBtn) {
+                console.error('Feedback Submit Button nicht gefunden!');
+            } else {
+                console.log('Feedback Submit Button gefunden, Event Listener wird hinzugefügt');
+                submitFeedbackBtn.addEventListener('click', function() {
             const form = document.getElementById('feedbackForm');
             if (!form) {
                 console.error('Feedback Form nicht gefunden!');
@@ -556,6 +566,7 @@ require_once 'includes/functions.php';
                 submitBtn.innerHTML = originalText;
             });
             });
+        }
         }
     </script>
 
