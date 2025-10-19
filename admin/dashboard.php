@@ -483,18 +483,6 @@ if ($can_atemschutz) {
         </div>
     </nav>
 
-    <!-- Bearbeiten-Controls -->
-    <div class="edit-controls">
-        <button id="toggleEditMode" class="btn btn-outline-primary btn-sm">
-            <i class="fas fa-edit"></i> Bearbeiten
-        </button>
-        <button id="saveLayout" class="btn btn-success btn-sm" style="display: none;">
-            <i class="fas fa-save"></i> Speichern
-        </button>
-        <button id="cancelEdit" class="btn btn-secondary btn-sm" style="display: none;">
-            <i class="fas fa-times"></i> Abbrechen
-        </button>
-    </div>
 
     <div class="container-fluid mt-4">
         <!-- Header -->
@@ -1965,44 +1953,8 @@ if ($can_atemschutz) {
             margin: 0;
         }
         
-        /* Sortierbare Bereiche */
-        .dashboard-sections-container {
-            position: relative;
-        }
         
-        .dashboard-section.sortable-ghost {
-            opacity: 0.4;
-        }
         
-        .dashboard-section.sortable-chosen {
-            cursor: move;
-        }
-        
-        .dashboard-section.sortable-drag {
-            transform: rotate(5deg);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-        }
-        
-        /* Bearbeiten-Modus */
-        .edit-mode .dashboard-section {
-            border: 2px dashed #007bff;
-            background-color: #f8f9ff;
-        }
-        
-        .edit-mode .dashboard-section-header {
-            background-color: #e3f2fd;
-        }
-        
-        .edit-controls {
-            position: fixed;
-            top: 20px;
-            right: 400px;
-            z-index: 1000;
-        }
-        
-        .edit-controls .btn {
-            margin-left: 0.5rem;
-        }
         
         .email-buttons {
             margin-top: 8px;
