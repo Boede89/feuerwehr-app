@@ -4,21 +4,33 @@ require_once 'config/database.php';
 echo "<h2>Feedback-Tabelle erstellen</h2>";
 
 try {
-    // SQL-Datei einlesen und ausführen
-    $sql = file_get_contents('create-feedback-table-simple.sql');
+    // SQL direkt in der Datei
+    $sql_statements = [
+        "CREATE TABLE IF NOT EXISTS feedback (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            feedback_type ENUM('bug', 'feature', 'improvement', 'general') NOT NULL,
+            subject VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            email VARCHAR(255) NULL,
+            user_id INT NULL,
+            ip_address VARCHAR(45) NULL,
+            status ENUM('new', 'in_progress', 'resolved', 'closed') DEFAULT 'new',
+            admin_notes TEXT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_feedback_type (feedback_type),
+            INDEX idx_status (status),
+            INDEX idx_created_at (created_at),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        
+        "INSERT INTO feedback (feedback_type, subject, message, email, user_id, ip_address) 
+         VALUES ('general', 'Test Feedback', 'Dies ist ein Test-Feedback', 'test@example.com', NULL, '127.0.0.1')"
+    ];
     
-    if ($sql === false) {
-        throw new Exception("SQL-Datei konnte nicht gelesen werden");
-    }
-    
-    // SQL in einzelne Statements aufteilen
-    $statements = explode(';', $sql);
-    
-    foreach ($statements as $statement) {
-        $statement = trim($statement);
-        if (!empty($statement)) {
-            $db->exec($statement);
-        }
+    // SQL-Statements ausführen
+    foreach ($sql_statements as $sql) {
+        $db->exec($sql);
     }
     
     echo "<p style='color: green;'>✓ Feedback-Tabelle erfolgreich erstellt!</p>";
