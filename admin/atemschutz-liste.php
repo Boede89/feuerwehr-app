@@ -464,7 +464,7 @@ if (!$isAdmin && !$canAtemschutz) {
                                                 $bis = new DateTime($streckeBisDate);
                                                 $diff = (int)$now->diff($bis)->format('%r%a');
                                                 if ($diff < 0) { $cls = 'bis-expired'; }
-                                                elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                                elseif ($diff <= $warnDays && $diff >= 0) { $cls = 'bis-warn'; }
                                             }
                                         ?>
                                         <div><span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($streckeBis); ?></span></div>
@@ -492,7 +492,7 @@ if (!$isAdmin && !$canAtemschutz) {
                                                 $bis = new DateTime($g263BisDate);
                                                 $diff = (int)$now->diff($bis)->format('%r%a');
                                                 if ($diff < 0) { $cls = 'bis-expired'; }
-                                                elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                                elseif ($diff <= $warnDays && $diff >= 0) { $cls = 'bis-warn'; }
                                             }
                                         ?>
                                         <div><span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($g263Bis); ?></span></div>
@@ -520,7 +520,7 @@ if (!$isAdmin && !$canAtemschutz) {
                                                 $bis = new DateTime($uebungBisDate);
                                                 $diff = (int)$now->diff($bis)->format('%r%a');
                                                 if ($diff < 0) { $cls = 'bis-expired'; }
-                                                elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                                elseif ($diff <= $warnDays && $diff >= 0) { $cls = 'bis-warn'; }
                                             }
                                         ?>
                                         <div><span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($uebungBis); ?></span></div>
@@ -640,7 +640,7 @@ if (!$isAdmin && !$canAtemschutz) {
                                                 $bis = new DateTime($streckeBisDate);
                                                 $diff = (int)$now->diff($bis)->format('%r%a');
                                                 if ($diff < 0) { $cls = 'bis-expired'; }
-                                                elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                                elseif ($diff <= $warnDays && $diff >= 0) { $cls = 'bis-warn'; }
                                             }
                                         ?>
                                         <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($streckeBis); ?></span></div>
@@ -655,7 +655,7 @@ if (!$isAdmin && !$canAtemschutz) {
                                                 $bis = new DateTime($g263BisDate);
                                                 $diff = (int)$now->diff($bis)->format('%r%a');
                                                 if ($diff < 0) { $cls = 'bis-expired'; }
-                                                elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                                elseif ($diff <= $warnDays && $diff >= 0) { $cls = 'bis-warn'; }
                                             }
                                         ?>
                                         <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($g263Bis); ?></span></div>
@@ -670,7 +670,7 @@ if (!$isAdmin && !$canAtemschutz) {
                                                 $bis = new DateTime($uebungBisDate);
                                                 $diff = (int)$now->diff($bis)->format('%r%a');
                                                 if ($diff < 0) { $cls = 'bis-expired'; }
-                                                elseif ($diff <= $warnDays) { $cls = 'bis-warn'; }
+                                                elseif ($diff <= $warnDays && $diff >= 0) { $cls = 'bis-warn'; }
                                             }
                                         ?>
                                         <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($uebungBis); ?></span></div>
