@@ -279,7 +279,55 @@ $html .= '
 </body>
 </html>';
 
-// Echte PDF-Generierung versuchen
+// Prüfen ob wkhtmltopdf verfügbar ist (Priorität 1)
+$wkhtmltopdfPath = '';
+$possiblePaths = [
+    '/usr/bin/wkhtmltopdf',
+    '/usr/local/bin/wkhtmltopdf',
+    'wkhtmltopdf'
+];
+
+foreach ($possiblePaths as $path) {
+    if (is_executable($path) || (strpos($path, '/') === false && shell_exec('which ' . $path))) {
+        $wkhtmltopdfPath = $path;
+        break;
+    }
+}
+
+if ($wkhtmltopdfPath) {
+    // PDF mit wkhtmltopdf generieren (beste Qualität)
+    $pdfPath = tempnam(sys_get_temp_dir(), 'pa_traeger_') . '.pdf';
+    $htmlPath = tempnam(sys_get_temp_dir(), 'pa_traeger_') . '.html';
+    
+    // HTML in temporäre Datei schreiben
+    file_put_contents($htmlPath, $html);
+    
+    // PDF mit wkhtmltopdf generieren
+    $command = escapeshellarg($wkhtmltopdfPath) . ' --page-size A4 --margin-top 10mm --margin-right 10mm --margin-bottom 10mm --margin-left 10mm --encoding UTF-8 --print-media-type ' . escapeshellarg($htmlPath) . ' ' . escapeshellarg($pdfPath);
+    
+    $output = shell_exec($command . ' 2>&1');
+    
+    if (file_exists($pdfPath) && filesize($pdfPath) > 0) {
+        // PDF erfolgreich generiert
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="PA_Traeger_Liste_' . date('Y-m-d_H-i') . '.pdf"');
+        header('Content-Length: ' . filesize($pdfPath));
+        
+        readfile($pdfPath);
+        
+        // Temporäre Dateien löschen
+        unlink($pdfPath);
+        unlink($htmlPath);
+        exit;
+    } else {
+        // wkhtmltopdf Fehler, TCPDF versuchen
+        error_log('wkhtmltopdf Fehler: ' . $output);
+        if (file_exists($htmlPath)) unlink($htmlPath);
+        if (file_exists($pdfPath)) unlink($pdfPath);
+    }
+}
+
+// Fallback: TCPDF versuchen
 if ($tcpdfAvailable) {
     // PDF mit TCPDF generieren
     try {
@@ -378,48 +426,6 @@ if ($tcpdfAvailable) {
     }
 }
 
-// Fallback: wkhtmltopdf versuchen
-$pdfPath = tempnam(sys_get_temp_dir(), 'pa_traeger_') . '.pdf';
-$htmlPath = tempnam(sys_get_temp_dir(), 'pa_traeger_') . '.html';
-
-// HTML in temporäre Datei schreiben
-file_put_contents($htmlPath, $html);
-
-// Prüfen ob wkhtmltopdf verfügbar ist
-$wkhtmltopdfPath = '';
-$possiblePaths = [
-    '/usr/bin/wkhtmltopdf',
-    '/usr/local/bin/wkhtmltopdf',
-    'wkhtmltopdf'
-];
-
-foreach ($possiblePaths as $path) {
-    if (is_executable($path) || (strpos($path, '/') === false && shell_exec('which ' . $path))) {
-        $wkhtmltopdfPath = $path;
-        break;
-    }
-}
-
-if ($wkhtmltopdfPath) {
-    // PDF mit wkhtmltopdf generieren
-    $command = escapeshellarg($wkhtmltopdfPath) . ' --page-size A4 --margin-top 10mm --margin-right 10mm --margin-bottom 10mm --margin-left 10mm --encoding UTF-8 ' . escapeshellarg($htmlPath) . ' ' . escapeshellarg($pdfPath);
-    
-    $output = shell_exec($command . ' 2>&1');
-    
-    if (file_exists($pdfPath) && filesize($pdfPath) > 0) {
-        // PDF erfolgreich generiert
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="PA_Traeger_Liste_' . date('Y-m-d_H-i') . '.pdf"');
-        header('Content-Length: ' . filesize($pdfPath));
-        
-        readfile($pdfPath);
-        
-        // Temporäre Dateien löschen
-        unlink($pdfPath);
-        unlink($htmlPath);
-        exit;
-    }
-}
 
 // Fallback: HTML mit PDF-optimiertem Styling
 header('Content-Type: text/html; charset=UTF-8');
