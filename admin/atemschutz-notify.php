@@ -221,30 +221,22 @@ try {
         
         if (empty($templates)) { continue; }
         
-        // Kombinierte E-Mail erstellen
+        // E-Mail erstellen (sowohl für einzelne als auch mehrere Zertifikate)
+        $hasExpired = in_array('abgelaufen', array_column($certificates, 'urgency'));
+        
         if (count($certificates) === 1) {
-            // Nur ein Zertifikat - verwende die entsprechende Vorlage
-            $templateKey = $certificates[0]['type'] . '_' . $certificates[0]['urgency'];
-            $stmt = $db->prepare("SELECT * FROM email_templates WHERE template_key = ?");
-            $stmt->execute([$templateKey]);
-            $template = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($template) {
-                $subject = $template['subject'];
-                $body = $template['body'];
-            } else {
-                // Fallback
-                $subject = 'Atemschutz-Zertifikat Benachrichtigung';
-                $body = createCombinedAtemschutzEmail($traeger, $certificates, $certificates[0]['urgency'] === 'abgelaufen');
-            }
+            // Einzelnes Zertifikat - verwende schönes Design
+            $cert = $certificates[0];
+            $subjectPrefix = $hasExpired ? 'ACHTUNG: Zertifikat abgelaufen' : 'Erinnerung: Zertifikat läuft bald ab';
+            $subject = $subjectPrefix . ' - ' . $cert['name'];
         } else {
-            // Mehrere Zertifikate - verwende kombinierte E-Mail
-            $hasExpired = in_array('abgelaufen', array_column($certificates, 'urgency'));
+            // Mehrere Zertifikate
             $subjectPrefix = $hasExpired ? 'ACHTUNG: Mehrere Zertifikate sind abgelaufen' : 'Erinnerung: Mehrere Zertifikate laufen bald ab';
-            
             $subject = $subjectPrefix;
-            $body = createCombinedAtemschutzEmail($traeger, $certificates, $hasExpired);
         }
+        
+        // Verwende immer das schöne Design
+        $body = createCombinedAtemschutzEmail($traeger, $certificates, $hasExpired);
         
         // Platzhalter ersetzen
         $subject = str_replace(
@@ -537,20 +529,37 @@ function createCombinedAtemschutzEmail($traeger, $certificates, $hasExpired) {
         <div class="content">
             <div class="greeting">Hallo ' . htmlspecialchars($name) . ',</div>';
     
+    $certCount = count($certificates);
+    $isMultiple = $certCount > 1;
+    
     if ($hasExpired) {
-        $html .= '<div class="alert alert-danger">
-                    <h3><i class="icon">⚠️</i> ACHTUNG: Zertifikate abgelaufen</h3>
-                    <p>Folgende Atemschutz-Zertifikate benötigen Ihre <strong>sofortige</strong> Aufmerksamkeit:</p>
-                </div>';
+        if ($isMultiple) {
+            $html .= '<div class="alert alert-danger">
+                        <h3><i class="icon">🚨</i> ACHTUNG: Zertifikate abgelaufen</h3>
+                        <p>Folgende Atemschutz-Zertifikate benötigen Ihre <strong>sofortige</strong> Aufmerksamkeit:</p>
+                    </div>';
+        } else {
+            $html .= '<div class="alert alert-danger">
+                        <h3><i class="icon">🚨</i> ACHTUNG: Zertifikat abgelaufen</h3>
+                        <p>Ihr Atemschutz-Zertifikat benötigt Ihre <strong>sofortige</strong> Aufmerksamkeit:</p>
+                    </div>';
+        }
     } else {
-        $html .= '<div class="alert alert-warning">
-                    <h3><i class="icon">⏰</i> Erinnerung: Zertifikate laufen bald ab</h3>
-                    <p>Folgende Atemschutz-Zertifikate benötigen Ihre Aufmerksamkeit:</p>
-                </div>';
+        if ($isMultiple) {
+            $html .= '<div class="alert alert-warning">
+                        <h3><i class="icon">⏰</i> Erinnerung: Zertifikate laufen bald ab</h3>
+                        <p>Folgende Atemschutz-Zertifikate benötigen Ihre Aufmerksamkeit:</p>
+                    </div>';
+        } else {
+            $html .= '<div class="alert alert-warning">
+                        <h3><i class="icon">⏰</i> Erinnerung: Zertifikat läuft bald ab</h3>
+                        <p>Ihr Atemschutz-Zertifikat benötigt Ihre Aufmerksamkeit:</p>
+                    </div>';
+        }
     }
     
     $html .= '<div class="certificate-list">
-                <h4>📋 Zertifikat-Status Übersicht</h4>';
+                <h4>' . ($isMultiple ? '📋 Zertifikat-Status Übersicht' : '📋 Zertifikat-Details') . '</h4>';
     
     foreach ($certificates as $cert) {
         $status = $cert['urgency'] === 'abgelaufen' ? 'Abgelaufen' : 'Läuft bald ab';
@@ -558,15 +567,36 @@ function createCombinedAtemschutzEmail($traeger, $certificates, $hasExpired) {
         $days = $cert['days'];
         $icon = $cert['urgency'] === 'abgelaufen' ? '🚨' : '⚠️';
         
+        // Bestimme das passende Icon und die Beschreibung für den Zertifikatstyp
+        $certIcon = '';
+        $certDescription = '';
+        switch ($cert['type']) {
+            case 'strecke':
+                $certIcon = '🏃‍♂️';
+                $certDescription = 'Strecke-Zertifikat';
+                break;
+            case 'g263':
+                $certIcon = '🎯';
+                $certDescription = 'G26.3-Zertifikat';
+                break;
+            case 'uebung':
+                $certIcon = '🔥';
+                $certDescription = 'Übung/Einsatz-Zertifikat';
+                break;
+            default:
+                $certIcon = '📜';
+                $certDescription = $cert['name'];
+        }
+        
         $html .= '<div class="certificate-item">
-                    <div class="certificate-name">' . $icon . ' ' . htmlspecialchars($cert['name']) . '</div>
+                    <div class="certificate-name">' . $icon . ' ' . $certIcon . ' ' . $certDescription . '</div>
                     <div class="certificate-status ' . $statusClass . '">' . $status . '</div>
                 </div>
                 <div class="certificate-details">
-                    Ablaufdatum: ' . date('d.m.Y', strtotime($cert['expiry_date'])) . 
+                    <strong>Ablaufdatum:</strong> ' . date('d.m.Y', strtotime($cert['expiry_date'])) . 
                     ($cert['urgency'] === 'abgelaufen' ? 
-                        ' - <strong>Seit ' . $days . ' Tag' . ($days !== 1 ? 'en' : '') . ' abgelaufen!</strong>' : 
-                        ' - <strong>Noch ' . $days . ' Tag' . ($days !== 1 ? 'e' : '') . ' gültig</strong>') . '
+                        ' - <strong style="color: #e74c3c;">Seit ' . $days . ' Tag' . ($days !== 1 ? 'en' : '') . ' abgelaufen!</strong>' : 
+                        ' - <strong style="color: #f39c12;">Noch ' . $days . ' Tag' . ($days !== 1 ? 'e' : '') . ' gültig</strong>') . '
                 </div>';
     }
     
@@ -582,7 +612,7 @@ function createCombinedAtemschutzEmail($traeger, $certificates, $hasExpired) {
                         <li>Vereinbaren Sie <strong>SOFORT</strong> die notwendigen Termine</li>
                         <li>Kontaktieren Sie die zuständigen Stellen</li>
                         <li>Informieren Sie Ihre Vorgesetzten über die Situation</li>
-                        <li>Melden Sie sich von geplanten Atemschutz-Einsätzen ab</li>
+                        ' . ($isMultiple ? '<li>Melden Sie sich von geplanten Atemschutz-Einsätzen ab</li>' : '<li>Melden Sie sich von geplanten Atemschutz-Einsätzen ab</li>') . '
                     </ul>
                 </div>';
     } else {
@@ -591,7 +621,7 @@ function createCombinedAtemschutzEmail($traeger, $certificates, $hasExpired) {
                     <ul>
                         <li>Vereinbaren Sie rechtzeitig die notwendigen Termine</li>
                         <li>Kontaktieren Sie die zuständigen Stellen</li>
-                        <li>Planen Sie die Verlängerung der Zertifikate</li>
+                        ' . ($isMultiple ? '<li>Planen Sie die Verlängerung der Zertifikate</li>' : '<li>Planen Sie die Verlängerung des Zertifikats</li>') . '
                         <li>Informieren Sie sich über verfügbare Termine</li>
                     </ul>
                 </div>';
