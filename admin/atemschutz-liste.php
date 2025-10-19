@@ -217,8 +217,8 @@ if (!$isAdmin && !$canAtemschutz) {
                     $tRow['status'] = 'Abgelaufen';
                 }
             } else {
-                // Prüfe auf Warnung (innerhalb der nächsten 30 Tage)
-                $warnDays = 30;
+                // Prüfe auf Warnung (innerhalb der konfigurierten Warnschwelle)
+                // $warnDays wurde bereits aus den Einstellungen geladen
                 $streckeWarn = false; $g263Warn = false; $uebungWarn = false;
                 
                 if (!empty($tRow['strecke_bis'])) {
