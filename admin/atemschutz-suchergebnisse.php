@@ -454,18 +454,45 @@ Mit freundlichen Grüßen
             const results = <?php echo json_encode($searchResults); ?>;
             const params = <?php echo json_encode($searchParams); ?>;
             
+            // Debug: Daten prüfen
+            console.log('Druck-Daten:', results);
+            console.log('Parameter:', params);
+            
             // HTML für Druck generieren
             const printHTML = generatePrintHTML(results, params);
             
-            // Neues Fenster öffnen
-            const printWindow = window.open('', '_blank', 'width=800,height=600');
-            printWindow.document.write(printHTML);
-            printWindow.document.close();
-            
-            // Automatisch drucken
-            printWindow.onload = function() {
-                printWindow.print();
-            };
+            // Mobile-freundliche Druckfunktion
+            if (window.navigator.userAgent.match(/Mobile|Android|iPhone|iPad/)) {
+                // Für mobile Geräte: Inline drucken
+                const printDiv = document.createElement('div');
+                printDiv.innerHTML = printHTML;
+                printDiv.style.position = 'absolute';
+                printDiv.style.left = '-9999px';
+                printDiv.style.top = '-9999px';
+                document.body.appendChild(printDiv);
+                
+                // Drucken
+                window.print();
+                
+                // Nach dem Drucken entfernen
+                setTimeout(() => {
+                    document.body.removeChild(printDiv);
+                }, 1000);
+            } else {
+                // Für Desktop: Neues Fenster
+                const printWindow = window.open('', '_blank', 'width=800,height=600');
+                if (printWindow) {
+                    printWindow.document.write(printHTML);
+                    printWindow.document.close();
+                    
+                    // Automatisch drucken
+                    printWindow.onload = function() {
+                        printWindow.print();
+                    };
+                } else {
+                    alert('Pop-up-Blocker verhindert das Öffnen des Druckfensters. Bitte erlauben Sie Pop-ups für diese Seite.');
+                }
+            }
         }
         
         function generatePrintHTML(results, params) {
@@ -530,11 +557,16 @@ Mit freundlichen Grüßen
             border: 1px solid #dee2e6; 
             padding: 8px; 
             text-align: left; 
+            vertical-align: top;
         }
         th { 
             background-color: #e9ecef; 
             font-weight: bold; 
             font-size: 13px;
+        }
+        td strong {
+            font-weight: bold;
+            color: #212529;
         }
         .status-badge { 
             padding: 4px 8px; 
@@ -586,14 +618,23 @@ Mit freundlichen Grüßen
             
             results.forEach((traeger, index) => {
                 const statusClass = getStatusClass(traeger.status);
+                const fullName = `${(traeger.first_name || '')} ${(traeger.last_name || '')}`.trim();
+                
+                // Debug: Namen prüfen
+                console.log(`Geräteträger ${index + 1}:`, {
+                    first_name: traeger.first_name,
+                    last_name: traeger.last_name,
+                    fullName: fullName
+                });
+                
                 html += `
                     <tr>
                         <td>${index + 1}</td>
-                        <td>${(traeger.first_name || '')} ${(traeger.last_name || '')}</td>
+                        <td><strong>${fullName || 'Name nicht verfügbar'}</strong></td>
                         <td><span class="status-badge ${statusClass}">${traeger.status}</span></td>
-                        <td>${new Date(traeger.strecke_am).toLocaleDateString('de-DE')}</td>
-                        <td>${new Date(traeger.g263_am).toLocaleDateString('de-DE')}</td>
-                        <td>${new Date(traeger.uebung_am).toLocaleDateString('de-DE')} (bis ${new Date(traeger.uebung_bis).toLocaleDateString('de-DE')})</td>
+                        <td>${traeger.strecke_am ? new Date(traeger.strecke_am).toLocaleDateString('de-DE') : 'N/A'}</td>
+                        <td>${traeger.g263_am ? new Date(traeger.g263_am).toLocaleDateString('de-DE') : 'N/A'}</td>
+                        <td>${traeger.uebung_am ? new Date(traeger.uebung_am).toLocaleDateString('de-DE') : 'N/A'} ${traeger.uebung_bis ? '(bis ' + new Date(traeger.uebung_bis).toLocaleDateString('de-DE') + ')' : ''}</td>
                     </tr>`;
             });
             
