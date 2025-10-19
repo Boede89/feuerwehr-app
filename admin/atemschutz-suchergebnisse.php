@@ -458,6 +458,12 @@ Mit freundlichen Grüßen
             console.log('Druck-Daten:', results);
             console.log('Parameter:', params);
             
+            // Debug: Ersten Eintrag detailliert anzeigen
+            if (results.length > 0) {
+                console.log('Erster Eintrag (alle Felder):', results[0]);
+                console.log('Verfügbare Felder:', Object.keys(results[0]));
+            }
+            
             // HTML für Druck generieren
             const printHTML = generatePrintHTML(results, params);
             
