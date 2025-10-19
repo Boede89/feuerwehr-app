@@ -553,28 +553,36 @@ if ($can_atemschutz) {
                     <div class="card-body">
                         <div class="row text-center">
                             <div class="col-md-3">
-                                <div class="border rounded p-3">
-                                    <h4 class="text-primary mb-1"><?php echo $feedback_stats['new'] ?? 0; ?></h4>
-                                    <small class="text-muted">Neue</small>
-                                </div>
+                                <a href="feedback.php?status=new" class="text-decoration-none">
+                                    <div class="border rounded p-3 hover-card" style="cursor: pointer; transition: all 0.2s;">
+                                        <h4 class="text-primary mb-1"><?php echo $feedback_stats['new'] ?? 0; ?></h4>
+                                        <small class="text-muted">Neue</small>
+                                    </div>
+                                </a>
                             </div>
                             <div class="col-md-3">
-                                <div class="border rounded p-3">
-                                    <h4 class="text-warning mb-1"><?php echo $feedback_stats['in_progress'] ?? 0; ?></h4>
-                                    <small class="text-muted">In Bearbeitung</small>
-                                </div>
+                                <a href="feedback.php?status=in_progress" class="text-decoration-none">
+                                    <div class="border rounded p-3 hover-card" style="cursor: pointer; transition: all 0.2s;">
+                                        <h4 class="text-warning mb-1"><?php echo $feedback_stats['in_progress'] ?? 0; ?></h4>
+                                        <small class="text-muted">In Bearbeitung</small>
+                                    </div>
+                                </a>
                             </div>
                             <div class="col-md-3">
-                                <div class="border rounded p-3">
-                                    <h4 class="text-success mb-1"><?php echo $feedback_stats['resolved'] ?? 0; ?></h4>
-                                    <small class="text-muted">Gelöst</small>
-                                </div>
+                                <a href="feedback.php?status=resolved" class="text-decoration-none">
+                                    <div class="border rounded p-3 hover-card" style="cursor: pointer; transition: all 0.2s;">
+                                        <h4 class="text-success mb-1"><?php echo $feedback_stats['resolved'] ?? 0; ?></h4>
+                                        <small class="text-muted">Gelöst</small>
+                                    </div>
+                                </a>
                             </div>
                             <div class="col-md-3">
-                                <div class="border rounded p-3">
-                                    <h4 class="text-secondary mb-1"><?php echo $feedback_stats['closed'] ?? 0; ?></h4>
-                                    <small class="text-muted">Geschlossen</small>
-                                </div>
+                                <a href="feedback.php?status=closed" class="text-decoration-none">
+                                    <div class="border rounded p-3 hover-card" style="cursor: pointer; transition: all 0.2s;">
+                                        <h4 class="text-secondary mb-1"><?php echo $feedback_stats['closed'] ?? 0; ?></h4>
+                                        <small class="text-muted">Geschlossen</small>
+                                    </div>
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -1901,6 +1909,12 @@ if ($can_atemschutz) {
     </div>
     
     <style>
+        .hover-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background-color: #f8f9fa;
+        }
+        
         .email-buttons {
             margin-top: 8px;
             display: flex;

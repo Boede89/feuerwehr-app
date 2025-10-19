@@ -470,15 +470,19 @@ require_once 'includes/functions.php';
         }
         
         // Feedback Modal Event Listener
-        document.getElementById('feedbackModal').addEventListener('hidden.bs.modal', function() {
-            resetFeedbackForm();
-        });
+        const feedbackModal = document.getElementById('feedbackModal');
+        if (feedbackModal) {
+            feedbackModal.addEventListener('hidden.bs.modal', function() {
+                resetFeedbackForm();
+            });
+        }
         
         // Feedback absenden
         const submitFeedbackBtn = document.getElementById('submitFeedbackBtn');
         if (!submitFeedbackBtn) {
             console.error('Feedback Submit Button nicht gefunden!');
         } else {
+            console.log('Feedback Submit Button gefunden, Event Listener wird hinzugefügt');
             submitFeedbackBtn.addEventListener('click', function() {
             const form = document.getElementById('feedbackForm');
             if (!form) {

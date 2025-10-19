@@ -45,6 +45,30 @@ if ($_POST['action'] ?? '' === 'update_status') {
     }
 }
 
+// Feedback löschen (nur geschlossene)
+if ($_POST['action'] ?? '' === 'delete_feedback') {
+    $feedback_id = (int)($_POST['feedback_id'] ?? 0);
+    
+    if ($feedback_id > 0) {
+        try {
+            // Prüfen ob Feedback geschlossen ist
+            $stmt = $db->prepare("SELECT status FROM feedback WHERE id = ?");
+            $stmt->execute([$feedback_id]);
+            $feedback = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($feedback && $feedback['status'] === 'closed') {
+                $stmt = $db->prepare("DELETE FROM feedback WHERE id = ?");
+                $stmt->execute([$feedback_id]);
+                $success_message = "Geschlossenes Feedback erfolgreich gelöscht";
+            } else {
+                $error_message = "Nur geschlossene Feedbacks können gelöscht werden";
+            }
+        } catch (Exception $e) {
+            $error_message = "Fehler beim Löschen: " . $e->getMessage();
+        }
+    }
+}
+
 // Feedback abrufen
 $status_filter = $_GET['status'] ?? 'all';
 $type_filter = $_GET['type'] ?? 'all';
@@ -255,6 +279,11 @@ $stats = $stats_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                                                     <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#feedbackModal<?php echo $feedback['id']; ?>">
                                                         <i class="fas fa-eye"></i> Anzeigen
                                                     </button>
+                                                    <?php if ($feedback['status'] === 'closed'): ?>
+                                                    <button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteFeedback(<?php echo $feedback['id']; ?>)">
+                                                        <i class="fas fa-trash"></i> Löschen
+                                                    </button>
+                                                    <?php endif; ?>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -363,5 +392,20 @@ $stats = $stats_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     <?php endforeach; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        function deleteFeedback(feedbackId) {
+            if (confirm('Sind Sie sicher, dass Sie dieses geschlossene Feedback dauerhaft löschen möchten?')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.innerHTML = `
+                    <input type="hidden" name="action" value="delete_feedback">
+                    <input type="hidden" name="feedback_id" value="${feedbackId}">
+                `;
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+    </script>
 </body>
 </html>
