@@ -467,7 +467,7 @@ if (!$isAdmin && !$canAtemschutz) {
                                                 elseif ($diff <= $warnDays && $diff >= 0) { $cls = 'bis-warn'; }
                                             }
                                         ?>
-                                        <div><span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($streckeBis); ?></span></div>
+                                        <div><span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($streckeBisDate); ?></span></div>
                                     </div>
                                 </div>
                             </div>
@@ -495,7 +495,7 @@ if (!$isAdmin && !$canAtemschutz) {
                                                 elseif ($diff <= $warnDays && $diff >= 0) { $cls = 'bis-warn'; }
                                             }
                                         ?>
-                                        <div><span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($g263Bis); ?></span></div>
+                                        <div><span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($g263BisDate); ?></span></div>
                                     </div>
                                 </div>
                             </div>
@@ -523,7 +523,7 @@ if (!$isAdmin && !$canAtemschutz) {
                                                 elseif ($diff <= $warnDays && $diff >= 0) { $cls = 'bis-warn'; }
                                             }
                                         ?>
-                                        <div><span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($uebungBis); ?></span></div>
+                                        <div><span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($uebungBisDate); ?></span></div>
                                     </div>
                                 </div>
                             </div>
@@ -658,7 +658,7 @@ if (!$isAdmin && !$canAtemschutz) {
                                                 elseif ($diff <= $warnDays && $diff >= 0) { $cls = 'bis-warn'; }
                                             }
                                         ?>
-                                        <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($g263Bis); ?></span></div>
+                                        <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($g263BisDate); ?></span></div>
                                     </td>
                                     <td>
                                         <div>Am: <?php echo htmlspecialchars($uebungAm); ?></div>
@@ -673,7 +673,7 @@ if (!$isAdmin && !$canAtemschutz) {
                                                 elseif ($diff <= $warnDays && $diff >= 0) { $cls = 'bis-warn'; }
                                             }
                                         ?>
-                                        <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($uebungBis); ?></span></div>
+                                        <div>Bis: <span class="bis-badge <?php echo $cls; ?>"><?php echo htmlspecialchars($uebungBisDate); ?></span></div>
                                     </td>
                                     <td>
                                         <span class="badge status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($statusText); ?></span>
