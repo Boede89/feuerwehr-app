@@ -11,6 +11,17 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+// Prüfen ob TCPDF verfügbar ist
+$tcpdfAvailable = class_exists('TCPDF');
+if (!$tcpdfAvailable) {
+    // TCPDF nicht verfügbar, versuche es zu laden
+    $tcpdfPath = '../vendor/tecnickcom/tcpdf/tcpdf.php';
+    if (file_exists($tcpdfPath)) {
+        require_once $tcpdfPath;
+        $tcpdfAvailable = class_exists('TCPDF');
+    }
+}
+
 // Prüfen ob POST-Daten vorhanden sind
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -268,7 +279,106 @@ $html .= '
 </body>
 </html>';
 
-// PDF mit wkhtmltopdf generieren (falls verfügbar)
+// Echte PDF-Generierung versuchen
+if ($tcpdfAvailable) {
+    // PDF mit TCPDF generieren
+    try {
+        $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+        
+        // Dokument-Informationen
+        $pdf->SetCreator('Feuerwehr Amern');
+        $pdf->SetAuthor('Feuerwehr Amern');
+        $pdf->SetTitle('PA-Träger Liste - ' . $uebungsDatum);
+        $pdf->SetSubject('PA-Träger Liste');
+        
+        // Header und Footer deaktivieren
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        
+        // Ränder setzen
+        $pdf->SetMargins(15, 15, 15);
+        $pdf->SetAutoPageBreak(TRUE, 15);
+        
+        // Schriftart setzen
+        $pdf->SetFont('helvetica', '', 10);
+        
+        // Seite hinzufügen
+        $pdf->AddPage();
+        
+        // Titel
+        $pdf->SetFont('helvetica', 'B', 16);
+        $pdf->SetTextColor(220, 53, 69); // Rot
+        $pdf->Cell(0, 10, 'PA-Träger Liste', 0, 1, 'C');
+        
+        $pdf->SetFont('helvetica', '', 12);
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->Cell(0, 8, 'Übungsdatum: ' . $uebungsDatum, 0, 1, 'C');
+        $pdf->Ln(10);
+        
+        // Info-Sektion
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->Cell(40, 6, 'Anzahl PA-Träger:', 0, 0);
+        $pdf->Cell(0, 6, $anzahl, 0, 1);
+        
+        if (!empty($statusText)) {
+            $pdf->Cell(40, 6, 'Status-Filter:', 0, 0);
+            $pdf->Cell(0, 6, $statusText, 0, 1);
+        }
+        
+        $pdf->Cell(40, 6, 'Anzahl Ergebnisse:', 0, 0);
+        $pdf->Cell(0, 6, count($results) . ' PA-Träger', 0, 1);
+        $pdf->Ln(10);
+        
+        // Tabelle
+        $pdf->SetFont('helvetica', 'B', 9);
+        $pdf->SetFillColor(220, 53, 69);
+        $pdf->SetTextColor(255, 255, 255);
+        
+        // Tabellen-Header
+        $pdf->Cell(15, 8, 'Nr.', 1, 0, 'C', true);
+        $pdf->Cell(45, 8, 'Name', 1, 0, 'C', true);
+        $pdf->Cell(40, 8, 'E-Mail', 1, 0, 'C', true);
+        $pdf->Cell(30, 8, 'Status', 1, 0, 'C', true);
+        $pdf->Cell(25, 8, 'Strecke am', 1, 0, 'C', true);
+        $pdf->Cell(20, 8, 'G26.3 am', 1, 0, 'C', true);
+        $pdf->Cell(20, 8, 'Übung am', 1, 1, 'C', true);
+        
+        // Tabellen-Daten
+        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetFillColor(255, 255, 255);
+        
+        foreach ($results as $index => $traeger) {
+            $streckeAm = $traeger['strecke_am'] ? date('d.m.Y', strtotime($traeger['strecke_am'])) : '-';
+            $g263Am = $traeger['g263_am'] ? date('d.m.Y', strtotime($traeger['g263_am'])) : '-';
+            $uebungAm = $traeger['uebung_am'] ? date('d.m.Y', strtotime($traeger['uebung_am'])) : '-';
+            
+            $pdf->Cell(15, 6, $index + 1, 1, 0, 'C');
+            $pdf->Cell(45, 6, $traeger['name'], 1, 0, 'L');
+            $pdf->Cell(40, 6, $traeger['email'], 1, 0, 'L');
+            $pdf->Cell(30, 6, $traeger['status'], 1, 0, 'C');
+            $pdf->Cell(25, 6, $streckeAm, 1, 0, 'C');
+            $pdf->Cell(20, 6, $g263Am, 1, 0, 'C');
+            $pdf->Cell(20, 6, $uebungAm, 1, 1, 'C');
+        }
+        
+        // Footer
+        $pdf->Ln(10);
+        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetTextColor(108, 117, 125);
+        $pdf->Cell(0, 6, 'Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr Amern', 0, 1, 'C');
+        
+        // PDF ausgeben
+        $pdf->Output('PA_Traeger_Liste_' . date('Y-m-d_H-i') . '.pdf', 'D');
+        exit;
+        
+    } catch (Exception $e) {
+        // TCPDF-Fehler, Fallback verwenden
+        error_log('TCPDF Fehler: ' . $e->getMessage());
+    }
+}
+
+// Fallback: wkhtmltopdf versuchen
 $pdfPath = tempnam(sys_get_temp_dir(), 'pa_traeger_') . '.pdf';
 $htmlPath = tempnam(sys_get_temp_dir(), 'pa_traeger_') . '.html';
 
