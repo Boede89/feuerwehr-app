@@ -827,7 +827,7 @@ if ($can_atemschutz) {
                                                 $streckeBis->add(new DateInterval('P1Y'));
                                                 $streckeDiff = (int)$now->diff($streckeBis)->format('%r%a');
                                                 $streckeUrgency = ($streckeDiff < 0) ? 'abgelaufen' : 'warnung';
-                                                $streckeClass = ($streckeDiff < 0) ? 'bis-expired' : 'bis-warn';
+                                                $streckeClass = ($streckeDiff < 0) ? 'bis-expired' : (($streckeDiff <= $warn_days && $streckeDiff >= 0) ? 'bis-warn' : '');
                                                 
                                                 // G26.3 Status
                                                 $g263Am = new DateTime($traeger['g263_am']);
@@ -841,7 +841,7 @@ if ($can_atemschutz) {
                                                 }
                                                 $g263Diff = (int)$now->diff($g263Bis)->format('%r%a');
                                                 $g263Urgency = ($g263Diff < 0) ? 'abgelaufen' : 'warnung';
-                                                $g263Class = ($g263Diff < 0) ? 'bis-expired' : 'bis-warn';
+                                                $g263Class = ($g263Diff < 0) ? 'bis-expired' : (($g263Diff <= $warn_days && $g263Diff >= 0) ? 'bis-warn' : '');
                                                 
                                                 // Übung Status
                                                 $uebungAm = new DateTime($traeger['uebung_am']);
@@ -849,7 +849,7 @@ if ($can_atemschutz) {
                                                 $uebungBis->add(new DateInterval('P1Y'));
                                                 $uebungDiff = (int)$now->diff($uebungBis)->format('%r%a');
                                                 $uebungUrgency = ($uebungDiff < 0) ? 'abgelaufen' : 'warnung';
-                                                $uebungClass = ($uebungDiff < 0) ? 'bis-expired' : 'bis-warn';
+                                                $uebungClass = ($uebungDiff < 0) ? 'bis-expired' : (($uebungDiff <= $warn_days && $uebungDiff >= 0) ? 'bis-warn' : '');
                                                 
                                                 // Bestimme den höchsten Prioritätsstatus (abgelaufen > warnung)
                                                 $hasExpired = ($streckeDiff < 0 || $g263Diff < 0 || $uebungDiff < 0);
