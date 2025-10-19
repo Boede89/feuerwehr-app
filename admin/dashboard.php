@@ -524,7 +524,8 @@ if ($can_atemschutz) {
             </div>
         </div>
 
-        <!-- Feedback-Statistiken -->
+        <!-- Feedback-Statistiken (nur für Admins) -->
+        <?php if ($can_settings): ?>
         <?php
         // Feedback-Statistiken laden
         $feedback_stats = [];
@@ -578,6 +579,7 @@ if ($can_atemschutz) {
                 </div>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- Reservierungen Bereich -->
         <?php if ($can_reservations): ?>
