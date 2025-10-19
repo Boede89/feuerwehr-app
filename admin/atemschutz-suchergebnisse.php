@@ -260,15 +260,6 @@ function formatDate($date) {
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-4 mb-3 d-md-none">
-                                    <div class="card h-100 text-center export-option" data-format="preview">
-                                        <div class="card-body">
-                                            <i class="fas fa-eye fa-3x text-info mb-3"></i>
-                                            <h6 class="card-title">Druckvorschau</h6>
-                                            <p class="card-text small text-muted">Zeigt die Liste zur manuellen Druckvorschau an</p>
-                                        </div>
-                                    </div>
-                                </div>
                                 <div class="col-md-4 mb-3">
                                     <div class="card h-100 text-center export-option" data-format="email">
                                         <div class="card-body">
@@ -415,9 +406,6 @@ Mit freundlichen Grüßen
             if (format === 'print') {
                 // PDF-Drucken: Direkt im neuen Fenster öffnen
                 printPDF();
-            } else if (format === 'preview') {
-                // Druckvorschau: HTML direkt auf der Seite anzeigen
-                showPrintPreview();
             } else {
                 // PDF-Herunterladen: Formular-basierter Download
                 const results = <?php echo json_encode($searchResults); ?>;
@@ -551,65 +539,6 @@ Mit freundlichen Grüßen
                     alert('Pop-up-Blocker verhindert das Öffnen des Druckfensters. Bitte erlauben Sie Pop-ups für diese Seite.');
                 }
             }
-        }
-        
-        function showPrintPreview() {
-            // Druckvorschau: HTML direkt auf der Seite anzeigen
-            const results = <?php echo json_encode($searchResults); ?>;
-            const params = <?php echo json_encode($searchParams); ?>;
-            
-            // HTML für Druck generieren
-            const printHTML = generatePrintHTML(results, params);
-            
-            // Neues Modal für Druckvorschau erstellen
-            const modalId = 'printPreviewModal';
-            let modal = document.getElementById(modalId);
-            
-            if (!modal) {
-                modal = document.createElement('div');
-                modal.id = modalId;
-                modal.className = 'modal fade';
-                modal.innerHTML = `
-                    <div class="modal-dialog modal-xl">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">
-                                    <i class="fas fa-print me-2"></i>Druckvorschau
-                                </h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body p-0">
-                                <div id="printPreviewContent"></div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                    <i class="fas fa-times me-1"></i>Schließen
-                                </button>
-                                <button type="button" class="btn btn-primary" onclick="printFromPreview()">
-                                    <i class="fas fa-print me-1"></i>Drucken
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(modal);
-            }
-            
-            // Inhalt setzen
-            document.getElementById('printPreviewContent').innerHTML = printHTML;
-            
-            // Modal anzeigen
-            const bsModal = new bootstrap.Modal(modal);
-            bsModal.show();
-        }
-        
-        function printFromPreview() {
-            // Drucken aus der Vorschau
-            const printContent = document.getElementById('printPreviewContent').innerHTML;
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(printContent);
-            printWindow.document.close();
-            printWindow.print();
         }
         
         function generatePrintHTML(results, params) {
