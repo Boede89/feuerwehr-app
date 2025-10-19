@@ -912,7 +912,7 @@ if ($can_atemschutz) {
                                             <div class="warning-reason">
                                                 <span class="reason-label">Strecke</span>
                                                 <div class="reason-details">
-                                                    <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['strecke_am'])); ?></span>
+                                                    <span class="bis-badge <?php echo $cls; ?>"><?php echo $streckeBis->format('d.m.Y'); ?></span>
                     </div>
                                             </div>
                                             
@@ -940,7 +940,7 @@ if ($can_atemschutz) {
                                             <div class="warning-reason">
                                                 <span class="reason-label">G26.3</span>
                                                 <div class="reason-details">
-                                                    <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['g263_am'])); ?></span>
+                                                    <span class="bis-badge <?php echo $cls; ?>"><?php echo $g263Bis->format('d.m.Y'); ?></span>
                                                 </div>
                                             </div>
                                             
@@ -961,7 +961,7 @@ if ($can_atemschutz) {
                                             <div class="warning-reason">
                                                 <span class="reason-label">Übung/Einsatz</span>
                                                 <div class="reason-details">
-                                                    <span class="bis-badge <?php echo $cls; ?>"><?php echo date('d.m.Y', strtotime($traeger['uebung_am'])); ?></span>
+                                                    <span class="bis-badge <?php echo $cls; ?>"><?php echo $uebungBis->format('d.m.Y'); ?></span>
                                                 </div>
                                             </div>
                                         </div>
