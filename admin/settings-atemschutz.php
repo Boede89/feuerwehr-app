@@ -201,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // E-Mail-Vorlagen speichern
         if (isset($_POST['email_templates']) && is_array($_POST['email_templates'])) {
             try {
-                $stmt = $db->prepare("UPDATE email_templates SET subject = ?, body = ? WHERE template_key = ?");
+                $stmt = $db->prepare("UPDATE email_templates SET subject = ?, body = ?, updated_at = CURRENT_TIMESTAMP WHERE template_key = ?");
                 $updatedCount = 0;
                 
                 foreach ($_POST['email_templates'] as $templateKey => $templateData) {
@@ -226,6 +226,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if ($updatedCount > 0) {
                     $message = "Einstellungen und $updatedCount E-Mail-Vorlagen gespeichert.";
+                    // E-Mail-Vorlagen neu laden nach dem Speichern
+                    $stmt = $db->prepare("SELECT * FROM email_templates ORDER BY template_key");
+                    $stmt->execute();
+                    $emailTemplates = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 } else {
                     $error = 'Keine E-Mail-Vorlagen konnten gespeichert werden.';
                 }
