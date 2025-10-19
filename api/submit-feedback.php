@@ -13,6 +13,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 try {
+    // Prüfen ob Feedback-Tabelle existiert
+    $table_check = $db->query("SHOW TABLES LIKE 'feedback'");
+    if ($table_check->rowCount() == 0) {
+        echo json_encode(['success' => false, 'message' => 'Feedback-System ist noch nicht eingerichtet. Bitte wenden Sie sich an den Administrator.']);
+        exit;
+    }
+    
     // Eingabedaten validieren und sanitisieren
     $feedback_type = sanitize_input($_POST['feedback_type'] ?? '');
     $subject = sanitize_input($_POST['subject'] ?? '');

@@ -4,7 +4,18 @@ require_once '../config/database.php';
 require_once '../includes/functions.php';
 
 // Admin-Berechtigung prüfen
-if (!hasAdminPermission()) {
+if (!isset($_SESSION['user_id'])) {
+    header('Location: ../login.php');
+    exit;
+}
+
+// Prüfen ob Benutzer Admin ist
+$user_id = $_SESSION['user_id'];
+$stmt = $db->prepare("SELECT user_role, is_admin, can_settings FROM users WHERE id = ?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$user || ($user['user_role'] !== 'admin' && $user['is_admin'] != 1 && $user['can_settings'] != 1)) {
     header('Location: ../login.php');
     exit;
 }

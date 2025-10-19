@@ -517,11 +517,13 @@ if ($can_atemschutz) {
             </div>
             <?php endif; ?>
             
+            <?php if ($can_settings): ?>
             <div class="col-12 col-md-3">
                 <a href="feedback.php" class="btn btn-outline-info w-100">
                     <i class="fas fa-comment-dots"></i> Feedback
                 </a>
             </div>
+            <?php endif; ?>
         </div>
 
         <!-- Feedback-Statistiken (nur für Admins) -->
