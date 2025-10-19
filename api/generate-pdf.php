@@ -142,10 +142,43 @@ $html = '<!DOCTYPE html>
             padding-top: 15px;
         }
         @media print {
-            body { margin: 0; }
-            .header { page-break-inside: avoid; }
-            table { page-break-inside: auto; }
-            tr { page-break-inside: avoid; page-break-after: auto; }
+            body { 
+                margin: 0; 
+                padding: 10mm;
+                font-size: 12px;
+                line-height: 1.4;
+            }
+            .header { 
+                page-break-inside: avoid; 
+                margin-bottom: 20px;
+            }
+            .info-section {
+                page-break-inside: avoid;
+                margin-bottom: 15px;
+            }
+            table { 
+                page-break-inside: auto; 
+                font-size: 11px;
+                margin-top: 10px;
+            }
+            th, td {
+                padding: 8px 6px;
+                font-size: 11px;
+            }
+            tr { 
+                page-break-inside: avoid; 
+                page-break-after: auto; 
+            }
+            .footer {
+                page-break-inside: avoid;
+                margin-top: 20px;
+            }
+        }
+        
+        /* Zusätzliche PDF-optimierte Styles */
+        @page {
+            margin: 15mm;
+            size: A4;
         }
     </style>
 </head>
@@ -215,6 +248,23 @@ $html .= '
     <div class="footer">
         <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr Amern</p>
     </div>
+    
+    <script>
+        // Automatisch Druckdialog öffnen
+        window.onload = function() {
+            setTimeout(function() {
+                window.print();
+            }, 500);
+        };
+        
+        // Nach dem Drucken Fenster schließen (optional)
+        window.onafterprint = function() {
+            // Fenster schließen nur wenn es ein Popup ist
+            if (window.opener) {
+                window.close();
+            }
+        };
+    </script>
 </body>
 </html>';
 
@@ -261,11 +311,11 @@ if ($wkhtmltopdfPath) {
     }
 }
 
-// Fallback: HTML als PDF-Download (mit PDF-MIME-Type)
-header('Content-Type: application/pdf');
-header('Content-Disposition: attachment; filename="PA_Traeger_Liste_' . date('Y-m-d_H-i') . '.pdf"');
-header('Content-Length: ' . strlen($html));
+// Fallback: HTML mit PDF-optimiertem Styling
+header('Content-Type: text/html; charset=UTF-8');
+header('Content-Disposition: attachment; filename="PA_Traeger_Liste_' . date('Y-m-d_H-i') . '.html"');
 
+// HTML mit verbessertem Styling für PDF-Druck
 echo $html;
 
 // Temporäre Dateien löschen
