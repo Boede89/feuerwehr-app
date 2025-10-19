@@ -424,7 +424,7 @@ Mit freundlichen Grüßen
                 }
                 
                 // PDF über API generieren
-                fetch('api/generate-pdf.php', {
+                fetch('../api/generate-pdf.php', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
