@@ -478,10 +478,8 @@ require_once 'includes/functions.php';
         const submitFeedbackBtn = document.getElementById('submitFeedbackBtn');
         if (!submitFeedbackBtn) {
             console.error('Feedback Submit Button nicht gefunden!');
-            return;
-        }
-        
-        submitFeedbackBtn.addEventListener('click', function() {
+        } else {
+            submitFeedbackBtn.addEventListener('click', function() {
             const form = document.getElementById('feedbackForm');
             if (!form) {
                 console.error('Feedback Form nicht gefunden!');
@@ -553,7 +551,8 @@ require_once 'includes/functions.php';
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
             });
-        });
+            });
+        }
     </script>
 
     <!-- Success Modal -->
