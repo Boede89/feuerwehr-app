@@ -264,6 +264,7 @@ if ($can_atemschutz) {
     <title>Dashboard - Feuerwehr App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.css" rel="stylesheet">
     <style>
         .bis-badge { 
             padding: .25rem .5rem; 
@@ -481,6 +482,19 @@ if ($can_atemschutz) {
             </div>
         </div>
     </nav>
+
+    <!-- Bearbeiten-Controls -->
+    <div class="edit-controls">
+        <button id="toggleEditMode" class="btn btn-outline-primary btn-sm">
+            <i class="fas fa-edit"></i> Bearbeiten
+        </button>
+        <button id="saveLayout" class="btn btn-success btn-sm" style="display: none;">
+            <i class="fas fa-save"></i> Speichern
+        </button>
+        <button id="cancelEdit" class="btn btn-secondary btn-sm" style="display: none;">
+            <i class="fas fa-times"></i> Abbrechen
+        </button>
+    </div>
 
     <div class="container-fluid mt-4">
         <!-- Header -->
@@ -1913,6 +1927,81 @@ if ($can_atemschutz) {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             background-color: #f8f9fa;
+        }
+        
+        /* Dashboard-Bereiche Styling */
+        .dashboard-section {
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .dashboard-section-header {
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s ease;
+        }
+        
+        .dashboard-section-header:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .dashboard-section-header.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+        
+        .collapse-icon {
+            transition: transform 0.3s ease;
+            margin-right: 0.5rem;
+        }
+        
+        .dashboard-section-body {
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .dashboard-section-body.collapsed {
+            max-height: 0;
+            padding: 0;
+            margin: 0;
+        }
+        
+        /* Sortierbare Bereiche */
+        .dashboard-sections-container {
+            position: relative;
+        }
+        
+        .dashboard-section.sortable-ghost {
+            opacity: 0.4;
+        }
+        
+        .dashboard-section.sortable-chosen {
+            cursor: move;
+        }
+        
+        .dashboard-section.sortable-drag {
+            transform: rotate(5deg);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        
+        /* Bearbeiten-Modus */
+        .edit-mode .dashboard-section {
+            border: 2px dashed #007bff;
+            background-color: #f8f9ff;
+        }
+        
+        .edit-mode .dashboard-section-header {
+            background-color: #e3f2fd;
+        }
+        
+        .edit-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        .edit-controls .btn {
+            margin-left: 0.5rem;
         }
         
         .email-buttons {
