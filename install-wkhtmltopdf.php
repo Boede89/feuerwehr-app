@@ -54,9 +54,10 @@ switch ($distro) {
     case 'debian':
         $installCommands = [
             'apt-get update',
-            'apt-get install -y wget',
+            'apt-get install -y wget fontconfig libfreetype6 libjpeg-turbo8 libssl1.1 libxrender1 xfonts-75dpi xfonts-base',
             'wget https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.focal_amd64.deb',
-            'dpkg -i wkhtmltox_0.12.6-1.focal_amd64.deb || apt-get install -f -y',
+            'dpkg -i wkhtmltox_0.12.6-1.focal_amd64.deb',
+            'apt-get install -f -y',
             'ln -sf /usr/local/bin/wkhtmltopdf /usr/bin/wkhtmltopdf'
         ];
         break;
