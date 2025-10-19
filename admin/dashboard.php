@@ -198,7 +198,7 @@ if ($can_atemschutz) {
             $diff = (int)$now->diff($streckeBis)->format('%r%a');
             if ($diff < 0) {
                 $streckeExpired = true;
-            } elseif ($diff <= $warn_days) {
+            } elseif ($diff <= $warn_days && $diff >= 0) {
                 $streckeWarn = true;
             }
             
@@ -217,7 +217,7 @@ if ($can_atemschutz) {
             $diff = (int)$now->diff($g263Bis)->format('%r%a');
             if ($diff < 0) {
                 $g263Expired = true;
-            } elseif ($diff <= $warn_days) {
+            } elseif ($diff <= $warn_days && $diff >= 0) {
                 $g263Warn = true;
             }
             
@@ -229,7 +229,7 @@ if ($can_atemschutz) {
             $diff = (int)$now->diff($uebungBis)->format('%r%a');
             if ($diff < 0) {
                 $uebungExpired = true;
-            } elseif ($diff <= $warn_days) {
+            } elseif ($diff <= $warn_days && $diff >= 0) {
                 $uebungWarn = true;
             }
             
@@ -860,21 +860,21 @@ if ($can_atemschutz) {
                                                 
                                                 // Sammle alle problematischen Zertifikate
                                                 $problematicCertificates = [];
-                                                if ($streckeDiff < 0 || $streckeDiff <= $warn_days) {
+                                                if ($streckeDiff < 0 || ($streckeDiff <= $warn_days && $streckeDiff >= 0)) {
                                                     $problematicCertificates[] = [
                                                         'type' => 'strecke',
                                                         'urgency' => $streckeUrgency,
                                                         'expiry_date' => $streckeBis->format('d.m.Y')
                                                     ];
                                                 }
-                                                if ($g263Diff < 0 || $g263Diff <= $warn_days) {
+                                                if ($g263Diff < 0 || ($g263Diff <= $warn_days && $g263Diff >= 0)) {
                                                     $problematicCertificates[] = [
                                                         'type' => 'g263',
                                                         'urgency' => $g263Urgency,
                                                         'expiry_date' => $g263Bis->format('d.m.Y')
                                                     ];
                                                 }
-                                                if ($uebungDiff < 0 || $uebungDiff <= $warn_days) {
+                                                if ($uebungDiff < 0 || ($uebungDiff <= $warn_days && $uebungDiff >= 0)) {
                                                     $problematicCertificates[] = [
                                                         'type' => 'uebung',
                                                         'urgency' => $uebungUrgency,
@@ -905,7 +905,7 @@ if ($can_atemschutz) {
                                             $cls = '';
                                             if ($diff < 0) {
                                                 $cls = 'bis-expired';
-                                            } elseif ($diff <= $warn_days) {
+                                            } elseif ($diff <= $warn_days && $diff >= 0) {
                                                 $cls = 'bis-warn';
                                             }
                                             ?>
@@ -933,7 +933,7 @@ if ($can_atemschutz) {
                                             $cls = '';
                                             if ($diff < 0) {
                                                 $cls = 'bis-expired';
-                                            } elseif ($diff <= $warn_days) {
+                                            } elseif ($diff <= $warn_days && $diff >= 0) {
                                                 $cls = 'bis-warn';
                                             }
                                             ?>
@@ -954,7 +954,7 @@ if ($can_atemschutz) {
                                             $cls = '';
                                             if ($diff < 0) {
                                                 $cls = 'bis-expired';
-                                            } elseif ($diff <= $warn_days) {
+                                            } elseif ($diff <= $warn_days && $diff >= 0) {
                                                 $cls = 'bis-warn';
                                             }
                                             ?>
