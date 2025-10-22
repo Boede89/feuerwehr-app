@@ -144,7 +144,7 @@ try {
         $subject = "✅ Reservierung genehmigt - " . $reservation['requester_name'];
         $message = createApprovalEmailHTML($reservation);
         
-        send_email($reservation['requester_email'], $subject, $message);
+        send_email($reservation['requester_email'], $subject, $message, '', true);
         
         // Aktivitätslog
         log_activity($_SESSION['user_id'], 'reservation_approved', "Reservierung #$reservation_id genehmigt");
@@ -165,7 +165,7 @@ try {
         $subject = "❌ Reservierung abgelehnt - " . $reservation['requester_name'];
         $message = createRejectionEmailHTML($reservation, $reason);
         
-        send_email($reservation['requester_email'], $subject, $message);
+        send_email($reservation['requester_email'], $subject, $message, '', true);
         
         // Aktivitätslog
         log_activity($_SESSION['user_id'], 'reservation_rejected', "Reservierung #$reservation_id abgelehnt: $reason");

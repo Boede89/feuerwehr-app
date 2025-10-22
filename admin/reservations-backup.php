@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                         </div>
                     </div>
                     ";
-                    send_email($reservation['requester_email'], $subject, $message_content);
+                    send_email($reservation['requester_email'], $subject, $message_content, '', true);
                 }
                 
                 $message = "Reservierung wurde genehmigt.";
@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                             </div>
                         </div>
                         ";
-                        send_email($reservation['requester_email'], $subject, $message_content);
+                        send_email($reservation['requester_email'], $subject, $message_content, '', true);
                     }
                     
                     $message = "Reservierung wurde abgelehnt.";

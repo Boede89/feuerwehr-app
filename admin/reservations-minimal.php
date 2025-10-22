@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     <p>Vielen Dank für Ihre Reservierung!</p>
                     ";
                     
-                    send_email($reservation['requester_email'], $subject, $message_content);
+                    send_email($reservation['requester_email'], $subject, $message_content, '', true);
                 }
             } catch (Exception $e) {
                 // E-Mail Fehler ignorieren
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     <p><strong>Ablehnungsgrund:</strong> " . htmlspecialchars($rejection_reason) . "</p>
                     ";
                     
-                    send_email($reservation['requester_email'], $subject, $message_content);
+                    send_email($reservation['requester_email'], $subject, $message_content, '', true);
                 }
             } catch (Exception $e) {
                 // E-Mail Fehler ignorieren

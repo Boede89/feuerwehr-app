@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                         <p>Vielen Dank für Ihre Reservierung!</p>
                         ";
                         
-                        send_email($reservation['requester_email'], $subject, $message_content);
+                        send_email($reservation['requester_email'], $subject, $message_content, '', true);
                     }
                 } catch (Exception $e) {
                     error_log('E-Mail Fehler: ' . $e->getMessage());
@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                             <p>Bitte wenden Sie sich an den Administrator für weitere Informationen.</p>
                             ";
                             
-                            send_email($reservation['requester_email'], $subject, $message_content);
+                            send_email($reservation['requester_email'], $subject, $message_content, '', true);
                         }
                     } catch (Exception $e) {
                         error_log('E-Mail Fehler: ' . $e->getMessage());
