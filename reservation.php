@@ -354,7 +354,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     ";
                     
                     foreach ($admin_emails as $admin_email) {
-                        $email_sent = send_email($admin_email, $subject, $message_content);
+                        $email_sent = send_email($admin_email, $subject, $message_content, '', true);
                         if ($email_sent) {
                             echo '<script>console.log("✅ E-Mail gesendet an:", ' . json_encode($admin_email) . ');</script>';
                         } else {
