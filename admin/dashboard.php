@@ -178,11 +178,10 @@ if ($can_atemschutz) {
         // Lade alle aktiven Geräteträger mit letzter E-Mail-Versendung und filtere dann in PHP
         $stmt = $db->prepare("
             SELECT t.*, 
-                   el.sent_at as last_email_sent,
-                   el.subject as last_email_subject
+                   el.sent_at as last_email_sent
             FROM atemschutz_traeger t
             LEFT JOIN (
-                SELECT traeger_id, sent_at, subject,
+                SELECT traeger_id, sent_at,
                        ROW_NUMBER() OVER (PARTITION BY traeger_id ORDER BY sent_at DESC) as rn
                 FROM email_log
             ) el ON t.id = el.traeger_id AND el.rn = 1
@@ -828,10 +827,7 @@ if ($can_atemschutz) {
                                                 <div class="email-status">
                                                     <small class="text-muted">
                                                         <i class="fas fa-envelope-open"></i> 
-                                                        Letzte E-Mail: <?php echo date('d.m.Y H:i', strtotime($traeger['last_email_sent'])); ?>
-                                                        <?php if (!empty($traeger['last_email_subject'])): ?>
-                                                            <br><span class="text-info"><?php echo htmlspecialchars($traeger['last_email_subject']); ?></span>
-                                                        <?php endif; ?>
+                                                        Letzte E-Mail: <?php echo date('d.m.Y', strtotime($traeger['last_email_sent'])); ?>
                                                     </small>
                                                 </div>
                                             <?php else: ?>
