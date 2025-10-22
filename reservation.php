@@ -67,6 +67,120 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservati
                 $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([]), 'pending']);
                 
+                echo '<script>console.log("✅ Konflikt-Reservierung erfolgreich gespeichert - Sende E-Mails");</script>';
+                
+                // E-Mail an Admins und Genehmiger mit aktivierten Benachrichtigungen senden
+                $admin_emails = [];
+                try {
+                    $stmt = $db->prepare("SELECT email FROM users WHERE is_active = 1 AND email_notifications = 1");
+                    $stmt->execute();
+                    $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    echo '<script>console.log("🔍 Admin-E-Mails gefunden:", ' . count($admin_emails) . ');</script>';
+                } catch (Exception $e) {
+                    echo '<script>console.log("❌ Fehler beim Laden der Admin-E-Mails:", ' . json_encode($e->getMessage()) . ');</script>';
+                }
+                
+                if (!empty($admin_emails)) {
+                    // Fahrzeug-Name für E-Mail laden
+                    $stmt = $db->prepare("SELECT name FROM vehicles WHERE id = ?");
+                    $stmt->execute([$vehicle_id]);
+                    $vehicle = $stmt->fetch();
+                    $vehicle_name = $vehicle ? $vehicle['name'] : 'Unbekanntes Fahrzeug';
+                    
+                    $subject = "🔔 Neue Fahrzeugreservierung (mit Konflikt) - " . $vehicle_name;
+                    
+                    // Basis-URL für Links in E-Mails: bevorzugt aus Einstellungen 'app_url'
+                    try {
+                        $stmtApp = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_url'");
+                        $stmtApp->execute();
+                        $appUrl = $stmtApp->fetchColumn();
+                        if (!$appUrl) {
+                            $appUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+                        }
+                    } catch (Exception $e) {
+                        $appUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+                    }
+                    
+                    $manageUrl = $appUrl . '/admin/dashboard.php';
+
+                    $message_content = "
+                    <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;'>
+                        <div style='background-color: #ffc107; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;'>
+                            <h1 style='margin: 0; font-size: 24px;'>⚠️ Neue Reservierung mit Konflikt eingegangen</h1>
+                        </div>
+                        <div style='background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);'>
+                            <p style='font-size: 16px; color: #333; margin-bottom: 25px;'>Ein neuer Antrag für eine Fahrzeugreservierung ist eingegangen, der Überschneidungen mit bestehenden Reservierungen aufweist.</p>
+                            
+                            <div style='background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 20px 0; border-radius: 4px;'>
+                                <h3 style='margin: 0 0 15px 0; color: #856404; font-size: 18px;'>⚠️ Konflikt-Hinweis</h3>
+                                <p style='margin: 0; color: #856404;'>Diese Reservierung überschneidet sich mit bestehenden Reservierungen. Bitte prüfen Sie die Verfügbarkeit.</p>
+                            </div>
+                            
+                            <div style='background-color: #e3f2fd; border-left: 4px solid #007bff; padding: 20px; margin: 20px 0; border-radius: 4px;'>
+                                <h3 style='margin: 0 0 15px 0; color: #007bff; font-size: 18px;'>📋 Antragsdetails</h3>
+                                <table style='width: 100%; border-collapse: collapse;'>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555; width: 120px;'>🚛 Fahrzeug:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($vehicle_name) . "</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>👤 Antragsteller:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($requester_name) . "</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>📧 E-Mail:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($requester_email) . "</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>📝 Grund:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($reason) . "</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555;'>📍 Standort:</td>
+                                        <td style='padding: 8px 0; color: #333;'>" . htmlspecialchars($location) . "</td>
+                                    </tr>
+                                    <tr>
+                                        <td style='padding: 8px 0; font-weight: bold; color: #555; vertical-align: top;'>📅 Zeitraum:</td>
+                                        <td style='padding: 8px 0; color: #333;'>
+                                            <div style='background-color: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #ffc107;'>
+                                                <strong>Zeitraum (" . htmlspecialchars($vehicle_name) . "):</strong> " . format_datetime($start_datetime) . " - " . format_datetime($end_datetime) . "
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <div style='background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin: 20px 0;'>
+                                <p style='margin: 0; color: #856404; font-size: 14px;'>
+                                    <strong>⏰ Wichtig:</strong> Diese Reservierung hat Konflikte mit bestehenden Reservierungen. Bitte prüfen Sie die Verfügbarkeit und entscheiden Sie über die Genehmigung.
+                                </p>
+                            </div>
+                            
+                            <div style='text-align: center; margin: 25px 0;'>
+                                <a href='" . $manageUrl . "' 
+                                   style='background-color: #ffc107; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>
+                                    ⚠️ Antrag mit Konflikt bearbeiten
+                                </a>
+                            </div>
+                            
+                            <p style='font-size: 14px; color: #666; margin-top: 25px;'>
+                                Mit freundlichen Grüßen,<br>
+                                Ihr Feuerwehr-System
+                            </p>
+                        </div>
+                    </div>
+                    ";
+                    
+                    foreach ($admin_emails as $admin_email) {
+                        $email_sent = send_email($admin_email, $subject, $message_content, '', true);
+                        if ($email_sent) {
+                            echo '<script>console.log("✅ Konflikt-E-Mail gesendet an:", ' . json_encode($admin_email) . ');</script>';
+                        } else {
+                            echo '<script>console.log("❌ Konflikt-E-Mail fehlgeschlagen an:", ' . json_encode($admin_email) . ');</script>';
+                        }
+                    }
+                }
+                
                 $message = "Reservierung wurde trotz Konflikt erfolgreich eingereicht. Bitte beachten Sie, dass es Überschneidungen mit anderen Reservierungen geben kann.";
                 $redirect_to_home = true; // Flag für Weiterleitung setzen
             } catch(PDOException $e) {
