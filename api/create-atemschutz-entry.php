@@ -224,6 +224,20 @@ function createAtemschutzEntryEmailHTML($entry_type, $entry_date, $requester_nam
         return $t['first_name'] . ' ' . $t['last_name'];
     }, $traeger);
     
+    // Basis-URL für Links in E-Mails: bevorzugt aus Einstellungen 'app_url'
+    try {
+        $stmtApp = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_url'");
+        $stmtApp->execute();
+        $appUrl = $stmtApp->fetchColumn();
+        if (!$appUrl) {
+            $appUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+        }
+    } catch (Exception $e) {
+        $appUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+    }
+    
+    $dashboardUrl = $appUrl . '/admin/dashboard.php';
+    
     return '
     <!DOCTYPE html>
     <html lang="de">
@@ -287,6 +301,13 @@ function createAtemschutzEntryEmailHTML($entry_type, $entry_date, $requester_nam
                             return '<li><strong>' . htmlspecialchars($name) . '</strong></li>';
                         }, $traeger_names)) . '
                     </ul>
+                </div>
+                
+                <div style="text-align: center; margin: 25px 0;">
+                    <a href="' . $dashboardUrl . '" 
+                       style="background-color: #17a2b8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                        🎭 Antrag bearbeiten
+                    </a>
                 </div>
                 
                 <p>Bitte loggen Sie sich in das Dashboard ein, um den Antrag zu genehmigen oder abzulehnen.</p>
