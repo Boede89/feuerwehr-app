@@ -107,7 +107,7 @@ try {
             // Sende Ablehnungs-E-Mail an Antragsteller
             $subject = "❌ Atemschutzeintrag abgelehnt - " . $entry['first_name'] . ' ' . $entry['last_name'];
             $message = createAtemschutzRejectionEmailHTML($entry, $reason);
-            send_email($entry['email'], $subject, $message);
+            send_email($entry['email'], $subject, $message, '', true);
             
             // Logge Aktivität
             log_activity($_SESSION['user_id'], 'atemschutz_entry_rejected', "Atemschutzeintrag #$entry_id abgelehnt");

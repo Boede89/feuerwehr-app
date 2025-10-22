@@ -162,7 +162,7 @@ try {
             $message = createAtemschutzEntryEmailHTML($entry_type, $entry_date, $user_name, $traeger_ids);
             
             foreach ($admins as $admin) {
-                send_email($admin['email'], $subject, $message);
+                send_email($admin['email'], $subject, $message, '', true);
             }
         }
         
