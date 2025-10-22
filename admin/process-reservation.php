@@ -197,7 +197,7 @@ try {
                 }
                 
                 // Lade stornierte Reservierung für E-Mail
-                $stmt = $db->prepare("SELECT * FROM reservations WHERE id = ?");
+                $stmt = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
                 $stmt->execute([$conflict_id]);
                 $cancelled_reservation = $stmt->fetch(PDO::FETCH_ASSOC);
                 
