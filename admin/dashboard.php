@@ -175,11 +175,19 @@ if ($can_atemschutz) {
         
         $warn_date = date('Y-m-d', strtotime("+{$warn_days} days"));
         
-        // Lade alle aktiven Geräteträger und filtere dann in PHP
+        // Lade alle aktiven Geräteträger mit letzter E-Mail-Versendung und filtere dann in PHP
         $stmt = $db->prepare("
-            SELECT * FROM atemschutz_traeger 
-            WHERE status = 'Aktiv'
-            ORDER BY last_name ASC, first_name ASC
+            SELECT t.*, 
+                   el.sent_at as last_email_sent,
+                   el.subject as last_email_subject
+            FROM atemschutz_traeger t
+            LEFT JOIN (
+                SELECT traeger_id, sent_at, subject,
+                       ROW_NUMBER() OVER (PARTITION BY traeger_id ORDER BY sent_at DESC) as rn
+                FROM email_log
+            ) el ON t.id = el.traeger_id AND el.rn = 1
+            WHERE t.status = 'Aktiv'
+            ORDER BY t.last_name ASC, t.first_name ASC
         ");
         $stmt->execute();
         $all_traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -816,6 +824,24 @@ if ($can_atemschutz) {
                                     <div class="warning-item">
                                         <div class="warning-header">
                                             <h6 class="warning-name"><?php echo htmlspecialchars($traeger['first_name'] . ' ' . $traeger['last_name']); ?></h6>
+                                            <?php if (!empty($traeger['last_email_sent'])): ?>
+                                                <div class="email-status">
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-envelope-open"></i> 
+                                                        Letzte E-Mail: <?php echo date('d.m.Y H:i', strtotime($traeger['last_email_sent'])); ?>
+                                                        <?php if (!empty($traeger['last_email_subject'])): ?>
+                                                            <br><span class="text-info"><?php echo htmlspecialchars($traeger['last_email_subject']); ?></span>
+                                                        <?php endif; ?>
+                                                    </small>
+                                                </div>
+                                            <?php else: ?>
+                                                <div class="email-status">
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-envelope"></i> 
+                                                        Noch keine E-Mail gesendet
+                                                    </small>
+                                                </div>
+                                            <?php endif; ?>
                                             <div class="email-buttons">
                                                 <?php
                                                 // Status für jeden Zertifikatstyp bestimmen

@@ -253,6 +253,27 @@ try {
         
         try {
             send_email($to, $subject, $body, '', true); // HTML-E-Mail aktivieren
+            
+            // E-Mail-Versand in der Datenbank protokollieren
+            try {
+                $db->exec("CREATE TABLE IF NOT EXISTS email_log (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    traeger_id INT NOT NULL,
+                    template_keys TEXT NOT NULL,
+                    recipient_email VARCHAR(255) NOT NULL,
+                    subject VARCHAR(200) NOT NULL,
+                    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    sent_by INT NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                
+                $templateKeys = implode(',', array_column($certificates, 'type'));
+                
+                $stmt = $db->prepare("INSERT INTO email_log (traeger_id, template_keys, recipient_email, subject, sent_by) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$t['id'], $templateKeys, $to, $subject, 0]); // 0 = System
+            } catch (Exception $e) {
+                // Logging-Fehler ignorieren
+            }
+            
             $sent++;
         } catch (Exception $e) {
             error_log("E-Mail-Versand fehlgeschlagen für {$traeger['first_name']} {$traeger['last_name']}: " . $e->getMessage());
