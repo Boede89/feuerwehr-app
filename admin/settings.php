@@ -131,7 +131,7 @@ if (isset($_POST['test_email_btn'])) {
             <p><strong>Zeitstempel:</strong> " . date('d.m.Y H:i:s') . "</p>
             ";
             
-            if (send_email($test_email, $subject, $message_content)) {
+            if (send_email($test_email, $subject, $message_content, '', true)) {
                 $message = "Test E-Mail wurde erfolgreich gesendet.";
             } else {
                 $error = "Fehler beim Senden der Test E-Mail. Bitte überprüfen Sie die SMTP-Einstellungen.";

@@ -205,7 +205,7 @@ try {
                     // Sende Stornierungs-E-Mail
                     $subject = "❌ Reservierung storniert - " . $cancelled_reservation['requester_name'];
                     $message = createCancellationEmailHTML($cancelled_reservation);
-                    send_email($cancelled_reservation['requester_email'], $subject, $message);
+                    send_email($cancelled_reservation['requester_email'], $subject, $message, '', true);
                     
                     // Lösche Google Calendar Event
                     try {
@@ -262,7 +262,7 @@ try {
         // E-Mail an Antragsteller senden
         $subject = "✅ Reservierung genehmigt - " . $reservation['requester_name'];
         $message = createApprovalEmailHTML($reservation);
-        send_email($reservation['requester_email'], $subject, $message);
+        send_email($reservation['requester_email'], $subject, $message, '', true);
         
         // Aktivitätslog
         log_activity($_SESSION['user_id'], 'reservation_approved', "Reservierung #$reservation_id genehmigt mit Konfliktlösung");
