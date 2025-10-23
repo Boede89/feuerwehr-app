@@ -58,8 +58,11 @@ try {
     foreach ($preferences as $pref) {
         $dashboard_preferences[$pref['section_name']] = $pref['is_collapsed'];
     }
+    
+    // Debug: Einstellungen loggen
+    error_log("Dashboard-Einstellungen für User " . $_SESSION['user_id'] . ": " . json_encode($dashboard_preferences));
 } catch (Exception $e) {
-    // Fehler ignorieren - Standardwerte verwenden
+    error_log("Fehler beim Laden der Dashboard-Einstellungen: " . $e->getMessage());
 }
 
 // Benutzer laden
@@ -2092,8 +2095,14 @@ if ($can_atemschutz) {
             if (isCollapsed) {
                 header.classList.add('collapsed');
                 icon.style.transform = 'rotate(-90deg)';
+            } else {
+                header.classList.remove('collapsed');
+                icon.style.transform = 'rotate(0deg)';
             }
         });
+        
+        // Debug: Einstellungen anzeigen
+        console.log('Dashboard-Einstellungen geladen:', <?php echo json_encode($dashboard_preferences); ?>);
     });
     
     // Sektion umschalten

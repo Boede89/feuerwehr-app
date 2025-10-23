@@ -39,6 +39,9 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
     
+    // Debug: Eingabedaten loggen
+    error_log("Dashboard-Einstellung speichern - User: $user_id, Section: $section_name, Collapsed: " . ($is_collapsed ? 'true' : 'false'));
+    
     // Einstellung speichern oder aktualisieren
     $stmt = $db->prepare("
         INSERT INTO dashboard_preferences (user_id, section_name, is_collapsed) 
@@ -50,10 +53,13 @@ try {
     
     $stmt->execute([$user_id, $section_name, $is_collapsed]);
     
+    // Debug: Erfolg loggen
+    error_log("Dashboard-Einstellung erfolgreich gespeichert für User $user_id, Section $section_name");
+    
     echo json_encode(['success' => true, 'message' => 'Einstellung gespeichert']);
     
 } catch (Exception $e) {
     error_log("Fehler beim Speichern der Dashboard-Einstellung: " . $e->getMessage());
-    echo json_encode(['success' => false, 'message' => 'Fehler beim Speichern']);
+    echo json_encode(['success' => false, 'message' => 'Fehler beim Speichern: ' . $e->getMessage()]);
 }
 ?>
