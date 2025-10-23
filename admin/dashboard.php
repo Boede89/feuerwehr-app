@@ -24,10 +24,42 @@ try {
 // Functions laden für Berechtigungsprüfungen
 require_once '../includes/functions.php';
 
+// Dashboard-Einstellungen Tabelle erstellen
+try {
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS dashboard_preferences (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            section_name VARCHAR(50) NOT NULL,
+            is_collapsed BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_user_section (user_id, section_name),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+} catch (Exception $e) {
+    // Tabelle existiert bereits oder Fehler - ignorieren
+}
+
 // Login-Prüfung
 if (!isset($_SESSION["user_id"])) {
     echo '<script>window.location.href = "../login.php";</script>';
     exit();
+}
+
+// Dashboard-Einstellungen laden
+$dashboard_preferences = [];
+try {
+    $stmt = $db->prepare("SELECT section_name, is_collapsed FROM dashboard_preferences WHERE user_id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $preferences = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($preferences as $pref) {
+        $dashboard_preferences[$pref['section_name']] = $pref['is_collapsed'];
+    }
+} catch (Exception $e) {
+    // Fehler ignorieren - Standardwerte verwenden
 }
 
 // Benutzer laden
@@ -559,15 +591,16 @@ if ($can_atemschutz) {
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="card-header d-flex justify-content-between align-items-center dashboard-section-header" data-section="feedback" style="cursor: pointer;">
                         <h6 class="m-0 font-weight-bold text-info">
+                            <i class="fas fa-chevron-down collapse-icon" data-section="feedback"></i>
                             <i class="fas fa-comment-dots"></i> Feedback-Übersicht
                         </h6>
-                        <a href="feedback.php" class="btn btn-sm btn-outline-info">
+                        <a href="feedback.php" class="btn btn-sm btn-outline-info" onclick="event.stopPropagation();">
                             <i class="fas fa-eye"></i> Alle anzeigen
                         </a>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body dashboard-section-body" data-section="feedback" <?php echo (isset($dashboard_preferences['feedback']) && $dashboard_preferences['feedback']) ? 'style="display: none;"' : ''; ?>>
                         <div class="row text-center">
                             <div class="col-md-3">
                                 <a href="feedback.php?status=new" class="text-decoration-none">
@@ -613,12 +646,13 @@ if ($can_atemschutz) {
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow">
-                    <div class="card-header">
+                    <div class="card-header dashboard-section-header" data-section="reservations" style="cursor: pointer;">
                         <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-chevron-down collapse-icon" data-section="reservations"></i>
                             <i class="fas fa-calendar"></i> Offene Reservierungen (<?php echo count($pending_reservations); ?>)
                         </h6>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body dashboard-section-body" data-section="reservations" <?php echo (isset($dashboard_preferences['reservations']) && $dashboard_preferences['reservations']) ? 'style="display: none;"' : ''; ?>>
                         <?php if (empty($pending_reservations)): ?>
                             <div class="text-center py-5">
                                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
@@ -731,12 +765,13 @@ if ($can_atemschutz) {
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow">
-                    <div class="card-header">
+                    <div class="card-header dashboard-section-header" data-section="atemschutz" style="cursor: pointer;">
                         <h6 class="m-0 font-weight-bold text-info">
+                            <i class="fas fa-chevron-down collapse-icon" data-section="atemschutz"></i>
                             <i class="fas fa-clipboard-list"></i> Offene Atemschutzeinträge (<?php echo count($atemschutz_entries); ?>)
                         </h6>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body dashboard-section-body" data-section="atemschutz" <?php echo (isset($dashboard_preferences['atemschutz']) && $dashboard_preferences['atemschutz']) ? 'style="display: none;"' : ''; ?>>
                         <?php if (empty($atemschutz_entries)): ?>
                             <div class="text-center py-5">
                                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
@@ -812,12 +847,13 @@ if ($can_atemschutz) {
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow">
-                    <div class="card-header">
+                    <div class="card-header dashboard-section-header" data-section="atemschutz_warnings" style="cursor: pointer;">
                         <h6 class="m-0 font-weight-bold text-danger">
+                            <i class="fas fa-chevron-down collapse-icon" data-section="atemschutz_warnings"></i>
                             <i class="fas fa-user-shield"></i> Auffällige Geräteträger (<?php echo count($atemschutz_warnings); ?>)
                         </h6>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body dashboard-section-body" data-section="atemschutz_warnings" <?php echo (isset($dashboard_preferences['atemschutz_warnings']) && $dashboard_preferences['atemschutz_warnings']) ? 'style="display: none;"' : ''; ?>>
                         <?php if (empty($atemschutz_warnings)): ?>
                             <div class="text-center py-5">
                                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
@@ -2034,5 +2070,71 @@ if ($can_atemschutz) {
             </div>
         </div>
     </div>
+
+    <script>
+    // Dashboard Einklapp-Funktionalität
+    document.addEventListener('DOMContentLoaded', function() {
+        // Alle Dashboard-Sektionen initialisieren
+        const sections = document.querySelectorAll('.dashboard-section-header');
+        
+        sections.forEach(header => {
+            const sectionName = header.getAttribute('data-section');
+            const body = document.querySelector(`.dashboard-section-body[data-section="${sectionName}"]`);
+            const icon = header.querySelector('.collapse-icon');
+            
+            // Klick-Handler hinzufügen
+            header.addEventListener('click', function() {
+                toggleSection(sectionName, body, icon);
+            });
+            
+            // Initialen Zustand setzen basierend auf gespeicherten Einstellungen
+            const isCollapsed = body.style.display === 'none';
+            if (isCollapsed) {
+                header.classList.add('collapsed');
+                icon.style.transform = 'rotate(-90deg)';
+            }
+        });
+    });
+    
+    // Sektion umschalten
+    function toggleSection(sectionName, body, icon) {
+        const isCollapsed = body.style.display === 'none';
+        
+        if (isCollapsed) {
+            // Ausklappen
+            body.style.display = '';
+            icon.style.transform = 'rotate(0deg)';
+            saveSectionState(sectionName, false);
+        } else {
+            // Einklappen
+            body.style.display = 'none';
+            icon.style.transform = 'rotate(-90deg)';
+            saveSectionState(sectionName, true);
+        }
+    }
+    
+    // Sektion-Zustand speichern
+    function saveSectionState(sectionName, isCollapsed) {
+        fetch('api/save-dashboard-preference.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                section_name: sectionName,
+                is_collapsed: isCollapsed
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                console.error('Fehler beim Speichern der Dashboard-Einstellung:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Fehler beim Speichern der Dashboard-Einstellung:', error);
+        });
+    }
+    </script>
 </body>
 </html>
