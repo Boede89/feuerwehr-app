@@ -2124,7 +2124,7 @@ if ($can_atemschutz) {
     
     // Sektion-Zustand speichern
     function saveSectionState(sectionName, isCollapsed) {
-        fetch('api/save-dashboard-preference.php', {
+        fetch('../api/save-dashboard-preference.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
