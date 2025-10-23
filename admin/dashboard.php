@@ -482,10 +482,18 @@ if ($can_atemschutz) {
                 <i class="fas fa-fire"></i> Feuerwehr App
             </a>
             <div class="navbar-nav ms-auto">
-                <span class="navbar-text me-3">Hallo, <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>!</span>
-                <a class="btn btn-outline-light btn-sm" href="../logout.php">
-                    <i class="fas fa-sign-out-alt"></i> Abmelden
-                </a>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="profile.php"><i class="fas fa-user-edit"></i> Profil</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="../logout.php"><i class="fas fa-sign-out-alt"></i> Abmelden</a></li>
+                        </ul>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
