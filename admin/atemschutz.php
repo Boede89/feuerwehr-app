@@ -371,27 +371,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 						<div class="row g-4">
 							<div class="col-12">
 								<div class="border rounded p-3 bg-light">
-									<h6 class="mb-3"><i class="fas fa-users me-2"></i> Geräteträger auswählen</h6>
-									<div class="row" id="bulkTraegerList">
-										<?php
-										try {
-											$stmt = $db->prepare("SELECT id, first_name, last_name FROM atemschutz_traeger ORDER BY last_name, first_name");
-											$stmt->execute();
-											$allTraeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
-											if ($allTraeger) {
-												foreach ($allTraeger as $row) {
-													$name = trim(($row['last_name'] ?? '') . ', ' . ($row['first_name'] ?? ''));
-													echo '<div class="col-12 col-md-6 col-lg-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="traeger_ids[]" value="' . (int)$row['id'] . '" id="t_' . (int)$row['id'] . '"><label class="form-check-label" for="t_' . (int)$row['id'] . '">' . htmlspecialchars($name) . '</label></div></div>';
-												}
-											} else {
-												echo '<div class="col-12 text-muted">Keine Geräteträger vorhanden.</div>';
-											}
-										} catch (Exception $e) {
-											echo '<div class="col-12 text-danger">Fehler beim Laden: ' . htmlspecialchars($e->getMessage()) . '</div>';
-										}
-										?>
+									<h6 class="mb-3">
+										<i class="fas fa-users me-2"></i> Geräteträger auswählen
+										<span id="bulkSelectedCount" class="badge bg-secondary ms-2">0 ausgewählt</span>
+									</h6>
+									<div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+										<div id="bulkTraegerList">
+											<div class="text-center text-muted">
+												<i class="fas fa-spinner fa-spin"></i> Lade Geräteträger...
+											</div>
+										</div>
+									</div>
+									<!-- Versteckte Inputs für ausgewählte Geräteträger -->
+									<div id="bulkTraegerInputs"></div>
 								</div>
-							</div>
 							<div class="col-12 col-md-6">
 								<label class="form-label">Feld</label>
 								<select class="form-select" name="field" required>
@@ -465,7 +458,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 		</div>
 	</div>
 
+    <style>
+        .traeger-card {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .traeger-card:hover .card {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .traeger-card .card {
+            border: 2px solid #e9ecef;
+            transition: all 0.2s ease;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .traeger-card .card.border-primary {
+            border-color: #0d6efd !important;
+            background-color: #0d6efd !important;
+            color: white !important;
+        }
+        
+        .traeger-card .card.border-light {
+            border-color: #e9ecef !important;
+            background-color: white !important;
+            color: #212529 !important;
+        }
+        
+        .traeger-card .card-title {
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+        
+        /* Mobile Optimierung */
+        @media (max-width: 768px) {
+            .traeger-card .card {
+                min-height: 50px;
+                padding: 0.75rem;
+            }
+            
+            .traeger-card .card-title {
+                font-size: 0.9rem;
+            }
+        }
+        
+        /* Vertikales Layout für bessere mobile Darstellung */
+        #bulkTraegerList {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+    </style>
+
     <script>
+    // Globale Variable für ausgewählte Geräteträger im Bulk-Modal
+    window.bulkSelectedTraeger = new Set();
+    
     // Platzhalter-Handler – werden später mit Logik hinterlegt
     document.addEventListener('DOMContentLoaded', function(){
         const onClickInfo = (msg) => () => alert(msg + "\n(Funktion folgt)");
@@ -482,10 +535,115 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             btnRecord.addEventListener('click', function(){
                 const modal = new bootstrap.Modal(document.getElementById('bulkDataModal'));
                 modal.show();
+                // Geräteträger laden wenn Modal geöffnet wird
+                loadBulkTraeger();
             });
         }
 
         // btnPlanTraining ist jetzt ein normaler Link, kein Modal mehr
+    });
+    
+    // Geräteträger umschalten im Bulk-Modal
+    function toggleBulkTraeger(traegerId) {
+        const card = document.querySelector(`[data-bulk-traeger-id="${traegerId}"]`);
+        const cardBody = card.querySelector('.card');
+        
+        if (window.bulkSelectedTraeger.has(traegerId)) {
+            // Geräteträger abwählen
+            window.bulkSelectedTraeger.delete(traegerId);
+            cardBody.classList.remove('border-primary', 'bg-primary', 'text-white');
+            cardBody.classList.add('border-light');
+        } else {
+            // Geräteträger auswählen
+            window.bulkSelectedTraeger.add(traegerId);
+            cardBody.classList.remove('border-light');
+            cardBody.classList.add('border-primary', 'bg-primary', 'text-white');
+        }
+        
+        // Zähler aktualisieren
+        updateBulkSelectedCount();
+        
+        // Versteckte Inputs aktualisieren
+        updateBulkTraegerInputs();
+    }
+    
+    // Zähler für ausgewählte Geräteträger aktualisieren
+    function updateBulkSelectedCount() {
+        const count = window.bulkSelectedTraeger.size;
+        const countElement = document.getElementById('bulkSelectedCount');
+        countElement.textContent = `${count} ausgewählt`;
+        
+        if (count > 0) {
+            countElement.classList.remove('bg-secondary');
+            countElement.classList.add('bg-primary');
+        } else {
+            countElement.classList.remove('bg-primary');
+            countElement.classList.add('bg-secondary');
+        }
+    }
+    
+    // Versteckte Inputs für ausgewählte Geräteträger aktualisieren
+    function updateBulkTraegerInputs() {
+        const inputsContainer = document.getElementById('bulkTraegerInputs');
+        inputsContainer.innerHTML = '';
+        
+        window.bulkSelectedTraeger.forEach(traegerId => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'traeger_ids[]';
+            input.value = traegerId;
+            inputsContainer.appendChild(input);
+        });
+    }
+    
+    // Geräteträger für Bulk-Modal laden
+    function loadBulkTraeger() {
+        const traegerList = document.getElementById('bulkTraegerList');
+        traegerList.innerHTML = '<div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Geräteträger...</div>';
+        
+        fetch('../api/get-atemschutz-traeger.php')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let html = '';
+                    data.traeger.forEach(traeger => {
+                        html += `
+                            <div class="traeger-card mb-2" data-bulk-traeger-id="${traeger.id}" onclick="toggleBulkTraeger(${traeger.id})">
+                                <div class="card h-100">
+                                    <div class="card-body p-3 text-center">
+                                        <h6 class="card-title mb-0">${traeger.first_name} ${traeger.last_name}</h6>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    traegerList.innerHTML = html;
+                } else {
+                    traegerList.innerHTML = '<div class="text-center text-danger"><i class="fas fa-exclamation-triangle"></i> Fehler beim Laden der Geräteträger</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                traegerList.innerHTML = '<div class="text-center text-danger"><i class="fas fa-exclamation-triangle"></i> Fehler beim Laden der Geräteträger</div>';
+            });
+    }
+    
+    // Modal Reset beim Schließen
+    document.getElementById('bulkDataModal').addEventListener('hidden.bs.modal', function() {
+        // Auswahl zurücksetzen
+        window.bulkSelectedTraeger.clear();
+        
+        // Karten zurücksetzen
+        document.querySelectorAll('.traeger-card .card').forEach(card => {
+            card.classList.remove('border-primary', 'bg-primary', 'text-white');
+            card.classList.add('border-light');
+        });
+        
+        // Zähler zurücksetzen
+        updateBulkSelectedCount();
+        
+        // Inputs zurücksetzen
+        updateBulkTraegerInputs();
     });
     
     </script>
