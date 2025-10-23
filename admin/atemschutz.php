@@ -537,6 +537,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 modal.show();
                 // Geräteträger laden wenn Modal geöffnet wird
                 loadBulkTraeger();
+                // Heutiges Datum setzen
+                setTodayDate();
             });
         }
 
@@ -626,6 +628,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 console.error('Fehler:', error);
                 traegerList.innerHTML = '<div class="text-center text-danger"><i class="fas fa-exclamation-triangle"></i> Fehler beim Laden der Geräteträger</div>';
             });
+    }
+    
+    // Heutiges Datum setzen
+    function setTodayDate() {
+        const today = new Date().toISOString().split('T')[0];
+        const dateInput = document.querySelector('input[name="date_value"]');
+        if (dateInput) {
+            dateInput.value = today;
+        }
     }
     
     // Modal Reset beim Schließen
