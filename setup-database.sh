@@ -8,8 +8,8 @@ echo "🗄️ Datenbank-Setup wird ausgeführt..."
 # Warten bis MySQL bereit ist (mehrfache Versuche)
 echo "⏳ Warte auf MySQL-Container..."
 MYSQL_READY=false
-for i in {1..10}; do
-    echo "Versuch $i/10: Prüfe MySQL-Container..."
+for i in {1..15}; do
+    echo "Versuch $i/15: Prüfe MySQL-Container..."
     if docker ps | grep -q "feuerwehr_mysql"; then
         echo "MySQL-Container läuft, teste Verbindung..."
         if docker exec feuerwehr_mysql mysql -u root -proot_password_2024 -e "SELECT 1;" &> /dev/null; then
@@ -17,21 +17,22 @@ for i in {1..10}; do
             MYSQL_READY=true
             break
         else
-            echo "MySQL läuft noch nicht, warte 15 Sekunden..."
-            sleep 15
+            echo "MySQL läuft noch nicht, warte 20 Sekunden..."
+            sleep 20
         fi
     else
-        echo "MySQL-Container läuft noch nicht, warte 15 Sekunden..."
-        sleep 15
+        echo "MySQL-Container läuft noch nicht, warte 20 Sekunden..."
+        sleep 20
     fi
 done
 
 if [ "$MYSQL_READY" = false ]; then
-    echo "❌ MySQL-Container ist nach 10 Versuchen nicht bereit!"
+    echo "❌ MySQL-Container ist nach 15 Versuchen nicht bereit!"
     echo "🔍 Container-Status:"
     docker ps -a | grep feuerwehr
     echo "📋 MySQL-Logs:"
-    docker logs feuerwehr_mysql --tail 20
+    docker logs feuerwehr_mysql --tail 30
+    echo "⏳ Versuchen Sie es in 2-3 Minuten erneut mit: ./setup-database.sh"
     exit 1
 fi
 
