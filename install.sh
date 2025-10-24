@@ -156,6 +156,11 @@ done
 if [ "$DB_CONNECTED" = false ]; then
     print_warning "Datenbank-Verbindung fehlgeschlagen - Container brauchen möglicherweise mehr Zeit"
     print_warning "Versuchen Sie es später mit: docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password feuerwehr_app"
+else
+    # Datenbank-Setup ausführen
+    echo "🔧 Führe Datenbank-Setup aus..."
+    chmod +x setup-database.sh
+    ./setup-database.sh
 fi
 
 # Installation abgeschlossen

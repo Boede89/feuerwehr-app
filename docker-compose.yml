@@ -26,6 +26,7 @@ services:
       --skip-networking=false
       --skip-name-resolve
       --innodb-buffer-pool-size=128M
+      --init-file=/docker-entrypoint-initdb.d/01-schema.sql
 
   # phpMyAdmin
   phpmyadmin:
