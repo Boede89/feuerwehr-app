@@ -25,27 +25,48 @@ print_error() {
     echo -e "${RED}✗${NC} $1"
 }
 
-# System-Update
+# System-Update und notwendige Pakete installieren
 echo "📦 System wird aktualisiert..."
 sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl wget ca-certificates gnupg lsb-release
 print_status "System aktualisiert"
 
 # Docker installieren
 if ! command -v docker &> /dev/null; then
     echo "🐳 Docker wird installiert..."
-    curl -fsSL https://get.docker.com -o get-docker.sh
-    sudo sh get-docker.sh
+    
+    # Docker GPG Key hinzufügen
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    
+    # Docker Repository hinzufügen
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    # Docker installieren
+    sudo apt update
+    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    
+    # Docker Service starten
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    
+    # Benutzer zur Docker-Gruppe hinzufügen
     sudo usermod -aG docker $USER
+    
     print_status "Docker installiert"
 else
     print_status "Docker bereits installiert"
 fi
 
-# Docker Compose installieren
-if ! command -v docker-compose &> /dev/null; then
+# Docker Compose installieren (falls nicht vorhanden)
+if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
     echo "🐳 Docker Compose wird installiert..."
-    sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    
+    # Neueste Version von Docker Compose herunterladen
+    COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d\" -f4)
+    sudo curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     sudo chmod +x /usr/local/bin/docker-compose
+    
     print_status "Docker Compose installiert"
 else
     print_status "Docker Compose bereits installiert"
@@ -68,7 +89,17 @@ print_status "Berechtigungen gesetzt"
 
 # Docker Container starten
 echo "🚀 Docker Container werden gestartet..."
-docker-compose up -d
+
+# Prüfen welche Docker Compose Version verfügbar ist
+if command -v docker-compose &> /dev/null; then
+    docker-compose up -d
+elif docker compose version &> /dev/null; then
+    docker compose up -d
+else
+    print_error "Docker Compose nicht gefunden!"
+    exit 1
+fi
+
 print_status "Docker Container gestartet"
 
 # Warten bis Container bereit sind
@@ -77,12 +108,22 @@ sleep 30
 
 # Container-Status prüfen
 echo "🔍 Container-Status wird geprüft..."
-if docker-compose ps | grep -q "Up"; then
-    print_status "Container laufen erfolgreich"
-else
-    print_error "Einige Container sind nicht gestartet"
-    docker-compose ps
-    exit 1
+if command -v docker-compose &> /dev/null; then
+    if docker-compose ps | grep -q "Up"; then
+        print_status "Container laufen erfolgreich"
+    else
+        print_error "Einige Container sind nicht gestartet"
+        docker-compose ps
+        exit 1
+    fi
+elif docker compose version &> /dev/null; then
+    if docker compose ps | grep -q "Up"; then
+        print_status "Container laufen erfolgreich"
+    else
+        print_error "Einige Container sind nicht gestartet"
+        docker compose ps
+        exit 1
+    fi
 fi
 
 # Datenbank-Verbindung testen
@@ -99,14 +140,17 @@ echo ""
 echo "🎉 Installation abgeschlossen!"
 echo "================================"
 echo ""
-echo "📱 Webanwendung: http://localhost"
+echo "📱 Webanwendung: http://localhost:8081"
 echo "🗄️ phpMyAdmin: http://localhost:8080"
 echo ""
 echo "👤 Standard-Admin-Zugang:"
 echo "   Benutzername: admin"
 echo "   Passwort: admin123"
 echo ""
-echo "⚠️  WICHTIG: Ändern Sie das Admin-Passwort nach der ersten Anmeldung!"
+echo "⚠️  WICHTIGE HINWEISE:"
+echo "1. Ändern Sie das Admin-Passwort nach der ersten Anmeldung!"
+echo "2. Falls Docker-Befehle nicht funktionieren, melden Sie sich neu an oder führen Sie aus:"
+echo "   newgrp docker"
 echo ""
 echo "📋 Nächste Schritte:"
 echo "1. Melden Sie sich als Admin an"
