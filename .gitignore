@@ -126,3 +126,25 @@ public
 # Temporary folders
 tmp/
 temp/
+
+# Test and Debug files - NEVER commit these
+test-*.php
+debug-*.php
+check-*.php
+fix-*.php
+create-test-*.php
+force-*.php
+simple-*.php
+manual-*.php
+complete-*.php
+show-*.php
+global-*.php
+icon-*.php
+insert-json-directly.php
+recreate-reservations.php
+verify-*.php
+upload-google-calendar.php
+copy-json-from-file.php
+create-minimal-reservations.php
+install-*.php
+setup-*.php
