@@ -82,6 +82,13 @@ CREATE TABLE IF NOT EXISTS users (
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     is_admin BOOLEAN DEFAULT FALSE,
+    user_role ENUM('admin', 'approver', 'user') DEFAULT 'user',
+    email_notifications TINYINT(1) DEFAULT 1,
+    can_reservations TINYINT(1) DEFAULT 1,
+    can_atemschutz TINYINT(1) DEFAULT 0,
+    can_users TINYINT(1) DEFAULT 0,
+    can_settings TINYINT(1) DEFAULT 0,
+    can_vehicles TINYINT(1) DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -230,8 +237,8 @@ CREATE TABLE IF NOT EXISTS dashboard_preferences (
 );
 
 -- Standard-Admin-Benutzer erstellen
-INSERT IGNORE INTO users (username, email, password_hash, first_name, last_name, is_admin, is_active) 
-VALUES ('admin', 'admin@feuerwehr.local', '\$2y\$10\$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin', 'User', 1, 1);
+INSERT IGNORE INTO users (username, email, password_hash, first_name, last_name, is_admin, user_role, email_notifications, can_reservations, can_atemschutz, can_users, can_settings, can_vehicles, is_active) 
+VALUES ('admin', 'admin@feuerwehr.local', '\$2y\$10\$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin', 'User', 1, 'admin', 1, 1, 1, 1, 1, 1, 1);
 
 -- Standard-Fahrzeuge hinzufügen
 INSERT IGNORE INTO vehicles (name, type, description, capacity, is_active) VALUES
