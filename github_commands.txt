@@ -1,0 +1,16 @@
+# GitHub Upload Befehle
+# Führen Sie diese Befehle in der Kommandozeile aus (im Feuerwehrapp Verzeichnis)
+
+# 1. Remote Repository hinzufügen (ersetzen Sie USERNAME durch Ihren GitHub-Benutzernamen)
+git remote add origin https://github.com/USERNAME/feuerwehr-app.git
+
+# 2. Branch auf main setzen
+git branch -M main
+
+# 3. Erste Push zum GitHub Repository
+git push -u origin main
+
+# Beispiel mit Benutzername "maxmustermann":
+# git remote add origin https://github.com/maxmustermann/feuerwehr-app.git
+# git branch -M main
+# git push -u origin main

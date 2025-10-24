@@ -1,0 +1,3 @@
+Profil Dropdown zu allen Seiten hinzugefügt.
+Atemschutz - Daten hinterlegen Modal - Auswahl der AGT´s angepasst + Aktuelles Datum als Standard
+Ein-/Ausklappfunktion der einzelnen Bereiche auf dem Dashboard hinzugefügt.
