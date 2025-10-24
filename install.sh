@@ -153,28 +153,37 @@ for i in {1..5}; do
     fi
 done
 
-# Datenbank-Setup ausführen (unabhängig von Verbindungsstatus)
-echo "🔧 Führe Datenbank-Setup aus..."
+# Datenbank-Setup ausführen (immer mit robustem Setup)
+echo "🔧 Führe robustes Datenbank-Setup aus..."
 chmod +x setup-database.sh
+chmod +x quick-setup.sh
 
-if [ "$DB_CONNECTED" = true ]; then
-    # Datenbank ist verbunden, Setup direkt ausführen
-    ./setup-database.sh
-else
-    # Datenbank-Verbindung fehlgeschlagen, aber Setup trotzdem versuchen
-    print_warning "Datenbank-Verbindung fehlgeschlagen, aber Setup wird trotzdem versucht..."
-    print_warning "Das Setup-Skript wartet automatisch auf MySQL-Container"
-    ./setup-database.sh
-    
-    # Nach Setup nochmal Verbindung testen
-    echo "🔍 Teste Datenbank-Verbindung nach Setup..."
-    sleep 10
+# Verwende das robuste Setup-Skript
+print_status "Verwende robustes MySQL-Setup ohne Schema-Datei-Probleme"
+./setup-database.sh
+
+# Nach Setup Verbindung testen
+echo "🔍 Teste Datenbank-Verbindung nach Setup..."
+sleep 15
+
+# Mehrfache Verbindungstests
+DB_FINAL_CONNECTED=false
+for i in {1..3}; do
+    echo "Finaler Test $i/3: Datenbank-Verbindung..."
     if docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password -e "SELECT 1;" feuerwehr_app &> /dev/null; then
-        print_status "Datenbank-Verbindung nach Setup erfolgreich"
+        print_status "✅ Datenbank-Verbindung nach Setup erfolgreich"
+        DB_FINAL_CONNECTED=true
+        break
     else
-        print_warning "Datenbank-Setup abgeschlossen, aber Verbindung noch nicht verfügbar"
-        print_warning "Versuchen Sie es in ein paar Minuten mit: docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password feuerwehr_app"
+        echo "Test $i fehlgeschlagen, warte 10 Sekunden..."
+        sleep 10
     fi
+done
+
+if [ "$DB_FINAL_CONNECTED" = false ]; then
+    print_warning "Datenbank-Setup abgeschlossen, aber Verbindung noch nicht verfügbar"
+    print_warning "Versuchen Sie das schnelle Setup: ./quick-setup.sh"
+    print_warning "Oder warten Sie 2-3 Minuten und versuchen Sie es erneut"
 fi
 
 # Installation abgeschlossen

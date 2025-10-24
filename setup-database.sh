@@ -39,6 +39,36 @@ fi
 # Datenbank und Tabellen erstellen
 echo "📊 Erstelle Datenbank und Tabellen..."
 
+# Zuerst MySQL-Benutzer für alle möglichen Hosts erstellen
+echo "👤 Erstelle MySQL-Benutzer für alle Hosts..."
+docker exec feuerwehr_mysql mysql -u root -proot_password_2024 -e "
+-- Root-Benutzer für alle Hosts aktivieren
+CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY 'root_password_2024';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+
+-- Feuerwehr-Benutzer für alle möglichen Hosts erstellen
+CREATE USER IF NOT EXISTS 'feuerwehr_user'@'%' IDENTIFIED BY 'feuerwehr_password';
+CREATE USER IF NOT EXISTS 'feuerwehr_user'@'localhost' IDENTIFIED BY 'feuerwehr_password';
+CREATE USER IF NOT EXISTS 'feuerwehr_user'@'127.0.0.1' IDENTIFIED BY 'feuerwehr_password';
+
+-- Berechtigungen für alle Hosts setzen
+GRANT ALL PRIVILEGES ON feuerwehr_app.* TO 'feuerwehr_user'@'%';
+GRANT ALL PRIVILEGES ON feuerwehr_app.* TO 'feuerwehr_user'@'localhost';
+GRANT ALL PRIVILEGES ON feuerwehr_app.* TO 'feuerwehr_user'@'127.0.0.1';
+
+-- Zusätzliche Berechtigungen für Datenbank-Operationen
+GRANT CREATE, DROP, ALTER, INDEX, CREATE TEMPORARY TABLES, LOCK TABLES ON feuerwehr_app.* TO 'feuerwehr_user'@'%';
+GRANT CREATE, DROP, ALTER, INDEX, CREATE TEMPORARY TABLES, LOCK TABLES ON feuerwehr_app.* TO 'feuerwehr_user'@'localhost';
+GRANT CREATE, DROP, ALTER, INDEX, CREATE TEMPORARY TABLES, LOCK TABLES ON feuerwehr_app.* TO 'feuerwehr_user'@'127.0.0.1';
+
+-- Berechtigungen sofort aktivieren
+FLUSH PRIVILEGES;
+
+SELECT 'MySQL-Benutzer erfolgreich erstellt!' as message;
+"
+
+# Jetzt Datenbank und Tabellen erstellen
+echo "📊 Erstelle Datenbank und Tabellen..."
 docker exec feuerwehr_mysql mysql -u root -proot_password_2024 -e "
 CREATE DATABASE IF NOT EXISTS feuerwehr_app CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE feuerwehr_app;
