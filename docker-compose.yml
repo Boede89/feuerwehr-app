@@ -11,18 +11,21 @@ services:
       MYSQL_DATABASE: feuerwehr_app
       MYSQL_USER: feuerwehr_user
       MYSQL_PASSWORD: feuerwehr_password
+      MYSQL_ROOT_HOST: '%'
     volumes:
       - mysql_data:/var/lib/mysql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/init-users.sql:/docker-entrypoint-initdb.d/02-init-users.sql
     ports:
       - "3306:3306"
     networks:
       - feuerwehr_network
     command: >
       --default-authentication-plugin=mysql_native_password
-      --init-file=/docker-entrypoint-initdb.d/01-schema.sql
       --bind-address=0.0.0.0
       --skip-networking=false
+      --skip-name-resolve
+      --innodb-buffer-pool-size=128M
 
   # phpMyAdmin
   phpmyadmin:

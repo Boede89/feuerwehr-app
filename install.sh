@@ -90,11 +90,21 @@ print_status "Berechtigungen gesetzt"
 # Docker Container starten
 echo "🚀 Docker Container werden gestartet..."
 
-# Prüfen welche Docker Compose Version verfügbar ist
+# Bestehende Container und Volumes löschen (für saubere Installation)
+echo "🧹 Bestehende Container werden entfernt..."
+if command -v docker-compose &> /dev/null; then
+    docker-compose down -v 2>/dev/null || true
+elif docker compose version &> /dev/null; then
+    docker compose down -v 2>/dev/null || true
+fi
+
+# Container starten
 if command -v docker-compose &> /dev/null; then
     docker-compose up -d
+    COMPOSE_CMD="docker-compose"
 elif docker compose version &> /dev/null; then
     docker compose up -d
+    COMPOSE_CMD="docker compose"
 else
     print_error "Docker Compose nicht gefunden!"
     exit 1
@@ -103,25 +113,24 @@ fi
 print_status "Docker Container gestartet"
 
 # Warten bis Container bereit sind
-echo "⏳ Warten auf Container..."
-sleep 30
+echo "⏳ Warten auf Container-Initialisierung..."
+sleep 45
 
 # Container-Status prüfen
 echo "🔍 Container-Status wird geprüft..."
-if command -v docker-compose &> /dev/null; then
-    if docker-compose ps | grep -q "Up"; then
-        print_status "Container laufen erfolgreich"
+if $COMPOSE_CMD ps | grep -q "Up"; then
+    print_status "Container laufen erfolgreich"
+else
+    print_error "Einige Container sind nicht gestartet"
+    $COMPOSE_CMD ps
+    print_warning "Versuche Container-Neustart..."
+    $COMPOSE_CMD restart
+    sleep 30
+    if $COMPOSE_CMD ps | grep -q "Up"; then
+        print_status "Container nach Neustart erfolgreich"
     else
-        print_error "Einige Container sind nicht gestartet"
-        docker-compose ps
-        exit 1
-    fi
-elif docker compose version &> /dev/null; then
-    if docker compose ps | grep -q "Up"; then
-        print_status "Container laufen erfolgreich"
-    else
-        print_error "Einige Container sind nicht gestartet"
-        docker compose ps
+        print_error "Container-Start fehlgeschlagen"
+        $COMPOSE_CMD logs
         exit 1
     fi
 fi
@@ -129,10 +138,24 @@ fi
 # Datenbank-Verbindung testen
 echo "🗄️ Datenbank-Verbindung wird getestet..."
 sleep 10
-if docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password -e "SELECT 1;" feuerwehr_app &> /dev/null; then
-    print_status "Datenbank-Verbindung erfolgreich"
-else
+
+# Mehrfache Versuche für Datenbank-Verbindung
+DB_CONNECTED=false
+for i in {1..5}; do
+    echo "Versuch $i/5: Datenbank-Verbindung testen..."
+    if docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password -e "SELECT 1;" feuerwehr_app &> /dev/null; then
+        print_status "Datenbank-Verbindung erfolgreich"
+        DB_CONNECTED=true
+        break
+    else
+        echo "Versuch $i fehlgeschlagen, warte 10 Sekunden..."
+        sleep 10
+    fi
+done
+
+if [ "$DB_CONNECTED" = false ]; then
     print_warning "Datenbank-Verbindung fehlgeschlagen - Container brauchen möglicherweise mehr Zeit"
+    print_warning "Versuchen Sie es später mit: docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password feuerwehr_app"
 fi
 
 # Installation abgeschlossen
