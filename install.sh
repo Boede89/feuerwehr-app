@@ -153,14 +153,28 @@ for i in {1..5}; do
     fi
 done
 
-if [ "$DB_CONNECTED" = false ]; then
-    print_warning "Datenbank-Verbindung fehlgeschlagen - Container brauchen möglicherweise mehr Zeit"
-    print_warning "Versuchen Sie es später mit: docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password feuerwehr_app"
-else
-    # Datenbank-Setup ausführen
-    echo "🔧 Führe Datenbank-Setup aus..."
-    chmod +x setup-database.sh
+# Datenbank-Setup ausführen (unabhängig von Verbindungsstatus)
+echo "🔧 Führe Datenbank-Setup aus..."
+chmod +x setup-database.sh
+
+if [ "$DB_CONNECTED" = true ]; then
+    # Datenbank ist verbunden, Setup direkt ausführen
     ./setup-database.sh
+else
+    # Datenbank-Verbindung fehlgeschlagen, aber Setup trotzdem versuchen
+    print_warning "Datenbank-Verbindung fehlgeschlagen, aber Setup wird trotzdem versucht..."
+    print_warning "Das Setup-Skript wartet automatisch auf MySQL-Container"
+    ./setup-database.sh
+    
+    # Nach Setup nochmal Verbindung testen
+    echo "🔍 Teste Datenbank-Verbindung nach Setup..."
+    sleep 10
+    if docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password -e "SELECT 1;" feuerwehr_app &> /dev/null; then
+        print_status "Datenbank-Verbindung nach Setup erfolgreich"
+    else
+        print_warning "Datenbank-Setup abgeschlossen, aber Verbindung noch nicht verfügbar"
+        print_warning "Versuchen Sie es in ein paar Minuten mit: docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password feuerwehr_app"
+    fi
 fi
 
 # Installation abgeschlossen

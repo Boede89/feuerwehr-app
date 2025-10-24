@@ -5,13 +5,33 @@
 
 echo "🗄️ Datenbank-Setup wird ausgeführt..."
 
-# Warten bis MySQL bereit ist
+# Warten bis MySQL bereit ist (mehrfache Versuche)
 echo "⏳ Warte auf MySQL-Container..."
-sleep 30
+MYSQL_READY=false
+for i in {1..10}; do
+    echo "Versuch $i/10: Prüfe MySQL-Container..."
+    if docker ps | grep -q "feuerwehr_mysql"; then
+        echo "MySQL-Container läuft, teste Verbindung..."
+        if docker exec feuerwehr_mysql mysql -u root -proot_password_2024 -e "SELECT 1;" &> /dev/null; then
+            echo "✅ MySQL ist bereit!"
+            MYSQL_READY=true
+            break
+        else
+            echo "MySQL läuft noch nicht, warte 15 Sekunden..."
+            sleep 15
+        fi
+    else
+        echo "MySQL-Container läuft noch nicht, warte 15 Sekunden..."
+        sleep 15
+    fi
+done
 
-# Prüfen ob MySQL-Container läuft
-if ! docker ps | grep -q "feuerwehr_mysql"; then
-    echo "❌ MySQL-Container läuft nicht!"
+if [ "$MYSQL_READY" = false ]; then
+    echo "❌ MySQL-Container ist nach 10 Versuchen nicht bereit!"
+    echo "🔍 Container-Status:"
+    docker ps -a | grep feuerwehr
+    echo "📋 MySQL-Logs:"
+    docker logs feuerwehr_mysql --tail 20
     exit 1
 fi
 
@@ -211,6 +231,61 @@ echo "✅ Datenbank-Setup abgeschlossen!"
 echo "🔍 Prüfe Tabellen..."
 
 # Tabellen-Status prüfen
+echo "📋 Verfügbare Tabellen:"
 docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password feuerwehr_app -e "SHOW TABLES;"
 
-echo "🎉 Datenbank ist bereit!"
+# Prüfen ob wichtige Tabellen existieren
+echo "🔍 Prüfe wichtige Tabellen..."
+TABLES_EXIST=true
+
+# Prüfe users-Tabelle
+if ! docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password feuerwehr_app -e "DESCRIBE users;" &> /dev/null; then
+    echo "❌ users-Tabelle fehlt!"
+    TABLES_EXIST=false
+else
+    echo "✅ users-Tabelle vorhanden"
+fi
+
+# Prüfe vehicles-Tabelle
+if ! docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password feuerwehr_app -e "DESCRIBE vehicles;" &> /dev/null; then
+    echo "❌ vehicles-Tabelle fehlt!"
+    TABLES_EXIST=false
+else
+    echo "✅ vehicles-Tabelle vorhanden"
+fi
+
+# Prüfe reservations-Tabelle
+if ! docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password feuerwehr_app -e "DESCRIBE reservations;" &> /dev/null; then
+    echo "❌ reservations-Tabelle fehlt!"
+    TABLES_EXIST=false
+else
+    echo "✅ reservations-Tabelle vorhanden"
+fi
+
+# Prüfe Admin-Benutzer
+echo "👤 Prüfe Admin-Benutzer..."
+ADMIN_COUNT=$(docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password feuerwehr_app -e "SELECT COUNT(*) FROM users WHERE username='admin';" -s -N 2>/dev/null || echo "0")
+if [ "$ADMIN_COUNT" -gt 0 ]; then
+    echo "✅ Admin-Benutzer vorhanden"
+else
+    echo "❌ Admin-Benutzer fehlt!"
+    TABLES_EXIST=false
+fi
+
+# Prüfe Beispiel-Fahrzeuge
+echo "🚒 Prüfe Beispiel-Fahrzeuge..."
+VEHICLE_COUNT=$(docker exec feuerwehr_mysql mysql -u feuerwehr_user -pfeuerwehr_password feuerwehr_app -e "SELECT COUNT(*) FROM vehicles;" -s -N 2>/dev/null || echo "0")
+if [ "$VEHICLE_COUNT" -gt 0 ]; then
+    echo "✅ Beispiel-Fahrzeuge vorhanden ($VEHICLE_COUNT Fahrzeuge)"
+else
+    echo "❌ Beispiel-Fahrzeuge fehlen!"
+    TABLES_EXIST=false
+fi
+
+if [ "$TABLES_EXIST" = true ]; then
+    echo "🎉 Datenbank ist vollständig bereit!"
+    echo "🔗 Sie können sich jetzt mit admin/admin123 anmelden"
+else
+    echo "⚠️  Einige Tabellen oder Daten fehlen!"
+    echo "🔄 Versuchen Sie einen Container-Neustart: docker compose restart"
+fi
