@@ -223,10 +223,20 @@ try {
         .ausbilder-liste {
             max-height: 400px;
             overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
         }
         .ausbilder-liste .form-check {
-            padding: 10px 15px;
+            padding: 12px 15px 12px 40px;
             border-bottom: 1px solid #eee;
+            margin: 0;
+            position: relative;
+        }
+        .ausbilder-liste .form-check .form-check-input {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
             margin: 0;
         }
         .ausbilder-liste .form-check:last-child {
@@ -234,6 +244,10 @@ try {
         }
         .ausbilder-liste .form-check:hover {
             background: #f8f9fa;
+        }
+        .ausbilder-liste .form-check-label {
+            cursor: pointer;
+            display: block;
         }
     </style>
 </head>
