@@ -78,8 +78,6 @@ try {
             // - Noch gültig: Spätestmöglichen Termin VOR dem Ablauf (um das Datum so lange wie möglich hinauszuzögern)
             // - ALLE Geräteträger sollen verplant werden
             
-            $heute = date('Y-m-d');
-            
             // 1. Alle aktiven Geräteträger ohne Zuordnung laden
             $stmt = $db->prepare("
                 SELECT at.id, at.first_name, at.last_name,
@@ -109,9 +107,9 @@ try {
                 ORDER BY t.termin_datum ASC
             ");
             $stmt->execute();
-            $termine = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $termineRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            if (empty($termine)) {
+            if (empty($termineRaw)) {
                 echo json_encode(['success' => false, 'message' => 'Keine Termine mit freien Plätzen verfügbar']);
                 break;
             }
@@ -121,74 +119,73 @@ try {
                 break;
             }
             
-            // Berechne Gesamtkapazität
-            $gesamtKapazitaet = array_sum(array_column($termine, 'freie_plaetze'));
-            $anzahlTraeger = count($nichtZugeordnet);
+            // Termine in ein assoziatives Array umwandeln für einfachen Zugriff
+            $termine = [];
+            foreach ($termineRaw as $t) {
+                $termine[$t['id']] = [
+                    'id' => $t['id'],
+                    'termin_datum' => $t['termin_datum'],
+                    'max_teilnehmer' => (int)$t['max_teilnehmer'],
+                    'freie_plaetze' => (int)$t['freie_plaetze']
+                ];
+            }
+            
+            // Termine-IDs nach Datum sortiert (für schnellen Zugriff)
+            $terminIdsSortiert = array_keys($termine);
             
             // 3. Zuordnung durchführen
             $zugeordnet = 0;
             $nichtVerplant = 0;
             $insertStmt = $db->prepare("INSERT INTO strecke_zuordnungen (termin_id, traeger_id) VALUES (?, ?)");
             
-            // Kopie der Termine für die Bearbeitung
-            $termineKopie = $termine;
-            
             foreach ($nichtZugeordnet as $traeger) {
                 $strecke_bis = $traeger['strecke_bis'];
                 $tage_bis_ablauf = $traeger['tage_bis_ablauf'];
-                $bestTermin = null;
-                $bestTerminIndex = null;
+                $bestTerminId = null;
                 
-                // Fall 1: Bereits abgelaufen oder kein Datum vorhanden -> Frühesten Termin
-                if ($strecke_bis === null || $tage_bis_ablauf < 0) {
+                // Fall 1: Bereits abgelaufen oder kein Datum vorhanden -> Frühesten Termin mit freien Plätzen
+                if ($strecke_bis === null || $tage_bis_ablauf === null || (int)$tage_bis_ablauf < 0) {
                     // Nimm den frühesten verfügbaren Termin
-                    foreach ($termineKopie as $idx => &$termin) {
-                        if ($termin['freie_plaetze'] > 0) {
-                            $bestTermin = &$termin;
-                            $bestTerminIndex = $idx;
+                    foreach ($terminIdsSortiert as $terminId) {
+                        if ($termine[$terminId]['freie_plaetze'] > 0) {
+                            $bestTerminId = $terminId;
                             break;
                         }
                     }
-                    unset($termin);
                 }
                 // Fall 2: Noch gültig -> Spätestmöglichen Termin VOR dem Ablauf
                 else {
                     // Suche den spätesten Termin, der noch vor dem Ablaufdatum liegt
                     // Gehe rückwärts durch die Termine (vom spätesten zum frühesten)
-                    for ($i = count($termineKopie) - 1; $i >= 0; $i--) {
-                        $termin = &$termineKopie[$i];
-                        if ($termin['freie_plaetze'] <= 0) {
-                            unset($termin);
+                    $reversedIds = array_reverse($terminIdsSortiert);
+                    foreach ($reversedIds as $terminId) {
+                        if ($termine[$terminId]['freie_plaetze'] <= 0) {
                             continue;
                         }
                         
                         // Termin liegt vor oder am Ablaufdatum?
-                        if ($termin['termin_datum'] <= $strecke_bis) {
-                            $bestTermin = &$termin;
-                            $bestTerminIndex = $i;
+                        if ($termine[$terminId]['termin_datum'] <= $strecke_bis) {
+                            $bestTerminId = $terminId;
                             break;
                         }
-                        unset($termin);
                     }
                     
                     // Falls kein Termin vor dem Ablaufdatum gefunden wurde,
                     // nimm den frühesten verfügbaren (besser zu spät als gar nicht)
-                    if (!$bestTermin) {
-                        foreach ($termineKopie as $idx => &$termin) {
-                            if ($termin['freie_plaetze'] > 0) {
-                                $bestTermin = &$termin;
-                                $bestTerminIndex = $idx;
+                    if ($bestTerminId === null) {
+                        foreach ($terminIdsSortiert as $terminId) {
+                            if ($termine[$terminId]['freie_plaetze'] > 0) {
+                                $bestTerminId = $terminId;
                                 break;
                             }
                         }
-                        unset($termin);
                     }
                 }
                 
                 // Zuordnung durchführen
-                if ($bestTermin && $bestTerminIndex !== null) {
-                    $insertStmt->execute([$bestTermin['id'], $traeger['id']]);
-                    $termineKopie[$bestTerminIndex]['freie_plaetze']--;
+                if ($bestTerminId !== null) {
+                    $insertStmt->execute([$bestTerminId, $traeger['id']]);
+                    $termine[$bestTerminId]['freie_plaetze']--;
                     $zugeordnet++;
                 } else {
                     $nichtVerplant++;
