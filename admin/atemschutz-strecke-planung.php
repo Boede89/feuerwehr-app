@@ -203,6 +203,23 @@ try {
             font-size: 0.75rem;
             color: #198754;
         }
+        .ablauf-datum {
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
+        .traeger-badge .ablauf-datum {
+            display: block;
+            margin-top: 2px;
+            font-weight: normal;
+        }
+        .termin-drop-zone .traeger-badge {
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 8px 12px;
+        }
+        .termin-drop-zone .traeger-badge .ablauf-datum {
+            margin-left: 15px;
+        }
     </style>
 </head>
 <body>
@@ -274,19 +291,22 @@ try {
                             if ($t['tage_bis_ablauf'] < 0) $statusClass = 'rot';
                             elseif ($t['tage_bis_ablauf'] <= $warnDays) $statusClass = 'gelb';
                         }
+                        $streckeBisFormatiert = $t['strecke_bis'] ? date('d.m.Y', strtotime($t['strecke_bis'])) : null;
                 ?>
                     <span class="traeger-badge" 
                           draggable="true" 
                           data-traeger-id="<?php echo $t['id']; ?>"
                           data-name="<?php echo htmlspecialchars($t['first_name'] . ' ' . $t['last_name']); ?>"
                           data-email="<?php echo htmlspecialchars($t['email'] ?? ''); ?>"
-                          data-ablauf="<?php echo $t['tage_bis_ablauf']; ?>">
+                          data-strecke-bis="<?php echo $t['strecke_bis'] ?? ''; ?>">
                         <span class="status-dot <?php echo $statusClass; ?>"></span>
                         <?php echo htmlspecialchars($t['first_name'] . ' ' . $t['last_name']); ?>
-                        <?php if ($t['tage_bis_ablauf'] !== null): ?>
-                            <small class="ms-2 <?php echo $t['tage_bis_ablauf'] < 0 ? 'ablauf-warnung' : ($t['tage_bis_ablauf'] <= $warnDays ? 'ablauf-warnung' : 'ablauf-ok'); ?>">
-                                (<?php echo $t['tage_bis_ablauf'] < 0 ? 'abgelaufen' : $t['tage_bis_ablauf'] . ' Tage'; ?>)
+                        <?php if ($streckeBisFormatiert): ?>
+                            <small class="ms-2 ablauf-datum <?php echo $t['tage_bis_ablauf'] < 0 ? 'ablauf-warnung' : ($t['tage_bis_ablauf'] <= $warnDays ? 'ablauf-warnung' : 'ablauf-ok'); ?>">
+                                (<?php echo $streckeBisFormatiert; ?>)
                             </small>
+                        <?php elseif ($t['tage_bis_ablauf'] === null): ?>
+                            <small class="ms-2 ablauf-datum text-muted">(kein Datum)</small>
                         <?php endif; ?>
                     </span>
                 <?php 
@@ -340,26 +360,35 @@ try {
                             </div>
                         </div>
                     </div>
-                    <div class="teilnehmer-liste termin-drop-zone" data-termin-id="<?php echo $termin['id']; ?>" data-max="<?php echo $termin['max_teilnehmer']; ?>">
+                    <div class="teilnehmer-liste termin-drop-zone" data-termin-id="<?php echo $termin['id']; ?>" data-termin-datum="<?php echo $termin['termin_datum']; ?>" data-max="<?php echo $termin['max_teilnehmer']; ?>">
                         <?php 
                         // Zugeordnete Geräteträger für diesen Termin laden
                         $traegerIds = $termin['traeger_ids'] ? explode(',', $termin['traeger_ids']) : [];
                         foreach ($traeger as $t):
                             if (in_array($t['id'], $traegerIds)):
-                                $statusClass = 'gruen';
-                                if ($t['tage_bis_ablauf'] !== null) {
-                                    if ($t['tage_bis_ablauf'] < 0) $statusClass = 'rot';
-                                    elseif ($t['tage_bis_ablauf'] <= $warnDays) $statusClass = 'gelb';
+                                // Farblogik: Vergleiche Termindatum mit Ablaufdatum
+                                $statusClass = 'gruen'; // Default: OK
+                                if ($t['strecke_bis'] !== null) {
+                                    // Termin liegt NACH dem Ablaufdatum -> ROT (zu spät)
+                                    if ($termin['termin_datum'] > $t['strecke_bis']) {
+                                        $statusClass = 'rot';
+                                    } else {
+                                        $statusClass = 'gruen'; // Termin liegt VOR dem Ablaufdatum -> OK
+                                    }
                                 }
+                                $streckeBisFormatiert = $t['strecke_bis'] ? date('d.m.Y', strtotime($t['strecke_bis'])) : null;
                         ?>
                             <span class="traeger-badge" 
                                   draggable="true" 
                                   data-traeger-id="<?php echo $t['id']; ?>"
                                   data-name="<?php echo htmlspecialchars($t['first_name'] . ' ' . $t['last_name']); ?>"
                                   data-email="<?php echo htmlspecialchars($t['email'] ?? ''); ?>"
-                                  data-ablauf="<?php echo $t['tage_bis_ablauf']; ?>">
+                                  data-strecke-bis="<?php echo $t['strecke_bis'] ?? ''; ?>">
                                 <span class="status-dot <?php echo $statusClass; ?>"></span>
                                 <?php echo htmlspecialchars($t['first_name'] . ' ' . $t['last_name']); ?>
+                                <?php if ($streckeBisFormatiert): ?>
+                                    <small class="ms-1 ablauf-datum">(<?php echo $streckeBisFormatiert; ?>)</small>
+                                <?php endif; ?>
                                 <i class="fas fa-times remove-btn" onclick="removeZuordnung(<?php echo $t['id']; ?>, <?php echo $termin['id']; ?>)" title="Entfernen"></i>
                                 <i class="fas fa-envelope notify-btn" onclick="einzelnInformieren(<?php echo $t['id']; ?>, <?php echo $termin['id']; ?>)" title="Benachrichtigen"></i>
                             </span>
