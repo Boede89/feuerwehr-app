@@ -303,7 +303,7 @@ try {
                         <?php echo htmlspecialchars($t['first_name'] . ' ' . $t['last_name']); ?>
                         <?php if ($streckeBisFormatiert): ?>
                             <small class="ms-2 ablauf-datum <?php echo $t['tage_bis_ablauf'] < 0 ? 'ablauf-warnung' : ($t['tage_bis_ablauf'] <= $warnDays ? 'ablauf-warnung' : 'ablauf-ok'); ?>">
-                                (<?php echo $streckeBisFormatiert; ?>)
+                                (<?php echo $t['tage_bis_ablauf'] < 0 ? 'abgelaufen' : $streckeBisFormatiert; ?>)
                             </small>
                         <?php elseif ($t['tage_bis_ablauf'] === null): ?>
                             <small class="ms-2 ablauf-datum text-muted">(kein Datum)</small>
@@ -387,7 +387,7 @@ try {
                                 <span class="status-dot <?php echo $statusClass; ?>"></span>
                                 <?php echo htmlspecialchars($t['first_name'] . ' ' . $t['last_name']); ?>
                                 <?php if ($streckeBisFormatiert): ?>
-                                    <small class="ms-1 ablauf-datum">(<?php echo $streckeBisFormatiert; ?>)</small>
+                                    <small class="ms-1 ablauf-datum">(<?php echo $t['tage_bis_ablauf'] < 0 ? 'abgelaufen' : $streckeBisFormatiert; ?>)</small>
                                 <?php endif; ?>
                                 <i class="fas fa-times remove-btn" onclick="removeZuordnung(<?php echo $t['id']; ?>, <?php echo $termin['id']; ?>)" title="Entfernen"></i>
                                 <i class="fas fa-envelope notify-btn" onclick="einzelnInformieren(<?php echo $t['id']; ?>, <?php echo $termin['id']; ?>)" title="Benachrichtigen"></i>
