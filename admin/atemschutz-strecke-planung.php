@@ -260,6 +260,140 @@ try {
         #confirmModal .btn {
             min-width: 120px;
         }
+        
+        /* Mobile Anpassungen */
+        @media (max-width: 768px) {
+            .btn-group.flex-wrap {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+                width: 100%;
+            }
+            .btn-group.flex-wrap .btn {
+                border-radius: 8px !important;
+                font-size: 0.8rem;
+                padding: 10px 8px;
+            }
+            .btn-group.flex-wrap .btn i {
+                display: block;
+                margin-bottom: 4px;
+            }
+            
+            h1.h3 {
+                font-size: 1.2rem;
+            }
+            
+            .nicht-zugeordnet {
+                padding: 12px;
+            }
+            .nicht-zugeordnet-header {
+                padding: 8px 12px;
+                font-size: 0.9rem;
+            }
+            
+            .traeger-badge {
+                font-size: 0.8rem;
+                padding: 6px 10px;
+                margin: 3px;
+                flex-wrap: wrap;
+            }
+            .traeger-badge .ablauf-datum {
+                font-size: 0.65rem;
+            }
+            
+            .termin-header {
+                padding: 12px;
+            }
+            .termin-header h5 {
+                font-size: 1rem;
+            }
+            .termin-header > div {
+                font-size: 0.85rem;
+            }
+            
+            .btn-group-termin {
+                flex-wrap: wrap;
+            }
+            .btn-group-termin .btn {
+                padding: 6px 10px;
+            }
+            
+            .teilnehmer-liste {
+                padding: 10px;
+                min-height: 80px;
+            }
+            
+            /* Touch-freundliche Zuordnung */
+            .mobile-assign-btn {
+                display: inline-block !important;
+                margin-left: 8px;
+                color: #0d6efd;
+                cursor: pointer;
+                font-size: 1.1rem;
+            }
+            
+            .termin-card {
+                margin-bottom: 15px;
+            }
+            
+            /* Modal Anpassungen */
+            .modal-dialog {
+                margin: 10px;
+            }
+            .modal-xl {
+                max-width: calc(100% - 20px);
+            }
+            
+            #termineTable th,
+            #termineTable td {
+                padding: 6px 4px;
+                font-size: 0.8rem;
+            }
+            #termineTable input {
+                font-size: 0.85rem;
+                padding: 4px 6px;
+            }
+            
+            .ausbilder-liste {
+                max-height: 300px;
+            }
+            
+            /* Platz für Touch-Aktionen */
+            .traeger-badge .remove-btn,
+            .traeger-badge .notify-btn {
+                padding: 5px;
+                font-size: 1rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .btn-group.flex-wrap {
+                grid-template-columns: 1fr;
+            }
+            .btn-group.flex-wrap .btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+            .btn-group.flex-wrap .btn i {
+                display: inline;
+                margin-bottom: 0;
+            }
+        }
+        
+        /* Touch-Hinweis auf Desktop verstecken */
+        .mobile-assign-btn {
+            display: none;
+        }
+        @media (hover: none) and (pointer: coarse) {
+            .mobile-assign-btn {
+                display: inline-block !important;
+            }
+            .traeger-badge {
+                cursor: pointer;
+            }
+        }
     </style>
 </head>
 <body>
@@ -319,9 +453,13 @@ try {
 
         <!-- Nicht zugeordnete Geräteträger -->
         <div class="nicht-zugeordnet" id="nicht-zugeordnet">
-            <div class="nicht-zugeordnet-header">
-                <i class="fas fa-users"></i> <strong>Nicht zugeordnete Geräteträger</strong>
-                <span class="badge bg-dark ms-2" id="nicht-zugeordnet-count">0</span>
+            <div class="nicht-zugeordnet-header d-flex justify-content-between align-items-center flex-wrap">
+                <div>
+                    <i class="fas fa-users"></i> <strong>Nicht zugeordnete Geräteträger</strong>
+                    <span class="badge bg-dark ms-2" id="nicht-zugeordnet-count">0</span>
+                </div>
+                <small class="text-muted d-none d-md-inline"><i class="fas fa-hand-pointer"></i> Drag & Drop zum Zuordnen</small>
+                <small class="text-muted d-md-none"><i class="fas fa-hand-pointer"></i> Antippen zum Zuordnen</small>
             </div>
             <div class="teilnehmer-liste" id="pool-traeger">
                 <?php 
@@ -351,6 +489,7 @@ try {
                         <?php elseif ($t['tage_bis_ablauf'] === null): ?>
                             <small class="ms-2 ablauf-datum text-muted">(kein Datum)</small>
                         <?php endif; ?>
+                        <i class="fas fa-plus-circle mobile-assign-btn" title="Termin zuordnen"></i>
                     </span>
                 <?php 
                     endif;
@@ -620,6 +759,29 @@ try {
         </div>
     </div>
 
+    <!-- Mobile Zuordnungs-Modal -->
+    <div class="modal fade" id="mobileAssignModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-user-plus"></i> Termin zuordnen</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">
+                        <strong id="mobileAssignName"></strong> einem Termin zuordnen:
+                    </p>
+                    <div id="mobileTerminListe" class="d-grid gap-2">
+                        <!-- Termine werden hier dynamisch eingefügt -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Bestätigungs-Modal Funktionalität
@@ -658,9 +820,15 @@ try {
         
         // Drag & Drop Funktionalität
         let draggedElement = null;
+        let isTouchDevice = false;
         
         document.addEventListener('DOMContentLoaded', function() {
+            // Touch-Gerät erkennen
+            isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
             initDragDrop();
+            if (isTouchDevice) {
+                initMobileAssign();
+            }
         });
         
         function initDragDrop() {
@@ -679,9 +847,71 @@ try {
             
             // Pool als Drop-Zone
             const pool = document.getElementById('pool-traeger');
-            pool.addEventListener('dragover', handleDragOver);
-            pool.addEventListener('dragleave', handleDragLeave);
-            pool.addEventListener('drop', handleDropToPool);
+            if (pool) {
+                pool.addEventListener('dragover', handleDragOver);
+                pool.addEventListener('dragleave', handleDragLeave);
+                pool.addEventListener('drop', handleDropToPool);
+            }
+        }
+        
+        // Mobile Zuordnung
+        function initMobileAssign() {
+            // Tap auf nicht zugeordnete Geräteträger -> Modal öffnen
+            document.querySelectorAll('#pool-traeger .traeger-badge').forEach(badge => {
+                badge.addEventListener('click', function(e) {
+                    // Nicht bei Klick auf remove/notify Buttons
+                    if (e.target.classList.contains('remove-btn') || e.target.classList.contains('notify-btn')) {
+                        return;
+                    }
+                    openMobileAssignModal(this);
+                });
+            });
+        }
+        
+        function openMobileAssignModal(badge) {
+            const traegerId = badge.dataset.traegerId;
+            const traegerName = badge.dataset.name;
+            
+            document.getElementById('mobileAssignName').textContent = traegerName;
+            
+            // Termine laden
+            const terminListe = document.getElementById('mobileTerminListe');
+            terminListe.innerHTML = '';
+            
+            const termine = document.querySelectorAll('.termin-drop-zone');
+            if (termine.length === 0) {
+                terminListe.innerHTML = '<p class="text-muted text-center">Keine Termine vorhanden</p>';
+            } else {
+                termine.forEach(zone => {
+                    const terminId = zone.dataset.terminId;
+                    const terminDatum = zone.dataset.terminDatum;
+                    const max = parseInt(zone.dataset.max);
+                    const aktuell = zone.querySelectorAll('.traeger-badge').length;
+                    const card = zone.closest('.termin-card');
+                    const headerText = card.querySelector('.termin-header h5')?.textContent.trim() || 'Termin';
+                    const zeitText = card.querySelector('.termin-header .fa-clock')?.parentElement?.textContent.trim() || '';
+                    
+                    const isFull = aktuell >= max;
+                    
+                    const btn = document.createElement('button');
+                    btn.className = 'btn ' + (isFull ? 'btn-outline-secondary disabled' : 'btn-outline-primary');
+                    btn.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-calendar-day me-2"></i>${headerText} ${zeitText}</span>
+                            <span class="badge ${isFull ? 'bg-danger' : 'bg-success'}">${aktuell}/${max}</span>
+                        </div>
+                    `;
+                    if (!isFull) {
+                        btn.onclick = function() {
+                            bootstrap.Modal.getInstance(document.getElementById('mobileAssignModal')).hide();
+                            zuordnungSpeichern(traegerId, terminId);
+                        };
+                    }
+                    terminListe.appendChild(btn);
+                });
+            }
+            
+            new bootstrap.Modal(document.getElementById('mobileAssignModal')).show();
         }
         
         function handleDragStart(e) {
