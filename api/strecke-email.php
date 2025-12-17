@@ -239,8 +239,8 @@ try {
             echo json_encode(['success' => $gesendet > 0, 'message' => $message]);
             break;
             
-        case 'ausbilder_informieren':
-            // Alle Ausbilder laden (Benutzer mit Atemschutz-Berechtigung)
+        case 'get_ausbilder':
+            // Nur Ausbilder-Liste zurückgeben (für Modal-Auswahl)
             $stmt = $db->prepare("
                 SELECT u.id, u.email, u.first_name, u.last_name
                 FROM users u
@@ -248,12 +248,36 @@ try {
                 WHERE (u.role = 'admin' OR up.permission_key = 'atemschutz')
                 AND u.email IS NOT NULL AND u.email != ''
                 GROUP BY u.id
+                ORDER BY u.last_name, u.first_name
             ");
             $stmt->execute();
             $ausbilder = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
+            echo json_encode(['success' => true, 'ausbilder' => $ausbilder]);
+            break;
+            
+        case 'ausbilder_informieren':
+            // Ausgewählte Ausbilder laden
+            $ausbilderIds = $input['ausbilder_ids'] ?? [];
+            
+            if (empty($ausbilderIds)) {
+                echo json_encode(['success' => false, 'message' => 'Keine Ausbilder ausgewählt']);
+                break;
+            }
+            
+            // Nur ausgewählte Ausbilder laden
+            $placeholders = implode(',', array_fill(0, count($ausbilderIds), '?'));
+            $stmt = $db->prepare("
+                SELECT u.id, u.email, u.first_name, u.last_name
+                FROM users u
+                WHERE u.id IN ($placeholders)
+                AND u.email IS NOT NULL AND u.email != ''
+            ");
+            $stmt->execute($ausbilderIds);
+            $ausbilder = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
             if (empty($ausbilder)) {
-                echo json_encode(['success' => false, 'message' => 'Keine Ausbilder mit E-Mail-Adressen gefunden']);
+                echo json_encode(['success' => false, 'message' => 'Keine gültigen Ausbilder gefunden']);
                 break;
             }
             

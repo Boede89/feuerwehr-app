@@ -220,6 +220,21 @@ try {
         .termin-drop-zone .traeger-badge .ablauf-datum {
             margin-left: 15px;
         }
+        .ausbilder-liste {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .ausbilder-liste .form-check {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            margin: 0;
+        }
+        .ausbilder-liste .form-check:last-child {
+            border-bottom: none;
+        }
+        .ausbilder-liste .form-check:hover {
+            background: #f8f9fa;
+        }
     </style>
 </head>
 <body>
@@ -513,6 +528,43 @@ try {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ausbilder Auswahl Modal -->
+    <div class="modal fade" id="ausbilderModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title"><i class="fas fa-user-tie"></i> Ausbilder informieren</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Wählen Sie die Ausbilder aus, die die Planungsübersicht per E-Mail erhalten sollen:</p>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="selectAllAusbilder" checked>
+                            <label class="form-check-label fw-bold" for="selectAllAusbilder">
+                                Alle auswählen / abwählen
+                            </label>
+                        </div>
+                        <hr>
+                    </div>
+                    
+                    <div id="ausbilderListe" class="ausbilder-liste">
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-spinner fa-spin"></i> Lade Ausbilder...
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="button" class="btn btn-warning" onclick="sendeAnAusgewaehlteAusbilder()">
+                        <i class="fas fa-paper-plane"></i> E-Mail senden
+                    </button>
                 </div>
             </div>
         </div>
@@ -967,14 +1019,73 @@ try {
             });
         }
         
-        // Ausbilder per E-Mail informieren
+        // Ausbilder per E-Mail informieren - Modal öffnen
         function ausbilderInformieren() {
-            if (!confirm('Die Planungsübersicht an alle Ausbilder per E-Mail senden?')) return;
+            // Ausbilder laden und Modal öffnen
+            fetch('../api/strecke-email.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'get_ausbilder' })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    renderAusbilderListe(data.ausbilder);
+                    new bootstrap.Modal(document.getElementById('ausbilderModal')).show();
+                } else {
+                    showInfo('Fehler', data.message || 'Ausbilder konnten nicht geladen werden');
+                }
+            });
+        }
+        
+        function renderAusbilderListe(ausbilder) {
+            const container = document.getElementById('ausbilderListe');
+            
+            if (ausbilder.length === 0) {
+                container.innerHTML = '<div class="text-muted text-center py-3">Keine Ausbilder mit E-Mail-Adresse gefunden.</div>';
+                return;
+            }
+            
+            let html = '';
+            ausbilder.forEach(a => {
+                html += `
+                    <div class="form-check mb-2">
+                        <input class="form-check-input ausbilder-check" type="checkbox" value="${a.id}" id="ausbilder_${a.id}" data-email="${a.email}" checked>
+                        <label class="form-check-label" for="ausbilder_${a.id}">
+                            <strong>${a.first_name} ${a.last_name}</strong>
+                            <small class="text-muted d-block">${a.email}</small>
+                        </label>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+            
+            // Event-Listener für "Alle auswählen"
+            document.getElementById('selectAllAusbilder').addEventListener('change', function() {
+                document.querySelectorAll('.ausbilder-check').forEach(cb => {
+                    cb.checked = this.checked;
+                });
+            });
+        }
+        
+        function sendeAnAusgewaehlteAusbilder() {
+            const ausgewaehlte = [];
+            document.querySelectorAll('.ausbilder-check:checked').forEach(cb => {
+                ausgewaehlte.push(parseInt(cb.value));
+            });
+            
+            if (ausgewaehlte.length === 0) {
+                showInfo('Hinweis', 'Bitte wählen Sie mindestens einen Ausbilder aus.');
+                return;
+            }
+            
+            // Modal schließen
+            bootstrap.Modal.getInstance(document.getElementById('ausbilderModal')).hide();
             
             fetch('../api/strecke-email.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'ausbilder_informieren' })
+                body: JSON.stringify({ action: 'ausbilder_informieren', ausbilder_ids: ausgewaehlte })
             })
             .then(r => r.json())
             .then(data => {
