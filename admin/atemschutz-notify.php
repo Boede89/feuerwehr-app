@@ -59,18 +59,25 @@ try {
         $s = $db->prepare("SELECT setting_value FROM settings WHERE setting_key='atemschutz_cc_recipients' LIMIT 1");
         $s->execute();
         $val = $s->fetchColumn();
-        if ($val !== false && $val !== null) {
-            $ccRecipientIds = json_decode($val, true) ?: [];
-            if (!empty($ccRecipientIds)) {
+        error_log("CC-Empfänger Einstellung aus DB: " . ($val !== false ? $val : 'NICHT GEFUNDEN'));
+        
+        if ($val !== false && $val !== null && $val !== '') {
+            $ccRecipientIds = json_decode($val, true);
+            error_log("CC-Empfänger IDs (decoded): " . print_r($ccRecipientIds, true));
+            
+            if (!empty($ccRecipientIds) && is_array($ccRecipientIds)) {
                 $placeholders = implode(',', array_fill(0, count($ccRecipientIds), '?'));
                 $s = $db->prepare("SELECT email FROM users WHERE id IN ($placeholders) AND email IS NOT NULL AND email != ''");
                 $s->execute($ccRecipientIds);
                 $ccRecipientEmails = $s->fetchAll(PDO::FETCH_COLUMN);
+                error_log("CC-Empfänger E-Mails geladen: " . implode(', ', $ccRecipientEmails));
             }
         }
     } catch (Exception $e) {
         error_log("Fehler beim Laden der CC-Empfänger: " . $e->getMessage());
     }
+    
+    error_log("CC-Empfänger final: " . (empty($ccRecipientEmails) ? 'KEINE' : implode(', ', $ccRecipientEmails)));
 
     // Kandidaten ermitteln
     if ($sendAll) {

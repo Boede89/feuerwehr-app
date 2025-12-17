@@ -89,6 +89,19 @@ class SimpleSMTP {
             $from_name_clean = str_replace(["\r", "\n"], "", $from_name_clean);
             $from_name_clean = preg_replace('/\s+/', ' ', $from_name_clean);
             
+            // Domain aus From-E-Mail extrahieren für Message-ID
+            $domain = 'localhost';
+            if (preg_match('/@([^@]+)$/', $from_email_clean, $matches)) {
+                $domain = $matches[1];
+            }
+            
+            // Eindeutige Message-ID generieren
+            $messageId = sprintf('%s.%s@%s', 
+                date('YmdHis'), 
+                bin2hex(random_bytes(8)), 
+                $domain
+            );
+            
             // RFC 5322 konforme From-Header Formatierung
             // Wenn der Name Sonderzeichen enthält, in Anführungszeichen setzen
             if (preg_match('/[^\x20-\x7E]/', $from_name_clean) || strpos($from_name_clean, ',') !== false || strpos($from_name_clean, ';') !== false) {
@@ -100,15 +113,20 @@ class SimpleSMTP {
                 $email_data = "From: \"{$from_name_clean}\" <{$from_email_clean}>\r\n";
             }
             $email_data .= "To: {$to_clean}\r\n";
+            $email_data .= "Reply-To: {$from_email_clean}\r\n";
             $email_data .= "Subject: {$subject_clean}\r\n";
+            $email_data .= "Date: " . date('r') . "\r\n";
+            $email_data .= "Message-ID: <{$messageId}>\r\n";
             $email_data .= "MIME-Version: 1.0\r\n";
             $email_data .= "Content-Type: " . ($isHtml ? "text/html" : "text/plain") . "; charset=UTF-8\r\n";
-            $email_data .= "Content-Transfer-Encoding: 8bit\r\n";
-            $email_data .= "X-Mailer: PHP/" . phpversion() . "\r\n";
+            $email_data .= "Content-Transfer-Encoding: base64\r\n";
+            $email_data .= "X-Mailer: Feuerwehr-App/1.0\r\n";
             $email_data .= "X-Priority: 3\r\n";
-            $email_data .= "Message-ID: <" . uniqid() . "@" . $_SERVER['HTTP_HOST'] . ">\r\n";
+            $email_data .= "Auto-Submitted: auto-generated\r\n";
+            $email_data .= "Precedence: bulk\r\n";
             $email_data .= "\r\n";
-            $email_data .= $message . "\r\n";
+            // Nachricht als Base64 kodieren für bessere Zustellung
+            $email_data .= chunk_split(base64_encode($message), 76, "\r\n");
             $email_data .= ".\r\n";
             
             fwrite($this->connection, $email_data);

@@ -294,17 +294,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // CC-Empfänger für Erinnerungs-E-Mails speichern
         if (isset($_POST['action']) && $_POST['action'] === 'update_cc_recipients') {
             try {
+                error_log("CC-Empfänger Speichern gestartet");
+                error_log("POST cc_recipients: " . print_r($_POST['cc_recipients'] ?? 'NICHT GESETZT', true));
+                
                 $selectedCcRecipients = isset($_POST['cc_recipients']) && is_array($_POST['cc_recipients']) 
                     ? array_map('intval', $_POST['cc_recipients']) 
                     : [];
                 
-                $ccJson = json_encode($selectedCcRecipients);
+                error_log("Ausgewählte CC-Empfänger IDs: " . print_r($selectedCcRecipients, true));
                 
-                $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('atemschutz_cc_recipients', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-                $stmt->execute([$ccJson]);
+                $ccJson = json_encode($selectedCcRecipients);
+                error_log("CC-JSON zum Speichern: " . $ccJson);
+                
+                $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('atemschutz_cc_recipients', ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+                $stmt->execute([$ccJson, $ccJson]);
+                
+                error_log("CC-Empfänger in DB gespeichert");
                 
                 $ccRecipients = $selectedCcRecipients;
-                $message = "CC-Empfänger erfolgreich aktualisiert.";
+                $message = "CC-Empfänger erfolgreich aktualisiert (" . count($selectedCcRecipients) . " Empfänger ausgewählt).";
             } catch (Exception $e) {
                 $error = "Fehler beim Speichern der CC-Empfänger: " . htmlspecialchars($e->getMessage());
                 error_log("CC-Empfänger Speicherfehler: " . $e->getMessage());
