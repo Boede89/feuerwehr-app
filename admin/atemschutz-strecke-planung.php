@@ -386,48 +386,76 @@ try {
         </div>
     </div>
 
-    <!-- Termin Modal -->
+    <!-- Termin Modal (Mehrfach-Eingabe) -->
     <div class="modal fade" id="terminModal" tabindex="-1">
-        <div class="modal-dialog modal-lg-custom">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title"><i class="fas fa-calendar-plus"></i> Neuer Termin</h5>
+                    <h5 class="modal-title" id="terminModalTitle"><i class="fas fa-calendar-plus"></i> Neue Termine erstellen</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="terminForm">
                     <div class="modal-body">
                         <input type="hidden" name="termin_id" id="termin_id" value="">
+                        <input type="hidden" name="edit_mode" id="edit_mode" value="false">
                         
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Datum *</label>
-                                <input type="date" class="form-control" name="termin_datum" id="termin_datum" required>
+                        <!-- Gemeinsame Einstellungen -->
+                        <div class="card mb-4" id="gemeinsameEinstellungen">
+                            <div class="card-header bg-light">
+                                <i class="fas fa-cog"></i> Gemeinsame Einstellungen für alle Termine
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Uhrzeit *</label>
-                                <input type="time" class="form-control" name="termin_zeit" id="termin_zeit" value="09:00" required>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-8 mb-3">
+                                        <label class="form-label"><i class="fas fa-map-marker-alt"></i> Ort (für alle Termine)</label>
+                                        <input type="text" class="form-control" name="ort" id="ort" placeholder="z.B. Atemschutzübungsstrecke Krefeld">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label"><i class="fas fa-comment"></i> Bemerkung</label>
+                                        <input type="text" class="form-control" name="bemerkung" id="bemerkung" placeholder="Optional">
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
-                        <div class="mb-3">
-                            <label class="form-label">Ort</label>
-                            <input type="text" class="form-control" name="ort" id="ort" placeholder="z.B. Feuerwehrgerätehaus Amern">
+                        <!-- Termine Liste -->
+                        <div class="card">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                <span><i class="fas fa-calendar-alt"></i> Termine</span>
+                                <button type="button" class="btn btn-success btn-sm" onclick="addTerminZeile()" id="addTerminBtn">
+                                    <i class="fas fa-plus"></i> Termin hinzufügen
+                                </button>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0" id="termineTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="width: 40px;">#</th>
+                                                <th style="width: 180px;">Datum *</th>
+                                                <th style="width: 130px;">Uhrzeit *</th>
+                                                <th style="width: 120px;">Max. Teilnehmer</th>
+                                                <th style="width: 60px;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="termineBody">
+                                            <!-- Dynamische Zeilen werden hier eingefügt -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                         
-                        <div class="mb-3">
-                            <label class="form-label">Maximale Teilnehmerzahl *</label>
-                            <input type="number" class="form-control" name="max_teilnehmer" id="max_teilnehmer" min="1" max="50" value="10" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Bemerkung</label>
-                            <textarea class="form-control" name="bemerkung" id="bemerkung" rows="2"></textarea>
+                        <div class="alert alert-info mt-3 mb-0" id="terminHinweis">
+                            <i class="fas fa-info-circle"></i> 
+                            <strong>Tipp:</strong> Die Uhrzeit wird automatisch vom ersten Termin übernommen. 
+                            Die max. Teilnehmerzahl ist standardmäßig 6, kann aber für jeden Termin angepasst werden.
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Speichern
+                        <button type="submit" class="btn btn-primary" id="terminSaveBtn">
+                            <i class="fas fa-save"></i> <span id="terminSaveBtnText">Termine speichern</span>
                         </button>
                     </div>
                 </form>
@@ -573,26 +601,192 @@ try {
         }
         
         // Termin-Funktionen
+        let terminZeileCounter = 0;
+        
+        // Beim Laden der Seite erste Zeile hinzufügen
+        document.addEventListener('DOMContentLoaded', function() {
+            // Erste Terminzeile hinzufügen wenn Modal geöffnet wird
+            document.getElementById('terminModal').addEventListener('show.bs.modal', function(e) {
+                if (document.getElementById('edit_mode').value !== 'true') {
+                    resetTerminModal();
+                    addTerminZeile();
+                }
+            });
+        });
+        
+        function addTerminZeile() {
+            terminZeileCounter++;
+            const tbody = document.getElementById('termineBody');
+            const zeileNr = tbody.children.length + 1;
+            
+            // Uhrzeit vom ersten Termin übernehmen
+            let defaultZeit = '09:00';
+            const ersteZeit = document.querySelector('#termineBody input[name="termine[0][zeit]"]');
+            if (ersteZeit && ersteZeit.value) {
+                defaultZeit = ersteZeit.value;
+            }
+            
+            const row = document.createElement('tr');
+            row.className = 'termin-zeile';
+            row.dataset.index = zeileNr - 1;
+            row.innerHTML = `
+                <td class="text-center align-middle"><strong>${zeileNr}</strong></td>
+                <td>
+                    <input type="date" class="form-control" name="termine[${zeileNr - 1}][datum]" required>
+                </td>
+                <td>
+                    <input type="time" class="form-control termin-zeit" name="termine[${zeileNr - 1}][zeit]" value="${defaultZeit}" required>
+                </td>
+                <td>
+                    <input type="number" class="form-control" name="termine[${zeileNr - 1}][max_teilnehmer]" min="1" max="50" value="6">
+                </td>
+                <td class="text-center align-middle">
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeTerminZeile(this)" ${zeileNr === 1 ? 'disabled' : ''}>
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+            
+            // Event-Listener für Uhrzeit-Kopierung
+            if (zeileNr === 1) {
+                row.querySelector('.termin-zeit').addEventListener('change', function() {
+                    syncUhrzeiten(this.value);
+                });
+            }
+            
+            updateZeilenNummern();
+        }
+        
+        function removeTerminZeile(btn) {
+            const row = btn.closest('tr');
+            row.remove();
+            updateZeilenNummern();
+        }
+        
+        function updateZeilenNummern() {
+            const rows = document.querySelectorAll('#termineBody tr');
+            rows.forEach((row, index) => {
+                row.querySelector('td:first-child strong').textContent = index + 1;
+                row.dataset.index = index;
+                
+                // Namen der Inputs aktualisieren
+                row.querySelectorAll('input').forEach(input => {
+                    const name = input.getAttribute('name');
+                    if (name) {
+                        input.setAttribute('name', name.replace(/termine\[\d+\]/, `termine[${index}]`));
+                    }
+                });
+                
+                // Lösch-Button für erste Zeile deaktivieren
+                const deleteBtn = row.querySelector('button');
+                if (deleteBtn) {
+                    deleteBtn.disabled = (index === 0 && rows.length === 1);
+                }
+            });
+        }
+        
+        function syncUhrzeiten(zeit) {
+            // Alle Zeiten außer der ersten aktualisieren (wenn sie noch den Default haben)
+            const zeitInputs = document.querySelectorAll('#termineBody .termin-zeit');
+            zeitInputs.forEach((input, index) => {
+                if (index > 0 && (input.value === '09:00' || !input.dataset.userChanged)) {
+                    input.value = zeit;
+                }
+            });
+        }
+        
+        function resetTerminModal() {
+            document.getElementById('termineBody').innerHTML = '';
+            document.getElementById('termin_id').value = '';
+            document.getElementById('edit_mode').value = 'false';
+            document.getElementById('ort').value = '';
+            document.getElementById('bemerkung').value = '';
+            document.getElementById('terminModalTitle').innerHTML = '<i class="fas fa-calendar-plus"></i> Neue Termine erstellen';
+            document.getElementById('terminSaveBtnText').textContent = 'Termine speichern';
+            document.getElementById('gemeinsameEinstellungen').style.display = 'block';
+            document.getElementById('addTerminBtn').style.display = 'inline-block';
+            document.getElementById('terminHinweis').style.display = 'block';
+            terminZeileCounter = 0;
+        }
+        
         document.getElementById('terminForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData.entries());
-            data.action = data.termin_id ? 'update' : 'create';
+            const editMode = document.getElementById('edit_mode').value === 'true';
+            const ort = document.getElementById('ort').value;
+            const bemerkung = document.getElementById('bemerkung').value;
             
-            fetch('../api/strecke-termine.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            })
-            .then(r => r.json())
-            .then(result => {
-                if (result.success) {
-                    location.reload();
-                } else {
-                    showInfo('Fehler', result.message || 'Speichern fehlgeschlagen');
+            if (editMode) {
+                // Einzelnen Termin bearbeiten
+                const terminId = document.getElementById('termin_id').value;
+                const row = document.querySelector('#termineBody tr');
+                const datum = row.querySelector('input[type="date"]').value;
+                const zeit = row.querySelector('input[type="time"]').value;
+                const maxTeilnehmer = row.querySelector('input[type="number"]').value;
+                
+                fetch('../api/strecke-termine.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'update',
+                        termin_id: terminId,
+                        termin_datum: datum,
+                        termin_zeit: zeit,
+                        ort: ort,
+                        max_teilnehmer: maxTeilnehmer,
+                        bemerkung: bemerkung
+                    })
+                })
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success) {
+                        location.reload();
+                    } else {
+                        showInfo('Fehler', result.message || 'Speichern fehlgeschlagen');
+                    }
+                });
+            } else {
+                // Mehrere Termine erstellen
+                const termine = [];
+                document.querySelectorAll('#termineBody tr').forEach(row => {
+                    const datum = row.querySelector('input[type="date"]').value;
+                    const zeit = row.querySelector('input[type="time"]').value;
+                    const maxTeilnehmer = row.querySelector('input[type="number"]').value;
+                    
+                    if (datum && zeit) {
+                        termine.push({
+                            termin_datum: datum,
+                            termin_zeit: zeit,
+                            ort: ort,
+                            max_teilnehmer: maxTeilnehmer,
+                            bemerkung: bemerkung
+                        });
+                    }
+                });
+                
+                if (termine.length === 0) {
+                    showInfo('Fehler', 'Bitte mindestens einen Termin eingeben');
+                    return;
                 }
-            });
+                
+                fetch('../api/strecke-termine.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'create_multiple',
+                        termine: termine
+                    })
+                })
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success) {
+                        location.reload();
+                    } else {
+                        showInfo('Fehler', result.message || 'Speichern fehlgeschlagen');
+                    }
+                });
+            }
         });
         
         function editTermin(terminId) {
@@ -600,14 +794,37 @@ try {
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
+                    resetTerminModal();
+                    
                     document.getElementById('termin_id').value = data.termin.id;
-                    document.getElementById('termin_datum').value = data.termin.termin_datum;
-                    document.getElementById('termin_zeit').value = data.termin.termin_zeit;
+                    document.getElementById('edit_mode').value = 'true';
                     document.getElementById('ort').value = data.termin.ort || '';
-                    document.getElementById('max_teilnehmer').value = data.termin.max_teilnehmer;
                     document.getElementById('bemerkung').value = data.termin.bemerkung || '';
                     
-                    document.querySelector('#terminModal .modal-title').innerHTML = '<i class="fas fa-edit"></i> Termin bearbeiten';
+                    // Eine Zeile für den Termin hinzufügen
+                    const tbody = document.getElementById('termineBody');
+                    const row = document.createElement('tr');
+                    row.className = 'termin-zeile';
+                    row.innerHTML = `
+                        <td class="text-center align-middle"><strong>1</strong></td>
+                        <td>
+                            <input type="date" class="form-control" name="termine[0][datum]" value="${data.termin.termin_datum}" required>
+                        </td>
+                        <td>
+                            <input type="time" class="form-control" name="termine[0][zeit]" value="${data.termin.termin_zeit}" required>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control" name="termine[0][max_teilnehmer]" min="1" max="50" value="${data.termin.max_teilnehmer}">
+                        </td>
+                        <td></td>
+                    `;
+                    tbody.appendChild(row);
+                    
+                    document.getElementById('terminModalTitle').innerHTML = '<i class="fas fa-edit"></i> Termin bearbeiten';
+                    document.getElementById('terminSaveBtnText').textContent = 'Speichern';
+                    document.getElementById('addTerminBtn').style.display = 'none';
+                    document.getElementById('terminHinweis').style.display = 'none';
+                    
                     new bootstrap.Modal(document.getElementById('terminModal')).show();
                 }
             });
@@ -703,8 +920,7 @@ try {
         // Modal zurücksetzen beim Schließen
         document.getElementById('terminModal').addEventListener('hidden.bs.modal', function() {
             document.getElementById('terminForm').reset();
-            document.getElementById('termin_id').value = '';
-            document.querySelector('#terminModal .modal-title').innerHTML = '<i class="fas fa-calendar-plus"></i> Neuer Termin';
+            resetTerminModal();
         });
     </script>
 </body>

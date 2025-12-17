@@ -44,11 +44,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $input['termin_datum'],
                     $input['termin_zeit'] ?? '09:00',
                     $input['ort'] ?? '',
-                    (int)($input['max_teilnehmer'] ?? 10),
+                    (int)($input['max_teilnehmer'] ?? 6),
                     $input['bemerkung'] ?? '',
                     $_SESSION['user_id']
                 ]);
                 echo json_encode(['success' => true, 'message' => 'Termin erstellt', 'id' => $db->lastInsertId()]);
+                break;
+                
+            case 'create_multiple':
+                $termine = $input['termine'] ?? [];
+                if (empty($termine)) {
+                    echo json_encode(['success' => false, 'message' => 'Keine Termine übergeben']);
+                    break;
+                }
+                
+                $stmt = $db->prepare("
+                    INSERT INTO strecke_termine (termin_datum, termin_zeit, ort, max_teilnehmer, bemerkung, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ");
+                
+                $created = 0;
+                foreach ($termine as $termin) {
+                    $stmt->execute([
+                        $termin['termin_datum'],
+                        $termin['termin_zeit'] ?? '09:00',
+                        $termin['ort'] ?? '',
+                        (int)($termin['max_teilnehmer'] ?? 6),
+                        $termin['bemerkung'] ?? '',
+                        $_SESSION['user_id']
+                    ]);
+                    $created++;
+                }
+                
+                $msg = $created === 1 ? '1 Termin erstellt' : $created . ' Termine erstellt';
+                echo json_encode(['success' => true, 'message' => $msg, 'count' => $created]);
                 break;
                 
             case 'update':
@@ -61,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $input['termin_datum'],
                     $input['termin_zeit'] ?? '09:00',
                     $input['ort'] ?? '',
-                    (int)($input['max_teilnehmer'] ?? 10),
+                    (int)($input['max_teilnehmer'] ?? 6),
                     $input['bemerkung'] ?? '',
                     (int)$input['termin_id']
                 ]);
