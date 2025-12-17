@@ -38,7 +38,7 @@ try {
         $stmt->execute([ (string)$value, (string)$key ]);
     }
     $db->commit();
-    header('Location: settings-global.php?import=success');
+    header('Location: settings-backup.php?import=success');
 } catch (Exception $e) {
     $db->rollBack();
     http_response_code(500);

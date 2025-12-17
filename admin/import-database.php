@@ -42,7 +42,7 @@ try {
 
     $db->exec('SET FOREIGN_KEY_CHECKS=1');
     $db->commit();
-    header('Location: settings-global.php?dbimport=success');
+    header('Location: settings-backup.php?dbimport=success');
 } catch (Exception $e) {
     $db->rollBack();
     http_response_code(500);

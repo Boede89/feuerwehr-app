@@ -15,6 +15,14 @@ if (!hasAdminPermission()) {
 $message = '';
 $error = '';
 
+// Import-Erfolgsmeldungen prüfen
+if (isset($_GET['import']) && $_GET['import'] === 'success') {
+    $message = 'Einstellungen wurden erfolgreich importiert!';
+}
+if (isset($_GET['dbimport']) && $_GET['dbimport'] === 'success') {
+    $message = 'Datenbank wurde erfolgreich importiert!';
+}
+
 // Laden
 $settings = [];
 try {
