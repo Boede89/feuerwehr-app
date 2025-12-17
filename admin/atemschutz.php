@@ -214,29 +214,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
 
 		<div class="row g-4 mb-4">
-            <div class="col-12 col-md-6">
+            <div class="col-12 col-md-6 col-lg-4">
 				<button class="btn btn-primary w-100 py-4" id="btnAddTraeger" data-bs-toggle="modal" data-bs-target="#addTraegerModal">
                     <i class="fas fa-user-plus fa-2x mb-2 d-block"></i>
                     <span class="fs-5">Geräteträger hinzufügen</span>
                 </button>
             </div>
-            <div class="col-12 col-md-6">
-                <a class="btn btn-outline-primary w-100 py-4" href="/admin/atemschutz-liste.php" id="btnShowListLink">
+            <div class="col-12 col-md-6 col-lg-4">
+                <a class="btn btn-outline-primary w-100 py-4" href="atemschutz-liste.php" id="btnShowListLink">
                     <i class="fas fa-list fa-2x mb-2 d-block"></i>
                     <span class="fs-5">Aktuelle Liste anzeigen</span>
                 </a>
             </div>
-            <div class="col-12 col-md-6">
+            <div class="col-12 col-md-6 col-lg-4">
                 <a class="btn btn-outline-success w-100 py-4" id="btnPlanTraining" href="atemschutz-uebung-planen.php">
                     <i class="fas fa-calendar-plus fa-2x mb-2 d-block"></i>
                     <span class="fs-5">Übung planen</span>
                 </a>
             </div>
-            <div class="col-12 col-md-6">
+            <div class="col-12 col-md-6 col-lg-4">
+                <a class="btn btn-outline-info w-100 py-4" href="atemschutz-strecke-planung.php">
+                    <i class="fas fa-route fa-2x mb-2 d-block"></i>
+                    <span class="fs-5">Strecke - Terminplanung</span>
+                </a>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
                 <button class="btn btn-outline-secondary w-100 py-4" id="btnRecordData">
                     <i class="fas fa-pen-to-square fa-2x mb-2 d-block"></i>
                     <span class="fs-5">Daten hinterlegen</span>
                 </button>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <a class="btn btn-outline-warning w-100 py-4" href="settings-atemschutz.php">
+                    <i class="fas fa-cog fa-2x mb-2 d-block"></i>
+                    <span class="fs-5">Einstellungen</span>
+                </a>
             </div>
         </div>
 
