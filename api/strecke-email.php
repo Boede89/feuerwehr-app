@@ -241,14 +241,13 @@ try {
             
         case 'get_ausbilder':
             // Nur Ausbilder-Liste zurückgeben (für Modal-Auswahl)
+            // Berechtigungen sind in der users-Tabelle als Spalten gespeichert
             $stmt = $db->prepare("
-                SELECT u.id, u.email, u.first_name, u.last_name
-                FROM users u
-                LEFT JOIN user_permissions up ON u.id = up.user_id
-                WHERE (u.role = 'admin' OR up.permission_key = 'atemschutz')
-                AND u.email IS NOT NULL AND u.email != ''
-                GROUP BY u.id
-                ORDER BY u.last_name, u.first_name
+                SELECT id, email, first_name, last_name
+                FROM users
+                WHERE (is_admin = 1 OR can_atemschutz = 1)
+                AND email IS NOT NULL AND email != ''
+                ORDER BY last_name, first_name
             ");
             $stmt->execute();
             $ausbilder = $stmt->fetchAll(PDO::FETCH_ASSOC);
