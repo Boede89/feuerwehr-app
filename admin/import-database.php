@@ -1,4 +1,9 @@
 <?php
+// Fehlerausgabe aktivieren für Debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
@@ -29,6 +34,10 @@ if ($sql === false || trim($sql) === '') {
     exit;
 }
 
+// Session-Daten speichern bevor die Datenbank überschrieben wird
+$saved_user_id = $_SESSION['user_id'];
+$saved_session_data = $_SESSION;
+
 try {
     $db->beginTransaction();
     $db->exec('SET FOREIGN_KEY_CHECKS=0');
@@ -42,11 +51,25 @@ try {
 
     $db->exec('SET FOREIGN_KEY_CHECKS=1');
     $db->commit();
+    
+    // Session-Daten wiederherstellen
+    $_SESSION = $saved_session_data;
+    session_write_close();
+    
     header('Location: settings-backup.php?dbimport=success');
+    exit;
 } catch (Exception $e) {
-    $db->rollBack();
-    http_response_code(500);
-    echo 'Import-Fehler: ' . htmlspecialchars($e->getMessage());
+    if ($db->inTransaction()) {
+        $db->rollBack();
+    }
+    error_log('Datenbank-Import Fehler: ' . $e->getMessage());
+    
+    // Session-Daten wiederherstellen auch bei Fehler
+    $_SESSION = $saved_session_data;
+    
+    // Weiterleitung mit Fehlermeldung
+    header('Location: settings-backup.php?dbimport=error&msg=' . urlencode($e->getMessage()));
+    exit;
 }
 ?>
 

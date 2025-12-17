@@ -19,8 +19,12 @@ $error = '';
 if (isset($_GET['import']) && $_GET['import'] === 'success') {
     $message = 'Einstellungen wurden erfolgreich importiert!';
 }
-if (isset($_GET['dbimport']) && $_GET['dbimport'] === 'success') {
-    $message = 'Datenbank wurde erfolgreich importiert!';
+if (isset($_GET['dbimport'])) {
+    if ($_GET['dbimport'] === 'success') {
+        $message = 'Datenbank wurde erfolgreich importiert!';
+    } elseif ($_GET['dbimport'] === 'error') {
+        $error = 'Datenbank-Import fehlgeschlagen: ' . htmlspecialchars($_GET['msg'] ?? 'Unbekannter Fehler');
+    }
 }
 ?>
 <!DOCTYPE html>
