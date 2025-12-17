@@ -126,3 +126,4 @@ public
 # Temporary folders
 tmp/
 temp/
+insert-json-directly.php
