@@ -25,8 +25,29 @@ class SimpleSMTP {
     
     public function send($to, $subject, $message, $isHtml = false) {
         try {
+            // Verbindungsprotokoll bestimmen
+            $protocol = '';
+            if ($this->encryption === 'ssl' || $this->port == 465) {
+                $protocol = 'ssl://';
+            }
+            
             // Verbindung herstellen
-            $this->connection = fsockopen($this->host, $this->port, $errno, $errstr, 30);
+            $context = stream_context_create([
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                    'allow_self_signed' => true
+                ]
+            ]);
+            
+            $this->connection = stream_socket_client(
+                $protocol . $this->host . ':' . $this->port,
+                $errno,
+                $errstr,
+                30,
+                STREAM_CLIENT_CONNECT,
+                $context
+            );
             
             if (!$this->connection) {
                 error_log("SMTP Verbindungsfehler: $errstr ($errno)");
@@ -46,18 +67,20 @@ class SimpleSMTP {
             // EHLO senden
             $this->sendCommand("EHLO localhost");
             
-            // STARTTLS senden
-            $this->sendCommand("STARTTLS");
-            
-            // TLS-Verbindung starten
-            if (!stream_socket_enable_crypto($this->connection, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
-                error_log("SMTP: TLS-Verbindung fehlgeschlagen");
-                fclose($this->connection);
-                return false;
+            // STARTTLS nur wenn nicht bereits SSL
+            if ($this->encryption !== 'ssl' && $this->port != 465) {
+                $this->sendCommand("STARTTLS");
+                
+                // TLS-Verbindung starten
+                if (!stream_socket_enable_crypto($this->connection, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                    error_log("SMTP: TLS-Verbindung fehlgeschlagen");
+                    fclose($this->connection);
+                    return false;
+                }
+                
+                // EHLO nach TLS senden
+                $this->sendCommand("EHLO localhost");
             }
-            
-            // EHLO nach TLS senden
-            $this->sendCommand("EHLO localhost");
             
             // AUTH LOGIN
             $this->sendCommand("AUTH LOGIN");
@@ -114,19 +137,46 @@ class SimpleSMTP {
             }
             $email_data .= "To: {$to_clean}\r\n";
             $email_data .= "Reply-To: {$from_email_clean}\r\n";
+            $email_data .= "Return-Path: <{$from_email_clean}>\r\n";
             $email_data .= "Subject: {$subject_clean}\r\n";
             $email_data .= "Date: " . date('r') . "\r\n";
             $email_data .= "Message-ID: <{$messageId}>\r\n";
             $email_data .= "MIME-Version: 1.0\r\n";
-            $email_data .= "Content-Type: " . ($isHtml ? "text/html" : "text/plain") . "; charset=UTF-8\r\n";
-            $email_data .= "Content-Transfer-Encoding: base64\r\n";
-            $email_data .= "X-Mailer: Feuerwehr-App/1.0\r\n";
-            $email_data .= "X-Priority: 3\r\n";
-            $email_data .= "Auto-Submitted: auto-generated\r\n";
-            $email_data .= "Precedence: bulk\r\n";
-            $email_data .= "\r\n";
-            // Nachricht als Base64 kodieren für bessere Zustellung
-            $email_data .= chunk_split(base64_encode($message), 76, "\r\n");
+            
+            if ($isHtml) {
+                // Multipart E-Mail mit Text und HTML-Alternative (bessere Zustellung)
+                $boundary = '----=_Part_' . md5(uniqid(mt_rand(), true));
+                $email_data .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
+                $email_data .= "\r\n";
+                
+                // Plain-Text Version (aus HTML extrahieren)
+                $plainText = strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>', '</div>', '</li>'], "\n", $message));
+                $plainText = html_entity_decode($plainText, ENT_QUOTES, 'UTF-8');
+                $plainText = preg_replace('/\n{3,}/', "\n\n", $plainText);
+                $plainText = trim($plainText);
+                
+                // Text-Teil
+                $email_data .= "--{$boundary}\r\n";
+                $email_data .= "Content-Type: text/plain; charset=UTF-8\r\n";
+                $email_data .= "Content-Transfer-Encoding: base64\r\n";
+                $email_data .= "\r\n";
+                $email_data .= chunk_split(base64_encode($plainText), 76, "\r\n");
+                
+                // HTML-Teil
+                $email_data .= "--{$boundary}\r\n";
+                $email_data .= "Content-Type: text/html; charset=UTF-8\r\n";
+                $email_data .= "Content-Transfer-Encoding: base64\r\n";
+                $email_data .= "\r\n";
+                $email_data .= chunk_split(base64_encode($message), 76, "\r\n");
+                
+                $email_data .= "--{$boundary}--\r\n";
+            } else {
+                $email_data .= "Content-Type: text/plain; charset=UTF-8\r\n";
+                $email_data .= "Content-Transfer-Encoding: base64\r\n";
+                $email_data .= "\r\n";
+                $email_data .= chunk_split(base64_encode($message), 76, "\r\n");
+            }
+            
             $email_data .= ".\r\n";
             
             fwrite($this->connection, $email_data);

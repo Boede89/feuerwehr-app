@@ -38,6 +38,28 @@ try {
         exit;
     }
     
+    // CC-Empfänger laden
+    $ccRecipientEmails = [];
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key='atemschutz_cc_recipients' LIMIT 1");
+        $stmt->execute();
+        $val = $stmt->fetchColumn();
+        error_log("send-atemschutz-email: CC-Empfänger Einstellung: " . ($val !== false ? $val : 'NICHT GEFUNDEN'));
+        
+        if ($val !== false && $val !== null && $val !== '') {
+            $ccRecipientIds = json_decode($val, true);
+            if (!empty($ccRecipientIds) && is_array($ccRecipientIds)) {
+                $placeholders = implode(',', array_fill(0, count($ccRecipientIds), '?'));
+                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($placeholders) AND email IS NOT NULL AND email != ''");
+                $stmt->execute($ccRecipientIds);
+                $ccRecipientEmails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                error_log("send-atemschutz-email: CC-Empfänger E-Mails: " . implode(', ', $ccRecipientEmails));
+            }
+        }
+    } catch (Exception $e) {
+        error_log("send-atemschutz-email: Fehler beim Laden der CC-Empfänger: " . $e->getMessage());
+    }
+    
     // E-Mail-Adresse aktualisieren
     $stmt = $db->prepare("UPDATE atemschutz_traeger SET email = ? WHERE id = ?");
     $stmt->execute([$email, $traegerId]);
@@ -69,6 +91,27 @@ try {
     // E-Mail über die globale send_email() Funktion senden (verwendet SMTP-Einstellungen)
     $success = send_email($email, $finalSubject, $finalBody, '', $isHtmlEmail);
     
+    // CC-Empfänger benachrichtigen
+    $ccSentCount = 0;
+    if ($success && !empty($ccRecipientEmails)) {
+        $ccSubject = "[Kopie] " . $finalSubject . " - " . $traeger['first_name'] . " " . $traeger['last_name'];
+        foreach ($ccRecipientEmails as $ccEmail) {
+            if ($ccEmail && strtolower($ccEmail) !== strtolower($email)) { // Nicht an den ursprünglichen Empfänger senden
+                try {
+                    $ccResult = send_email($ccEmail, $ccSubject, $finalBody, '', $isHtmlEmail);
+                    if ($ccResult) {
+                        $ccSentCount++;
+                        error_log("send-atemschutz-email: CC-E-Mail gesendet an: $ccEmail");
+                    } else {
+                        error_log("send-atemschutz-email: CC-E-Mail FEHLGESCHLAGEN an: $ccEmail");
+                    }
+                } catch (Exception $ccEx) {
+                    error_log("send-atemschutz-email: CC-E-Mail-Versand Fehler an $ccEmail: " . $ccEx->getMessage());
+                }
+            }
+        }
+    }
+    
     if ($success) {
         // E-Mail-Versand in der Datenbank protokollieren
         try {
@@ -86,13 +129,20 @@ try {
             
             $stmt = $db->prepare("INSERT INTO email_log (traeger_id, template_keys, recipient_email, subject, sent_by) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$traegerId, $templateKeys, $email, $finalSubject, $_SESSION['user_id']]);
+            
+            // CC-Empfänger auch protokollieren
+            if ($ccSentCount > 0) {
+                $ccEmailList = implode(', ', $ccRecipientEmails);
+                $stmt->execute([$traegerId, 'custom_cc', $ccEmailList, "[CC] " . $finalSubject, $_SESSION['user_id']]);
+            }
         } catch (Exception $e) {
             // Logging-Fehler ignorieren
         }
         
+        $ccMessage = $ccSentCount > 0 ? " (+ $ccSentCount CC-Kopien)" : "";
         echo json_encode([
             'success' => true, 
-            'message' => 'E-Mail erfolgreich gesendet an ' . $email
+            'message' => 'E-Mail erfolgreich gesendet an ' . $email . $ccMessage
         ]);
     } else {
         echo json_encode(['success' => false, 'message' => 'E-Mail konnte nicht gesendet werden']);
