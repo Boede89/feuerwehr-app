@@ -71,6 +71,18 @@ try {
             echo json_encode(['success' => true, 'message' => 'Zuordnung entfernt']);
             break;
             
+        case 'alle_loeschen':
+            // Alle Zuordnungen löschen
+            $stmt = $db->prepare("DELETE FROM strecke_zuordnungen");
+            $stmt->execute();
+            $geloescht = $stmt->rowCount();
+            
+            echo json_encode([
+                'success' => true, 
+                'message' => $geloescht . ' Zuordnung(en) wurden gelöscht'
+            ]);
+            break;
+            
         case 'auto_zuordnung':
             // Automatische Zuordnung basierend auf Ablaufdatum
             // Strategie:

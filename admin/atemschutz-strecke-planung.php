@@ -249,6 +249,9 @@ try {
                 <button class="btn btn-primary" onclick="autoZuordnung()">
                     <i class="fas fa-magic"></i> Auto-Zuordnung
                 </button>
+                <button class="btn btn-danger" onclick="alleZuordnungenLoeschen()">
+                    <i class="fas fa-eraser"></i> Zuordnung löschen
+                </button>
                 <button class="btn btn-info" onclick="alleInformieren()">
                     <i class="fas fa-envelope"></i> Alle informieren
                 </button>
@@ -875,6 +878,26 @@ try {
             .then(data => {
                 if (data.success) {
                     location.reload();
+                } else {
+                    showInfo('Fehler', data.message || 'Löschen fehlgeschlagen');
+                }
+            });
+        }
+        
+        // Alle Zuordnungen löschen
+        function alleZuordnungenLoeschen() {
+            if (!confirm('Wirklich ALLE Zuordnungen löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
+            
+            fetch('../api/strecke-zuordnung.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'alle_loeschen' })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showInfo('Erfolg', data.message);
+                    setTimeout(() => location.reload(), 1500);
                 } else {
                     showInfo('Fehler', data.message || 'Löschen fehlgeschlagen');
                 }
