@@ -3,7 +3,8 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || !has_admin_access()) {
+// Prüfe ob Benutzer eingeloggt ist und Settings-Berechtigung hat
+if (!isset($_SESSION['user_id']) || !has_permission('settings')) {
     http_response_code(403);
     echo 'Forbidden';
     exit;
