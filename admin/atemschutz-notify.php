@@ -52,6 +52,25 @@ try {
         $val = $s->fetchColumn();
         if ($val !== false && is_numeric($val)) { $warnDays = (int)$val; }
     } catch (Exception $e) {}
+    
+    // CC-Empfänger laden
+    $ccRecipientEmails = [];
+    try {
+        $s = $db->prepare("SELECT setting_value FROM settings WHERE setting_key='atemschutz_cc_recipients' LIMIT 1");
+        $s->execute();
+        $val = $s->fetchColumn();
+        if ($val !== false && $val !== null) {
+            $ccRecipientIds = json_decode($val, true) ?: [];
+            if (!empty($ccRecipientIds)) {
+                $placeholders = implode(',', array_fill(0, count($ccRecipientIds), '?'));
+                $s = $db->prepare("SELECT email FROM users WHERE id IN ($placeholders) AND email IS NOT NULL AND email != ''");
+                $s->execute($ccRecipientIds);
+                $ccRecipientEmails = $s->fetchAll(PDO::FETCH_COLUMN);
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Fehler beim Laden der CC-Empfänger: " . $e->getMessage());
+    }
 
     // Kandidaten ermitteln
     if ($sendAll) {
@@ -254,6 +273,21 @@ try {
         try {
             send_email($to, $subject, $body, '', true); // HTML-E-Mail aktivieren
             
+            // CC-Empfänger benachrichtigen (gleiche E-Mail mit angepasstem Betreff)
+            if (!empty($ccRecipientEmails)) {
+                $ccSubject = "[Kopie] " . $subject . " - " . $traeger['first_name'] . " " . $traeger['last_name'];
+                foreach ($ccRecipientEmails as $ccEmail) {
+                    if ($ccEmail && $ccEmail !== $to) { // Nicht an den ursprünglichen Empfänger senden
+                        try {
+                            send_email($ccEmail, $ccSubject, $body, '', true);
+                            error_log("CC-E-Mail gesendet an: $ccEmail für Geräteträger: {$traeger['first_name']} {$traeger['last_name']}");
+                        } catch (Exception $ccEx) {
+                            error_log("CC-E-Mail-Versand fehlgeschlagen an $ccEmail: " . $ccEx->getMessage());
+                        }
+                    }
+                }
+            }
+            
             // E-Mail-Versand in der Datenbank protokollieren
             try {
                 $db->exec("CREATE TABLE IF NOT EXISTS email_log (
@@ -270,6 +304,12 @@ try {
                 
                 $stmt = $db->prepare("INSERT INTO email_log (traeger_id, template_keys, recipient_email, subject, sent_by) VALUES (?, ?, ?, ?, ?)");
                 $stmt->execute([$t['id'], $templateKeys, $to, $subject, 0]); // 0 = System
+                
+                // CC-Empfänger auch protokollieren
+                if (!empty($ccRecipientEmails)) {
+                    $ccEmailList = implode(', ', $ccRecipientEmails);
+                    $stmt->execute([$t['id'], $templateKeys . '_cc', $ccEmailList, "[CC] " . $subject, 0]);
+                }
             } catch (Exception $e) {
                 // Logging-Fehler ignorieren
             }

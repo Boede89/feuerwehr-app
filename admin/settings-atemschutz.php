@@ -180,6 +180,19 @@ try {
     $error = "Fehler beim Laden der Benutzer: " . $e->getMessage();
 }
 
+// CC-Empfänger für Erinnerungs-E-Mails laden
+$ccRecipients = [];
+try {
+    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'atemschutz_cc_recipients' LIMIT 1");
+    $stmt->execute();
+    $val = $stmt->fetchColumn();
+    if ($val !== false && $val !== null) {
+        $ccRecipients = json_decode($val, true) ?: [];
+    }
+} catch (Exception $e) {
+    error_log("Fehler beim Laden der CC-Empfänger: " . $e->getMessage());
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
@@ -277,6 +290,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 error_log("Fehler beim Neuladen der Benutzer: " . $e->getMessage());
             }
         }
+        
+        // CC-Empfänger für Erinnerungs-E-Mails speichern
+        if (isset($_POST['action']) && $_POST['action'] === 'update_cc_recipients') {
+            try {
+                $selectedCcRecipients = isset($_POST['cc_recipients']) && is_array($_POST['cc_recipients']) 
+                    ? array_map('intval', $_POST['cc_recipients']) 
+                    : [];
+                
+                $ccJson = json_encode($selectedCcRecipients);
+                
+                $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('atemschutz_cc_recipients', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+                $stmt->execute([$ccJson]);
+                
+                $ccRecipients = $selectedCcRecipients;
+                $message = "CC-Empfänger erfolgreich aktualisiert.";
+            } catch (Exception $e) {
+                $error = "Fehler beim Speichern der CC-Empfänger: " . htmlspecialchars($e->getMessage());
+                error_log("CC-Empfänger Speicherfehler: " . $e->getMessage());
+            }
+        }
     }
 }
 ?>
@@ -329,7 +362,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- Navigation Buttons -->
         <div class="row mb-4">
             <div class="col-12">
-                <div class="btn-group" role="group">
+                <div class="btn-group flex-wrap" role="group">
                     <button type="button" class="btn btn-outline-primary active" id="warnschwelleBtn" onclick="showSection('warnschwelle')">
                         <i class="fas fa-triangle-exclamation"></i> Warnschwelle
                     </button>
@@ -337,7 +370,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <i class="fas fa-envelope"></i> E-Mail-Vorlagen
                     </button>
                     <button type="button" class="btn btn-outline-primary" id="notificationsBtn" onclick="showSection('notifications')">
-                        <i class="fas fa-bell"></i> Benachrichtigungseinstellungen
+                        <i class="fas fa-bell"></i> Benachrichtigungen
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="ccRecipientsBtn" onclick="showSection('ccRecipients')">
+                        <i class="fas fa-copy"></i> E-Mail CC
                     </button>
                 </div>
             </div>
@@ -472,6 +508,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </form>
             </div>
         </div>
+
+        <!-- CC-Empfänger für Erinnerungs-E-Mails -->
+        <div class="card mb-4" id="ccRecipientsSection" style="display: none;">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-copy"></i> E-Mail-Kopie (CC) bei Erinnerungen</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" id="ccRecipientsForm">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                    <input type="hidden" name="action" value="update_cc_recipients">
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Hinweis:</strong> Wählen Sie die Benutzer aus, die bei <strong>Erinnerungs- und Aufforderungs-E-Mails</strong> an Geräteträger ebenfalls eine Kopie (CC) der E-Mail erhalten sollen.
+                        <br><small class="mt-2 d-block">Diese Personen werden bei jeder automatischen Benachrichtigung über ablaufende oder abgelaufene Zertifikate in CC gesetzt.</small>
+                    </div>
+                    
+                    <div class="row">
+                        <?php foreach ($users as $user): ?>
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" 
+                                               name="cc_recipients[]" 
+                                               value="<?php echo $user['id']; ?>"
+                                               id="cc_user_<?php echo $user['id']; ?>"
+                                               <?php echo in_array($user['id'], $ccRecipients) ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="cc_user_<?php echo $user['id']; ?>">
+                                            <strong><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></strong>
+                                            <br>
+                                            <small class="text-muted">
+                                                <?php echo htmlspecialchars($user['email']); ?>
+                                                <span class="badge <?php echo ($user['is_admin'] || $user['user_role'] === 'admin') ? 'bg-danger' : 'bg-secondary'; ?> ms-1">
+                                                    <?php echo ($user['is_admin'] || $user['user_role'] === 'admin') ? 'Admin' : 'User'; ?>
+                                                </span>
+                                            </small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> CC-Empfänger speichern
+                        </button>
+                        <a href="settings.php" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -481,11 +573,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('warnschwelleSection').style.display = 'none';
             document.getElementById('emailTemplatesSection').style.display = 'none';
             document.getElementById('notificationsSection').style.display = 'none';
+            document.getElementById('ccRecipientsSection').style.display = 'none';
             
             // Alle Buttons deaktivieren
             document.getElementById('warnschwelleBtn').classList.remove('active');
             document.getElementById('emailTemplatesBtn').classList.remove('active');
             document.getElementById('notificationsBtn').classList.remove('active');
+            document.getElementById('ccRecipientsBtn').classList.remove('active');
             
             // Gewählte Sektion anzeigen
             document.getElementById(sectionName + 'Section').style.display = 'block';
