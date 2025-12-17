@@ -244,12 +244,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <span class="fs-5">Daten hinterlegen</span>
                 </button>
             </div>
-            <div class="col-12 col-md-6 col-lg-4">
-                <a class="btn btn-outline-warning w-100 py-4" href="settings-atemschutz.php">
-                    <i class="fas fa-cog fa-2x mb-2 d-block"></i>
-                    <span class="fs-5">Einstellungen</span>
-                </a>
-            </div>
         </div>
 
 		<div class="alert alert-info">
