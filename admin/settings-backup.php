@@ -21,7 +21,8 @@ if (isset($_GET['import']) && $_GET['import'] === 'success') {
 }
 if (isset($_GET['dbimport'])) {
     if ($_GET['dbimport'] === 'success') {
-        $message = 'Datenbank wurde erfolgreich importiert!';
+        $count = isset($_GET['count']) ? intval($_GET['count']) : 0;
+        $message = 'Datenbank wurde erfolgreich importiert! (' . $count . ' SQL-Statements ausgeführt)';
     } elseif ($_GET['dbimport'] === 'error') {
         $error = 'Datenbank-Import fehlgeschlagen: ' . htmlspecialchars($_GET['msg'] ?? 'Unbekannter Fehler');
     }

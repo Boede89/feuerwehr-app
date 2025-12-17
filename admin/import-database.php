@@ -35,33 +35,41 @@ if ($sql === false || trim($sql) === '') {
 }
 
 // Session-Daten speichern bevor die Datenbank überschrieben wird
-$saved_user_id = $_SESSION['user_id'];
 $saved_session_data = $_SESSION;
 
 try {
-    $db->beginTransaction();
+    // Foreign Key Checks deaktivieren
     $db->exec('SET FOREIGN_KEY_CHECKS=0');
 
-    // Einfache naive Ausführung, getrennt an Semikolon
+    // SQL-Statements einzeln ausführen (ohne Transaktion, da DDL-Statements diese sowieso committen)
     $statements = array_filter(array_map('trim', preg_split('/;\s*\n|;\r?\n|;\s*$/m', $sql)));
+    $executed = 0;
+    
     foreach ($statements as $stmtSql) {
-        if ($stmtSql === '' || stripos($stmtSql, '--') === 0) continue;
+        // Leere Statements und Kommentare überspringen
+        if ($stmtSql === '' || stripos($stmtSql, '--') === 0 || stripos($stmtSql, '/*') === 0) {
+            continue;
+        }
         $db->exec($stmtSql);
+        $executed++;
     }
 
+    // Foreign Key Checks wieder aktivieren
     $db->exec('SET FOREIGN_KEY_CHECKS=1');
-    $db->commit();
     
     // Session-Daten wiederherstellen
     $_SESSION = $saved_session_data;
     session_write_close();
     
-    header('Location: settings-backup.php?dbimport=success');
+    header('Location: settings-backup.php?dbimport=success&count=' . $executed);
     exit;
+    
 } catch (Exception $e) {
-    if ($db->inTransaction()) {
-        $db->rollBack();
-    }
+    // Foreign Key Checks sicherheitshalber wieder aktivieren
+    try {
+        $db->exec('SET FOREIGN_KEY_CHECKS=1');
+    } catch (Exception $ignored) {}
+    
     error_log('Datenbank-Import Fehler: ' . $e->getMessage());
     
     // Session-Daten wiederherstellen auch bei Fehler
