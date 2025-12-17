@@ -249,6 +249,17 @@ try {
             cursor: pointer;
             display: block;
         }
+        #confirmModal .modal-body {
+            text-align: center;
+            padding: 25px;
+        }
+        #confirmModal .modal-footer {
+            justify-content: center;
+            gap: 10px;
+        }
+        #confirmModal .btn {
+            min-width: 120px;
+        }
     </style>
 </head>
 <body>
@@ -547,6 +558,31 @@ try {
         </div>
     </div>
 
+    <!-- Bestätigungs-Modal -->
+    <div class="modal fade" id="confirmModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" id="confirmModalHeader">
+                    <h5 class="modal-title" id="confirmModalTitle">
+                        <i class="fas fa-question-circle"></i> Bestätigung
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="confirmModalBody" class="mb-0"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Abbrechen
+                    </button>
+                    <button type="button" class="btn" id="confirmModalBtn" onclick="executeConfirmedAction()">
+                        <i class="fas fa-check"></i> <span id="confirmModalBtnText">Bestätigen</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Ausbilder Auswahl Modal -->
     <div class="modal fade" id="ausbilderModal" tabindex="-1">
         <div class="modal-dialog">
@@ -586,6 +622,40 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Bestätigungs-Modal Funktionalität
+        let pendingAction = null;
+        
+        function showConfirm(title, message, btnText, btnClass, action) {
+            pendingAction = action;
+            document.getElementById('confirmModalTitle').innerHTML = '<i class="fas fa-question-circle"></i> ' + title;
+            document.getElementById('confirmModalBody').innerHTML = message;
+            document.getElementById('confirmModalBtnText').textContent = btnText;
+            document.getElementById('confirmModalBtn').className = 'btn ' + btnClass;
+            
+            // Header-Farbe basierend auf Button-Klasse
+            const header = document.getElementById('confirmModalHeader');
+            header.className = 'modal-header';
+            if (btnClass.includes('danger')) {
+                header.classList.add('bg-danger', 'text-white');
+            } else if (btnClass.includes('warning')) {
+                header.classList.add('bg-warning');
+            } else if (btnClass.includes('primary')) {
+                header.classList.add('bg-primary', 'text-white');
+            } else {
+                header.classList.add('bg-info', 'text-white');
+            }
+            
+            new bootstrap.Modal(document.getElementById('confirmModal')).show();
+        }
+        
+        function executeConfirmedAction() {
+            bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+            if (pendingAction) {
+                pendingAction();
+                pendingAction = null;
+            }
+        }
+        
         // Drag & Drop Funktionalität
         let draggedElement = null;
         
@@ -933,104 +1003,152 @@ try {
         }
         
         function deleteTermin(terminId) {
-            if (!confirm('Termin wirklich löschen? Alle Zuordnungen werden ebenfalls gelöscht.')) return;
-            
-            fetch('../api/strecke-termine.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'delete', termin_id: terminId })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    showInfo('Fehler', data.message || 'Löschen fehlgeschlagen');
+            showConfirm(
+                'Termin löschen',
+                '<i class="fas fa-trash-alt text-danger fa-2x mb-3 d-block"></i>' +
+                '<strong>Termin wirklich löschen?</strong><br><br>' +
+                'Alle Zuordnungen zu diesem Termin werden ebenfalls gelöscht.',
+                'Löschen',
+                'btn-danger',
+                function() {
+                    fetch('../api/strecke-termine.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'delete', termin_id: terminId })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            showInfo('Fehler', data.message || 'Löschen fehlgeschlagen');
+                        }
+                    });
                 }
-            });
+            );
         }
         
         // Alle Zuordnungen löschen
         function alleZuordnungenLoeschen() {
-            if (!confirm('Wirklich ALLE Zuordnungen löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
-            
-            fetch('../api/strecke-zuordnung.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'alle_loeschen' })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showInfo('Erfolg', data.message);
-                    setTimeout(() => location.reload(), 1500);
-                } else {
-                    showInfo('Fehler', data.message || 'Löschen fehlgeschlagen');
+            showConfirm(
+                'Zuordnungen löschen',
+                '<i class="fas fa-exclamation-triangle text-danger fa-2x mb-3 d-block"></i>' +
+                '<strong>Wirklich ALLE Zuordnungen löschen?</strong><br><br>' +
+                'Diese Aktion kann nicht rückgängig gemacht werden.',
+                'Alle löschen',
+                'btn-danger',
+                function() {
+                    fetch('../api/strecke-zuordnung.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'alle_loeschen' })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            showInfo('Erfolg', data.message);
+                            setTimeout(() => location.reload(), 1500);
+                        } else {
+                            showInfo('Fehler', data.message || 'Löschen fehlgeschlagen');
+                        }
+                    });
                 }
-            });
+            );
         }
         
         // Auto-Zuordnung
         function autoZuordnung() {
-            if (!confirm('Automatische Zuordnung starten? Geräteträger werden nach Ablaufdatum priorisiert den Terminen zugeordnet.')) return;
-            
-            fetch('../api/strecke-zuordnung.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'auto_zuordnung' })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showInfo('Erfolg', data.message);
-                    setTimeout(() => location.reload(), 1500);
-                } else {
-                    showInfo('Fehler', data.message || 'Auto-Zuordnung fehlgeschlagen');
+            showConfirm(
+                'Auto-Zuordnung',
+                '<i class="fas fa-magic text-primary fa-2x mb-3 d-block"></i>' +
+                '<strong>Automatische Zuordnung starten?</strong><br><br>' +
+                'Geräteträger werden nach Ablaufdatum priorisiert den Terminen zugeordnet.',
+                'Starten',
+                'btn-primary',
+                function() {
+                    fetch('../api/strecke-zuordnung.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'auto_zuordnung' })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            showInfo('Erfolg', data.message);
+                            setTimeout(() => location.reload(), 1500);
+                        } else {
+                            showInfo('Fehler', data.message || 'Auto-Zuordnung fehlgeschlagen');
+                        }
+                    });
                 }
-            });
+            );
         }
         
         // E-Mail Funktionen
         function alleInformieren() {
-            if (!confirm('Alle zugeordneten Geräteträger per E-Mail über ihren Termin informieren?')) return;
-            
-            fetch('../api/strecke-email.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'alle_informieren' })
-            })
-            .then(r => r.json())
-            .then(data => {
-                showInfo(data.success ? 'Erfolg' : 'Fehler', data.message);
-            });
+            showConfirm(
+                'Alle informieren',
+                '<i class="fas fa-envelope text-info fa-2x mb-3 d-block"></i>' +
+                '<strong>Alle Geräteträger informieren?</strong><br><br>' +
+                'Alle zugeordneten Geräteträger werden per E-Mail über ihren Termin informiert.',
+                'E-Mails senden',
+                'btn-info',
+                function() {
+                    fetch('../api/strecke-email.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'alle_informieren' })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        showInfo(data.success ? 'Erfolg' : 'Fehler', data.message);
+                    });
+                }
+            );
         }
         
         function terminInformieren(terminId) {
-            if (!confirm('Alle Teilnehmer dieses Termins per E-Mail informieren?')) return;
-            
-            fetch('../api/strecke-email.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'termin_informieren', termin_id: terminId })
-            })
-            .then(r => r.json())
-            .then(data => {
-                showInfo(data.success ? 'Erfolg' : 'Fehler', data.message);
-            });
+            showConfirm(
+                'Termin-Teilnehmer informieren',
+                '<i class="fas fa-users text-info fa-2x mb-3 d-block"></i>' +
+                '<strong>Alle Teilnehmer dieses Termins informieren?</strong><br><br>' +
+                'Die Teilnehmer werden per E-Mail über ihren Termin informiert.',
+                'E-Mails senden',
+                'btn-info',
+                function() {
+                    fetch('../api/strecke-email.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'termin_informieren', termin_id: terminId })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        showInfo(data.success ? 'Erfolg' : 'Fehler', data.message);
+                    });
+                }
+            );
         }
         
         function einzelnInformieren(traegerId, terminId) {
-            if (!confirm('Geräteträger per E-Mail über den Termin informieren?')) return;
-            
-            fetch('../api/strecke-email.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'einzeln_informieren', traeger_id: traegerId, termin_id: terminId })
-            })
-            .then(r => r.json())
-            .then(data => {
-                showInfo(data.success ? 'Erfolg' : 'Fehler', data.message);
-            });
+            showConfirm(
+                'Geräteträger informieren',
+                '<i class="fas fa-user text-info fa-2x mb-3 d-block"></i>' +
+                '<strong>Geräteträger per E-Mail informieren?</strong><br><br>' +
+                'Der Geräteträger wird über seinen Termin informiert.',
+                'E-Mail senden',
+                'btn-info',
+                function() {
+                    fetch('../api/strecke-email.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'einzeln_informieren', traeger_id: traegerId, termin_id: terminId })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        showInfo(data.success ? 'Erfolg' : 'Fehler', data.message);
+                    });
+                }
+            );
         }
         
         // Ausbilder per E-Mail informieren - Modal öffnen
