@@ -225,7 +225,7 @@ try {
             <h1 class="h3 mb-0">
                 <i class="fas fa-calendar-check"></i> Übungsstrecke - Terminplanung
             </h1>
-            <div class="btn-group">
+            <div class="btn-group flex-wrap">
                 <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#terminModal">
                     <i class="fas fa-plus"></i> Neuer Termin
                 </button>
@@ -234,6 +234,12 @@ try {
                 </button>
                 <button class="btn btn-info" onclick="alleInformieren()">
                     <i class="fas fa-envelope"></i> Alle informieren
+                </button>
+                <button class="btn btn-warning" onclick="ausbilderInformieren()">
+                    <i class="fas fa-user-tie"></i> Ausbilder informieren
+                </button>
+                <button class="btn btn-secondary" onclick="planungDrucken()">
+                    <i class="fas fa-print"></i> PDF drucken
                 </button>
             </div>
         </div>
@@ -583,8 +589,6 @@ try {
         }
         
         function removeZuordnung(traegerId, terminId) {
-            if (!confirm('Zuordnung wirklich entfernen?')) return;
-            
             fetch('../api/strecke-zuordnung.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -909,6 +913,26 @@ try {
             .then(data => {
                 showInfo(data.success ? 'Erfolg' : 'Fehler', data.message);
             });
+        }
+        
+        // Ausbilder per E-Mail informieren
+        function ausbilderInformieren() {
+            if (!confirm('Die Planungsübersicht an alle Ausbilder per E-Mail senden?')) return;
+            
+            fetch('../api/strecke-email.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'ausbilder_informieren' })
+            })
+            .then(r => r.json())
+            .then(data => {
+                showInfo(data.success ? 'Erfolg' : 'Fehler', data.message);
+            });
+        }
+        
+        // PDF Drucken
+        function planungDrucken() {
+            window.open('../api/strecke-pdf.php', '_blank');
         }
         
         function showInfo(title, message) {

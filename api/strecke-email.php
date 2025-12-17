@@ -239,6 +239,182 @@ try {
             echo json_encode(['success' => $gesendet > 0, 'message' => $message]);
             break;
             
+        case 'ausbilder_informieren':
+            // Alle Ausbilder laden (Benutzer mit Atemschutz-Berechtigung)
+            $stmt = $db->prepare("
+                SELECT u.id, u.email, u.first_name, u.last_name
+                FROM users u
+                LEFT JOIN user_permissions up ON u.id = up.user_id
+                WHERE (u.role = 'admin' OR up.permission_key = 'atemschutz')
+                AND u.email IS NOT NULL AND u.email != ''
+                GROUP BY u.id
+            ");
+            $stmt->execute();
+            $ausbilder = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            if (empty($ausbilder)) {
+                echo json_encode(['success' => false, 'message' => 'Keine Ausbilder mit E-Mail-Adressen gefunden']);
+                break;
+            }
+            
+            // Alle zukünftigen Termine mit Zuordnungen laden
+            $stmt = $db->prepare("
+                SELECT t.*, 
+                       GROUP_CONCAT(CONCAT(at.first_name, ' ', at.last_name) ORDER BY at.last_name SEPARATOR ', ') as teilnehmer,
+                       COUNT(sz.id) as anzahl_teilnehmer
+                FROM strecke_termine t
+                LEFT JOIN strecke_zuordnungen sz ON t.id = sz.termin_id
+                LEFT JOIN atemschutz_traeger at ON sz.traeger_id = at.id
+                WHERE t.termin_datum >= CURDATE()
+                GROUP BY t.id
+                ORDER BY t.termin_datum ASC, t.termin_zeit ASC
+            ");
+            $stmt->execute();
+            $termine = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Nicht zugeordnete Geräteträger
+            $stmt = $db->prepare("
+                SELECT at.first_name, at.last_name, 
+                       DATE_ADD(at.strecke_am, INTERVAL 1 YEAR) as strecke_bis,
+                       DATEDIFF(DATE_ADD(at.strecke_am, INTERVAL 1 YEAR), CURDATE()) as tage_bis_ablauf
+                FROM atemschutz_traeger at
+                LEFT JOIN strecke_zuordnungen sz ON at.id = sz.traeger_id
+                WHERE at.status = 'Aktiv' AND sz.id IS NULL
+                ORDER BY tage_bis_ablauf ASC
+            ");
+            $stmt->execute();
+            $nichtZugeordnet = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // E-Mail erstellen
+            $html = '<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Übungsstrecke - Planungsübersicht</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .content { padding: 30px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #667eea; color: white; }
+        tr:hover { background: #f5f5f5; }
+        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; }
+        .badge-success { background: #28a745; color: white; }
+        .badge-warning { background: #ffc107; color: #333; }
+        .badge-danger { background: #dc3545; color: white; }
+        .footer { background: #f8f9fa; padding: 20px; text-align: center; font-size: 0.9em; color: #666; }
+        .summary { background: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔥 Übungsstrecke - Planungsübersicht</h1>
+            <p style="margin:10px 0 0 0;">Stand: ' . date('d.m.Y H:i') . ' Uhr</p>
+        </div>
+        <div class="content">
+            <div class="summary">
+                <strong>📊 Zusammenfassung:</strong> ' . count($termine) . ' Termine geplant, ' . count($nichtZugeordnet) . ' Geräteträger noch nicht zugeordnet
+            </div>
+            
+            <h2>📅 Geplante Termine</h2>';
+            
+            if (empty($termine)) {
+                $html .= '<p><em>Keine zukünftigen Termine vorhanden.</em></p>';
+            } else {
+                $html .= '<table>
+                <tr>
+                    <th>Datum</th>
+                    <th>Uhrzeit</th>
+                    <th>Ort</th>
+                    <th>Teilnehmer</th>
+                </tr>';
+                
+                foreach ($termine as $t) {
+                    $datum = date('d.m.Y', strtotime($t['termin_datum']));
+                    $zeit = date('H:i', strtotime($t['termin_zeit']));
+                    $ort = $t['ort'] ?: '-';
+                    $teilnehmer = $t['teilnehmer'] ?: '<em>Noch keine Zuordnungen</em>';
+                    $anzahl = $t['anzahl_teilnehmer'] . '/' . $t['max_teilnehmer'];
+                    
+                    $html .= "<tr>
+                        <td><strong>$datum</strong></td>
+                        <td>$zeit Uhr</td>
+                        <td>$ort</td>
+                        <td>$teilnehmer <span class=\"badge badge-success\">$anzahl</span></td>
+                    </tr>";
+                }
+                $html .= '</table>';
+            }
+            
+            $html .= '<h2>⏳ Nicht zugeordnete Geräteträger</h2>';
+            
+            if (empty($nichtZugeordnet)) {
+                $html .= '<p><em>Alle aktiven Geräteträger sind zugeordnet! ✅</em></p>';
+            } else {
+                $html .= '<table>
+                <tr>
+                    <th>Name</th>
+                    <th>Strecke gültig bis</th>
+                    <th>Status</th>
+                </tr>';
+                
+                foreach ($nichtZugeordnet as $gt) {
+                    $name = htmlspecialchars($gt['first_name'] . ' ' . $gt['last_name']);
+                    $bis = $gt['strecke_bis'] ? date('d.m.Y', strtotime($gt['strecke_bis'])) : '-';
+                    $tage = $gt['tage_bis_ablauf'];
+                    
+                    if ($tage === null) {
+                        $status = '<span class="badge badge-warning">Kein Datum</span>';
+                    } elseif ($tage < 0) {
+                        $status = '<span class="badge badge-danger">Abgelaufen</span>';
+                    } elseif ($tage <= 90) {
+                        $status = '<span class="badge badge-warning">' . $tage . ' Tage</span>';
+                    } else {
+                        $status = '<span class="badge badge-success">' . $tage . ' Tage</span>';
+                    }
+                    
+                    $html .= "<tr>
+                        <td>$name</td>
+                        <td>$bis</td>
+                        <td>$status</td>
+                    </tr>";
+                }
+                $html .= '</table>';
+            }
+            
+            $html .= '
+        </div>
+        <div class="footer">
+            <p>Diese E-Mail wurde automatisch generiert.</p>
+        </div>
+    </div>
+</body>
+</html>';
+            
+            $gesendet = 0;
+            $fehler = 0;
+            $subject = 'Übungsstrecke - Planungsübersicht vom ' . date('d.m.Y');
+            
+            foreach ($ausbilder as $a) {
+                if (send_email($a['email'], $subject, $html, '', true)) {
+                    $gesendet++;
+                } else {
+                    $fehler++;
+                }
+            }
+            
+            $message = "Planungsübersicht an $gesendet Ausbilder gesendet";
+            if ($fehler > 0) {
+                $message .= ", $fehler fehlgeschlagen";
+            }
+            
+            echo json_encode(['success' => $gesendet > 0, 'message' => $message]);
+            break;
+            
         default:
             echo json_encode(['success' => false, 'message' => 'Unbekannte Aktion']);
     }
