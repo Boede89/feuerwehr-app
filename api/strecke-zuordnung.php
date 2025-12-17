@@ -73,23 +73,30 @@ try {
             
         case 'auto_zuordnung':
             // Automatische Zuordnung basierend auf Ablaufdatum
+            // Strategie:
+            // - Bereits abgelaufen: Frühestmöglichen Termin
+            // - Noch gültig: Spätestmöglichen Termin VOR dem Ablauf (um das Datum so lange wie möglich hinauszuzögern)
+            // - ALLE Geräteträger sollen verplant werden
             
-            // 1. Alle aktiven Geräteträger ohne Zuordnung laden, sortiert nach Ablaufdatum (dringendste zuerst)
+            $heute = date('Y-m-d');
+            
+            // 1. Alle aktiven Geräteträger ohne Zuordnung laden
             $stmt = $db->prepare("
                 SELECT at.id, at.first_name, at.last_name,
+                       at.strecke_am,
                        DATE_ADD(at.strecke_am, INTERVAL 1 YEAR) as strecke_bis,
                        DATEDIFF(DATE_ADD(at.strecke_am, INTERVAL 1 YEAR), CURDATE()) as tage_bis_ablauf
                 FROM atemschutz_traeger at
                 LEFT JOIN strecke_zuordnungen sz ON at.id = sz.traeger_id
                 WHERE at.status = 'Aktiv' AND sz.id IS NULL
                 ORDER BY 
-                    CASE WHEN at.strecke_am IS NULL THEN 1 ELSE 0 END,
+                    CASE WHEN at.strecke_am IS NULL THEN 2 ELSE 0 END,
                     tage_bis_ablauf ASC
             ");
             $stmt->execute();
             $nichtZugeordnet = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // 2. Alle zukünftigen Termine laden
+            // 2. Alle zukünftigen Termine laden (aufsteigend sortiert)
             $stmt = $db->prepare("
                 SELECT t.id, t.termin_datum, t.max_teilnehmer, 
                        COUNT(z.id) as aktuelle_teilnehmer,
@@ -114,55 +121,91 @@ try {
                 break;
             }
             
+            // Berechne Gesamtkapazität
+            $gesamtKapazitaet = array_sum(array_column($termine, 'freie_plaetze'));
+            $anzahlTraeger = count($nichtZugeordnet);
+            
             // 3. Zuordnung durchführen
             $zugeordnet = 0;
+            $nichtVerplant = 0;
             $insertStmt = $db->prepare("INSERT INTO strecke_zuordnungen (termin_id, traeger_id) VALUES (?, ?)");
             
+            // Kopie der Termine für die Bearbeitung
+            $termineKopie = $termine;
+            
             foreach ($nichtZugeordnet as $traeger) {
-                // Besten Termin für diesen Geräteträger finden
-                // Regel: Termin sollte VOR dem Ablaufdatum liegen, aber so spät wie möglich
-                $bestTermin = null;
                 $strecke_bis = $traeger['strecke_bis'];
+                $tage_bis_ablauf = $traeger['tage_bis_ablauf'];
+                $bestTermin = null;
+                $bestTerminIndex = null;
                 
-                foreach ($termine as &$termin) {
-                    if ($termin['freie_plaetze'] <= 0) continue;
-                    
-                    // Wenn Strecke_bis bekannt ist, versuche einen Termin davor zu finden
-                    if ($strecke_bis) {
-                        $terminDatum = $termin['termin_datum'];
-                        
-                        // Termin sollte vor dem Ablaufdatum liegen
-                        if ($terminDatum <= $strecke_bis) {
-                            $bestTermin = &$termin;
-                            break; // Erster passender Termin (frühester)
-                        }
-                    } else {
-                        // Kein Ablaufdatum bekannt, nimm einfach den ersten verfügbaren
-                        $bestTermin = &$termin;
-                        break;
-                    }
-                }
-                
-                // Falls kein Termin vor dem Ablaufdatum gefunden wurde, nimm den ersten verfügbaren
-                if (!$bestTermin) {
-                    foreach ($termine as &$termin) {
+                // Fall 1: Bereits abgelaufen oder kein Datum vorhanden -> Frühesten Termin
+                if ($strecke_bis === null || $tage_bis_ablauf < 0) {
+                    // Nimm den frühesten verfügbaren Termin
+                    foreach ($termineKopie as $idx => &$termin) {
                         if ($termin['freie_plaetze'] > 0) {
                             $bestTermin = &$termin;
+                            $bestTerminIndex = $idx;
                             break;
                         }
                     }
+                    unset($termin);
+                }
+                // Fall 2: Noch gültig -> Spätestmöglichen Termin VOR dem Ablauf
+                else {
+                    // Suche den spätesten Termin, der noch vor dem Ablaufdatum liegt
+                    // Gehe rückwärts durch die Termine (vom spätesten zum frühesten)
+                    for ($i = count($termineKopie) - 1; $i >= 0; $i--) {
+                        $termin = &$termineKopie[$i];
+                        if ($termin['freie_plaetze'] <= 0) {
+                            unset($termin);
+                            continue;
+                        }
+                        
+                        // Termin liegt vor oder am Ablaufdatum?
+                        if ($termin['termin_datum'] <= $strecke_bis) {
+                            $bestTermin = &$termin;
+                            $bestTerminIndex = $i;
+                            break;
+                        }
+                        unset($termin);
+                    }
+                    
+                    // Falls kein Termin vor dem Ablaufdatum gefunden wurde,
+                    // nimm den frühesten verfügbaren (besser zu spät als gar nicht)
+                    if (!$bestTermin) {
+                        foreach ($termineKopie as $idx => &$termin) {
+                            if ($termin['freie_plaetze'] > 0) {
+                                $bestTermin = &$termin;
+                                $bestTerminIndex = $idx;
+                                break;
+                            }
+                        }
+                        unset($termin);
+                    }
                 }
                 
-                if ($bestTermin) {
+                // Zuordnung durchführen
+                if ($bestTermin && $bestTerminIndex !== null) {
                     $insertStmt->execute([$bestTermin['id'], $traeger['id']]);
-                    $bestTermin['freie_plaetze']--;
+                    $termineKopie[$bestTerminIndex]['freie_plaetze']--;
                     $zugeordnet++;
+                } else {
+                    $nichtVerplant++;
                 }
+            }
+            
+            // Ergebnismeldung
+            $message = "$zugeordnet Geräteträger wurden automatisch zugeordnet.";
+            if ($nichtVerplant > 0) {
+                $message .= " $nichtVerplant Geräteträger konnten nicht verplant werden (keine freien Plätze).";
             }
             
             echo json_encode([
                 'success' => true, 
-                'message' => "$zugeordnet Geräteträger wurden automatisch zugeordnet"
+                'message' => $message,
+                'zugeordnet' => $zugeordnet,
+                'nicht_verplant' => $nichtVerplant
             ]);
             break;
             
