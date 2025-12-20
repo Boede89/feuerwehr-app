@@ -367,7 +367,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         ]);
                     }
                     
-                    $db->commit();
+                    // Nur committen wenn Transaktion noch aktiv ist
+                    if ($db->inTransaction()) {
+                        $db->commit();
+                    }
                     
                     if ($create_user && $is_admin && $user_id) {
                         $message = 'Mitglied wurde erfolgreich hinzugefügt und Benutzerkonto wurde erstellt. Benutzername: ' . htmlspecialchars($username) . ', Passwort: ' . htmlspecialchars($default_password);
