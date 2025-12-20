@@ -244,7 +244,7 @@ require_once 'includes/functions.php';
 
     <!-- Atemschutzeintrag Modal -->
     <div class="modal fade" id="atemschutzModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header bg-info text-white">
                     <h5 class="modal-title">
@@ -280,7 +280,7 @@ require_once 'includes/functions.php';
                                 <i class="fas fa-users me-1"></i>Atemschutzgeräteträger
                                 <span id="selectedCount" class="badge bg-secondary ms-2">0 ausgewählt</span>
                             </label>
-                            <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                            <div class="border rounded p-3" style="max-height: 500px; overflow-y: auto;">
                                 <div id="traegerList">
                                     <div class="text-center text-muted">
                                         <i class="fas fa-spinner fa-spin"></i> Lade Geräteträger...
