@@ -266,27 +266,44 @@ if (isset($_POST['test_email_btn'])) {
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Atemschutz Einstellungen -->
-        <div class="row mt-4">
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-user-shield"></i> Atemschutz – Einstellungen</h5>
-                        <p class="text-muted">Schwellwert für Ablaufwarnungen (z.B. 90 Tage) festlegen.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-atemschutz.php">
-                                <i class="fas fa-sliders"></i> Öffnen
-                            </a>
+                    <div class="card" style="flex: 1 1 0;">
+                        <div class="card-body d-flex flex-column h-100">
+                            <h5 class="card-title"><i class="fas fa-user-shield"></i> Atemschutz – Einstellungen</h5>
+                            <p class="text-muted">Schwellwert für Ablaufwarnungen (z.B. 90 Tage) festlegen.</p>
+                            <div class="mt-auto">
+                                <a class="btn btn-primary" href="settings-atemschutz.php">
+                                    <i class="fas fa-sliders"></i> Öffnen
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <style>
+        /* Sicherstellen, dass alle Karten die gleiche Höhe haben */
+        .row.align-items-stretch .col-md-6 {
+            display: flex;
+        }
+        
+        .row.align-items-stretch .col-md-6 > div {
+            width: 100%;
+        }
+        
+        .row.align-items-stretch .card {
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .row.align-items-stretch .card-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+    </style>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
