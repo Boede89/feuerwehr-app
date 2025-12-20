@@ -576,6 +576,14 @@ if ($can_atemschutz) {
                 </a>
             </div>
             <?php endif; ?>
+            
+            <?php if ($can_settings): ?>
+            <div class="col-12 col-md-3">
+                <a href="members.php" class="btn btn-outline-success w-100">
+                    <i class="fas fa-users"></i> Mitgliederverwaltung
+                </a>
+            </div>
+            <?php endif; ?>
         </div>
 
         <!-- Feedback-Statistiken (nur für Admins) -->
