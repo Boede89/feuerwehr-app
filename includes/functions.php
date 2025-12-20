@@ -1338,14 +1338,18 @@ function link_traeger_to_member($traeger_id, $first_name, $last_name, $email = n
                 }
             }
         } else {
-            // Neues Mitglied erstellen
+            // Neues Mitglied erstellen (automatisch als PA-Träger markieren)
             $stmt = $db->prepare("
-                INSERT INTO members (first_name, last_name, email, birthdate) 
-                VALUES (?, ?, ?, ?)
+                INSERT INTO members (first_name, last_name, email, birthdate, is_pa_traeger) 
+                VALUES (?, ?, ?, ?, 1)
             ");
             $stmt->execute([$first_name, $last_name, $email, $birthdate]);
             $member_id = $db->lastInsertId();
         }
+        
+        // Stelle sicher, dass is_pa_traeger = 1 gesetzt ist (da es ein Geräteträger ist)
+        $stmt = $db->prepare("UPDATE members SET is_pa_traeger = 1 WHERE id = ?");
+        $stmt->execute([$member_id]);
         
         // Verknüpfe Geräteträger mit Mitglied
         $stmt = $db->prepare("UPDATE atemschutz_traeger SET member_id = ? WHERE id = ?");

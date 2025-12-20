@@ -54,10 +54,18 @@ try {
             email VARCHAR(255) NULL,
             birthdate DATE NULL,
             phone VARCHAR(50) NULL,
+            is_pa_traeger TINYINT(1) DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
     );
+    
+    // is_pa_traeger Spalte hinzufügen falls nicht vorhanden
+    try {
+        $db->exec("ALTER TABLE members ADD COLUMN is_pa_traeger TINYINT(1) DEFAULT 0");
+    } catch (Exception $e) {
+        // Spalte existiert bereits, ignoriere Fehler
+    }
     
     // user_id Spalte hinzufügen falls nicht vorhanden
     try {
@@ -97,19 +105,42 @@ try {
         // Fehler ignorieren
     }
     
+    // Sicherstellen, dass is_pa_traeger Spalte existiert
+    try {
+        $db->exec("ALTER TABLE members ADD COLUMN is_pa_traeger TINYINT(1) DEFAULT 0");
+    } catch (Exception $e) {
+        // Spalte existiert bereits
+    }
+    
+    // Stelle sicher, dass alle Benutzer ein Mitglied haben
+    try {
+        $stmt = $db->query("
+            INSERT INTO members (user_id, first_name, last_name, email, is_pa_traeger)
+            SELECT u.id, u.first_name, u.last_name, u.email, 0
+            FROM users u
+            WHERE u.is_active = 1
+            AND NOT EXISTS (SELECT 1 FROM members m WHERE m.user_id = u.id)
+        ");
+    } catch (Exception $e) {
+        // Fehler ignorieren
+    }
+    
     // Alle Mitglieder laden: Benutzer aus users + zusätzliche Mitglieder aus members
-    // Zuerst alle Benutzer als Mitglieder
+    // Zuerst alle Benutzer als Mitglieder (mit is_pa_traeger aus members)
     $stmt = $db->query("
         SELECT 
             u.id as user_id,
             u.first_name,
             u.last_name,
             u.email,
-            NULL as birthdate,
-            NULL as phone,
+            m.birthdate,
+            m.phone,
+            COALESCE(m.is_pa_traeger, 0) as is_pa_traeger,
+            m.id as member_id,
             u.created_at,
             'user' as source
         FROM users u
+        INNER JOIN members m ON m.user_id = u.id
         WHERE u.is_active = 1
         ORDER BY u.last_name, u.first_name
     ");
@@ -124,6 +155,8 @@ try {
             email,
             birthdate,
             phone,
+            COALESCE(is_pa_traeger, 0) as is_pa_traeger,
+            id as member_id,
             created_at,
             'member' as source
         FROM members
@@ -217,7 +250,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 
                 if (empty($error)) {
                     // Mitglied erstellen
-                    $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone) VALUES (?, ?, ?, ?, ?, ?)");
+                    // Sicherstellen, dass is_pa_traeger Spalte existiert
+                    try {
+                        $db->exec("ALTER TABLE members ADD COLUMN is_pa_traeger TINYINT(1) DEFAULT 0");
+                    } catch (Exception $e) {
+                        // Spalte existiert bereits
+                    }
+                    
+                    $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, is_pa_traeger) VALUES (?, ?, ?, ?, ?, ?, 0)");
                     $stmt->execute([
                         $user_id,
                         $first_name,
@@ -280,6 +320,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             } catch (Exception $e) {
                 $db->rollBack();
                 $error = 'Fehler beim Speichern: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
+// PA-Träger Toggle
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'toggle_pa_traeger') {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        $member_id = (int)($_POST['member_id'] ?? 0);
+        $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
+        
+        if ($member_id > 0) {
+            try {
+                // Sicherstellen, dass is_pa_traeger Spalte existiert
+                try {
+                    $db->exec("ALTER TABLE members ADD COLUMN is_pa_traeger TINYINT(1) DEFAULT 0");
+                } catch (Exception $e) {
+                    // Spalte existiert bereits
+                }
+                
+                // Aktualisiere is_pa_traeger
+                $stmt = $db->prepare("UPDATE members SET is_pa_traeger = ? WHERE id = ?");
+                $stmt->execute([$is_pa_traeger, $member_id]);
+                
+                // Wenn aktiviert, stelle sicher dass ein Geräteträger existiert
+                if ($is_pa_traeger == 1) {
+                    // Prüfe ob bereits ein Geräteträger mit dieser member_id existiert
+                    $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE member_id = ? LIMIT 1");
+                    $stmt->execute([$member_id]);
+                    if (!$stmt->fetch()) {
+                        // Lade Mitgliedsdaten
+                        $stmt = $db->prepare("SELECT first_name, last_name, email, birthdate FROM members WHERE id = ?");
+                        $stmt->execute([$member_id]);
+                        $member = $stmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($member) {
+                            // Erstelle Geräteträger mit Standard-Daten (heute)
+                            $today = date('Y-m-d');
+                            $birthdate = $member['birthdate'] ?? $today;
+                            
+                            $stmt = $db->prepare("
+                                INSERT INTO atemschutz_traeger (first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am, status, member_id) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, 'Aktiv', ?)
+                            ");
+                            $stmt->execute([
+                                $member['first_name'],
+                                $member['last_name'],
+                                $member['email'],
+                                $birthdate,
+                                $today,
+                                $today,
+                                $today,
+                                $member_id
+                            ]);
+                        }
+                    }
+                }
+                
+                $message = 'PA-Träger Status wurde aktualisiert.';
+                header("Location: members.php?show_list=1&success=toggle");
+                exit();
+            } catch (Exception $e) {
+                $error = 'Fehler beim Aktualisieren: ' . $e->getMessage();
             }
         }
     }
@@ -388,6 +493,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             <th>E-Mail</th>
                                             <th>Geburtsdatum</th>
                                             <th>Telefon</th>
+                                            <th>PA-Träger</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -403,6 +509,22 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             <td><?php echo htmlspecialchars($member['email'] ?? '-'); ?></td>
                                             <td><?php echo $member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : '-'; ?></td>
                                             <td><?php echo htmlspecialchars($member['phone'] ?? '-'); ?></td>
+                                            <td>
+                                                <?php if (!empty($member['member_id'])): ?>
+                                                <form method="POST" action="" style="display: inline;">
+                                                    <?php echo generate_csrf_token(); ?>
+                                                    <input type="hidden" name="action" value="toggle_pa_traeger">
+                                                    <input type="hidden" name="member_id" value="<?php echo (int)$member['member_id']; ?>">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox" name="is_pa_traeger" value="1" 
+                                                               <?php echo !empty($member['is_pa_traeger']) ? 'checked' : ''; ?>
+                                                               onchange="this.form.submit()">
+                                                    </div>
+                                                </form>
+                                                <?php else: ?>
+                                                    <span class="text-muted">-</span>
+                                                <?php endif; ?>
+                                            </td>
                                         </tr>
                                         <?php endforeach; ?>
                                     </tbody>

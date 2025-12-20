@@ -32,12 +32,38 @@ try {
         // Spalte existiert bereits, ignoriere Fehler
     }
     
-    // Lade alle aktiven Atemschutzgeräteträger
+    // Sicherstellen, dass is_pa_traeger Spalte in members existiert
+    try {
+        $db->exec("ALTER TABLE members ADD COLUMN is_pa_traeger TINYINT(1) DEFAULT 0");
+    } catch (Exception $e) {
+        // Spalte existiert bereits
+    }
+    
+    // Setze alle bestehenden Geräteträger automatisch auf is_pa_traeger = 1
+    try {
+        $db->exec("
+            UPDATE members m
+            INNER JOIN atemschutz_traeger at ON m.id = at.member_id
+            SET m.is_pa_traeger = 1
+            WHERE m.is_pa_traeger = 0 OR m.is_pa_traeger IS NULL
+        ");
+    } catch (Exception $e) {
+        // Fehler ignorieren
+    }
+    
+    // Lade nur aktive Atemschutzgeräteträger, deren Mitglied is_pa_traeger = 1 hat
     $stmt = $db->prepare("
-        SELECT id, first_name, last_name
-        FROM atemschutz_traeger 
-        WHERE status = 'Aktiv' 
-        ORDER BY last_name, first_name
+        SELECT at.id, at.first_name, at.last_name
+        FROM atemschutz_traeger at
+        LEFT JOIN members m ON at.member_id = m.id
+        WHERE at.status = 'Aktiv' 
+        AND (m.is_pa_traeger = 1 OR (at.member_id IS NULL AND EXISTS (
+            SELECT 1 FROM members m2 
+            WHERE m2.first_name = at.first_name 
+            AND m2.last_name = at.last_name 
+            AND m2.is_pa_traeger = 1
+        )))
+        ORDER BY at.last_name, at.first_name
     ");
     $stmt->execute();
     $traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
