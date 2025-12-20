@@ -279,9 +279,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $birthdate = trim($_POST['birthdate'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
         $create_user = isset($_POST['create_user']) && $_POST['create_user'] == '1';
+        $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
+        $strecke_am = trim($_POST['strecke_am'] ?? '');
+        $g263_am = trim($_POST['g263_am'] ?? '');
+        $uebung_am = trim($_POST['uebung_am'] ?? '');
         
         if (empty($first_name) || empty($last_name)) {
             $error = 'Bitte geben Sie Vorname und Nachname ein.';
+        } elseif ($is_pa_traeger == 1 && (empty($strecke_am) || empty($g263_am) || empty($uebung_am))) {
+            $error = 'Bitte füllen Sie alle Pflichtfelder für PA-Träger aus (Strecke Am, G26.3 Am, Übung/Einsatz Am).';
         } else {
             // Sicherstellen, dass is_pa_traeger Spalte existiert (vor Transaktion)
             try {
@@ -483,11 +489,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $phone = trim($_POST['phone'] ?? '');
         $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
         $create_user = isset($_POST['create_user']) && $_POST['create_user'] == '1';
+        $strecke_am = trim($_POST['strecke_am'] ?? '');
+        $g263_am = trim($_POST['g263_am'] ?? '');
+        $uebung_am = trim($_POST['uebung_am'] ?? '');
         
         if (empty($first_name) || empty($last_name)) {
             $error = 'Bitte geben Sie Vorname und Nachname ein.';
         } elseif ($member_id <= 0) {
             $error = 'Ungültige Mitglieds-ID.';
+        } elseif ($is_pa_traeger == 1 && (empty($strecke_am) || empty($g263_am) || empty($uebung_am))) {
+            $error = 'Bitte füllen Sie alle Pflichtfelder für PA-Träger aus (Strecke Am, G26.3 Am, Übung/Einsatz Am).';
         } else {
             try {
                 $db->beginTransaction();
@@ -1047,17 +1058,65 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                 </label>
                                 <input type="tel" class="form-control" name="phone" id="memberPhone">
                             </div>
-                            <div class="col-12">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" name="is_pa_traeger" id="memberIsPaTraeger" value="1">
-                                    <label class="form-check-label" for="memberIsPaTraeger">
-                                        <i class="fas fa-user-shield me-1"></i>PA-Träger
-                                    </label>
-                                    <small class="form-text text-muted d-block mt-1">
-                                        Wenn aktiviert, erscheint dieses Mitglied in der Liste der Geräteträger.
-                                    </small>
+                                <div class="col-12">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="is_pa_traeger" id="memberIsPaTraeger" value="1">
+                                        <label class="form-check-label" for="memberIsPaTraeger">
+                                            <i class="fas fa-user-shield me-1"></i>PA-Träger
+                                        </label>
+                                        <small class="form-text text-muted d-block mt-1">
+                                            Wenn aktiviert, erscheint dieses Mitglied in der Liste der Geräteträger.
+                                        </small>
+                                    </div>
                                 </div>
-                            </div>
+                                
+                                <!-- PA-Träger Pflichtfelder (nur sichtbar wenn PA-Träger aktiviert) -->
+                                <div class="col-12" id="paTraegerFields" style="display: none;">
+                                    <div class="border rounded p-3 bg-light">
+                                        <h6 class="mb-3"><i class="fas fa-user-shield me-2"></i>PA-Träger Pflichtfelder</h6>
+                                        
+                                        <div class="row g-3">
+                                            <div class="col-12">
+                                                <div class="border rounded p-3 mb-3">
+                                                    <h6 class="mb-3"><i class="fas fa-road me-2"></i> Strecke</h6>
+                                                    <div class="row g-3">
+                                                        <div class="col-12 col-md-6">
+                                                            <label class="form-label">Strecke Am <span class="text-danger">*</span></label>
+                                                            <input type="date" class="form-control" name="strecke_am" id="memberStreckeAm">
+                                                            <small class="form-text text-muted">Bis-Datum wird automatisch auf +1 Jahr gesetzt.</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="col-12">
+                                                <div class="border rounded p-3 mb-3">
+                                                    <h6 class="mb-3"><i class="fas fa-stethoscope me-2"></i> G26.3</h6>
+                                                    <div class="row g-3">
+                                                        <div class="col-12 col-md-6">
+                                                            <label class="form-label">G26.3 Am <span class="text-danger">*</span></label>
+                                                            <input type="date" class="form-control" name="g263_am" id="memberG263Am">
+                                                            <small class="form-text text-muted">Bis-Datum: unter 50 Jahre +3 Jahre, ab 50 +1 Jahr.</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="col-12">
+                                                <div class="border rounded p-3">
+                                                    <h6 class="mb-3"><i class="fas fa-dumbbell me-2"></i> Übung/Einsatz</h6>
+                                                    <div class="row g-3">
+                                                        <div class="col-12 col-md-6">
+                                                            <label class="form-label">Übung/Einsatz Am <span class="text-danger">*</span></label>
+                                                            <input type="date" class="form-control" name="uebung_am" id="memberUebungAm">
+                                                            <small class="form-text text-muted">Bis-Datum wird automatisch auf +1 Jahr gesetzt.</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             <div class="col-12" id="createUserSection">
                                 <?php if ($is_admin): ?>
                                 <div class="form-check">
@@ -1117,7 +1176,37 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             document.getElementById('memberEmail').value = member.email || '';
             document.getElementById('memberBirthdate').value = member.birthdate || '';
             document.getElementById('memberPhone').value = member.phone || '';
-            document.getElementById('memberIsPaTraeger').checked = member.is_pa_traeger == 1;
+            const isPaTraeger = member.is_pa_traeger == 1;
+            document.getElementById('memberIsPaTraeger').checked = isPaTraeger;
+            
+            // PA-Träger Felder anzeigen/ausblenden basierend auf Status
+            const paTraegerFields = document.getElementById('paTraegerFields');
+            if (paTraegerFields) {
+                if (isPaTraeger) {
+                    paTraegerFields.style.display = 'block';
+                    const requiredFields = paTraegerFields.querySelectorAll('input[type="date"]');
+                    requiredFields.forEach(field => {
+                        field.setAttribute('required', 'required');
+                    });
+                } else {
+                    paTraegerFields.style.display = 'none';
+                    const requiredFields = paTraegerFields.querySelectorAll('input[type="date"]');
+                    requiredFields.forEach(field => {
+                        field.removeAttribute('required');
+                    });
+                }
+            }
+            
+            // PA-Träger Datumsfelder füllen (falls vorhanden)
+            if (isPaTraeger && member.strecke_am) {
+                document.getElementById('memberStreckeAm').value = member.strecke_am || '';
+            }
+            if (isPaTraeger && member.g263_am) {
+                document.getElementById('memberG263Am').value = member.g263_am || '';
+            }
+            if (isPaTraeger && member.uebung_am) {
+                document.getElementById('memberUebungAm').value = member.uebung_am || '';
+            }
             
             // Checkbox "Login erlaubt" setzen basierend auf user_id
             const createUserCheckbox = document.getElementById('create_user');
