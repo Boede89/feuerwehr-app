@@ -229,10 +229,6 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <!-- Formulare -->
-        <div class="row mt-4">
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
@@ -246,10 +242,6 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <!-- Fahrzeug- und Benutzerverwaltung -->
-        <div class="row mt-4">
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
