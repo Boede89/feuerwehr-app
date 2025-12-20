@@ -197,12 +197,12 @@ if (isset($_POST['test_email_btn'])) {
             </div>
         </div>
 
-        <div class="row g-4">
+        <div class="row g-4 align-items-stretch">
             <!-- Linke Spalte -->
-            <div class="col-md-6">
-                <div class="d-flex flex-column gap-4">
-                    <div class="card h-100">
-                        <div class="card-body d-flex flex-column">
+            <div class="col-md-6 d-flex">
+                <div class="d-flex flex-column w-100" style="gap: 1.5rem;">
+                    <div class="card" style="flex: 1 1 0;">
+                        <div class="card-body d-flex flex-column h-100">
                             <h5 class="card-title"><i class="fas fa-truck"></i> Fahrzeugreservierungen</h5>
                             <p class="text-muted">Einstellungen speziell für die Fahrzeugreservierungen.</p>
                             <div class="mt-auto">
@@ -212,8 +212,8 @@ if (isset($_POST['test_email_btn'])) {
                             </div>
                         </div>
                     </div>
-                    <div class="card h-100">
-                        <div class="card-body d-flex flex-column">
+                    <div class="card" style="flex: 1 1 0;">
+                        <div class="card-body d-flex flex-column h-100">
                             <h5 class="card-title"><i class="fas fa-file-alt"></i> Formulare</h5>
                             <p class="text-muted">Einstellungen für die verschiedenen Formulare verwalten.</p>
                             <div class="mt-auto">
@@ -223,8 +223,8 @@ if (isset($_POST['test_email_btn'])) {
                             </div>
                         </div>
                     </div>
-                    <div class="card h-100">
-                        <div class="card-body d-flex flex-column">
+                    <div class="card" style="flex: 1 1 0;">
+                        <div class="card-body d-flex flex-column h-100">
                             <h5 class="card-title"><i class="fas fa-truck"></i> Fahrzeugverwaltung</h5>
                             <p class="text-muted">Fahrzeuge hinzufügen, bearbeiten und verwalten.</p>
                             <div class="mt-auto">
@@ -237,10 +237,10 @@ if (isset($_POST['test_email_btn'])) {
                 </div>
             </div>
             <!-- Rechte Spalte -->
-            <div class="col-md-6">
-                <div class="d-flex flex-column gap-4">
-                    <div class="card h-100">
-                        <div class="card-body d-flex flex-column">
+            <div class="col-md-6 d-flex">
+                <div class="d-flex flex-column w-100" style="gap: 1.5rem;">
+                    <div class="card" style="flex: 1 1 0;">
+                        <div class="card-body d-flex flex-column h-100">
                             <h5 class="card-title"><i class="fas fa-gear"></i> Globale Einstellungen</h5>
                             <p class="text-muted">SMTP, Google Calendar, App-weite Optionen, Fahrzeug- und Benutzerverwaltung.</p>
                             <div class="mt-auto">
@@ -255,8 +255,8 @@ if (isset($_POST['test_email_btn'])) {
                             </div>
                         </div>
                     </div>
-                    <div class="card h-100">
-                        <div class="card-body d-flex flex-column">
+                    <div class="card" style="flex: 1 1 0;">
+                        <div class="card-body d-flex flex-column h-100">
                             <h5 class="card-title"><i class="fas fa-users"></i> Benutzerverwaltung</h5>
                             <p class="text-muted">Benutzer hinzufügen, bearbeiten und Berechtigungen verwalten.</p>
                             <div class="mt-auto">
