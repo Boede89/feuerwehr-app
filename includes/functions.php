@@ -1290,10 +1290,12 @@ function link_traeger_to_member($traeger_id, $first_name, $last_name, $email = n
             // Foreign Key existiert bereits oder Fehler, ignoriere
         }
         
-        // Prüfe, ob bereits ein Mitglied mit diesem Namen existiert (ohne user_id, da Geräteträger nicht automatisch Benutzer sind)
+        // Prüfe, ob bereits ein Mitglied mit diesem Namen existiert
+        // Priorität: Mitglied mit user_id > Mitglied ohne user_id
         $stmt = $db->prepare("
-            SELECT id FROM members 
-            WHERE first_name = ? AND last_name = ? AND user_id IS NULL
+            SELECT id, user_id FROM members 
+            WHERE first_name = ? AND last_name = ?
+            ORDER BY user_id IS NULL ASC
             LIMIT 1
         ");
         $stmt->execute([$first_name, $last_name]);
@@ -1303,18 +1305,30 @@ function link_traeger_to_member($traeger_id, $first_name, $last_name, $email = n
             // Mitglied existiert bereits, verknüpfe es
             $member_id = $existing_member['id'];
             
-            // Aktualisiere E-Mail und Geburtsdatum falls vorhanden
+            // Aktualisiere E-Mail und Geburtsdatum falls vorhanden (nur wenn noch nicht gesetzt)
             if ($email || $birthdate) {
                 $update_fields = [];
                 $update_params = [];
                 
                 if ($email) {
-                    $update_fields[] = "email = ?";
-                    $update_params[] = $email;
+                    // Nur aktualisieren wenn noch keine E-Mail vorhanden
+                    $stmt_check = $db->prepare("SELECT email FROM members WHERE id = ?");
+                    $stmt_check->execute([$member_id]);
+                    $current = $stmt_check->fetch(PDO::FETCH_ASSOC);
+                    if (empty($current['email'])) {
+                        $update_fields[] = "email = ?";
+                        $update_params[] = $email;
+                    }
                 }
                 if ($birthdate) {
-                    $update_fields[] = "birthdate = ?";
-                    $update_params[] = $birthdate;
+                    // Nur aktualisieren wenn noch kein Geburtsdatum vorhanden
+                    $stmt_check = $db->prepare("SELECT birthdate FROM members WHERE id = ?");
+                    $stmt_check->execute([$member_id]);
+                    $current = $stmt_check->fetch(PDO::FETCH_ASSOC);
+                    if (empty($current['birthdate'])) {
+                        $update_fields[] = "birthdate = ?";
+                        $update_params[] = $birthdate;
+                    }
                 }
                 
                 if (!empty($update_fields)) {
@@ -1401,6 +1415,132 @@ function sync_all_traeger_to_members() {
     } catch (Exception $e) {
         error_log("Fehler beim Synchronisieren der Geräteträger: " . $e->getMessage());
         return 0;
+    }
+}
+
+/**
+ * Führt doppelte Mitglieder zusammen
+ * Findet Mitglieder mit gleichem Namen und führt sie zu einem zusammen
+ * Priorität: Mitglied mit user_id wird behalten
+ * 
+ * @return array Statistik: ['merged' => Anzahl zusammengeführter, 'deleted' => Anzahl gelöschter]
+ */
+function merge_duplicate_members() {
+    global $db;
+    
+    try {
+        $db->beginTransaction();
+        
+        // Finde doppelte Mitglieder (gleicher Name)
+        $stmt = $db->query("
+            SELECT 
+                first_name, 
+                last_name,
+                GROUP_CONCAT(id ORDER BY user_id IS NULL ASC, id ASC) as member_ids,
+                COUNT(*) as count
+            FROM members
+            GROUP BY first_name, last_name
+            HAVING count > 1
+        ");
+        $duplicates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $merged_count = 0;
+        $deleted_count = 0;
+        
+        foreach ($duplicates as $dup) {
+            $member_ids = explode(',', $dup['member_ids']);
+            $member_ids = array_map('intval', $member_ids);
+            
+            // Das erste Mitglied behalten (hat Priorität: mit user_id oder niedrigste ID)
+            $keep_id = $member_ids[0];
+            $delete_ids = array_slice($member_ids, 1);
+            
+            // Lade Daten des zu behaltenden Mitglieds
+            $stmt = $db->prepare("SELECT * FROM members WHERE id = ?");
+            $stmt->execute([$keep_id]);
+            $keep_member = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            // Sammle alle Daten der zu löschenden Mitglieder
+            $all_emails = [$keep_member['email']];
+            $all_birthdates = [$keep_member['birthdate']];
+            $all_phones = [$keep_member['phone']];
+            $all_user_ids = [$keep_member['user_id']];
+            
+            foreach ($delete_ids as $delete_id) {
+                $stmt = $db->prepare("SELECT * FROM members WHERE id = ?");
+                $stmt->execute([$delete_id]);
+                $delete_member = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($delete_member) {
+                    if (!empty($delete_member['email'])) $all_emails[] = $delete_member['email'];
+                    if (!empty($delete_member['birthdate'])) $all_birthdates[] = $delete_member['birthdate'];
+                    if (!empty($delete_member['phone'])) $all_phones[] = $delete_member['phone'];
+                    if (!empty($delete_member['user_id'])) $all_user_ids[] = $delete_member['user_id'];
+                }
+            }
+            
+            // Bestimme die besten Werte (nicht leer, Priorität für user_id)
+            $best_email = !empty($keep_member['email']) ? $keep_member['email'] : (count($all_emails) > 1 ? array_filter($all_emails)[0] ?? null : null);
+            $best_birthdate = !empty($keep_member['birthdate']) ? $keep_member['birthdate'] : (count($all_birthdates) > 1 ? array_filter($all_birthdates)[0] ?? null : null);
+            $best_phone = !empty($keep_member['phone']) ? $keep_member['phone'] : (count($all_phones) > 1 ? array_filter($all_phones)[0] ?? null : null);
+            $best_user_id = !empty($keep_member['user_id']) ? $keep_member['user_id'] : (count($all_user_ids) > 1 ? array_filter($all_user_ids)[0] ?? null : null);
+            
+            // Aktualisiere das zu behaltende Mitglied mit den besten Werten
+            $update_fields = [];
+            $update_params = [];
+            
+            if ($best_email && $best_email !== $keep_member['email']) {
+                $update_fields[] = "email = ?";
+                $update_params[] = $best_email;
+            }
+            if ($best_birthdate && $best_birthdate !== $keep_member['birthdate']) {
+                $update_fields[] = "birthdate = ?";
+                $update_params[] = $best_birthdate;
+            }
+            if ($best_phone && $best_phone !== $keep_member['phone']) {
+                $update_fields[] = "phone = ?";
+                $update_params[] = $best_phone;
+            }
+            if ($best_user_id && $best_user_id !== $keep_member['user_id']) {
+                $update_fields[] = "user_id = ?";
+                $update_params[] = $best_user_id;
+            }
+            
+            if (!empty($update_fields)) {
+                $update_params[] = $keep_id;
+                $stmt = $db->prepare("UPDATE members SET " . implode(", ", $update_fields) . " WHERE id = ?");
+                $stmt->execute($update_params);
+            }
+            
+            // Aktualisiere alle atemschutz_traeger, die auf die zu löschenden Mitglieder verweisen
+            foreach ($delete_ids as $delete_id) {
+                $stmt = $db->prepare("UPDATE atemschutz_traeger SET member_id = ? WHERE member_id = ?");
+                $stmt->execute([$keep_id, $delete_id]);
+            }
+            
+            // Lösche die doppelten Mitglieder
+            $placeholders = implode(',', array_fill(0, count($delete_ids), '?'));
+            $stmt = $db->prepare("DELETE FROM members WHERE id IN ($placeholders)");
+            $stmt->execute($delete_ids);
+            
+            $merged_count++;
+            $deleted_count += count($delete_ids);
+        }
+        
+        $db->commit();
+        
+        return [
+            'merged' => $merged_count,
+            'deleted' => $deleted_count
+        ];
+    } catch (Exception $e) {
+        $db->rollBack();
+        error_log("Fehler beim Zusammenführen doppelter Mitglieder: " . $e->getMessage());
+        return [
+            'merged' => 0,
+            'deleted' => 0,
+            'error' => $e->getMessage()
+        ];
     }
 }
 ?>
