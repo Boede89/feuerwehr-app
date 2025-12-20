@@ -505,8 +505,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $error = 'Bitte geben Sie Vorname und Nachname ein.';
         } elseif ($member_id <= 0) {
             $error = 'Ungültige Mitglieds-ID.';
-        } elseif ($is_pa_traeger == 1 && (empty($strecke_am) || empty($g263_am) || empty($uebung_am))) {
-            $error = 'Bitte füllen Sie alle Pflichtfelder für PA-Träger aus (Strecke Am, G26.3 Am, Übung/Einsatz Am).';
+        } elseif ($is_pa_traeger == 1 && (empty($birthdate) || empty($strecke_am) || empty($g263_am) || empty($uebung_am))) {
+            $error = 'Bitte füllen Sie alle Pflichtfelder für PA-Träger aus (Geburtsdatum, Strecke Am, G26.3 Am, Übung/Einsatz Am).';
         } else {
             try {
                 $db->beginTransaction();
@@ -1055,7 +1055,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                 <input type="email" class="form-control" name="email" id="memberEmail">
                             </div>
                             <div class="col-12 col-md-6">
-                                <label class="form-label">
+                                <label class="form-label" id="birthdateLabel">
                                     <i class="fas fa-calendar me-1"></i>Geburtsdatum (optional)
                                 </label>
                                 <input type="date" class="form-control" name="birthdate" id="memberBirthdate">
@@ -1189,6 +1189,9 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             
             // PA-Träger Felder anzeigen/ausblenden basierend auf Status
             const paTraegerFields = document.getElementById('paTraegerFields');
+            const birthdateInput = document.getElementById('memberBirthdate');
+            const birthdateLabel = document.getElementById('birthdateLabel');
+            
             if (paTraegerFields) {
                 if (isPaTraeger) {
                     paTraegerFields.style.display = 'block';
@@ -1196,12 +1199,28 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     requiredFields.forEach(field => {
                         field.setAttribute('required', 'required');
                     });
+                    
+                    // Geburtsdatum als Pflichtfeld markieren
+                    if (birthdateInput) {
+                        birthdateInput.setAttribute('required', 'required');
+                    }
+                    if (birthdateLabel) {
+                        birthdateLabel.innerHTML = '<i class="fas fa-calendar me-1"></i>Geburtsdatum <span class="text-danger">*</span>';
+                    }
                 } else {
                     paTraegerFields.style.display = 'none';
                     const requiredFields = paTraegerFields.querySelectorAll('input[type="date"]');
                     requiredFields.forEach(field => {
                         field.removeAttribute('required');
                     });
+                    
+                    // Geburtsdatum wieder optional machen
+                    if (birthdateInput) {
+                        birthdateInput.removeAttribute('required');
+                    }
+                    if (birthdateLabel) {
+                        birthdateLabel.innerHTML = '<i class="fas fa-calendar me-1"></i>Geburtsdatum (optional)';
+                    }
                 }
             }
             
