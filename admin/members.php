@@ -1326,7 +1326,76 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             if (paTraegerToggle) {
                 paTraegerToggle.checked = false;
             }
+            
+            // PA-Träger Felder ausblenden und zurücksetzen
+            const paTraegerFields = document.getElementById('paTraegerFields');
+            const birthdateInput = document.getElementById('memberBirthdate');
+            const birthdateLabel = document.getElementById('birthdateLabel');
+            
+            if (paTraegerFields) {
+                paTraegerFields.style.display = 'none';
+                const requiredFields = paTraegerFields.querySelectorAll('input[type="date"]');
+                requiredFields.forEach(field => {
+                    field.removeAttribute('required');
+                    field.value = '';
+                });
+            }
+            
+            // Geburtsdatum wieder optional machen
+            if (birthdateInput) {
+                birthdateInput.removeAttribute('required');
+            }
+            if (birthdateLabel) {
+                birthdateLabel.innerHTML = '<i class="fas fa-calendar me-1"></i>Geburtsdatum (optional)';
+            }
         });
+        
+        // PA-Träger Toggle Event Listener - MUSS NACH DEM MODAL EVENT LISTENER SEIN
+        const paTraegerToggle = document.getElementById('memberIsPaTraeger');
+        const paTraegerFields = document.getElementById('paTraegerFields');
+        const birthdateInput = document.getElementById('memberBirthdate');
+        const birthdateLabel = document.getElementById('birthdateLabel');
+        
+        if (paTraegerToggle && paTraegerFields) {
+            paTraegerToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    // PA-Träger Felder anzeigen
+                    paTraegerFields.style.display = 'block';
+                    
+                    // Alle Datumsfelder als required markieren
+                    const requiredFields = paTraegerFields.querySelectorAll('input[type="date"]');
+                    requiredFields.forEach(field => {
+                        field.setAttribute('required', 'required');
+                    });
+                    
+                    // Geburtsdatum als Pflichtfeld markieren
+                    if (birthdateInput) {
+                        birthdateInput.setAttribute('required', 'required');
+                    }
+                    if (birthdateLabel) {
+                        birthdateLabel.innerHTML = '<i class="fas fa-calendar me-1"></i>Geburtsdatum <span class="text-danger">*</span>';
+                    }
+                } else {
+                    // PA-Träger Felder ausblenden
+                    paTraegerFields.style.display = 'none';
+                    
+                    // Required entfernen von PA-Träger Feldern
+                    const requiredFields = paTraegerFields.querySelectorAll('input[type="date"]');
+                    requiredFields.forEach(field => {
+                        field.removeAttribute('required');
+                        field.value = ''; // Felder leeren
+                    });
+                    
+                    // Geburtsdatum wieder optional machen
+                    if (birthdateInput) {
+                        birthdateInput.removeAttribute('required');
+                    }
+                    if (birthdateLabel) {
+                        birthdateLabel.innerHTML = '<i class="fas fa-calendar me-1"></i>Geburtsdatum (optional)';
+                    }
+                }
+            });
+        }
         
         <?php if ($is_admin): ?>
         // E-Mail als Pflichtfeld setzen wenn "Login erlaubt" aktiviert ist
