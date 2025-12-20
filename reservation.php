@@ -654,17 +654,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                                 </div>
                                 
                                 <div id="timeframes">
-                                    <div class="timeframe-row row mb-3">
+                                    <div class="timeframe-row row mb-3 g-3">
                                         <div class="col-md-5">
-                                            <label class="form-label">Von (Datum & Uhrzeit) *</label>
+                                            <label class="form-label" style="white-space: nowrap;">Von (Datum & Uhrzeit) <span class="text-danger">*</span></label>
                                             <input type="datetime-local" class="form-control start-datetime" name="start_datetime_0" required>
                                         </div>
                                         <div class="col-md-5">
-                                            <label class="form-label">Bis (Datum & Uhrzeit) *</label>
+                                            <label class="form-label" style="white-space: nowrap;">Bis (Datum & Uhrzeit) <span class="text-danger">*</span></label>
                                             <input type="datetime-local" class="form-control end-datetime" name="end_datetime_0" required>
                                         </div>
                                         <div class="col-md-2 d-flex align-items-end">
-                                            <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe" style="display: none;">
+                                            <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100" style="display: none;">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </div>
@@ -859,15 +859,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             newTimeframe.className = 'timeframe-row row mb-3';
             newTimeframe.innerHTML = `
                 <div class="col-md-5">
-                    <label class="form-label">Von (Datum & Uhrzeit) *</label>
+                    <label class="form-label" style="white-space: nowrap;">Von (Datum & Uhrzeit) <span class="text-danger">*</span></label>
                     <input type="datetime-local" class="form-control start-datetime" name="start_datetime_${timeframeCount}" required>
                 </div>
                 <div class="col-md-5">
-                    <label class="form-label">Bis (Datum & Uhrzeit) *</label>
+                    <label class="form-label" style="white-space: nowrap;">Bis (Datum & Uhrzeit) <span class="text-danger">*</span></label>
                     <input type="datetime-local" class="form-control end-datetime" name="end_datetime_${timeframeCount}" required>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
-                    <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe">
+                    <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
