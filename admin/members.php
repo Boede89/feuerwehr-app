@@ -98,12 +98,24 @@ try {
     }
     
     // Foreign Key hinzufügen falls nicht vorhanden
+    // WICHTIG: ON DELETE SET NULL statt CASCADE, damit Mitglieder nicht gelöscht werden wenn Benutzer gelöscht wird
     try {
         // Prüfe ob Foreign Key bereits existiert
         $stmt = $db->query("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'members' AND COLUMN_NAME = 'user_id' AND REFERENCED_TABLE_NAME = 'users'");
-        if (!$stmt->fetch()) {
-            $db->exec("ALTER TABLE members ADD FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE");
+        $existing_fk = $stmt->fetch();
+        
+        if ($existing_fk) {
+            // Foreign Key existiert bereits, versuche ihn zu löschen und mit SET NULL neu zu erstellen
+            try {
+                $constraint_name = $existing_fk['CONSTRAINT_NAME'];
+                $db->exec("ALTER TABLE members DROP FOREIGN KEY " . $constraint_name);
+            } catch (Exception $e) {
+                // Fehler beim Löschen, ignoriere
+            }
         }
+        
+        // Erstelle Foreign Key mit SET NULL
+        $db->exec("ALTER TABLE members ADD FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL");
     } catch (Exception $e) {
         // Foreign Key existiert bereits oder Fehler, ignoriere
     }
