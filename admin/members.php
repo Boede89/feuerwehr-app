@@ -327,8 +327,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 }
                             }
                             
-                            // Generiere Standard-Passwort (kann später geändert werden)
-                            $default_password = bin2hex(random_bytes(8)); // 16 Zeichen zufälliges Passwort
+                            // Generiere Standard-Passwort (4 zufällige Zahlen)
+                            $default_password = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
                             $password_hash = hash_password($default_password);
                             
                             // Benutzer erstellen
@@ -338,6 +338,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             
                             // Passwort in Session speichern für Anzeige (nur einmal)
                             $_SESSION['new_user_password_' . $user_id] = $default_password;
+                            
+                            // E-Mail mit Benutzername und Passwort senden
+                            if (!empty($email)) {
+                                $email_subject = 'Ihr Benutzerkonto wurde erstellt';
+                                $email_body = '
+                                <html>
+                                <head>
+                                    <meta charset="UTF-8">
+                                    <style>
+                                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                                        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                                        .header { background-color: #dc3545; color: white; padding: 20px; text-align: center; }
+                                        .content { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
+                                        .credentials { background-color: #fff; padding: 15px; margin: 20px 0; border-left: 4px solid #dc3545; }
+                                        .credentials strong { color: #dc3545; }
+                                        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+                                    </style>
+                                </head>
+                                <body>
+                                    <div class="container">
+                                        <div class="header">
+                                            <h1>Willkommen bei der Feuerwehr-App</h1>
+                                        </div>
+                                        <div class="content">
+                                            <p>Hallo ' . htmlspecialchars($first_name) . ',</p>
+                                            <p>Ihr Benutzerkonto wurde erfolgreich erstellt. Sie können sich nun mit folgenden Zugangsdaten anmelden:</p>
+                                            <div class="credentials">
+                                                <p><strong>Benutzername:</strong> ' . htmlspecialchars($username) . '</p>
+                                                <p><strong>Passwort:</strong> ' . htmlspecialchars($default_password) . '</p>
+                                            </div>
+                                            <p>Bitte ändern Sie Ihr Passwort nach dem ersten Login für mehr Sicherheit.</p>
+                                            <p>Bei Fragen wenden Sie sich bitte an den Administrator.</p>
+                                        </div>
+                                        <div class="footer">
+                                            <p>Diese E-Mail wurde automatisch generiert. Bitte antworten Sie nicht auf diese E-Mail.</p>
+                                        </div>
+                                    </div>
+                                </body>
+                                </html>';
+                                
+                                if (send_email($email, $email_subject, $email_body, '', true)) {
+                                    error_log("Willkommens-E-Mail erfolgreich gesendet an: $email");
+                                } else {
+                                    error_log("Fehler beim Senden der Willkommens-E-Mail an: $email");
+                                }
+                            }
                         }
                     }
                 }
@@ -507,8 +553,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     }
                                 }
                                 
-                                // Generiere Standard-Passwort
-                                $default_password = bin2hex(random_bytes(8));
+                                // Generiere Standard-Passwort (4 zufällige Zahlen)
+                                $default_password = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
                                 $password_hash = hash_password($default_password);
                                 
                                 // Benutzer erstellen
@@ -522,6 +568,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 
                                 // Passwort in Session speichern für Anzeige
                                 $_SESSION['new_user_password_' . $new_user_id] = $default_password;
+                                
+                                // E-Mail mit Benutzername und Passwort senden
+                                if (!empty($email)) {
+                                    $email_subject = 'Ihr Benutzerkonto wurde erstellt';
+                                    $email_body = '
+                                    <html>
+                                    <head>
+                                        <meta charset="UTF-8">
+                                        <style>
+                                            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                                            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                                            .header { background-color: #dc3545; color: white; padding: 20px; text-align: center; }
+                                            .content { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
+                                            .credentials { background-color: #fff; padding: 15px; margin: 20px 0; border-left: 4px solid #dc3545; }
+                                            .credentials strong { color: #dc3545; }
+                                            .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+                                        </style>
+                                    </head>
+                                    <body>
+                                        <div class="container">
+                                            <div class="header">
+                                                <h1>Willkommen bei der Feuerwehr-App</h1>
+                                            </div>
+                                            <div class="content">
+                                                <p>Hallo ' . htmlspecialchars($first_name) . ',</p>
+                                                <p>Ihr Benutzerkonto wurde erfolgreich erstellt. Sie können sich nun mit folgenden Zugangsdaten anmelden:</p>
+                                                <div class="credentials">
+                                                    <p><strong>Benutzername:</strong> ' . htmlspecialchars($username) . '</p>
+                                                    <p><strong>Passwort:</strong> ' . htmlspecialchars($default_password) . '</p>
+                                                </div>
+                                                <p>Bitte ändern Sie Ihr Passwort nach dem ersten Login für mehr Sicherheit.</p>
+                                                <p>Bei Fragen wenden Sie sich bitte an den Administrator.</p>
+                                            </div>
+                                            <div class="footer">
+                                                <p>Diese E-Mail wurde automatisch generiert. Bitte antworten Sie nicht auf diese E-Mail.</p>
+                                            </div>
+                                        </div>
+                                    </body>
+                                    </html>';
+                                    
+                                    if (send_email($email, $email_subject, $email_body, '', true)) {
+                                        error_log("Willkommens-E-Mail erfolgreich gesendet an: $email");
+                                    } else {
+                                        error_log("Fehler beim Senden der Willkommens-E-Mail an: $email");
+                                    }
+                                }
                                 
                                 $user_created = true;
                                 $old_user_id = $new_user_id; // Für weitere Prüfungen
