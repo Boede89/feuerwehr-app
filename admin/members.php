@@ -219,9 +219,13 @@ try {
             END as is_pa_traeger,
             m.id as member_id,
             u.created_at,
+            at.strecke_am,
+            at.g263_am,
+            at.uebung_am,
             'user' as source
         FROM users u
         INNER JOIN members m ON m.user_id = u.id
+        LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
         WHERE u.is_active = 1
         ORDER BY u.last_name, u.first_name
     ");
@@ -242,8 +246,12 @@ try {
             END as is_pa_traeger,
             id as member_id,
             created_at,
+            at.strecke_am,
+            at.g263_am,
+            at.uebung_am,
             'member' as source
         FROM members
+        LEFT JOIN atemschutz_traeger at ON at.member_id = members.id
         WHERE user_id IS NULL
         ORDER BY last_name, first_name
     ");
