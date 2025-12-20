@@ -294,8 +294,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         
         if (empty($first_name) || empty($last_name)) {
             $error = 'Bitte geben Sie Vorname und Nachname ein.';
-        } elseif ($is_pa_traeger == 1 && (empty($strecke_am) || empty($g263_am) || empty($uebung_am))) {
-            $error = 'Bitte füllen Sie alle Pflichtfelder für PA-Träger aus (Strecke Am, G26.3 Am, Übung/Einsatz Am).';
+        } elseif ($is_pa_traeger == 1 && (empty($birthdate) || empty($strecke_am) || empty($g263_am) || empty($uebung_am))) {
+            $error = 'Bitte füllen Sie alle Pflichtfelder für PA-Träger aus (Geburtsdatum, Strecke Am, G26.3 Am, Übung/Einsatz Am).';
         } else {
             // Sicherstellen, dass is_pa_traeger Spalte existiert (vor Transaktion)
             try {
