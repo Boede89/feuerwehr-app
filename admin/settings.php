@@ -231,6 +231,23 @@ if (isset($_POST['test_email_btn'])) {
             </div>
         </div>
         
+        <!-- Formulare -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-file-alt"></i> Formulare</h5>
+                        <p class="text-muted">Einstellungen für die verschiedenen Formulare verwalten.</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-forms.php">
+                                <i class="fas fa-file-alt"></i> Formulare verwalten
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Fahrzeug- und Benutzerverwaltung -->
         <div class="row mt-4">
             <div class="col-md-6">

@@ -71,17 +71,15 @@ require_once 'includes/functions.php';
                         <div class="row g-4">
                             <!-- Mängelbericht -->
                             <div class="col-md-6 col-lg-4">
-                                <a href="formulare/maengelbericht.php" class="text-decoration-none">
-                                    <div class="card h-100 shadow-sm feature-card clickable-card">
-                                        <div class="card-body text-center p-4 d-flex flex-column">
-                                            <div class="feature-icon mb-3">
-                                                <i class="fas fa-exclamation-triangle text-warning"></i>
-                                            </div>
-                                            <h5 class="card-title">Mängelbericht</h5>
-                                            <p class="card-text">Erstellen Sie einen Mängelbericht für Fahrzeuge, Geräte oder Ausrüstung.</p>
+                                <div class="card h-100 shadow-sm feature-card clickable-card" data-bs-toggle="modal" data-bs-target="#maengelberichtModal" style="cursor: pointer;">
+                                    <div class="card-body text-center p-4 d-flex flex-column">
+                                        <div class="feature-icon mb-3">
+                                            <i class="fas fa-exclamation-triangle text-warning"></i>
                                         </div>
+                                        <h5 class="card-title">Mängelbericht</h5>
+                                        <p class="card-text">Erstellen Sie einen Mängelbericht für Fahrzeuge, Geräte oder Ausrüstung.</p>
                                     </div>
-                                </a>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -96,7 +94,51 @@ require_once 'includes/functions.php';
         </div>
     </footer>
 
+    <!-- Mängelbericht Modal -->
+    <div class="modal fade" id="maengelberichtModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Mängelbericht
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="maengelberichtForm">
+                        <div class="mb-3">
+                            <label for="maengelberichtDate" class="form-label">
+                                <i class="fas fa-calendar me-1"></i>Datum <span class="text-danger">*</span>
+                            </label>
+                            <input type="date" class="form-control" id="maengelberichtDate" name="date" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Abbrechen
+                    </button>
+                    <button type="button" class="btn btn-warning" id="submitMaengelberichtBtn">
+                        <i class="fas fa-paper-plane me-1"></i>Absenden
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Heutiges Datum setzen beim Öffnen des Modals
+        document.getElementById('maengelberichtModal').addEventListener('show.bs.modal', function() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('maengelberichtDate').value = today;
+        });
+        
+        // Formular zurücksetzen beim Schließen
+        document.getElementById('maengelberichtModal').addEventListener('hidden.bs.modal', function() {
+            document.getElementById('maengelberichtForm').reset();
+        });
+    </script>
     <style>
         .feature-icon {
             height: 80px;
