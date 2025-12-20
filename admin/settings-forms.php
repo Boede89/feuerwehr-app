@@ -465,13 +465,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const mainForm = document.querySelector('form[method="POST"]');
                 const formData = new FormData(fieldForm);
                 
+                // CSRF-Token aus dem Hauptformular holen
+                const csrfTokenInput = mainForm.querySelector('input[name="csrf_token"]');
+                if (!csrfTokenInput) {
+                    alert('Fehler: CSRF-Token nicht gefunden.');
+                    return;
+                }
+                const csrfToken = csrfTokenInput.value;
+                
                 // Alle Felder zum Hauptformular hinzufügen
                 for (let [key, value] of formData.entries()) {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = value;
-                    mainForm.appendChild(input);
+                    // Überspringe leere Werte
+                    if (!value && key !== 'field_required') continue;
+                    
+                    // Prüfe ob Feld bereits existiert
+                    let existingInput = mainForm.querySelector(`input[name="${key}"]`);
+                    if (existingInput && key !== 'csrf_token') {
+                        // Überschreibe existierendes Feld
+                        existingInput.value = value;
+                    } else if (key !== 'csrf_token') {
+                        // Neues Feld hinzufügen
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        mainForm.appendChild(input);
+                    }
+                }
+                
+                // CSRF-Token sicherstellen (sollte bereits vorhanden sein)
+                if (csrfTokenInput.value !== csrfToken) {
+                    csrfTokenInput.value = csrfToken;
                 }
                 
                 mainForm.submit();
