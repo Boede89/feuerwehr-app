@@ -544,7 +544,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         $stmt = $db->prepare("DELETE FROM members WHERE id = ?");
                         $stmt->execute([$member_id]);
                         
-                        $db->commit();
+                        if ($db->inTransaction()) {
+                            $db->commit();
+                        }
                         $message = 'Mitglied wurde erfolgreich gelöscht.';
                         header("Location: members.php?show_list=1&success=deleted");
                         exit();
@@ -555,6 +557,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $db->rollBack();
                 }
                 $error = 'Fehler beim Löschen: ' . $e->getMessage();
+                error_log("Fehler beim Löschen von Mitglied: " . $e->getMessage());
             }
         }
     }
