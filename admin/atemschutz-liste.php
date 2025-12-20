@@ -208,11 +208,12 @@ if (!$isAdmin && !$canAtemschutz) {
             throw new Exception('Benötigte Spalten fehlen (z.B. first_name/last_name/birthdate).');
         }
         // Abgeleitete Felder für Sortierung (Name und Bis-Daten)
+        // Verwende IFNULL um NULL-Werte zu behandeln
         $select = implode(", ", $selectParts)
             . ", CONCAT(IFNULL(last_name,''), ', ', IFNULL(first_name,'')) AS name_full"
-            . ", DATE_ADD(strecke_am, INTERVAL 1 YEAR) AS strecke_bis"
-            . ", CASE WHEN TIMESTAMPDIFF(YEAR, birthdate, CURDATE()) < 50 THEN DATE_ADD(g263_am, INTERVAL 3 YEAR) ELSE DATE_ADD(g263_am, INTERVAL 1 YEAR) END AS g263_bis"
-            . ", DATE_ADD(uebung_am, INTERVAL 1 YEAR) AS uebung_bis";
+            . ", IFNULL(DATE_ADD(strecke_am, INTERVAL 1 YEAR), NULL) AS strecke_bis"
+            . ", CASE WHEN birthdate IS NOT NULL AND TIMESTAMPDIFF(YEAR, birthdate, CURDATE()) < 50 THEN IFNULL(DATE_ADD(g263_am, INTERVAL 3 YEAR), NULL) ELSE IFNULL(DATE_ADD(g263_am, INTERVAL 1 YEAR), NULL) END AS g263_bis"
+            . ", IFNULL(DATE_ADD(uebung_am, INTERVAL 1 YEAR), NULL) AS uebung_bis";
 
         // WHERE (Suche)
         $where = '';
