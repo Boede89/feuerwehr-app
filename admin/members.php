@@ -380,6 +380,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <p><strong>Benutzername:</strong> ' . htmlspecialchars($username) . '</p>
                                                 <p><strong>Passwort:</strong> ' . htmlspecialchars($default_password) . '</p>
                                             </div>
+                                            <p style="text-align: center; margin: 30px 0;">
+                                                <a href="https://feuerwehr.boede89.selfhost.co/" style="display: inline-block; background-color: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Zur Startseite</a>
+                                            </p>
                                             <p>Bitte ändern Sie Ihr Passwort nach dem ersten Login für mehr Sicherheit.</p>
                                             <p>Bei Fragen wenden Sie sich bitte an den Administrator.</p>
                                         </div>
@@ -611,6 +614,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                     <p><strong>Benutzername:</strong> ' . htmlspecialchars($username) . '</p>
                                                     <p><strong>Passwort:</strong> ' . htmlspecialchars($default_password) . '</p>
                                                 </div>
+                                                <p style="text-align: center; margin: 30px 0;">
+                                                    <a href="https://feuerwehr.boede89.selfhost.co/" style="display: inline-block; background-color: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Zur Startseite</a>
+                                                </p>
                                                 <p>Bitte ändern Sie Ihr Passwort nach dem ersten Login für mehr Sicherheit.</p>
                                                 <p>Bei Fragen wenden Sie sich bitte an den Administrator.</p>
                                             </div>
