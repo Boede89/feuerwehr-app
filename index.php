@@ -178,7 +178,7 @@ require_once 'includes/functions.php';
                                 </div>
                                 <h5 class="card-title">Formulare</h5>
                                 <p class="card-text">Zugriff auf verschiedene Formulare und Dokumente der Feuerwehr.</p>
-                                <a href="#" class="btn btn-primary btn-lg w-100 mt-auto">
+                                <a href="formulare.php" class="btn btn-primary btn-lg w-100 mt-auto">
                                     <i class="fas fa-clipboard-list"></i> Formulare öffnen
                                 </a>
                             </div>
