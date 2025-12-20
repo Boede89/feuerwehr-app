@@ -75,6 +75,56 @@ require_once 'includes/functions.php';
         .feature-icon i {
             font-size: 3rem;
         }
+        
+        /* Tablet-Optimierungen */
+        @media (min-width: 576px) and (max-width: 991px) {
+            .feature-card .card-body {
+                padding: 2rem !important;
+            }
+            
+            .feature-card .btn {
+                font-size: 1.1rem;
+                padding: 0.75rem 1.5rem;
+            }
+            
+            .feature-card h5 {
+                font-size: 1.25rem;
+                margin-bottom: 1rem;
+            }
+            
+            .feature-card .card-text {
+                font-size: 1rem;
+                margin-bottom: 1.5rem;
+            }
+            
+            .feature-icon {
+                height: 90px;
+            }
+            
+            .feature-icon i {
+                font-size: 3.5rem;
+            }
+        }
+        
+        /* Mobile-Optimierungen */
+        @media (max-width: 575px) {
+            .feature-card .card-body {
+                padding: 1.5rem !important;
+            }
+            
+            .feature-card .btn {
+                font-size: 1rem;
+                padding: 0.65rem 1.25rem;
+            }
+            
+            .feature-icon {
+                height: 70px;
+            }
+            
+            .feature-icon i {
+                font-size: 2.5rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -118,7 +168,7 @@ require_once 'includes/functions.php';
 
     <main class="container mt-5">
         <div class="row justify-content-center">
-            <div class="col-lg-8">
+            <div class="col-12 col-md-10 col-lg-8">
                 <?php
                     // App Name aus den Einstellungen (nur hier auf der Startseite anzeigen)
                     $appDisplayName = 'Feuerwehr App';
@@ -138,7 +188,7 @@ require_once 'includes/functions.php';
                 </div>
 
                 <div class="row g-4">
-                    <div class="col-md-4">
+                    <div class="col-12 col-sm-6 col-lg-4">
                         <div class="card h-100 shadow-sm feature-card">
                             <div class="card-body text-center p-4 d-flex flex-column">
                                 <div class="feature-icon mb-3">
@@ -153,7 +203,7 @@ require_once 'includes/functions.php';
                         </div>
                     </div>
 
-                    <div class="col-md-4">
+                    <div class="col-12 col-sm-6 col-lg-4">
                         <div class="card h-100 shadow-sm feature-card">
                             <div class="card-body text-center p-4 d-flex flex-column">
                                 <div class="feature-icon mb-3">
@@ -170,7 +220,7 @@ require_once 'includes/functions.php';
                         </div>
                     </div>
 
-                    <div class="col-md-4">
+                    <div class="col-12 col-sm-6 col-lg-4">
                         <div class="card h-100 shadow-sm feature-card">
                             <div class="card-body text-center p-4 d-flex flex-column">
                                 <div class="feature-icon mb-3">
