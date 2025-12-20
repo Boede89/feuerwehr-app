@@ -68,6 +68,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $email_notifications = ($is_admin || $can_reservations) ? 1 : 0;
                         $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, can_reservations, can_atemschutz, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                         $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles, $email_notifications]);
+                        $new_user_id = $db->lastInsertId();
+                        
+                        // Mitglied automatisch erstellen/verknüpfen
+                        try {
+                            // Prüfe ob bereits ein Mitglied mit dieser user_id existiert
+                            $stmt_check = $db->prepare("SELECT id FROM members WHERE user_id = ?");
+                            $stmt_check->execute([$new_user_id]);
+                            if (!$stmt_check->fetch()) {
+                                // Erstelle Mitglied für diesen Benutzer
+                                $stmt_member = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email) VALUES (?, ?, ?, ?)");
+                                $stmt_member->execute([$new_user_id, $first_name, $last_name, $email]);
+                            }
+                        } catch (Exception $e) {
+                            // Fehler beim Erstellen des Mitglieds ignorieren (Tabelle könnte noch nicht existieren)
+                            error_log("Fehler beim Erstellen des Mitglieds für Benutzer $new_user_id: " . $e->getMessage());
+                        }
+                        
                         $message = "Benutzer wurde erfolgreich hinzugefügt.";
                         log_activity($_SESSION['user_id'], 'user_added', "Benutzer '$username' hinzugefügt");
                         
@@ -84,6 +101,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
                         $stmt->execute([$username, $email, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_users, $can_settings, $can_vehicles, $user_id]);
                     }
+                    
+                    // Mitglied aktualisieren falls vorhanden
+                    try {
+                        $stmt_check = $db->prepare("SELECT id FROM members WHERE user_id = ?");
+                        $stmt_check->execute([$user_id]);
+                        if ($stmt_check->fetch()) {
+                            // Mitglied existiert, aktualisiere es
+                            $stmt_member = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ? WHERE user_id = ?");
+                            $stmt_member->execute([$first_name, $last_name, $email, $user_id]);
+                        } else {
+                            // Mitglied existiert nicht, erstelle es
+                            $stmt_member = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email) VALUES (?, ?, ?, ?)");
+                            $stmt_member->execute([$user_id, $first_name, $last_name, $email]);
+                        }
+                    } catch (Exception $e) {
+                        // Fehler ignorieren
+                        error_log("Fehler beim Aktualisieren des Mitglieds für Benutzer $user_id: " . $e->getMessage());
+                    }
+                    
                     $message = "Benutzer wurde erfolgreich aktualisiert.";
                     log_activity($_SESSION['user_id'], 'user_updated', "Benutzer '$username' aktualisiert");
                     

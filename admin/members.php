@@ -21,10 +21,11 @@ $error = '';
 // Mitglieder laden
 $members = [];
 try {
-    // Tabelle sicherstellen
+    // Tabelle sicherstellen mit user_id Verknüpfung
     $db->exec(
         "CREATE TABLE IF NOT EXISTS members (
             id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NULL,
             first_name VARCHAR(100) NOT NULL,
             last_name VARCHAR(100) NOT NULL,
             email VARCHAR(255) NULL,
@@ -35,8 +36,91 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
     );
     
-    $stmt = $db->query("SELECT * FROM members ORDER BY last_name, first_name");
-    $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // user_id Spalte hinzufügen falls nicht vorhanden
+    try {
+        $db->exec("ALTER TABLE members ADD COLUMN user_id INT NULL");
+    } catch (Exception $e) {
+        // Spalte existiert bereits, ignoriere Fehler
+    }
+    
+    // Unique Key hinzufügen falls nicht vorhanden
+    try {
+        $db->exec("ALTER TABLE members ADD UNIQUE KEY unique_user_id (user_id)");
+    } catch (Exception $e) {
+        // Key existiert bereits, ignoriere Fehler
+    }
+    
+    // Foreign Key hinzufügen falls nicht vorhanden
+    try {
+        // Prüfe ob Foreign Key bereits existiert
+        $stmt = $db->query("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'members' AND COLUMN_NAME = 'user_id' AND REFERENCED_TABLE_NAME = 'users'");
+        if (!$stmt->fetch()) {
+            $db->exec("ALTER TABLE members ADD FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE");
+        }
+    } catch (Exception $e) {
+        // Foreign Key existiert bereits oder Fehler, ignoriere
+    }
+    
+    // Bestehende Benutzer synchronisieren (erstelle Mitglieder für Benutzer die noch kein Mitglied haben)
+    try {
+        $stmt = $db->query("
+            INSERT INTO members (user_id, first_name, last_name, email)
+            SELECT u.id, u.first_name, u.last_name, u.email
+            FROM users u
+            WHERE u.is_active = 1
+            AND NOT EXISTS (SELECT 1 FROM members m WHERE m.user_id = u.id)
+        ");
+    } catch (Exception $e) {
+        // Fehler ignorieren
+    }
+    
+    // Alle Mitglieder laden: Benutzer aus users + zusätzliche Mitglieder aus members
+    // Zuerst alle Benutzer als Mitglieder
+    $stmt = $db->query("
+        SELECT 
+            u.id as user_id,
+            u.first_name,
+            u.last_name,
+            u.email,
+            NULL as birthdate,
+            NULL as phone,
+            u.created_at,
+            'user' as source
+        FROM users u
+        WHERE u.is_active = 1
+        ORDER BY u.last_name, u.first_name
+    ");
+    $user_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Dann zusätzliche Mitglieder (ohne user_id Verknüpfung)
+    $stmt = $db->query("
+        SELECT 
+            NULL as user_id,
+            first_name,
+            last_name,
+            email,
+            birthdate,
+            phone,
+            created_at,
+            'member' as source
+        FROM members
+        WHERE user_id IS NULL
+        ORDER BY last_name, first_name
+    ");
+    $additional_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Kombiniere beide Listen
+    $members = array_merge($user_members, $additional_members);
+    
+    // Sortiere nach Nachname, dann Vorname
+    usort($members, function($a, $b) {
+        $cmp = strcmp($a['last_name'], $b['last_name']);
+        if ($cmp === 0) {
+            return strcmp($a['first_name'], $b['first_name']);
+        }
+        return $cmp;
+    });
+    
 } catch (Exception $e) {
     $error = 'Fehler beim Laden der Mitglieder: ' . $e->getMessage();
 }
@@ -179,7 +263,12 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                     <tbody>
                                         <?php foreach ($members as $member): ?>
                                         <tr>
-                                            <td><?php echo htmlspecialchars($member['first_name']); ?></td>
+                                            <td>
+                                                <?php echo htmlspecialchars($member['first_name']); ?>
+                                                <?php if ($member['source'] ?? '' === 'user'): ?>
+                                                    <span class="badge bg-primary ms-2" title="Benutzer des Systems">Benutzer</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td><?php echo htmlspecialchars($member['last_name']); ?></td>
                                             <td><?php echo htmlspecialchars($member['email'] ?? '-'); ?></td>
                                             <td><?php echo $member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : '-'; ?></td>
