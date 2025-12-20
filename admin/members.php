@@ -125,6 +125,9 @@ try {
     $error = 'Fehler beim Laden der Mitglieder: ' . $e->getMessage();
 }
 
+// Prüfe ob aktueller Benutzer Admin ist
+$is_admin = hasAdminPermission();
+
 // Mitglied hinzufügen
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_member') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -135,25 +138,124 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $email = trim($_POST['email'] ?? '');
         $birthdate = trim($_POST['birthdate'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
+        $create_user = isset($_POST['create_user']) && $_POST['create_user'] == '1';
         
         if (empty($first_name) || empty($last_name)) {
             $error = 'Bitte geben Sie Vorname und Nachname ein.';
         } else {
             try {
-                $stmt = $db->prepare("INSERT INTO members (first_name, last_name, email, birthdate, phone) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([
-                    $first_name,
-                    $last_name,
-                    !empty($email) ? $email : null,
-                    !empty($birthdate) ? $birthdate : null,
-                    !empty($phone) ? $phone : null
-                ]);
-                $message = 'Mitglied wurde erfolgreich hinzugefügt.';
+                $db->beginTransaction();
                 
-                // Mitglieder neu laden
-                $stmt = $db->query("SELECT * FROM members ORDER BY last_name, first_name");
-                $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $user_id = null;
+                
+                // Wenn "Login erlaubt" aktiviert ist und Admin, dann Benutzer erstellen
+                if ($create_user && $is_admin) {
+                    if (empty($email)) {
+                        $error = 'Für die Erstellung eines Benutzerkontos ist eine E-Mail-Adresse erforderlich.';
+                        $db->rollBack();
+                    } else {
+                        // Prüfe ob E-Mail bereits verwendet wird
+                        $stmt_check = $db->prepare("SELECT id FROM users WHERE email = ?");
+                        $stmt_check->execute([$email]);
+                        if ($stmt_check->fetch()) {
+                            $error = 'Diese E-Mail-Adresse wird bereits von einem anderen Benutzer verwendet.';
+                            $db->rollBack();
+                        } else {
+                            // Generiere Benutzername (Vorname.Nachname oder mit Nummer falls vorhanden)
+                            $base_username = strtolower($first_name . '.' . $last_name);
+                            $username = $base_username;
+                            $counter = 1;
+                            
+                            // Prüfe ob Benutzername bereits existiert
+                            while (true) {
+                                $stmt_check = $db->prepare("SELECT id FROM users WHERE username = ?");
+                                $stmt_check->execute([$username]);
+                                if (!$stmt_check->fetch()) {
+                                    break; // Benutzername ist verfügbar
+                                }
+                                $username = $base_username . $counter;
+                                $counter++;
+                            }
+                            
+                            // Generiere Standard-Passwort (kann später geändert werden)
+                            $default_password = bin2hex(random_bytes(8)); // 16 Zeichen zufälliges Passwort
+                            $password_hash = hash_password($default_password);
+                            
+                            // Benutzer erstellen
+                            $stmt_user = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, can_reservations, can_atemschutz, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', 1, 0, 0, 0, 0, 0, 0, 0)");
+                            $stmt_user->execute([$username, $email, $password_hash, $first_name, $last_name]);
+                            $user_id = $db->lastInsertId();
+                            
+                            // Passwort in Session speichern für Anzeige (nur einmal)
+                            $_SESSION['new_user_password_' . $user_id] = $default_password;
+                        }
+                    }
+                }
+                
+                if (empty($error)) {
+                    // Mitglied erstellen
+                    $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone) VALUES (?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([
+                        $user_id,
+                        $first_name,
+                        $last_name,
+                        !empty($email) ? $email : null,
+                        !empty($birthdate) ? $birthdate : null,
+                        !empty($phone) ? $phone : null
+                    ]);
+                    
+                    $db->commit();
+                    
+                    if ($create_user && $is_admin && $user_id) {
+                        $message = 'Mitglied wurde erfolgreich hinzugefügt und Benutzerkonto wurde erstellt. Benutzername: ' . htmlspecialchars($username) . ', Passwort: ' . htmlspecialchars($default_password);
+                    } else {
+                        $message = 'Mitglied wurde erfolgreich hinzugefügt.';
+                    }
+                    
+                    // Mitglieder neu laden
+                    $stmt = $db->query("
+                        SELECT 
+                            u.id as user_id,
+                            u.first_name,
+                            u.last_name,
+                            u.email,
+                            NULL as birthdate,
+                            NULL as phone,
+                            u.created_at,
+                            'user' as source
+                        FROM users u
+                        WHERE u.is_active = 1
+                        ORDER BY u.last_name, u.first_name
+                    ");
+                    $user_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    $stmt = $db->query("
+                        SELECT 
+                            NULL as user_id,
+                            first_name,
+                            last_name,
+                            email,
+                            birthdate,
+                            phone,
+                            created_at,
+                            'member' as source
+                        FROM members
+                        WHERE user_id IS NULL
+                        ORDER BY last_name, first_name
+                    ");
+                    $additional_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    $members = array_merge($user_members, $additional_members);
+                    usort($members, function($a, $b) {
+                        $cmp = strcmp($a['last_name'], $b['last_name']);
+                        if ($cmp === 0) {
+                            return strcmp($a['first_name'], $b['first_name']);
+                        }
+                        return $cmp;
+                    });
+                }
             } catch (Exception $e) {
+                $db->rollBack();
                 $error = 'Fehler beim Speichern: ' . $e->getMessage();
             }
         }
@@ -331,6 +433,19 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                 </label>
                                 <input type="tel" class="form-control" name="phone">
                             </div>
+                            <?php if ($is_admin): ?>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="create_user" id="create_user" value="1">
+                                    <label class="form-check-label" for="create_user">
+                                        <i class="fas fa-user-shield me-1"></i>Login erlaubt (Benutzerkonto erstellen)
+                                    </label>
+                                    <small class="form-text text-muted d-block mt-1">
+                                        Wenn aktiviert, wird automatisch ein Benutzerkonto mit zufälligem Passwort erstellt. Eine E-Mail-Adresse ist dafür erforderlich.
+                                    </small>
+                                </div>
+                            </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -353,8 +468,31 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             const form = this.querySelector('form');
             if (form) {
                 form.reset();
+                // E-Mail wieder optional machen
+                const emailInput = form.querySelector('input[name="email"]');
+                if (emailInput) {
+                    emailInput.required = false;
+                }
             }
         });
+        
+        <?php if ($is_admin): ?>
+        // E-Mail als Pflichtfeld setzen wenn "Login erlaubt" aktiviert ist
+        const createUserCheckbox = document.getElementById('create_user');
+        const emailInput = document.querySelector('input[name="email"]');
+        
+        if (createUserCheckbox && emailInput) {
+            createUserCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    emailInput.required = true;
+                    emailInput.setAttribute('placeholder', 'E-Mail ist für Benutzerkonto erforderlich');
+                } else {
+                    emailInput.required = false;
+                    emailInput.removeAttribute('placeholder');
+                }
+            });
+        }
+        <?php endif; ?>
     </script>
 </body>
 </html>
