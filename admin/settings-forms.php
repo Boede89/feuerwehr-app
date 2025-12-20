@@ -207,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
 
-        <form method="POST" action="">
+        <form method="POST" action="" id="mainSettingsForm">
             <?php echo generate_csrf_token(); ?>
             
             <div class="row g-4">
@@ -288,8 +288,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <h6 class="mb-3" id="field_form_title_<?php echo htmlspecialchars($form_key); ?>">
                                             <i class="fas fa-plus"></i> Neues Feld hinzufügen
                                         </h6>
-                                        <form id="field_form_<?php echo htmlspecialchars($form_key); ?>" class="field-form">
-                                            <input type="hidden" name="form_key" value="<?php echo htmlspecialchars($form_key); ?>">
+                                        <div id="field_form_<?php echo htmlspecialchars($form_key); ?>" class="field-form">
+                                            <input type="hidden" name="form_key" id="field_form_key_<?php echo htmlspecialchars($form_key); ?>" value="<?php echo htmlspecialchars($form_key); ?>">
                                             <input type="hidden" name="field_id" id="field_id_<?php echo htmlspecialchars($form_key); ?>" value="">
                                             
                                             <div class="mb-3">
@@ -322,14 +322,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             </div>
                                             
                                             <div class="d-flex gap-2">
-                                                <button type="submit" name="add_field" class="btn btn-primary btn-sm" id="add_field_btn_<?php echo htmlspecialchars($form_key); ?>">
+                                                <button type="button" name="add_field" class="btn btn-primary btn-sm" id="add_field_btn_<?php echo htmlspecialchars($form_key); ?>">
                                                     <i class="fas fa-plus"></i> Feld hinzufügen
                                                 </button>
                                                 <button type="button" class="btn btn-secondary btn-sm" id="cancel_edit_btn_<?php echo htmlspecialchars($form_key); ?>" style="display: none;">
                                                     <i class="fas fa-times"></i> Abbrechen
                                                 </button>
                                             </div>
-                                        </form>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -448,10 +448,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             });
             
-            // Formular absenden
-            fieldForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
+            // Feld hinzufügen/bearbeiten Button
+            addFieldBtn.addEventListener('click', function() {
                 // Optionsfeld validieren wenn Select
                 if (fieldTypeSelect.value === 'select') {
                     const options = fieldOptionsInput.value.trim().split('\n').filter(opt => opt.trim() !== '');
@@ -461,43 +459,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 
-                // Formular zum Hauptformular hinzufügen
-                const mainForm = document.querySelector('form[method="POST"]');
-                const formData = new FormData(fieldForm);
-                
-                // CSRF-Token aus dem Hauptformular holen
-                const csrfTokenInput = mainForm.querySelector('input[name="csrf_token"]');
-                if (!csrfTokenInput) {
-                    alert('Fehler: CSRF-Token nicht gefunden.');
+                // Validierung
+                if (!fieldLabelInput.value.trim()) {
+                    alert('Bitte geben Sie einen Feldnamen ein.');
                     return;
                 }
-                const csrfToken = csrfTokenInput.value;
                 
-                // Alle Felder zum Hauptformular hinzufügen
-                for (let [key, value] of formData.entries()) {
-                    // Überspringe leere Werte
-                    if (!value && key !== 'field_required') continue;
-                    
-                    // Prüfe ob Feld bereits existiert
-                    let existingInput = mainForm.querySelector(`input[name="${key}"]`);
-                    if (existingInput && key !== 'csrf_token') {
-                        // Überschreibe existierendes Feld
-                        existingInput.value = value;
-                    } else if (key !== 'csrf_token') {
-                        // Neues Feld hinzufügen
-                        const input = document.createElement('input');
-                        input.type = 'hidden';
-                        input.name = key;
-                        input.value = value;
-                        mainForm.appendChild(input);
+                // Hauptformular finden
+                const mainForm = document.getElementById('mainSettingsForm');
+                if (!mainForm) {
+                    alert('Fehler: Hauptformular nicht gefunden.');
+                    return;
+                }
+                
+                // Entferne alte Feld-Daten aus dem Hauptformular
+                const oldInputs = mainForm.querySelectorAll('input[name^="field_"], input[name="form_key"]');
+                oldInputs.forEach(input => {
+                    if (input.name !== 'csrf_token') {
+                        input.remove();
                     }
+                });
+                
+                // Neue Felder zum Hauptformular hinzufügen
+                const formKeyInput = document.createElement('input');
+                formKeyInput.type = 'hidden';
+                formKeyInput.name = 'form_key';
+                formKeyInput.value = formKey;
+                mainForm.appendChild(formKeyInput);
+                
+                const fieldLabelInputHidden = document.createElement('input');
+                fieldLabelInputHidden.type = 'hidden';
+                fieldLabelInputHidden.name = 'field_label';
+                fieldLabelInputHidden.value = fieldLabelInput.value.trim();
+                mainForm.appendChild(fieldLabelInputHidden);
+                
+                const fieldTypeInput = document.createElement('input');
+                fieldTypeInput.type = 'hidden';
+                fieldTypeInput.name = 'field_type';
+                fieldTypeInput.value = fieldTypeSelect.value;
+                mainForm.appendChild(fieldTypeInput);
+                
+                if (fieldRequiredInput.checked) {
+                    const fieldRequiredInputHidden = document.createElement('input');
+                    fieldRequiredInputHidden.type = 'hidden';
+                    fieldRequiredInputHidden.name = 'field_required';
+                    fieldRequiredInputHidden.value = '1';
+                    mainForm.appendChild(fieldRequiredInputHidden);
                 }
                 
-                // CSRF-Token sicherstellen (sollte bereits vorhanden sein)
-                if (csrfTokenInput.value !== csrfToken) {
-                    csrfTokenInput.value = csrfToken;
+                if (fieldTypeSelect.value === 'select' && fieldOptionsInput.value.trim()) {
+                    const fieldOptionsInputHidden = document.createElement('input');
+                    fieldOptionsInputHidden.type = 'hidden';
+                    fieldOptionsInputHidden.name = 'field_options';
+                    fieldOptionsInputHidden.value = fieldOptionsInput.value.trim();
+                    mainForm.appendChild(fieldOptionsInputHidden);
                 }
                 
+                if (fieldIdInput.value) {
+                    const fieldIdInputHidden = document.createElement('input');
+                    fieldIdInputHidden.type = 'hidden';
+                    fieldIdInputHidden.name = 'field_id';
+                    fieldIdInputHidden.value = fieldIdInput.value;
+                    mainForm.appendChild(fieldIdInputHidden);
+                    
+                    const editFieldInput = document.createElement('input');
+                    editFieldInput.type = 'hidden';
+                    editFieldInput.name = 'edit_field';
+                    editFieldInput.value = '1';
+                    mainForm.appendChild(editFieldInput);
+                } else {
+                    const addFieldInput = document.createElement('input');
+                    addFieldInput.type = 'hidden';
+                    addFieldInput.name = 'add_field';
+                    addFieldInput.value = '1';
+                    mainForm.appendChild(addFieldInput);
+                }
+                
+                // Formular absenden
                 mainForm.submit();
             });
         })();
