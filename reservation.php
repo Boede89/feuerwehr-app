@@ -674,7 +674,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             
                             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                                 <a href="index.php" class="btn btn-outline-secondary me-md-2">
-                                    <i class="fas fa-arrow-left"></i> Fahrzeug ändern
+                                    <i class="fas fa-arrow-left"></i> Zurück zur Startseite
                                 </a>
                                 <?php if (isset($selectedVehicle['name'])): ?>
                                 <button type="submit" name="submit_reservation" id="submitReservationBtn" class="btn btn-primary">
