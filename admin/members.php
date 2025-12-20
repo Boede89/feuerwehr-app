@@ -51,6 +51,9 @@ if (isset($_GET['success'])) {
         case 'toggle':
             $message = "PA-Träger Status wurde aktualisiert.";
             break;
+        case 'added':
+            $message = "Mitglied wurde erfolgreich hinzugefügt.";
+            break;
     }
 }
 
@@ -368,51 +371,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         $message = 'Mitglied wurde erfolgreich hinzugefügt.';
                     }
                     
-                    // Mitglieder neu laden
-                    $stmt = $db->query("
-                        SELECT 
-                            u.id as user_id,
-                            u.first_name,
-                            u.last_name,
-                            u.email,
-                            NULL as birthdate,
-                            NULL as phone,
-                            u.created_at,
-                            'user' as source
-                        FROM users u
-                        WHERE u.is_active = 1
-                        ORDER BY u.last_name, u.first_name
-                    ");
-                    $user_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    $stmt = $db->query("
-                        SELECT 
-                            NULL as user_id,
-                            first_name,
-                            last_name,
-                            email,
-                            birthdate,
-                            phone,
-                            created_at,
-                            'member' as source
-                        FROM members
-                        WHERE user_id IS NULL
-                        ORDER BY last_name, first_name
-                    ");
-                    $additional_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    $members = array_merge($user_members, $additional_members);
-                    usort($members, function($a, $b) {
-                        $cmp = strcmp($a['last_name'], $b['last_name']);
-                        if ($cmp === 0) {
-                            return strcmp($a['first_name'], $b['first_name']);
-                        }
-                        return $cmp;
-                    });
+                    // Weiterleitung um POST-Problem zu vermeiden
+                    header("Location: members.php?show_list=1&success=added");
+                    exit();
                 }
             } catch (Exception $e) {
-                $db->rollBack();
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
                 $error = 'Fehler beim Speichern: ' . $e->getMessage();
+                error_log("Fehler beim Hinzufügen von Mitglied: " . $e->getMessage());
             }
         }
     }
