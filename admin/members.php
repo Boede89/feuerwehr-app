@@ -214,7 +214,7 @@ try {
             m.birthdate,
             m.phone,
             CASE 
-                WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at WHERE at.member_id = m.id) THEN 1
+                WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
                 ELSE COALESCE(m.is_pa_traeger, 0)
             END as is_pa_traeger,
             m.id as member_id,
@@ -235,25 +235,25 @@ try {
     $stmt = $db->query("
         SELECT 
             NULL as user_id,
-            first_name,
-            last_name,
-            email,
-            birthdate,
-            phone,
+            m.first_name,
+            m.last_name,
+            m.email,
+            m.birthdate,
+            m.phone,
             CASE 
-                WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at WHERE at.member_id = members.id) THEN 1
-                ELSE COALESCE(is_pa_traeger, 0)
+                WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
+                ELSE COALESCE(m.is_pa_traeger, 0)
             END as is_pa_traeger,
-            id as member_id,
-            created_at,
+            m.id as member_id,
+            m.created_at,
             at.strecke_am,
             at.g263_am,
             at.uebung_am,
             'member' as source
-        FROM members
-        LEFT JOIN atemschutz_traeger at ON at.member_id = members.id
-        WHERE user_id IS NULL
-        ORDER BY last_name, first_name
+        FROM members m
+        LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
+        WHERE m.user_id IS NULL
+        ORDER BY m.last_name, m.first_name
     ");
     $additional_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
