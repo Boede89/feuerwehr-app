@@ -270,15 +270,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         // Spalte existiert bereits
                     }
                     
-                    $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, is_pa_traeger) VALUES (?, ?, ?, ?, ?, ?, 0)");
+                    $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
+                    
+                    $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, is_pa_traeger) VALUES (?, ?, ?, ?, ?, ?, ?)");
                     $stmt->execute([
                         $user_id,
                         $first_name,
                         $last_name,
                         !empty($email) ? $email : null,
                         !empty($birthdate) ? $birthdate : null,
-                        !empty($phone) ? $phone : null
+                        !empty($phone) ? $phone : null,
+                        $is_pa_traeger
                     ]);
+                    
+                    $new_member_id = $db->lastInsertId();
+                    
+                    // Wenn PA-Träger aktiviert, erstelle automatisch Geräteträger
+                    if ($is_pa_traeger == 1) {
+                        $today = date('Y-m-d');
+                        $stmt = $db->prepare("
+                            INSERT INTO atemschutz_traeger (first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am, status, member_id) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, 'Aktiv', ?)
+                        ");
+                        $stmt->execute([
+                            $first_name,
+                            $last_name,
+                            !empty($email) ? $email : null,
+                            !empty($birthdate) ? $birthdate : $today,
+                            $today,
+                            $today,
+                            $today,
+                            $new_member_id
+                        ]);
+                    }
                     
                     $db->commit();
                     
@@ -349,6 +373,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $email = trim($_POST['email'] ?? '');
         $birthdate = trim($_POST['birthdate'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
+        $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
         
         if (empty($first_name) || empty($last_name)) {
             $error = 'Bitte geben Sie Vorname und Nachname ein.';
@@ -368,15 +393,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $db->rollBack();
                 } else {
                     // Aktualisiere Mitglied
-                    $stmt = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ?, birthdate = ?, phone = ? WHERE id = ?");
+                    $stmt = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ?, birthdate = ?, phone = ?, is_pa_traeger = ? WHERE id = ?");
                     $stmt->execute([
                         $first_name,
                         $last_name,
                         !empty($email) ? $email : null,
                         !empty($birthdate) ? $birthdate : null,
                         !empty($phone) ? $phone : null,
+                        $is_pa_traeger,
                         $member_id
                     ]);
+                    
+                    // Wenn PA-Träger aktiviert, stelle sicher dass ein Geräteträger existiert
+                    if ($is_pa_traeger == 1) {
+                        $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE member_id = ? LIMIT 1");
+                        $stmt->execute([$member_id]);
+                        if (!$stmt->fetch()) {
+                            // Erstelle Geräteträger mit Standard-Daten (heute)
+                            $today = date('Y-m-d');
+                            $stmt = $db->prepare("
+                                INSERT INTO atemschutz_traeger (first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am, status, member_id) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, 'Aktiv', ?)
+                            ");
+                            $stmt->execute([
+                                $first_name,
+                                $last_name,
+                                !empty($email) ? $email : null,
+                                !empty($birthdate) ? $birthdate : $today,
+                                $today,
+                                $today,
+                                $today,
+                                $member_id
+                            ]);
+                        }
+                    }
                     
                     // Wenn Mitglied mit Benutzer verknüpft ist, aktualisiere auch Benutzer
                     if (!empty($member['user_id'])) {
@@ -629,7 +679,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             <th>E-Mail</th>
                                             <th>Geburtsdatum</th>
                                             <th>Telefon</th>
-                                            <th>PA-Träger</th>
                                             <th>Aktionen</th>
                                         </tr>
                                     </thead>
@@ -646,22 +695,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             <td><?php echo htmlspecialchars($member['email'] ?? '-'); ?></td>
                                             <td><?php echo $member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : '-'; ?></td>
                                             <td><?php echo htmlspecialchars($member['phone'] ?? '-'); ?></td>
-                                            <td>
-                                                <?php if (!empty($member['member_id'])): ?>
-                                                <form method="POST" action="" style="display: inline;">
-                                                    <?php echo generate_csrf_token(); ?>
-                                                    <input type="hidden" name="action" value="toggle_pa_traeger">
-                                                    <input type="hidden" name="member_id" value="<?php echo (int)$member['member_id']; ?>">
-                                                    <div class="form-check form-switch">
-                                                        <input class="form-check-input" type="checkbox" name="is_pa_traeger" value="1" 
-                                                               <?php echo !empty($member['is_pa_traeger']) ? 'checked' : ''; ?>
-                                                               onchange="this.form.submit()">
-                                                    </div>
-                                                </form>
-                                                <?php else: ?>
-                                                    <span class="text-muted">-</span>
-                                                <?php endif; ?>
-                                            </td>
                                             <td>
                                                 <?php if (!empty($member['member_id']) && empty($member['user_id'])): ?>
                                                 <div class="btn-group btn-group-sm" role="group">
@@ -739,6 +772,17 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                 </label>
                                 <input type="tel" class="form-control" name="phone" id="memberPhone">
                             </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="is_pa_traeger" id="memberIsPaTraeger" value="1">
+                                    <label class="form-check-label" for="memberIsPaTraeger">
+                                        <i class="fas fa-user-shield me-1"></i>PA-Träger
+                                    </label>
+                                    <small class="form-text text-muted d-block mt-1">
+                                        Wenn aktiviert, erscheint dieses Mitglied in der Liste der Geräteträger.
+                                    </small>
+                                </div>
+                            </div>
                             <div class="col-12" id="createUserSection">
                                 <?php if ($is_admin): ?>
                                 <div class="form-check">
@@ -794,6 +838,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             document.getElementById('memberEmail').value = member.email || '';
             document.getElementById('memberBirthdate').value = member.birthdate || '';
             document.getElementById('memberPhone').value = member.phone || '';
+            document.getElementById('memberIsPaTraeger').checked = member.is_pa_traeger == 1;
             
             // E-Mail wieder optional machen
             const emailInput = document.getElementById('memberEmail');
@@ -856,6 +901,12 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             const emailInput = document.getElementById('memberEmail');
             if (emailInput) {
                 emailInput.required = false;
+            }
+            
+            // PA-Träger Toggle zurücksetzen
+            const paTraegerToggle = document.getElementById('memberIsPaTraeger');
+            if (paTraegerToggle) {
+                paTraegerToggle.checked = false;
             }
         });
         
