@@ -793,7 +793,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form method="POST" action="" id="memberForm">
-                    <?php echo generate_csrf_token(); ?>
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                     <input type="hidden" name="action" value="add_member" id="memberAction">
                     <input type="hidden" name="member_id" value="" id="memberId">
                     <div class="modal-body">
