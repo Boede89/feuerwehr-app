@@ -436,7 +436,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     
                     // Wenn PA-Träger aktiviert, erstelle automatisch Geräteträger
                     if ($is_pa_traeger == 1) {
-                        $today = date('Y-m-d');
+                        $birthdate_value = !empty($birthdate) ? $birthdate : date('Y-m-d');
                         $stmt = $db->prepare("
                             INSERT INTO atemschutz_traeger (first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am, status, member_id) 
                             VALUES (?, ?, ?, ?, ?, ?, ?, 'Aktiv', ?)
@@ -445,10 +445,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $first_name,
                             $last_name,
                             !empty($email) ? $email : null,
-                            !empty($birthdate) ? $birthdate : $today,
-                            $today,
-                            $today,
-                            $today,
+                            $birthdate_value,
+                            $strecke_am,
+                            $g263_am,
+                            $uebung_am,
                             $new_member_id
                         ]);
                     }
@@ -676,9 +676,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         if ($is_pa_traeger == 1) {
                             $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE member_id = ? LIMIT 1");
                             $stmt->execute([$member_id]);
-                            if (!$stmt->fetch()) {
-                                // Erstelle Geräteträger mit Standard-Daten (heute)
-                                $today = date('Y-m-d');
+                            $existing_traeger = $stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            $birthdate_value = !empty($birthdate) ? $birthdate : date('Y-m-d');
+                            
+                            if (!$existing_traeger) {
+                                // Erstelle neuen Geräteträger
                                 $stmt = $db->prepare("
                                     INSERT INTO atemschutz_traeger (first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am, status, member_id) 
                                     VALUES (?, ?, ?, ?, ?, ?, ?, 'Aktiv', ?)
@@ -687,11 +690,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     $first_name,
                                     $last_name,
                                     !empty($email) ? $email : null,
-                                    !empty($birthdate) ? $birthdate : $today,
-                                    $today,
-                                    $today,
-                                    $today,
+                                    $birthdate_value,
+                                    $strecke_am,
+                                    $g263_am,
+                                    $uebung_am,
                                     $member_id
+                                ]);
+                            } else {
+                                // Aktualisiere bestehenden Geräteträger
+                                $stmt = $db->prepare("
+                                    UPDATE atemschutz_traeger 
+                                    SET first_name = ?, last_name = ?, email = ?, birthdate = ?, strecke_am = ?, g263_am = ?, uebung_am = ?
+                                    WHERE id = ?
+                                ");
+                                $stmt->execute([
+                                    $first_name,
+                                    $last_name,
+                                    !empty($email) ? $email : null,
+                                    $birthdate_value,
+                                    $strecke_am,
+                                    $g263_am,
+                                    $uebung_am,
+                                    $existing_traeger['id']
                                 ]);
                             }
                         }
@@ -836,7 +856,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         $member = $stmt->fetch(PDO::FETCH_ASSOC);
                         
                         if ($member) {
-                            // Erstelle Geräteträger mit Standard-Daten (heute)
+                            // Erstelle Geräteträger - verwende heute als Standard, da keine Datumsfelder vorhanden sind
                             $today = date('Y-m-d');
                             $birthdate = $member['birthdate'] ?? $today;
                             

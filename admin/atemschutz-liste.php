@@ -89,6 +89,57 @@ if (!$isAdmin && !$canAtemschutz) {
     <?php endif; ?>
 
     <?php
+    // Delete-Handler (Löschen)
+    $deleteMsg = '';
+    $deleteErr = '';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_traeger') {
+        $traeger_id = (int)($_POST['traeger_id'] ?? 0);
+        
+        if ($traeger_id <= 0) {
+            $deleteErr = 'Ungültige Geräteträger-ID.';
+        } else {
+            try {
+                $db->beginTransaction();
+                
+                // Lade member_id vor dem Löschen
+                $stmt = $db->prepare("SELECT member_id FROM atemschutz_traeger WHERE id = ?");
+                $stmt->execute([$traeger_id]);
+                $traeger = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$traeger) {
+                    $deleteErr = 'Geräteträger nicht gefunden.';
+                    if ($db->inTransaction()) {
+                        $db->rollBack();
+                    }
+                } else {
+                    // Lösche Geräteträger
+                    $stmt = $db->prepare("DELETE FROM atemschutz_traeger WHERE id = ?");
+                    $stmt->execute([$traeger_id]);
+                    
+                    // Deaktiviere PA-Träger Status im Mitglied (falls member_id vorhanden)
+                    if (!empty($traeger['member_id'])) {
+                        $stmt = $db->prepare("UPDATE members SET is_pa_traeger = 0 WHERE id = ?");
+                        $stmt->execute([$traeger['member_id']]);
+                    }
+                    
+                    if ($db->inTransaction()) {
+                        $db->commit();
+                    }
+                    $deleteMsg = 'Geräteträger wurde erfolgreich gelöscht. Das Mitglied bleibt erhalten, aber der PA-Träger Status wurde deaktiviert.';
+                    // Seite neu laden um Änderungen anzuzeigen
+                    header("Location: atemschutz-liste.php?delete_success=1");
+                    exit();
+                }
+            } catch (Exception $e) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                $deleteErr = 'Fehler beim Löschen: ' . htmlspecialchars($e->getMessage());
+                error_log("Fehler beim Löschen von Geräteträger: " . $e->getMessage());
+            }
+        }
+    }
+    
     // Update-Handler (Bearbeiten)
     $updateMsg = '';
     $updateErr = '';
@@ -825,8 +876,26 @@ document.addEventListener('DOMContentLoaded', function(){
                 const modal = new bootstrap.Modal(document.getElementById('editTraegerModal'));
                 modal.show();
             } else if (action === 'delete') {
-                if (confirm('Geräteträger wirklich löschen?')) {
-                    alert('Löschen: ID ' + id + '\n(Funktion folgt)');
+                if (confirm('Möchten Sie diesen Geräteträger wirklich löschen?\n\nDas Mitglied bleibt erhalten, aber der PA-Träger Status wird deaktiviert.')) {
+                    // Formular erstellen und absenden
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '';
+                    
+                    const actionInput = document.createElement('input');
+                    actionInput.type = 'hidden';
+                    actionInput.name = 'action';
+                    actionInput.value = 'delete_traeger';
+                    form.appendChild(actionInput);
+                    
+                    const idInput = document.createElement('input');
+                    idInput.type = 'hidden';
+                    idInput.name = 'traeger_id';
+                    idInput.value = id;
+                    form.appendChild(idInput);
+                    
+                    document.body.appendChild(form);
+                    form.submit();
                 }
             }
         });
