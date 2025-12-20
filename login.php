@@ -9,13 +9,94 @@ if (is_logged_in()) {
 }
 
 $error = '';
+$success_message = '';
 
 // Prüfe ob Zugriff verweigert wurde
 if (isset($_GET['error']) && $_GET['error'] === 'access_denied') {
     $error = "Zugriff verweigert. Sie müssen als Administrator angemeldet sein, um das Dashboard zu verwenden.";
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+// Passwort vergessen
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] === 'forgot_password') {
+    $email = sanitize_input($_POST['email'] ?? '');
+    
+    if (empty($email)) {
+        $error = "Bitte geben Sie Ihre E-Mail-Adresse ein.";
+    } else {
+        try {
+            // Prüfe ob E-Mail existiert
+            $stmt = $db->prepare("SELECT id, username, email, first_name, last_name FROM users WHERE email = ? AND is_active = 1");
+            $stmt->execute([$email]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$user) {
+                $error = "Diese E-Mail-Adresse existiert nicht im System.";
+            } else {
+                // Neues Passwort generieren (4 Zufallszahlen)
+                $new_password = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
+                $password_hash = hash_password($new_password);
+                
+                // Passwort in Datenbank aktualisieren
+                $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+                $stmt->execute([$password_hash, $user['id']]);
+                
+                // E-Mail senden
+                $email_subject = 'Ihr Passwort wurde zurückgesetzt';
+                $email_body = '
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <style>
+                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                        .header { background-color: #dc3545; color: white; padding: 20px; text-align: center; }
+                        .content { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
+                        .credentials { background-color: #fff; padding: 15px; margin: 20px 0; border-left: 4px solid #dc3545; }
+                        .credentials strong { color: #dc3545; }
+                        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h1>Passwort zurückgesetzt</h1>
+                        </div>
+                        <div class="content">
+                            <p>Hallo ' . htmlspecialchars($user['first_name']) . ',</p>
+                            <p>Sie haben ein neues Passwort angefordert. Sie können sich nun mit folgenden Zugangsdaten anmelden:</p>
+                            <div class="credentials">
+                                <p><strong>Benutzername:</strong> ' . htmlspecialchars($user['username']) . '</p>
+                                <p><strong>Neues Passwort:</strong> ' . htmlspecialchars($new_password) . '</p>
+                            </div>
+                            <p style="text-align: center; margin: 30px 0;">
+                                <a href="https://feuerwehr.boede89.selfhost.co/" style="display: inline-block; background-color: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Zur Startseite</a>
+                            </p>
+                            <p>Bitte ändern Sie Ihr Passwort nach dem Login für mehr Sicherheit.</p>
+                            <p>Bei Fragen wenden Sie sich bitte an den Administrator.</p>
+                        </div>
+                        <div class="footer">
+                            <p>Diese E-Mail wurde automatisch generiert. Bitte antworten Sie nicht auf diese E-Mail.</p>
+                        </div>
+                    </div>
+                </body>
+                </html>';
+                
+                if (send_email($user['email'], $email_subject, $email_body, '', true)) {
+                    $success_message = "Ein neues Passwort wurde generiert und an Ihre E-Mail-Adresse gesendet.";
+                    log_activity($user['id'], 'password_reset', "Passwort über 'Passwort vergessen' zurückgesetzt");
+                } else {
+                    $error = "Passwort wurde zurückgesetzt, aber die E-Mail konnte nicht gesendet werden. Bitte kontaktieren Sie den Administrator.";
+                    error_log("Fehler beim Senden der Passwort-Reset-E-Mail an: " . $email);
+                }
+            }
+        } catch(PDOException $e) {
+            $error = "Fehler beim Zurücksetzen des Passworts: " . $e->getMessage();
+            error_log("Fehler beim Passwort-Reset: " . $e->getMessage());
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && (!isset($_POST['action']) || $_POST['action'] !== 'forgot_password')) {
     $username = sanitize_input($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
     

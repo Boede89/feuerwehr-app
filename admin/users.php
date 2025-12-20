@@ -149,6 +149,84 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
+// Passwort zurücksetzen
+if (isset($_GET['reset_password'])) {
+    $user_id = (int)$_GET['reset_password'];
+    
+    try {
+        // Benutzerdaten laden
+        $stmt = $db->prepare("SELECT id, username, email, first_name, last_name FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$user) {
+            $error = "Benutzer nicht gefunden.";
+        } elseif (empty($user['email'])) {
+            $error = "Benutzer hat keine E-Mail-Adresse. Passwort kann nicht zurückgesetzt werden.";
+        } else {
+            // Neues Passwort generieren (4 Zufallszahlen)
+            $new_password = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
+            $password_hash = hash_password($new_password);
+            
+            // Passwort in Datenbank aktualisieren
+            $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+            $stmt->execute([$password_hash, $user_id]);
+            
+            // E-Mail senden
+            $email_subject = 'Ihr Passwort wurde zurückgesetzt';
+            $email_body = '
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background-color: #dc3545; color: white; padding: 20px; text-align: center; }
+                    .content { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
+                    .credentials { background-color: #fff; padding: 15px; margin: 20px 0; border-left: 4px solid #dc3545; }
+                    .credentials strong { color: #dc3545; }
+                    .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Passwort zurückgesetzt</h1>
+                    </div>
+                    <div class="content">
+                        <p>Hallo ' . htmlspecialchars($user['first_name']) . ',</p>
+                        <p>Ihr Passwort wurde zurückgesetzt. Sie können sich nun mit folgenden Zugangsdaten anmelden:</p>
+                        <div class="credentials">
+                            <p><strong>Benutzername:</strong> ' . htmlspecialchars($user['username']) . '</p>
+                            <p><strong>Neues Passwort:</strong> ' . htmlspecialchars($new_password) . '</p>
+                        </div>
+                        <p style="text-align: center; margin: 30px 0;">
+                            <a href="https://feuerwehr.boede89.selfhost.co/" style="display: inline-block; background-color: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Zur Startseite</a>
+                        </p>
+                        <p>Bitte ändern Sie Ihr Passwort nach dem Login für mehr Sicherheit.</p>
+                        <p>Bei Fragen wenden Sie sich bitte an den Administrator.</p>
+                    </div>
+                    <div class="footer">
+                        <p>Diese E-Mail wurde automatisch generiert. Bitte antworten Sie nicht auf diese E-Mail.</p>
+                    </div>
+                </div>
+            </body>
+            </html>';
+            
+            if (send_email($user['email'], $email_subject, $email_body, '', true)) {
+                $message = "Passwort wurde zurückgesetzt und eine E-Mail mit dem neuen Passwort wurde an " . htmlspecialchars($user['email']) . " gesendet.";
+                log_activity($_SESSION['user_id'], 'password_reset', "Passwort für Benutzer ID $user_id zurückgesetzt");
+            } else {
+                $error = "Passwort wurde zurückgesetzt, aber die E-Mail konnte nicht gesendet werden. Bitte kontaktieren Sie den Benutzer direkt.";
+                log_activity($_SESSION['user_id'], 'password_reset', "Passwort für Benutzer ID $user_id zurückgesetzt (E-Mail fehlgeschlagen)");
+            }
+        }
+    } catch(PDOException $e) {
+        $error = "Fehler beim Zurücksetzen des Passworts: " . $e->getMessage();
+        error_log("Fehler beim Passwort-Reset: " . $e->getMessage());
+    }
+}
+
 // Benutzer löschen
 if (isset($_GET['delete'])) {
     $user_id = (int)$_GET['delete'];
@@ -310,6 +388,13 @@ try {
                                                     data-can-members="<?php echo (int)($user['can_members'] ?? 0); ?>">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
+                                                <?php if (!empty($user['email'])): ?>
+                                                    <a href="?reset_password=<?php echo $user['id']; ?>" class="btn btn-outline-warning btn-sm" 
+                                                       onclick="return confirm('Möchten Sie das Passwort für <?php echo htmlspecialchars($user['username']); ?> zurücksetzen? Eine E-Mail mit dem neuen Passwort wird gesendet.')"
+                                                       title="Passwort zurücksetzen">
+                                                        <i class="fas fa-key"></i>
+                                                    </a>
+                                                <?php endif; ?>
                                                 <?php if ($user['id'] != $_SESSION['user_id']): ?>
                                                     <a href="?delete=<?php echo $user['id']; ?>" class="btn btn-outline-danger btn-sm" 
                                                        onclick="return confirm('Sind Sie sicher, dass Sie diesen Benutzer löschen möchten?')">
