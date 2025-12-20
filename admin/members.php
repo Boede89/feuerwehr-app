@@ -280,14 +280,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if ($create_user && $is_admin) {
                     if (empty($email)) {
                         $error = 'Für die Erstellung eines Benutzerkontos ist eine E-Mail-Adresse erforderlich.';
-                        $db->rollBack();
+                        if ($db->inTransaction()) {
+                            $db->rollBack();
+                        }
                     } else {
                         // Prüfe ob E-Mail bereits verwendet wird
                         $stmt_check = $db->prepare("SELECT id FROM users WHERE email = ?");
                         $stmt_check->execute([$email]);
                         if ($stmt_check->fetch()) {
                             $error = 'Diese E-Mail-Adresse wird bereits von einem anderen Benutzer verwendet.';
-                            $db->rollBack();
+                            if ($db->inTransaction()) {
+                                $db->rollBack();
+                            }
                         } else {
                             // Generiere Benutzername (Vorname.Nachname oder mit Nummer falls vorhanden)
                             $base_username = strtolower($first_name . '.' . $last_name);
@@ -374,6 +378,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     // Weiterleitung um POST-Problem zu vermeiden
                     header("Location: members.php?show_list=1&success=added");
                     exit();
+                } else {
+                    // Wenn Fehler aufgetreten ist, Transaktion beenden
+                    if ($db->inTransaction()) {
+                        $db->rollBack();
+                    }
                 }
             } catch (Exception $e) {
                 if ($db->inTransaction()) {
@@ -479,7 +488,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     exit();
                 }
             } catch (Exception $e) {
-                $db->rollBack();
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
                 $error = 'Fehler beim Aktualisieren: ' . $e->getMessage();
             }
         }
@@ -506,12 +517,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 
                 if (!$member) {
                     $error = 'Mitglied nicht gefunden.';
-                    $db->rollBack();
+                    if ($db->inTransaction()) {
+                        $db->rollBack();
+                    }
                 } else {
                     // Prüfe ob Mitglied mit Benutzer verknüpft ist
                     if (!empty($member['user_id'])) {
                         $error = 'Mitglied kann nicht gelöscht werden, da es mit einem Benutzerkonto verknüpft ist. Bitte löschen Sie zuerst das Benutzerkonto.';
-                        $db->rollBack();
+                        if ($db->inTransaction()) {
+                            $db->rollBack();
+                        }
                     } else {
                         // Lösche zugehörigen Geräteträger (falls vorhanden)
                         $stmt = $db->prepare("DELETE FROM atemschutz_traeger WHERE member_id = ?");
@@ -528,7 +543,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     }
                 }
             } catch (Exception $e) {
-                $db->rollBack();
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
                 $error = 'Fehler beim Löschen: ' . $e->getMessage();
             }
         }
