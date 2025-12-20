@@ -434,6 +434,9 @@ if (!$isAdmin && !$canAtemschutz) {
             <div class="col-12 col-lg-4 d-flex gap-2">
                 <button class="btn btn-primary" type="submit"><i class="fas fa-filter"></i> Anwenden</button>
                 <a class="btn btn-outline-secondary" href="atemschutz-liste.php"><i class="fas fa-rotate-left"></i> Zurücksetzen</a>
+                <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#exportModal">
+                    <i class="fas fa-download"></i> Liste Exportieren
+                </button>
             </div>
         </div>
     </form>
@@ -788,6 +791,53 @@ if (!$isAdmin && !$canAtemschutz) {
         </div>
     </div>
 
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="exportModalLabel">
+                    <i class="fas fa-download me-2"></i>Liste exportieren
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100 text-center export-option" data-format="print" style="cursor: pointer;">
+                            <div class="card-body">
+                                <i class="fas fa-print fa-3x text-success mb-3"></i>
+                                <h6 class="card-title">Drucken</h6>
+                                <p class="card-text small text-muted">Öffnet die Liste direkt im Druckdialog</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100 text-center export-option" data-format="pdf" style="cursor: pointer; position: relative;">
+                            <div class="card-body">
+                                <i class="fas fa-download fa-3x text-danger mb-3"></i>
+                                <h6 class="card-title">PDF-Herunterladen</h6>
+                                <p class="card-text small text-muted">Lädt eine HTML-Datei mit der PA-Träger-Liste herunter</p>
+                            </div>
+                            <div class="construction-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.9); display: flex; align-items: center; justify-content: center; border-radius: 0.375rem;">
+                                <div class="construction-text" style="color: #6c757d; font-weight: bold;">Under Construction</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Abbrechen
+                </button>
+                <button type="button" class="btn btn-success" id="confirmExport" disabled>
+                    <i class="fas fa-download me-2"></i>Export starten
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Modal: Geräteträger bearbeiten -->
