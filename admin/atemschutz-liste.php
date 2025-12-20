@@ -256,52 +256,53 @@ if (!$isAdmin && !$canAtemschutz) {
         if (!empty($traeger)) {
             $now = new DateTime('today');
             foreach ($traeger as &$tRow) {
-            $streckeExpired = false; 
-            $g263Expired = false; 
-            $uebungExpired = false;
-            
-            if (!empty($tRow['strecke_bis'])) {
-                $diff = (int)$now->diff(new DateTime($tRow['strecke_bis']))->format('%r%a');
-                if ($diff < 0) { $streckeExpired = true; }
-            }
-            if (!empty($tRow['g263_bis'])) {
-                $diff = (int)$now->diff(new DateTime($tRow['g263_bis']))->format('%r%a');
-                if ($diff < 0) { $g263Expired = true; }
-            }
-            if (!empty($tRow['uebung_bis'])) {
-                $diff = (int)$now->diff(new DateTime($tRow['uebung_bis']))->format('%r%a');
-                if ($diff < 0) { $uebungExpired = true; }
-            }
-            
-            // Status berechnen
-            if ($streckeExpired || $g263Expired || $uebungExpired) {
-                if ($uebungExpired) {
-                    $tRow['status'] = 'Übung abgelaufen';
-                } else {
-                    $tRow['status'] = 'Abgelaufen';
-                }
-            } else {
-                // Prüfe auf Warnung (innerhalb der konfigurierten Warnschwelle)
-                // $warnDays wurde bereits aus den Einstellungen geladen
-                $streckeWarn = false; $g263Warn = false; $uebungWarn = false;
+                $streckeExpired = false; 
+                $g263Expired = false; 
+                $uebungExpired = false;
                 
                 if (!empty($tRow['strecke_bis'])) {
                     $diff = (int)$now->diff(new DateTime($tRow['strecke_bis']))->format('%r%a');
-                    if ($diff >= 0 && $diff <= $warnDays) { $streckeWarn = true; }
+                    if ($diff < 0) { $streckeExpired = true; }
                 }
                 if (!empty($tRow['g263_bis'])) {
                     $diff = (int)$now->diff(new DateTime($tRow['g263_bis']))->format('%r%a');
-                    if ($diff >= 0 && $diff <= $warnDays) { $g263Warn = true; }
+                    if ($diff < 0) { $g263Expired = true; }
                 }
                 if (!empty($tRow['uebung_bis'])) {
                     $diff = (int)$now->diff(new DateTime($tRow['uebung_bis']))->format('%r%a');
-                    if ($diff >= 0 && $diff <= $warnDays) { $uebungWarn = true; }
+                    if ($diff < 0) { $uebungExpired = true; }
                 }
                 
-                if ($streckeWarn || $g263Warn || $uebungWarn) {
-                    $tRow['status'] = 'Warnung';
+                // Status berechnen
+                if ($streckeExpired || $g263Expired || $uebungExpired) {
+                    if ($uebungExpired) {
+                        $tRow['status'] = 'Übung abgelaufen';
+                    } else {
+                        $tRow['status'] = 'Abgelaufen';
+                    }
                 } else {
-                    $tRow['status'] = 'Tauglich';
+                    // Prüfe auf Warnung (innerhalb der konfigurierten Warnschwelle)
+                    // $warnDays wurde bereits aus den Einstellungen geladen
+                    $streckeWarn = false; $g263Warn = false; $uebungWarn = false;
+                    
+                    if (!empty($tRow['strecke_bis'])) {
+                        $diff = (int)$now->diff(new DateTime($tRow['strecke_bis']))->format('%r%a');
+                        if ($diff >= 0 && $diff <= $warnDays) { $streckeWarn = true; }
+                    }
+                    if (!empty($tRow['g263_bis'])) {
+                        $diff = (int)$now->diff(new DateTime($tRow['g263_bis']))->format('%r%a');
+                        if ($diff >= 0 && $diff <= $warnDays) { $g263Warn = true; }
+                    }
+                    if (!empty($tRow['uebung_bis'])) {
+                        $diff = (int)$now->diff(new DateTime($tRow['uebung_bis']))->format('%r%a');
+                        if ($diff >= 0 && $diff <= $warnDays) { $uebungWarn = true; }
+                    }
+                    
+                    if ($streckeWarn || $g263Warn || $uebungWarn) {
+                        $tRow['status'] = 'Warnung';
+                    } else {
+                        $tRow['status'] = 'Tauglich';
+                    }
                 }
             }
             unset($tRow); // Referenz löschen
