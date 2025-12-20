@@ -987,14 +987,29 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             
             // Checkbox "Login erlaubt" setzen basierend auf user_id
             const createUserCheckbox = document.getElementById('create_user');
-            if (createUserCheckbox) {
-                createUserCheckbox.checked = (member.user_id && member.user_id !== null && member.user_id !== '');
-            }
-            
-            // E-Mail wieder optional machen (wird später dynamisch angepasst)
             const emailInput = document.getElementById('memberEmail');
-            if (emailInput) {
-                emailInput.required = false;
+            const emailLabel = document.getElementById('emailLabel');
+            const hasUserAccount = (member.user_id && member.user_id !== null && member.user_id !== '');
+            
+            if (createUserCheckbox) {
+                createUserCheckbox.checked = hasUserAccount;
+                
+                // E-Mail-Validierung basierend auf Checkbox-Status setzen
+                if (hasUserAccount) {
+                    if (emailInput) {
+                        emailInput.required = true;
+                    }
+                    if (emailLabel) {
+                        emailLabel.innerHTML = '<i class="fas fa-envelope me-1"></i>E-Mail <span class="text-danger">*</span>';
+                    }
+                } else {
+                    if (emailInput) {
+                        emailInput.required = false;
+                    }
+                    if (emailLabel) {
+                        emailLabel.innerHTML = '<i class="fas fa-envelope me-1"></i>E-Mail (optional)';
+                    }
+                }
             }
             
             modal.show();
