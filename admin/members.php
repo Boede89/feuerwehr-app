@@ -148,13 +148,15 @@ try {
     }
     
     // Synchronisiere: Alle Geräteträger sollten is_pa_traeger = 1 haben
+    // ABER: Nur wenn is_pa_traeger NULL ist (nicht wenn es explizit auf 0 gesetzt wurde)
     try {
-        // Setze is_pa_traeger auf 1 für alle Mitglieder, die einen Geräteträger haben
+        // Setze is_pa_traeger auf 1 für alle Mitglieder, die einen Geräteträger haben UND is_pa_traeger ist NULL
+        // NICHT wenn is_pa_traeger explizit auf 0 gesetzt wurde
         $db->exec("
             UPDATE members m
             INNER JOIN atemschutz_traeger at ON m.id = at.member_id
             SET m.is_pa_traeger = 1
-            WHERE m.is_pa_traeger = 0 OR m.is_pa_traeger IS NULL
+            WHERE m.is_pa_traeger IS NULL
         ");
         
         // Für Geräteträger ohne member_id: Versuche über Name zu verknüpfen und is_pa_traeger zu setzen
@@ -672,8 +674,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $member_id
                         ]);
                         
-                        // Wenn PA-Träger aktiviert, stelle sicher dass ein Geräteträger existiert
-                        if ($is_pa_traeger == 1) {
+                        // Wenn PA-Träger deaktiviert, lösche den zugehörigen Geräteträger
+                        if ($is_pa_traeger == 0) {
+                            $stmt = $db->prepare("DELETE FROM atemschutz_traeger WHERE member_id = ?");
+                            $stmt->execute([$member_id]);
+                        } elseif ($is_pa_traeger == 1) {
+                            // Wenn PA-Träger aktiviert, stelle sicher dass ein Geräteträger existiert
                             $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE member_id = ? LIMIT 1");
                             $stmt->execute([$member_id]);
                             $existing_traeger = $stmt->fetch(PDO::FETCH_ASSOC);
