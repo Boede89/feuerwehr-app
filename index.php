@@ -55,6 +55,26 @@ require_once 'includes/functions.php';
         .feature-card:hover .atemschutz-icon {
             transform: scale(1.1);
         }
+        
+        .feature-card .card-body {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .feature-card .card-text {
+            flex-grow: 1;
+        }
+        
+        .feature-icon {
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .feature-icon i {
+            font-size: 3rem;
+        }
     </style>
 </head>
 <body>
@@ -120,13 +140,13 @@ require_once 'includes/functions.php';
                 <div class="row g-4">
                     <div class="col-md-4">
                         <div class="card h-100 shadow-sm feature-card">
-                            <div class="card-body text-center p-4">
+                            <div class="card-body text-center p-4 d-flex flex-column">
                                 <div class="feature-icon mb-3">
                                     <i class="fas fa-truck text-primary"></i>
                                 </div>
                                 <h5 class="card-title">Fahrzeug Reservierung</h5>
                                 <p class="card-text">Reservieren Sie Feuerwehrfahrzeuge für Lehrgänge, Übungen etc.</p>
-                                <a href="vehicle-selection.php" class="btn btn-primary btn-lg">
+                                <a href="vehicle-selection.php" class="btn btn-primary btn-lg w-100 mt-auto">
                                     <i class="fas fa-calendar-plus"></i> Fahrzeug reservieren
                                 </a>
                             </div>
@@ -135,7 +155,7 @@ require_once 'includes/functions.php';
 
                     <div class="col-md-4">
                         <div class="card h-100 shadow-sm feature-card">
-                            <div class="card-body text-center p-4">
+                            <div class="card-body text-center p-4 d-flex flex-column">
                                 <div class="feature-icon mb-3">
                                     <div class="atemschutz-icon">
                                         <i class="fas fa-user-shield"></i>
@@ -143,7 +163,7 @@ require_once 'includes/functions.php';
                                 </div>
                                 <h5 class="card-title">Atemschutzeintrag erstellen</h5>
                                 <p class="card-text">Erstellen Sie einen neuen Atemschutzeintrag für Einsatz/Übung, Atemschutzstrecke oder G26.3.</p>
-                                <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#atemschutzModal">
+                                <button class="btn btn-primary btn-lg w-100 mt-auto" data-bs-toggle="modal" data-bs-target="#atemschutzModal">
                                     <i class="fas fa-plus"></i> Eintrag erstellen
                                 </button>
                             </div>
@@ -152,13 +172,13 @@ require_once 'includes/functions.php';
 
                     <div class="col-md-4">
                         <div class="card h-100 shadow-sm feature-card">
-                            <div class="card-body text-center p-4">
+                            <div class="card-body text-center p-4 d-flex flex-column">
                                 <div class="feature-icon mb-3">
                                     <i class="fas fa-file-alt text-primary"></i>
                                 </div>
                                 <h5 class="card-title">Formulare</h5>
                                 <p class="card-text">Zugriff auf verschiedene Formulare und Dokumente der Feuerwehr.</p>
-                                <a href="#" class="btn btn-primary btn-lg">
+                                <a href="#" class="btn btn-primary btn-lg w-100 mt-auto">
                                     <i class="fas fa-clipboard-list"></i> Formulare öffnen
                                 </a>
                             </div>
