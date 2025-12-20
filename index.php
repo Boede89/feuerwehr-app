@@ -76,15 +76,29 @@ require_once 'includes/functions.php';
             font-size: 3rem;
         }
         
+        .clickable-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .clickable-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15) !important;
+        }
+        
+        .clickable-card a {
+            color: inherit;
+            text-decoration: none;
+        }
+        
+        .clickable-card:hover .card-title {
+            color: #0d6efd;
+        }
+        
         /* Tablet-Optimierungen */
         @media (min-width: 576px) and (max-width: 991px) {
             .feature-card .card-body {
                 padding: 2rem !important;
-            }
-            
-            .feature-card .btn {
-                font-size: 1.1rem;
-                padding: 0.75rem 1.5rem;
             }
             
             .feature-card h5 {
@@ -94,7 +108,6 @@ require_once 'includes/functions.php';
             
             .feature-card .card-text {
                 font-size: 1rem;
-                margin-bottom: 1.5rem;
             }
             
             .feature-icon {
@@ -110,11 +123,6 @@ require_once 'includes/functions.php';
         @media (max-width: 575px) {
             .feature-card .card-body {
                 padding: 1.5rem !important;
-            }
-            
-            .feature-card .btn {
-                font-size: 1rem;
-                padding: 0.65rem 1.25rem;
             }
             
             .feature-icon {
@@ -189,22 +197,21 @@ require_once 'includes/functions.php';
 
                 <div class="row g-4">
                     <div class="col-12 col-sm-6 col-lg-4">
-                        <div class="card h-100 shadow-sm feature-card">
-                            <div class="card-body text-center p-4 d-flex flex-column">
-                                <div class="feature-icon mb-3">
-                                    <i class="fas fa-truck text-primary"></i>
+                        <a href="vehicle-selection.php" class="text-decoration-none">
+                            <div class="card h-100 shadow-sm feature-card clickable-card">
+                                <div class="card-body text-center p-4 d-flex flex-column">
+                                    <div class="feature-icon mb-3">
+                                        <i class="fas fa-truck text-primary"></i>
+                                    </div>
+                                    <h5 class="card-title">Fahrzeug Reservierung</h5>
+                                    <p class="card-text">Reservieren Sie Feuerwehrfahrzeuge für Lehrgänge, Übungen etc.</p>
                                 </div>
-                                <h5 class="card-title">Fahrzeug Reservierung</h5>
-                                <p class="card-text">Reservieren Sie Feuerwehrfahrzeuge für Lehrgänge, Übungen etc.</p>
-                                <a href="vehicle-selection.php" class="btn btn-primary btn-lg w-100 mt-auto">
-                                    <i class="fas fa-calendar-plus"></i> Fahrzeug reservieren
-                                </a>
                             </div>
-                        </div>
+                        </a>
                     </div>
 
                     <div class="col-12 col-sm-6 col-lg-4">
-                        <div class="card h-100 shadow-sm feature-card">
+                        <div class="card h-100 shadow-sm feature-card clickable-card" data-bs-toggle="modal" data-bs-target="#atemschutzModal" style="cursor: pointer;">
                             <div class="card-body text-center p-4 d-flex flex-column">
                                 <div class="feature-icon mb-3">
                                     <div class="atemschutz-icon">
@@ -213,26 +220,22 @@ require_once 'includes/functions.php';
                                 </div>
                                 <h5 class="card-title">Atemschutzeintrag erstellen</h5>
                                 <p class="card-text">Erstellen Sie einen neuen Atemschutzeintrag für Einsatz/Übung, Atemschutzstrecke oder G26.3.</p>
-                                <button class="btn btn-primary btn-lg w-100 mt-auto" data-bs-toggle="modal" data-bs-target="#atemschutzModal">
-                                    <i class="fas fa-plus"></i> Eintrag erstellen
-                                </button>
                             </div>
                         </div>
                     </div>
 
                     <div class="col-12 col-sm-6 col-lg-4">
-                        <div class="card h-100 shadow-sm feature-card">
-                            <div class="card-body text-center p-4 d-flex flex-column">
-                                <div class="feature-icon mb-3">
-                                    <i class="fas fa-file-alt text-primary"></i>
+                        <a href="formulare.php" class="text-decoration-none">
+                            <div class="card h-100 shadow-sm feature-card clickable-card">
+                                <div class="card-body text-center p-4 d-flex flex-column">
+                                    <div class="feature-icon mb-3">
+                                        <i class="fas fa-file-alt text-primary"></i>
+                                    </div>
+                                    <h5 class="card-title">Formulare</h5>
+                                    <p class="card-text">Zugriff auf verschiedene Formulare und Dokumente der Feuerwehr.</p>
                                 </div>
-                                <h5 class="card-title">Formulare</h5>
-                                <p class="card-text">Zugriff auf verschiedene Formulare und Dokumente der Feuerwehr.</p>
-                                <a href="formulare.php" class="btn btn-primary btn-lg w-100 mt-auto">
-                                    <i class="fas fa-clipboard-list"></i> Formulare öffnen
-                                </a>
                             </div>
-                        </div>
+                        </a>
                     </div>
                 </div>
             </div>
