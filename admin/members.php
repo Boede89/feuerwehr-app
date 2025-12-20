@@ -748,18 +748,20 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             <td><?php echo $member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : '-'; ?></td>
                                             <td><?php echo htmlspecialchars($member['phone'] ?? '-'); ?></td>
                                             <td>
-                                                <?php if (!empty($member['member_id']) && empty($member['user_id'])): ?>
+                                                <?php if (!empty($member['member_id'])): ?>
                                                 <div class="btn-group btn-group-sm" role="group">
                                                     <button type="button" class="btn btn-outline-primary" 
                                                             onclick="editMember(<?php echo htmlspecialchars(json_encode($member)); ?>)"
                                                             title="Bearbeiten">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
+                                                    <?php if (empty($member['user_id'])): ?>
                                                     <button type="button" class="btn btn-outline-danger" 
                                                             onclick="deleteMember(<?php echo (int)$member['member_id']; ?>, '<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>')"
                                                             title="Löschen">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
+                                                    <?php endif; ?>
                                                 </div>
                                                 <?php else: ?>
                                                     <span class="text-muted">-</span>
