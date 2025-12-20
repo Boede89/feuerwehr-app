@@ -17,6 +17,67 @@ if (!hasAdminPermission()) {
 
 $message = '';
 $error = '';
+
+// Mitglieder laden
+$members = [];
+try {
+    // Tabelle sicherstellen
+    $db->exec(
+        "CREATE TABLE IF NOT EXISTS members (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            first_name VARCHAR(100) NOT NULL,
+            last_name VARCHAR(100) NOT NULL,
+            email VARCHAR(255) NULL,
+            birthdate DATE NULL,
+            phone VARCHAR(50) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+    );
+    
+    $stmt = $db->query("SELECT * FROM members ORDER BY last_name, first_name");
+    $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $error = 'Fehler beim Laden der Mitglieder: ' . $e->getMessage();
+}
+
+// Mitglied hinzufügen
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_member') {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        $first_name = trim($_POST['first_name'] ?? '');
+        $last_name = trim($_POST['last_name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $birthdate = trim($_POST['birthdate'] ?? '');
+        $phone = trim($_POST['phone'] ?? '');
+        
+        if (empty($first_name) || empty($last_name)) {
+            $error = 'Bitte geben Sie Vorname und Nachname ein.';
+        } else {
+            try {
+                $stmt = $db->prepare("INSERT INTO members (first_name, last_name, email, birthdate, phone) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([
+                    $first_name,
+                    $last_name,
+                    !empty($email) ? $email : null,
+                    !empty($birthdate) ? $birthdate : null,
+                    !empty($phone) ? $phone : null
+                ]);
+                $message = 'Mitglied wurde erfolgreich hinzugefügt.';
+                
+                // Mitglieder neu laden
+                $stmt = $db->query("SELECT * FROM members ORDER BY last_name, first_name");
+                $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (Exception $e) {
+                $error = 'Fehler beim Speichern: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
+// Aktuelle Liste anzeigen (Toggle)
+$show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -74,25 +135,138 @@ $error = '';
             </div>
         </div>
 
+        <!-- Aktions-Buttons -->
+        <div class="row mb-4">
+            <div class="col-12 col-md-6 mb-2">
+                <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+                    <i class="fas fa-user-plus"></i> Mitglied hinzufügen
+                </button>
+            </div>
+            <div class="col-12 col-md-6 mb-2">
+                <a href="?show_list=<?php echo $show_list ? '0' : '1'; ?>" class="btn btn-outline-primary w-100">
+                    <i class="fas fa-list"></i> <?php echo $show_list ? 'Liste ausblenden' : 'Aktuelle Liste anzeigen'; ?>
+                </a>
+            </div>
+        </div>
+
+        <!-- Mitglieder-Liste -->
+        <?php if ($show_list): ?>
         <div class="row">
             <div class="col-12">
                 <div class="card shadow">
                     <div class="card-header">
                         <h5 class="card-title mb-0">
-                            <i class="fas fa-info-circle"></i> Mitgliederverwaltung
+                            <i class="fas fa-users"></i> Aktuelle Mitgliederliste
                         </h5>
                     </div>
                     <div class="card-body">
-                        <p class="text-muted">
-                            Die Funktionen für die Mitgliederverwaltung werden hier später hinzugefügt.
-                        </p>
+                        <?php if (empty($members)): ?>
+                            <p class="text-muted text-center py-4">
+                                <i class="fas fa-info-circle"></i> Noch keine Mitglieder vorhanden.
+                            </p>
+                        <?php else: ?>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Vorname</th>
+                                            <th>Nachname</th>
+                                            <th>E-Mail</th>
+                                            <th>Geburtsdatum</th>
+                                            <th>Telefon</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($members as $member): ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($member['first_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($member['last_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($member['email'] ?? '-'); ?></td>
+                                            <td><?php echo $member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : '-'; ?></td>
+                                            <td><?php echo htmlspecialchars($member['phone'] ?? '-'); ?></td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+
+    <!-- Mitglied hinzufügen Modal -->
+    <div class="modal fade" id="addMemberModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-plus me-2"></i> Mitglied hinzufügen
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="">
+                    <?php echo generate_csrf_token(); ?>
+                    <input type="hidden" name="action" value="add_member">
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">
+                                    <i class="fas fa-user me-1"></i>Vorname <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control" name="first_name" required>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">
+                                    <i class="fas fa-user me-1"></i>Nachname <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control" name="last_name" required>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">
+                                    <i class="fas fa-envelope me-1"></i>E-Mail (optional)
+                                </label>
+                                <input type="email" class="form-control" name="email">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">
+                                    <i class="fas fa-calendar me-1"></i>Geburtsdatum (optional)
+                                </label>
+                                <input type="date" class="form-control" name="birthdate">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">
+                                    <i class="fas fa-phone me-1"></i>Telefon (optional)
+                                </label>
+                                <input type="tel" class="form-control" name="phone">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-1"></i>Abbrechen
+                        </button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save me-1"></i>Speichern
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Modal zurücksetzen beim Schließen
+        document.getElementById('addMemberModal').addEventListener('hidden.bs.modal', function() {
+            const form = this.querySelector('form');
+            if (form) {
+                form.reset();
+            }
+        });
+    </script>
 </body>
 </html>
 
