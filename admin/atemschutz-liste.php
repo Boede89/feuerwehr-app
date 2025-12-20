@@ -366,10 +366,28 @@ if (!$isAdmin && !$canAtemschutz) {
         <div class="alert alert-danger">Fehler beim Laden der Geräteträger: <?php echo htmlspecialchars($error); ?></div>
     <?php endif; ?>
     <?php if (!empty($updateMsg)): ?>
-        <div class="alert alert-success"><?php echo htmlspecialchars($updateMsg); ?></div>
+        <div class="alert alert-success alert-dismissible fade show">
+            <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($updateMsg); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
     <?php endif; ?>
     <?php if (!empty($updateErr)): ?>
-        <div class="alert alert-danger"><?php echo htmlspecialchars($updateErr); ?></div>
+        <div class="alert alert-danger alert-dismissible fade show">
+            <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($updateErr); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
+    <?php if (!empty($deleteErr)): ?>
+        <div class="alert alert-danger alert-dismissible fade show">
+            <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($deleteErr); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
+    <?php if (isset($_GET['delete_success'])): ?>
+        <div class="alert alert-success alert-dismissible fade show">
+            <i class="fas fa-check-circle"></i> Geräteträger wurde erfolgreich gelöscht. Das Mitglied bleibt erhalten, aber der PA-Träger Status wurde deaktiviert.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
     <?php endif; ?>
 
     <form class="mb-3" method="get" action="atemschutz-liste.php">
