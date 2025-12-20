@@ -730,7 +730,7 @@ Mit freundlichen Grüßen
     </table>
     
     <div class="footer">
-        <p>Erstellt am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')} | Feuerwehr App v2.1</p>
+        <p>Erstellt am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')} | Feuerwehr App v2.4</p>
     </div>
 </body>
 </html>`;
