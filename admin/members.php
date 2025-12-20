@@ -497,13 +497,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     
                     // Prüfe ob Benutzerkonto gelöscht werden soll
                     if (!empty($old_user_id) && !$create_user && $is_admin) {
-                        // Benutzerkonto löschen
-                        $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
-                        $stmt->execute([$old_user_id]);
-                        
-                        // user_id im Mitglied auf NULL setzen
+                        // WICHTIG: Zuerst user_id im Mitglied auf NULL setzen, DANN den Benutzer löschen
+                        // Dies verhindert, dass der Foreign Key CASCADE das Mitglied löscht
                         $stmt = $db->prepare("UPDATE members SET user_id = NULL WHERE id = ?");
                         $stmt->execute([$member_id]);
+                        
+                        // Jetzt kann der Benutzer sicher gelöscht werden
+                        $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
+                        $stmt->execute([$old_user_id]);
                         
                         $user_deleted = true;
                         $old_user_id = null; // Für weitere Prüfungen
