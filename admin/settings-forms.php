@@ -33,10 +33,21 @@ $forms = [
         'name' => 'Mängelbericht',
         'icon' => 'fa-exclamation-triangle',
         'description' => 'Einstellungen für den Mängelbericht',
-        'enabled' => $settings['form_maengelbericht_enabled'] ?? '1'
+        'enabled' => $settings['form_maengelbericht_enabled'] ?? '1',
+        'fields' => json_decode($settings['form_maengelbericht_fields'] ?? '[]', true) ?: []
     ]
 ];
 
+// Feldtypen
+$field_types = [
+    'text' => 'Freitext',
+    'textarea' => 'Mehrzeiliger Text',
+    'select' => 'Auswahlfeld',
+    'date' => 'Datum',
+    'checkbox' => 'Checkbox'
+];
+
+// Feld hinzufügen/bearbeiten/löschen
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
@@ -44,6 +55,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $db->beginTransaction();
 
+            // Feld hinzufügen/bearbeiten
+            if (isset($_POST['add_field']) || isset($_POST['edit_field'])) {
+                $form_key = sanitize_input($_POST['form_key'] ?? '');
+                $field_id = isset($_POST['edit_field']) ? (int)$_POST['field_id'] : null;
+                $field_label = sanitize_input($_POST['field_label'] ?? '');
+                $field_type = sanitize_input($_POST['field_type'] ?? 'text');
+                $field_required = isset($_POST['field_required']) ? '1' : '0';
+                $field_options = '';
+                
+                // Für Select-Felder: Optionen speichern
+                if ($field_type === 'select' && !empty($_POST['field_options'])) {
+                    $options = array_filter(array_map('trim', explode("\n", $_POST['field_options'])));
+                    $field_options = json_encode($options);
+                }
+                
+                if (empty($field_label)) {
+                    $error = 'Bitte geben Sie einen Feldnamen ein.';
+                } else {
+                    $fields_key = 'form_' . $form_key . '_fields';
+                    $current_fields = json_decode($settings[$fields_key] ?? '[]', true) ?: [];
+                    
+                    $field_data = [
+                        'label' => $field_label,
+                        'type' => $field_type,
+                        'required' => $field_required,
+                        'options' => $field_options
+                    ];
+                    
+                    if ($field_id !== null && isset($current_fields[$field_id])) {
+                        // Feld bearbeiten
+                        $current_fields[$field_id] = $field_data;
+                    } else {
+                        // Neues Feld hinzufügen
+                        $current_fields[] = $field_data;
+                    }
+                    
+                    $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+                    $stmt->execute([$fields_key, json_encode($current_fields)]);
+                    
+                    $message = isset($_POST['edit_field']) ? 'Feld wurde erfolgreich bearbeitet.' : 'Feld wurde erfolgreich hinzugefügt.';
+                }
+            }
+            
+            // Feld löschen
+            if (isset($_POST['delete_field'])) {
+                $form_key = sanitize_input($_POST['form_key'] ?? '');
+                $field_id = (int)$_POST['field_id'];
+                
+                $fields_key = 'form_' . $form_key . '_fields';
+                $current_fields = json_decode($settings[$fields_key] ?? '[]', true) ?: [];
+                
+                if (isset($current_fields[$field_id])) {
+                    unset($current_fields[$field_id]);
+                    $current_fields = array_values($current_fields); // Index neu nummerieren
+                    
+                    $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+                    $stmt->execute([$fields_key, json_encode($current_fields)]);
+                    
+                    $message = 'Feld wurde erfolgreich gelöscht.';
+                }
+            }
+            
             // Formular-Einstellungen speichern
             foreach ($forms as $form_key => $form_data) {
                 $enabled_key = 'form_' . $form_key . '_enabled';
@@ -54,7 +127,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $db->commit();
-            $message = 'Formular-Einstellungen wurden erfolgreich gespeichert.';
+            if (empty($message)) {
+                $message = 'Formular-Einstellungen wurden erfolgreich gespeichert.';
+            }
 
             // Einstellungen neu laden
             $stmt = $db->prepare('SELECT setting_key, setting_value FROM settings');
@@ -67,6 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Formulare aktualisieren
             foreach ($forms as $form_key => &$form_data) {
                 $form_data['enabled'] = $settings['form_' . $form_key . '_enabled'] ?? '1';
+                $form_data['fields'] = json_decode($settings['form_' . $form_key . '_fields'] ?? '[]', true) ?: [];
             }
         } catch (Exception $e) {
             $db->rollBack();
@@ -166,10 +242,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             <div class="collapse mt-3" id="settings_<?php echo htmlspecialchars($form_key); ?>">
                                 <div class="card card-body bg-light">
-                                    <p class="text-muted small mb-0">
-                                        <i class="fas fa-info-circle"></i> 
-                                        Erweiterte Einstellungen für dieses Formular werden hier später hinzugefügt.
-                                    </p>
+                                    <h6 class="mb-3"><i class="fas fa-list"></i> Formularfelder</h6>
+                                    
+                                    <!-- Bestehende Felder -->
+                                    <div id="fields_list_<?php echo htmlspecialchars($form_key); ?>" class="mb-3">
+                                        <?php if (!empty($form_data['fields'])): ?>
+                                            <?php foreach ($form_data['fields'] as $field_id => $field): ?>
+                                                <div class="card mb-2 field-item" data-field-id="<?php echo $field_id; ?>">
+                                                    <div class="card-body p-2">
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <div>
+                                                                <strong><?php echo htmlspecialchars($field['label']); ?></strong>
+                                                                <span class="badge bg-secondary ms-2"><?php echo htmlspecialchars($field_types[$field['type']] ?? $field['type']); ?></span>
+                                                                <?php if ($field['required'] == '1'): ?>
+                                                                    <span class="badge bg-danger ms-1">Pflichtfeld</span>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                            <div>
+                                                                <button type="button" class="btn btn-sm btn-outline-primary edit-field-btn" 
+                                                                        data-form-key="<?php echo htmlspecialchars($form_key); ?>"
+                                                                        data-field-id="<?php echo $field_id; ?>"
+                                                                        data-field-label="<?php echo htmlspecialchars($field['label']); ?>"
+                                                                        data-field-type="<?php echo htmlspecialchars($field['type']); ?>"
+                                                                        data-field-required="<?php echo $field['required']; ?>"
+                                                                        data-field-options="<?php echo htmlspecialchars($field['options'] ?? ''); ?>">
+                                                                    <i class="fas fa-edit"></i>
+                                                                </button>
+                                                                <button type="button" class="btn btn-sm btn-outline-danger delete-field-btn"
+                                                                        data-form-key="<?php echo htmlspecialchars($form_key); ?>"
+                                                                        data-field-id="<?php echo $field_id; ?>">
+                                                                    <i class="fas fa-trash"></i>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <p class="text-muted small mb-0">Noch keine Felder definiert.</p>
+                                        <?php endif; ?>
+                                    </div>
+                                    
+                                    <!-- Feld hinzufügen/bearbeiten Formular -->
+                                    <div class="border-top pt-3">
+                                        <h6 class="mb-3" id="field_form_title_<?php echo htmlspecialchars($form_key); ?>">
+                                            <i class="fas fa-plus"></i> Neues Feld hinzufügen
+                                        </h6>
+                                        <form id="field_form_<?php echo htmlspecialchars($form_key); ?>" class="field-form">
+                                            <input type="hidden" name="form_key" value="<?php echo htmlspecialchars($form_key); ?>">
+                                            <input type="hidden" name="field_id" id="field_id_<?php echo htmlspecialchars($form_key); ?>" value="">
+                                            
+                                            <div class="mb-3">
+                                                <label class="form-label">Feldname / Label *</label>
+                                                <input type="text" class="form-control" name="field_label" id="field_label_<?php echo htmlspecialchars($form_key); ?>" required>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label class="form-label">Feldtyp *</label>
+                                                <select class="form-select" name="field_type" id="field_type_<?php echo htmlspecialchars($form_key); ?>" required>
+                                                    <?php foreach ($field_types as $type_key => $type_label): ?>
+                                                        <option value="<?php echo htmlspecialchars($type_key); ?>"><?php echo htmlspecialchars($type_label); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                            
+                                            <div class="mb-3" id="field_options_container_<?php echo htmlspecialchars($form_key); ?>" style="display: none;">
+                                                <label class="form-label">Optionen (eine pro Zeile) *</label>
+                                                <textarea class="form-control" name="field_options" id="field_options_<?php echo htmlspecialchars($form_key); ?>" rows="3" placeholder="Option 1&#10;Option 2&#10;Option 3"></textarea>
+                                                <small class="form-text text-muted">Nur für Auswahlfelder. Geben Sie jede Option in eine neue Zeile ein.</small>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" name="field_required" id="field_required_<?php echo htmlspecialchars($form_key); ?>">
+                                                    <label class="form-check-label" for="field_required_<?php echo htmlspecialchars($form_key); ?>">
+                                                        Pflichtfeld
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="d-flex gap-2">
+                                                <button type="submit" name="add_field" class="btn btn-primary btn-sm" id="add_field_btn_<?php echo htmlspecialchars($form_key); ?>">
+                                                    <i class="fas fa-plus"></i> Feld hinzufügen
+                                                </button>
+                                                <button type="button" class="btn btn-secondary btn-sm" id="cancel_edit_btn_<?php echo htmlspecialchars($form_key); ?>" style="display: none;">
+                                                    <i class="fas fa-times"></i> Abbrechen
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -194,6 +355,130 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Für jedes Formular
+        <?php foreach ($forms as $form_key => $form_data): ?>
+        (function() {
+            const formKey = '<?php echo htmlspecialchars($form_key); ?>';
+            const fieldTypeSelect = document.getElementById('field_type_' + formKey);
+            const optionsContainer = document.getElementById('field_options_container_' + formKey);
+            const fieldForm = document.getElementById('field_form_' + formKey);
+            const addFieldBtn = document.getElementById('add_field_btn_' + formKey);
+            const cancelEditBtn = document.getElementById('cancel_edit_btn_' + formKey);
+            const fieldFormTitle = document.getElementById('field_form_title_' + formKey);
+            const fieldIdInput = document.getElementById('field_id_' + formKey);
+            const fieldLabelInput = document.getElementById('field_label_' + formKey);
+            const fieldRequiredInput = document.getElementById('field_required_' + formKey);
+            const fieldOptionsInput = document.getElementById('field_options_' + formKey);
+            
+            // Feldtyp ändern - Optionsfeld anzeigen/verstecken
+            fieldTypeSelect.addEventListener('change', function() {
+                if (this.value === 'select') {
+                    optionsContainer.style.display = 'block';
+                    fieldOptionsInput.required = true;
+                } else {
+                    optionsContainer.style.display = 'none';
+                    fieldOptionsInput.required = false;
+                }
+            });
+            
+            // Feld bearbeiten
+            document.querySelectorAll('.edit-field-btn[data-form-key="' + formKey + '"]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const fieldId = this.dataset.fieldId;
+                    const fieldLabel = this.dataset.fieldLabel;
+                    const fieldType = this.dataset.fieldType;
+                    const fieldRequired = this.dataset.fieldRequired === '1';
+                    const fieldOptions = this.dataset.fieldOptions || '';
+                    
+                    fieldIdInput.value = fieldId;
+                    fieldLabelInput.value = fieldLabel;
+                    fieldTypeSelect.value = fieldType;
+                    fieldRequiredInput.checked = fieldRequired;
+                    
+                    if (fieldType === 'select') {
+                        optionsContainer.style.display = 'block';
+                        const options = JSON.parse(fieldOptions || '[]');
+                        fieldOptionsInput.value = options.join('\n');
+                        fieldOptionsInput.required = true;
+                    } else {
+                        optionsContainer.style.display = 'none';
+                        fieldOptionsInput.value = '';
+                        fieldOptionsInput.required = false;
+                    }
+                    
+                    addFieldBtn.innerHTML = '<i class="fas fa-save"></i> Feld speichern';
+                    addFieldBtn.name = 'edit_field';
+                    cancelEditBtn.style.display = 'inline-block';
+                    fieldFormTitle.innerHTML = '<i class="fas fa-edit"></i> Feld bearbeiten';
+                    
+                    // Zum Formular scrollen
+                    fieldForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                });
+            });
+            
+            // Bearbeitung abbrechen
+            cancelEditBtn.addEventListener('click', function() {
+                fieldForm.reset();
+                fieldIdInput.value = '';
+                addFieldBtn.innerHTML = '<i class="fas fa-plus"></i> Feld hinzufügen';
+                addFieldBtn.name = 'add_field';
+                cancelEditBtn.style.display = 'none';
+                fieldFormTitle.innerHTML = '<i class="fas fa-plus"></i> Neues Feld hinzufügen';
+                optionsContainer.style.display = 'none';
+                fieldOptionsInput.required = false;
+            });
+            
+            // Feld löschen
+            document.querySelectorAll('.delete-field-btn[data-form-key="' + formKey + '"]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    if (confirm('Möchten Sie dieses Feld wirklich löschen?')) {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+                        form.innerHTML = `
+                            <input type="hidden" name="csrf_token" value="${csrfToken}">
+                            <input type="hidden" name="form_key" value="${this.dataset.formKey}">
+                            <input type="hidden" name="field_id" value="${this.dataset.fieldId}">
+                            <input type="hidden" name="delete_field" value="1">
+                        `;
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+                });
+            });
+            
+            // Formular absenden
+            fieldForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Optionsfeld validieren wenn Select
+                if (fieldTypeSelect.value === 'select') {
+                    const options = fieldOptionsInput.value.trim().split('\n').filter(opt => opt.trim() !== '');
+                    if (options.length === 0) {
+                        alert('Bitte geben Sie mindestens eine Option für das Auswahlfeld ein.');
+                        return;
+                    }
+                }
+                
+                // Formular zum Hauptformular hinzufügen
+                const mainForm = document.querySelector('form[method="POST"]');
+                const formData = new FormData(fieldForm);
+                
+                // Alle Felder zum Hauptformular hinzufügen
+                for (let [key, value] of formData.entries()) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = value;
+                    mainForm.appendChild(input);
+                }
+                
+                mainForm.submit();
+            });
+        })();
+        <?php endforeach; ?>
+    </script>
 </body>
 </html>
 
