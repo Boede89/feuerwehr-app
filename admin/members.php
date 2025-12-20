@@ -882,7 +882,17 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             title.innerHTML = '<i class="fas fa-user-edit me-2"></i> Mitglied bearbeiten';
             header.className = 'modal-header bg-primary text-white';
             submitBtn.innerHTML = '<i class="fas fa-save me-1"></i>Änderungen speichern';
-            createUserSection.style.display = 'none';
+            
+            // Checkbox "Login erlaubt" nur anzeigen wenn Mitglied noch kein Benutzerkonto hat
+            if (createUserSection) {
+                if (member.user_id && member.user_id !== null && member.user_id !== '') {
+                    // Mitglied hat bereits ein Benutzerkonto, Checkbox ausblenden
+                    createUserSection.style.display = 'none';
+                } else {
+                    // Mitglied hat noch kein Benutzerkonto, Checkbox anzeigen
+                    createUserSection.style.display = 'block';
+                }
+            }
             
             // Formularfelder füllen
             document.getElementById('memberFirstName').value = member.first_name || '';
