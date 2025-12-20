@@ -284,7 +284,7 @@ function has_permission($permission) {
     }
     
     try {
-        $stmt = $db->prepare("SELECT is_admin, can_reservations, can_users, can_settings, can_vehicles, can_atemschutz FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT is_admin, can_reservations, can_users, can_settings, can_vehicles, can_atemschutz, can_members FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -311,6 +311,8 @@ function has_permission($permission) {
                 return (bool)$user['can_vehicles'];
             case 'atemschutz':
                 return (bool)($user['can_atemschutz'] ?? 0);
+            case 'members':
+                return (bool)($user['can_members'] ?? 0);
             default:
                 return false;
         }

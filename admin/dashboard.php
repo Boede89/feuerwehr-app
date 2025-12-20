@@ -81,6 +81,7 @@ if (!$user) {
 $can_reservations = has_permission('reservations');
 $can_atemschutz = has_permission('atemschutz');
 $can_settings = has_permission('settings');
+$can_members = has_permission('members');
 
 // Sicherstellen, dass Berechtigungsspalten existieren
 try {
@@ -89,6 +90,7 @@ try {
     $db->exec("ALTER TABLE users ADD COLUMN can_settings TINYINT(1) DEFAULT 0");
     $db->exec("ALTER TABLE users ADD COLUMN can_vehicles TINYINT(1) DEFAULT 0");
     $db->exec("ALTER TABLE users ADD COLUMN can_atemschutz TINYINT(1) DEFAULT 0");
+    $db->exec("ALTER TABLE users ADD COLUMN can_members TINYINT(1) DEFAULT 0");
 } catch (Exception $e) {
     // Spalten existieren bereits, ignoriere Fehler
 }
@@ -577,7 +579,7 @@ if ($can_atemschutz) {
             </div>
             <?php endif; ?>
             
-            <?php if ($can_settings): ?>
+            <?php if ($can_members): ?>
             <div class="col-12 col-md-3">
                 <a href="members.php" class="btn btn-outline-success w-100">
                     <i class="fas fa-users"></i> Mitgliederverwaltung
