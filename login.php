@@ -162,7 +162,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && (!isset($_POST['action']) || $_POST[
                             <?php echo show_error($error); ?>
                         <?php endif; ?>
                         
-                        <form method="POST" action="">
+                        <?php if ($success_message): ?>
+                            <?php echo show_success($success_message); ?>
+                        <?php endif; ?>
+                        
+                        <form method="POST" action="" id="loginForm">
                             <div class="mb-3">
                                 <label for="username" class="form-label">Benutzername oder E-Mail</label>
                                 <div class="input-group">
