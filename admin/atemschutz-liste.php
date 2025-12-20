@@ -248,8 +248,9 @@ if (!$isAdmin && !$canAtemschutz) {
         }
         
         // Status für alle Einträge berechnen (vor Sortierung)
-        $now = new DateTime('today');
-        foreach ($traeger as &$tRow) {
+        if (!empty($traeger)) {
+            $now = new DateTime('today');
+            foreach ($traeger as &$tRow) {
             $streckeExpired = false; 
             $g263Expired = false; 
             $uebungExpired = false;
@@ -298,8 +299,8 @@ if (!$isAdmin && !$canAtemschutz) {
                     $tRow['status'] = 'Tauglich';
                 }
             }
+            unset($tRow); // Referenz löschen
         }
-        unset($tRow); // Referenz löschen
         
         // PHP-basierte Sortierung für Status
         if ($sort === 'status') {
