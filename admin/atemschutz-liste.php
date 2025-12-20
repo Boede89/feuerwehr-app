@@ -997,6 +997,282 @@ document.addEventListener('DOMContentLoaded', function(){
         m.show();
     } catch(e) {}
     <?php endif; ?>
+    
+    // Export-Funktionalität
+    let selectedFormat = null;
+    const traegerData = <?php echo json_encode($traeger ?? []); ?>;
+    
+    // Export-Optionen auswählbar machen
+    document.querySelectorAll('.export-option').forEach(option => {
+        option.addEventListener('click', function() {
+            // Alle Optionen deselektieren
+            document.querySelectorAll('.export-option').forEach(opt => opt.classList.remove('selected', 'border-primary'));
+            
+            // Diese Option auswählen
+            this.classList.add('selected', 'border-primary');
+            selectedFormat = this.dataset.format;
+            
+            // Export-Button aktivieren
+            document.getElementById('confirmExport').disabled = false;
+        });
+    });
+    
+    // Export bestätigen
+    document.getElementById('confirmExport').addEventListener('click', function() {
+        if (!selectedFormat) return;
+        
+        const button = this;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Export läuft...';
+        button.disabled = true;
+        
+        if (selectedFormat === 'print') {
+            printPDF();
+        } else if (selectedFormat === 'pdf') {
+            exportToPDF();
+        }
+        
+        // Modal schließen
+        bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();
+        
+        // Button nach 2 Sekunden zurücksetzen
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }, 2000);
+    });
+    
+    function printPDF() {
+        if (!traegerData || traegerData.length === 0) {
+            alert('Keine Daten zum Drucken verfügbar.');
+            return;
+        }
+        
+        const printHTML = generatePrintHTML(traegerData);
+        
+        const printWindow = window.open('', '_blank', 'width=800,height=600');
+        
+        if (!printWindow) {
+            alert('Pop-up-Blocker verhindert das Öffnen des Druckfensters. Bitte erlauben Sie Pop-ups für diese Seite.');
+            return;
+        }
+        
+        printWindow.document.open();
+        printWindow.document.write(printHTML);
+        printWindow.document.close();
+        
+        let printed = false;
+        const doPrint = () => {
+            if (!printed) {
+                printed = true;
+                try {
+                    printWindow.focus();
+                    printWindow.print();
+                } catch (e) {
+                    console.error('Druckfehler:', e);
+                    alert('Drucken fehlgeschlagen. Bitte verwenden Sie die Browser-Druckfunktion (Strg+P oder Cmd+P) im geöffneten Fenster.');
+                }
+            }
+        };
+        
+        if (printWindow.document.readyState === 'complete') {
+            setTimeout(doPrint, 100);
+        } else {
+            printWindow.onload = function() {
+                setTimeout(doPrint, 100);
+            };
+            setTimeout(doPrint, 1000);
+        }
+    }
+    
+    function exportToPDF() {
+        if (!traegerData || traegerData.length === 0) {
+            alert('Keine Daten zum Exportieren verfügbar.');
+            return;
+        }
+        
+        const printHTML = generatePrintHTML(traegerData);
+        const blob = new Blob([printHTML], { type: 'text/html;charset=utf-8' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `PA_Traeger_Liste_${new Date().toISOString().slice(0, 16).replace('T', '_')}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    }
+    
+    function generatePrintHTML(results) {
+        const formatDate = (dateStr) => {
+            if (!dateStr) return 'N/A';
+            try {
+                const date = new Date(dateStr);
+                if (isNaN(date.getTime())) return 'N/A';
+                return date.toLocaleDateString('de-DE');
+            } catch (e) {
+                return dateStr;
+            }
+        };
+        
+        const getStatusClass = (status) => {
+            const statusClasses = {
+                'Tauglich': 'status-tauglich',
+                'Warnung': 'status-warnung',
+                'Abgelaufen': 'status-abgelaufen',
+                'Übung abgelaufen': 'status-uebung-abgelaufen'
+            };
+            return statusClasses[status] || 'status-tauglich';
+        };
+        
+        let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>PA-Träger Liste - Druck</title>
+    <style>
+        @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+        }
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            line-height: 1.4;
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 30px; 
+            border-bottom: 2px solid #dc3545;
+            padding-bottom: 20px;
+        }
+        .header h1 { 
+            color: #dc3545; 
+            margin-bottom: 10px; 
+            font-size: 28px;
+        }
+        .header h2 { 
+            color: #6c757d; 
+            font-size: 18px; 
+            margin-bottom: 20px; 
+        }
+        .summary { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin-bottom: 20px; 
+            border-left: 4px solid #dc3545;
+        }
+        .summary h3 { 
+            margin-top: 0; 
+            color: #495057; 
+            font-size: 16px;
+        }
+        .summary p { 
+            margin: 5px 0; 
+            font-size: 14px;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 20px; 
+            font-size: 12px;
+        }
+        th, td { 
+            border: 1px solid #dee2e6; 
+            padding: 8px; 
+            text-align: left; 
+            vertical-align: top;
+        }
+        th { 
+            background-color: #e9ecef; 
+            font-weight: bold; 
+            font-size: 13px;
+        }
+        td strong {
+            font-weight: bold;
+            color: #212529;
+        }
+        .status-badge { 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-size: 11px; 
+            font-weight: bold; 
+            display: inline-block;
+        }
+        .status-tauglich { background-color: #d4edda; color: #155724; }
+        .status-warnung { background-color: #fff3cd; color: #856404; }
+        .status-abgelaufen { background-color: #f8d7da; color: #721c24; }
+        .status-uebung-abgelaufen { background-color: #f8d7da; color: #721c24; }
+        .footer { 
+            margin-top: 30px; 
+            text-align: center; 
+            color: #6c757d; 
+            font-size: 12px; 
+            border-top: 1px solid #dee2e6;
+            padding-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔥 Feuerwehr App</h1>
+        <h2>Aktuelle Liste der Atemschutzgeräteträger</h2>
+    </div>
+    
+    <div class="summary">
+        <h3>Übersicht</h3>
+        <p><strong>Gesamt:</strong> ${results.length} PA-Träger</p>
+        <p><strong>Erstellt am:</strong> ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')}</p>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Strecke</th>
+                <th>G26.3</th>
+                <th>Übung/Einsatz</th>
+            </tr>
+        </thead>
+        <tbody>`;
+        
+        results.forEach((traeger, index) => {
+            const statusClass = getStatusClass(traeger.status || 'Tauglich');
+            let fullName = 'Name nicht verfügbar';
+            if (traeger.first_name && traeger.last_name) {
+                fullName = traeger.last_name + ', ' + traeger.first_name;
+            } else if (traeger.name) {
+                fullName = traeger.name;
+            } else if (traeger.full_name) {
+                fullName = traeger.full_name;
+            }
+            
+            html += `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td><strong>${fullName}</strong></td>
+                    <td><span class="status-badge ${statusClass}">${traeger.status || 'Tauglich'}</span></td>
+                    <td>${formatDate(traeger.strecke_am)}</td>
+                    <td>${formatDate(traeger.g263_am)}</td>
+                    <td>${formatDate(traeger.uebung_am)}</td>
+                </tr>`;
+        });
+        
+        html += `
+        </tbody>
+    </table>
+    
+    <div class="footer">
+        <p>Erstellt am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')} | Feuerwehr App v2.1</p>
+    </div>
+</body>
+</html>`;
+        
+        return html;
+    }
 });
 </script>
 </body>
