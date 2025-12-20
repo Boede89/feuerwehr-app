@@ -324,23 +324,33 @@ function has_permission($permission) {
             return false;
         }
         
-        // Admin hat alle Berechtigungen
-        if ($user['is_admin']) {
-            return true;
+        // Admin hat alle Berechtigungen - prüfe sowohl is_admin als auch user_role
+        // Robuste Prüfung: is_admin kann 1, '1', true sein, oder user_role === 'admin'
+        $isAdmin = false;
+        if (isset($user['is_admin'])) {
+            $isAdmin = ($user['is_admin'] == 1 || $user['is_admin'] === '1' || $user['is_admin'] === true);
+        }
+        // Fallback: Prüfe auch user_role falls vorhanden
+        if (!$isAdmin && isset($user['user_role']) && $user['user_role'] === 'admin') {
+            $isAdmin = true;
+        }
+        
+        if ($isAdmin) {
+            return true; // Admin hat alle Berechtigungen, einschließlich members
         }
         
         // Spezifische Berechtigung prüfen
         switch ($permission) {
             case 'admin':
-                return (bool)$user['is_admin'];
+                return $isAdmin;
             case 'reservations':
-                return (bool)$user['can_reservations'];
+                return (bool)($user['can_reservations'] ?? 0);
             case 'users':
-                return (bool)$user['can_users'];
+                return (bool)($user['can_users'] ?? 0);
             case 'settings':
-                return (bool)$user['can_settings'];
+                return (bool)($user['can_settings'] ?? 0);
             case 'vehicles':
-                return (bool)$user['can_vehicles'];
+                return (bool)($user['can_vehicles'] ?? 0);
             case 'atemschutz':
                 return (bool)($user['can_atemschutz'] ?? 0);
             case 'members':
