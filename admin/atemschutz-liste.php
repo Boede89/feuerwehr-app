@@ -90,8 +90,13 @@ if (!$isAdmin && !$canAtemschutz) {
 
     <?php
     // Delete-Handler (Löschen)
+    // WICHTIG: Variablen zurücksetzen, wenn delete_success Parameter vorhanden ist
     $deleteMsg = '';
     $deleteErr = '';
+    if (isset($_GET['delete_success'])) {
+        // Nach erfolgreichem Redirect: Fehlermeldungen zurücksetzen
+        $deleteErr = '';
+    }
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_traeger') {
         $traeger_id = (int)($_POST['traeger_id'] ?? 0);
         
