@@ -90,7 +90,7 @@ require_once 'includes/functions.php';
 
     <footer class="bg-light mt-5 py-4">
         <div class="container text-center">
-            <p class="text-muted mb-0">&copy; 2025 Boedes Feuerwehr App&nbsp;&nbsp;Version: 2.2&nbsp;&nbsp;Alle Rechte vorbehalten</p>
+            <p class="text-muted mb-0">&copy; 2025 Boedes Feuerwehr App&nbsp;&nbsp;Version: 2.4&nbsp;&nbsp;Alle Rechte vorbehalten</p>
         </div>
     </footer>
 

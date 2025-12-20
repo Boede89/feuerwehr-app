@@ -209,12 +209,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && (!isset($_POST['action']) || $_POST[
                         </a>
                     </div>
                 </div>
-                
-                <div class="text-center mt-3">
-                    <small class="text-muted">
-                        Standard Admin: admin / admin123
-                    </small>
-                </div>
             </div>
         </div>
     </div>
