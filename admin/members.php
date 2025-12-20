@@ -271,6 +271,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if (empty($first_name) || empty($last_name)) {
             $error = 'Bitte geben Sie Vorname und Nachname ein.';
         } else {
+            // Sicherstellen, dass is_pa_traeger Spalte existiert (vor Transaktion)
+            try {
+                $db->exec("ALTER TABLE members ADD COLUMN is_pa_traeger TINYINT(1) DEFAULT 0");
+            } catch (Exception $e) {
+                // Spalte existiert bereits, ignoriere Fehler
+            }
+            
             try {
                 $db->beginTransaction();
                 
@@ -326,13 +333,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 
                 if (empty($error)) {
                     // Mitglied erstellen
-                    // Sicherstellen, dass is_pa_traeger Spalte existiert
-                    try {
-                        $db->exec("ALTER TABLE members ADD COLUMN is_pa_traeger TINYINT(1) DEFAULT 0");
-                    } catch (Exception $e) {
-                        // Spalte existiert bereits
-                    }
-                    
                     $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
                     
                     $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, is_pa_traeger) VALUES (?, ?, ?, ?, ?, ?, ?)");
@@ -426,7 +426,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 
                 if (!$member) {
                     $error = 'Mitglied nicht gefunden.';
-                    $db->rollBack();
+                    if ($db->inTransaction()) {
+                        $db->rollBack();
+                    }
                 } else {
                     // Aktualisiere Mitglied
                     $stmt = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ?, birthdate = ?, phone = ?, is_pa_traeger = ? WHERE id = ?");
@@ -485,7 +487,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         ]);
                     }
                     
-                    $db->commit();
+                    if ($db->inTransaction()) {
+                        $db->commit();
+                    }
                     $message = 'Mitglied wurde erfolgreich aktualisiert.';
                     header("Location: members.php?show_list=1&success=edited");
                     exit();
@@ -495,6 +499,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $db->rollBack();
                 }
                 $error = 'Fehler beim Aktualisieren: ' . $e->getMessage();
+                error_log("Fehler beim Bearbeiten von Mitglied: " . $e->getMessage());
             }
         }
     }
