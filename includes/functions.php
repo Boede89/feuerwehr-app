@@ -316,7 +316,7 @@ function has_permission($permission) {
             // Spalte existiert bereits, ignoriere Fehler
         }
         
-        $stmt = $db->prepare("SELECT is_admin, can_reservations, can_users, can_settings, can_vehicles, can_atemschutz, can_members FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT is_admin, user_role, can_reservations, can_users, can_settings, can_vehicles, can_atemschutz, can_members FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
