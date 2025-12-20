@@ -300,20 +300,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 $db->rollBack();
                             }
                         } else {
-                            // Generiere Benutzername (Vorname.Nachname oder mit Nummer falls vorhanden)
-                            $base_username = strtolower($first_name . '.' . $last_name);
-                            $username = $base_username;
-                            $counter = 1;
+                            // Generiere Benutzername
+                            // 1. Versuch: Nur Vorname
+                            $username = strtolower($first_name);
+                            $stmt_check = $db->prepare("SELECT id FROM users WHERE username = ?");
+                            $stmt_check->execute([$username]);
                             
-                            // Prüfe ob Benutzername bereits existiert
-                            while (true) {
-                                $stmt_check = $db->prepare("SELECT id FROM users WHERE username = ?");
+                            // 2. Versuch: Vorname + "." + erster Buchstabe des Nachnamens
+                            if ($stmt_check->fetch()) {
+                                $first_letter_lastname = !empty($last_name) ? strtolower(substr($last_name, 0, 1)) : '';
+                                $username = strtolower($first_name) . '.' . $first_letter_lastname;
                                 $stmt_check->execute([$username]);
-                                if (!$stmt_check->fetch()) {
-                                    break; // Benutzername ist verfügbar
+                                
+                                // 3. Versuch: Mit Nummern falls auch dieser existiert
+                                if ($stmt_check->fetch()) {
+                                    $base_username = $username;
+                                    $counter = 1;
+                                    while (true) {
+                                        $username = $base_username . $counter;
+                                        $stmt_check->execute([$username]);
+                                        if (!$stmt_check->fetch()) {
+                                            break; // Benutzername ist verfügbar
+                                        }
+                                        $counter++;
+                                    }
                                 }
-                                $username = $base_username . $counter;
-                                $counter++;
                             }
                             
                             // Generiere Standard-Passwort (kann später geändert werden)
