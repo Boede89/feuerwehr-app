@@ -410,6 +410,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $birthdate = trim($_POST['birthdate'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
         $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
+        $create_user = isset($_POST['create_user']) && $_POST['create_user'] == '1';
         
         if (empty($first_name) || empty($last_name)) {
             $error = 'Bitte geben Sie Vorname und Nachname ein.';
@@ -430,47 +431,116 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         $db->rollBack();
                     }
                 } else {
-                    // Aktualisiere Mitglied
-                    $stmt = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ?, birthdate = ?, phone = ?, is_pa_traeger = ? WHERE id = ?");
-                    $stmt->execute([
-                        $first_name,
-                        $last_name,
-                        !empty($email) ? $email : null,
-                        !empty($birthdate) ? $birthdate : null,
-                        !empty($phone) ? $phone : null,
-                        $is_pa_traeger,
-                        $member_id
-                    ]);
+                    $old_user_id = $member['user_id'];
                     
-                    // Wenn PA-Träger aktiviert, stelle sicher dass ein Geräteträger existiert
-                    if ($is_pa_traeger == 1) {
-                        $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE member_id = ? LIMIT 1");
+                    // Prüfe ob Benutzerkonto gelöscht werden soll
+                    if (!empty($old_user_id) && !$create_user && $is_admin) {
+                        // Benutzerkonto löschen
+                        $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
+                        $stmt->execute([$old_user_id]);
+                        
+                        // user_id im Mitglied auf NULL setzen
+                        $stmt = $db->prepare("UPDATE members SET user_id = NULL WHERE id = ?");
                         $stmt->execute([$member_id]);
-                        if (!$stmt->fetch()) {
-                            // Erstelle Geräteträger mit Standard-Daten (heute)
-                            $today = date('Y-m-d');
-                            $stmt = $db->prepare("
-                                INSERT INTO atemschutz_traeger (first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am, status, member_id) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?, 'Aktiv', ?)
-                            ");
-                            $stmt->execute([
-                                $first_name,
-                                $last_name,
-                                !empty($email) ? $email : null,
-                                !empty($birthdate) ? $birthdate : $today,
-                                $today,
-                                $today,
-                                $today,
-                                $member_id
-                            ]);
+                        
+                        $old_user_id = null; // Für weitere Prüfungen
+                    }
+                    
+                    // Prüfe ob Benutzerkonto erstellt werden soll
+                    if (empty($old_user_id) && $create_user && $is_admin) {
+                        if (empty($email)) {
+                            $error = 'Für die Erstellung eines Benutzerkontos ist eine E-Mail-Adresse erforderlich.';
+                            if ($db->inTransaction()) {
+                                $db->rollBack();
+                            }
+                        } else {
+                            // Prüfe ob E-Mail bereits verwendet wird
+                            $stmt_check = $db->prepare("SELECT id FROM users WHERE email = ?");
+                            $stmt_check->execute([$email]);
+                            if ($stmt_check->fetch()) {
+                                $error = 'Diese E-Mail-Adresse wird bereits von einem anderen Benutzer verwendet.';
+                                if ($db->inTransaction()) {
+                                    $db->rollBack();
+                                }
+                            } else {
+                                // Generiere Benutzername
+                                $base_username = strtolower($first_name . '.' . $last_name);
+                                $username = $base_username;
+                                $counter = 1;
+                                
+                                while (true) {
+                                    $stmt_check = $db->prepare("SELECT id FROM users WHERE username = ?");
+                                    $stmt_check->execute([$username]);
+                                    if (!$stmt_check->fetch()) {
+                                        break;
+                                    }
+                                    $username = $base_username . $counter;
+                                    $counter++;
+                                }
+                                
+                                // Generiere Standard-Passwort
+                                $default_password = bin2hex(random_bytes(8));
+                                $password_hash = hash_password($default_password);
+                                
+                                // Benutzer erstellen
+                                $stmt_user = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, can_reservations, can_atemschutz, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', 1, 0, 0, 0, 0, 0, 0, 0)");
+                                $stmt_user->execute([$username, $email, $password_hash, $first_name, $last_name]);
+                                $new_user_id = $db->lastInsertId();
+                                
+                                // user_id im Mitglied setzen
+                                $stmt = $db->prepare("UPDATE members SET user_id = ? WHERE id = ?");
+                                $stmt->execute([$new_user_id, $member_id]);
+                                
+                                // Passwort in Session speichern für Anzeige
+                                $_SESSION['new_user_password_' . $new_user_id] = $default_password;
+                                
+                                $old_user_id = $new_user_id; // Für weitere Prüfungen
+                            }
                         }
                     }
                     
-                    // Wenn Mitglied mit Benutzer verknüpft ist, aktualisiere auch Benutzer
-                    if (!empty($member['user_id'])) {
-                        $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, email = ? WHERE id = ?");
-                        $stmt->execute([$first_name, $last_name, !empty($email) ? $email : null, $member['user_id']]);
-                    }
+                    if (empty($error)) {
+                        // Aktualisiere Mitglied
+                        $stmt = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ?, birthdate = ?, phone = ?, is_pa_traeger = ? WHERE id = ?");
+                        $stmt->execute([
+                            $first_name,
+                            $last_name,
+                            !empty($email) ? $email : null,
+                            !empty($birthdate) ? $birthdate : null,
+                            !empty($phone) ? $phone : null,
+                            $is_pa_traeger,
+                            $member_id
+                        ]);
+                        
+                        // Wenn PA-Träger aktiviert, stelle sicher dass ein Geräteträger existiert
+                        if ($is_pa_traeger == 1) {
+                            $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE member_id = ? LIMIT 1");
+                            $stmt->execute([$member_id]);
+                            if (!$stmt->fetch()) {
+                                // Erstelle Geräteträger mit Standard-Daten (heute)
+                                $today = date('Y-m-d');
+                                $stmt = $db->prepare("
+                                    INSERT INTO atemschutz_traeger (first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am, status, member_id) 
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, 'Aktiv', ?)
+                                ");
+                                $stmt->execute([
+                                    $first_name,
+                                    $last_name,
+                                    !empty($email) ? $email : null,
+                                    !empty($birthdate) ? $birthdate : $today,
+                                    $today,
+                                    $today,
+                                    $today,
+                                    $member_id
+                                ]);
+                            }
+                        }
+                        
+                        // Wenn Mitglied mit Benutzer verknüpft ist, aktualisiere auch Benutzer
+                        if (!empty($old_user_id)) {
+                            $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, email = ? WHERE id = ?");
+                            $stmt->execute([$first_name, $last_name, !empty($email) ? $email : null, $old_user_id]);
+                        }
                     
                     // Wenn Mitglied mit Geräteträger verknüpft ist, aktualisiere auch Geräteträger
                     $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE member_id = ? LIMIT 1");
@@ -487,12 +557,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         ]);
                     }
                     
-                    if ($db->inTransaction()) {
-                        $db->commit();
+                        if ($db->inTransaction()) {
+                            $db->commit();
+                        }
+                        
+                        // Erfolgsmeldung mit Passwort falls Benutzer erstellt wurde
+                        if (isset($new_user_id) && !empty($new_user_id) && isset($default_password)) {
+                            $message = 'Mitglied wurde erfolgreich aktualisiert und Benutzerkonto wurde erstellt. Benutzername: ' . htmlspecialchars($username) . ', Passwort: ' . htmlspecialchars($default_password);
+                        } elseif (!empty($old_user_id) && !$create_user && isset($member['user_id']) && !empty($member['user_id'])) {
+                            $message = 'Mitglied wurde erfolgreich aktualisiert und Benutzerkonto wurde gelöscht.';
+                        } else {
+                            $message = 'Mitglied wurde erfolgreich aktualisiert.';
+                        }
+                        
+                        header("Location: members.php?show_list=1&success=edited");
+                        exit();
                     }
-                    $message = 'Mitglied wurde erfolgreich aktualisiert.';
-                    header("Location: members.php?show_list=1&success=edited");
-                    exit();
                 }
             } catch (Exception $e) {
                 if ($db->inTransaction()) {
@@ -885,15 +965,9 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             header.className = 'modal-header bg-primary text-white';
             submitBtn.innerHTML = '<i class="fas fa-save me-1"></i>Änderungen speichern';
             
-            // Checkbox "Login erlaubt" nur anzeigen wenn Mitglied noch kein Benutzerkonto hat
+            // Checkbox "Login erlaubt" immer anzeigen
             if (createUserSection) {
-                if (member.user_id && member.user_id !== null && member.user_id !== '') {
-                    // Mitglied hat bereits ein Benutzerkonto, Checkbox ausblenden
-                    createUserSection.style.display = 'none';
-                } else {
-                    // Mitglied hat noch kein Benutzerkonto, Checkbox anzeigen
-                    createUserSection.style.display = 'block';
-                }
+                createUserSection.style.display = 'block';
             }
             
             // Formularfelder füllen
@@ -904,9 +978,17 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             document.getElementById('memberPhone').value = member.phone || '';
             document.getElementById('memberIsPaTraeger').checked = member.is_pa_traeger == 1;
             
-            // E-Mail wieder optional machen
+            // Checkbox "Login erlaubt" setzen basierend auf user_id
+            const createUserCheckbox = document.getElementById('create_user');
+            if (createUserCheckbox) {
+                createUserCheckbox.checked = (member.user_id && member.user_id !== null && member.user_id !== '');
+            }
+            
+            // E-Mail wieder optional machen (wird später dynamisch angepasst)
             const emailInput = document.getElementById('memberEmail');
-            emailInput.required = false;
+            if (emailInput) {
+                emailInput.required = false;
+            }
             
             modal.show();
         }
