@@ -198,72 +198,72 @@ if (isset($_POST['test_email_btn'])) {
         </div>
 
         <div class="row g-4">
+            <!-- Linke Spalte -->
             <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-truck"></i> Fahrzeugreservierungen</h5>
-                        <p class="text-muted">Einstellungen speziell für die Fahrzeugreservierungen.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-vehicle-reservations.php">
-                                <i class="fas fa-sliders"></i> Öffnen
-                            </a>
+                <div class="d-flex flex-column gap-4">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title"><i class="fas fa-truck"></i> Fahrzeugreservierungen</h5>
+                            <p class="text-muted">Einstellungen speziell für die Fahrzeugreservierungen.</p>
+                            <div class="mt-auto">
+                                <a class="btn btn-primary" href="settings-vehicle-reservations.php">
+                                    <i class="fas fa-sliders"></i> Öffnen
+                                </a>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-gear"></i> Globale Einstellungen</h5>
-                        <p class="text-muted">SMTP, Google Calendar, App-weite Optionen, Fahrzeug- und Benutzerverwaltung.</p>
-                        <div class="mt-auto">
-                            <div class="d-flex gap-2 flex-wrap">
-                                <a class="btn btn-secondary" href="settings-global.php">
-                                    <i class="fas fa-wrench"></i> Öffnen
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title"><i class="fas fa-file-alt"></i> Formulare</h5>
+                            <p class="text-muted">Einstellungen für die verschiedenen Formulare verwalten.</p>
+                            <div class="mt-auto">
+                                <a class="btn btn-primary" href="settings-forms.php">
+                                    <i class="fas fa-file-alt"></i> Formulare verwalten
                                 </a>
-                                <a class="btn btn-outline-primary" href="settings-backup.php">
-                                    <i class="fas fa-shield-halved"></i> Sicherung & Wiederherstellung
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title"><i class="fas fa-truck"></i> Fahrzeugverwaltung</h5>
+                            <p class="text-muted">Fahrzeuge hinzufügen, bearbeiten und verwalten.</p>
+                            <div class="mt-auto">
+                                <a class="btn btn-primary" href="vehicles.php">
+                                    <i class="fas fa-truck"></i> Fahrzeuge verwalten
                                 </a>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+            <!-- Rechte Spalte -->
             <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-file-alt"></i> Formulare</h5>
-                        <p class="text-muted">Einstellungen für die verschiedenen Formulare verwalten.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-forms.php">
-                                <i class="fas fa-file-alt"></i> Formulare verwalten
-                            </a>
+                <div class="d-flex flex-column gap-4">
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title"><i class="fas fa-gear"></i> Globale Einstellungen</h5>
+                            <p class="text-muted">SMTP, Google Calendar, App-weite Optionen, Fahrzeug- und Benutzerverwaltung.</p>
+                            <div class="mt-auto">
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <a class="btn btn-secondary" href="settings-global.php">
+                                        <i class="fas fa-wrench"></i> Öffnen
+                                    </a>
+                                    <a class="btn btn-outline-primary" href="settings-backup.php">
+                                        <i class="fas fa-shield-halved"></i> Sicherung & Wiederherstellung
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-truck"></i> Fahrzeugverwaltung</h5>
-                        <p class="text-muted">Fahrzeuge hinzufügen, bearbeiten und verwalten.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="vehicles.php">
-                                <i class="fas fa-truck"></i> Fahrzeuge verwalten
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-users"></i> Benutzerverwaltung</h5>
-                        <p class="text-muted">Benutzer hinzufügen, bearbeiten und Berechtigungen verwalten.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="users.php">
-                                <i class="fas fa-users"></i> Benutzer verwalten
-                            </a>
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title"><i class="fas fa-users"></i> Benutzerverwaltung</h5>
+                            <p class="text-muted">Benutzer hinzufügen, bearbeiten und Berechtigungen verwalten.</p>
+                            <div class="mt-auto">
+                                <a class="btn btn-primary" href="users.php">
+                                    <i class="fas fa-users"></i> Benutzer verwalten
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
