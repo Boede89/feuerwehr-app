@@ -240,9 +240,17 @@ if ($can_atemschutz) {
                 g263_am DATE NOT NULL,
                 uebung_am DATE NOT NULL,
                 status VARCHAR(50) NOT NULL DEFAULT 'Aktiv',
+                member_id INT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
+        
+        // member_id Spalte hinzufügen falls nicht vorhanden
+        try {
+            $db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN member_id INT NULL");
+        } catch (Exception $e) {
+            // Spalte existiert bereits, ignoriere Fehler
+        }
         
         // Warnschwelle laden (Standard: 90 Tage)
         $warn_days = 90;

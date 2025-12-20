@@ -1242,4 +1242,165 @@ function check_vehicle_conflict($vehicle_id, $start_datetime, $end_datetime, $ex
         return false;
     }
 }
+
+/**
+ * Verknüpft einen Atemschutzgeräteträger mit einem Mitglied
+ * Erstellt automatisch ein Mitglied, falls noch keines existiert
+ * 
+ * @param int $traeger_id Die ID des Geräteträgers
+ * @param string $first_name Vorname
+ * @param string $last_name Nachname
+ * @param string|null $email E-Mail (optional)
+ * @param string|null $birthdate Geburtsdatum (optional)
+ * @return int|null Die member_id oder null bei Fehler
+ */
+function link_traeger_to_member($traeger_id, $first_name, $last_name, $email = null, $birthdate = null) {
+    global $db;
+    
+    try {
+        // Sicherstellen, dass members Tabelle existiert
+        $db->exec(
+            "CREATE TABLE IF NOT EXISTS members (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NULL,
+                first_name VARCHAR(100) NOT NULL,
+                last_name VARCHAR(100) NOT NULL,
+                email VARCHAR(255) NULL,
+                birthdate DATE NULL,
+                phone VARCHAR(50) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        );
+        
+        // Sicherstellen, dass member_id Spalte in atemschutz_traeger existiert
+        try {
+            $db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN member_id INT NULL");
+        } catch (Exception $e) {
+            // Spalte existiert bereits, ignoriere Fehler
+        }
+        
+        // Foreign Key hinzufügen falls nicht vorhanden
+        try {
+            $stmt = $db->query("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'atemschutz_traeger' AND COLUMN_NAME = 'member_id' AND REFERENCED_TABLE_NAME = 'members'");
+            if (!$stmt->fetch()) {
+                $db->exec("ALTER TABLE atemschutz_traeger ADD FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE SET NULL");
+            }
+        } catch (Exception $e) {
+            // Foreign Key existiert bereits oder Fehler, ignoriere
+        }
+        
+        // Prüfe, ob bereits ein Mitglied mit diesem Namen existiert (ohne user_id, da Geräteträger nicht automatisch Benutzer sind)
+        $stmt = $db->prepare("
+            SELECT id FROM members 
+            WHERE first_name = ? AND last_name = ? AND user_id IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([$first_name, $last_name]);
+        $existing_member = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($existing_member) {
+            // Mitglied existiert bereits, verknüpfe es
+            $member_id = $existing_member['id'];
+            
+            // Aktualisiere E-Mail und Geburtsdatum falls vorhanden
+            if ($email || $birthdate) {
+                $update_fields = [];
+                $update_params = [];
+                
+                if ($email) {
+                    $update_fields[] = "email = ?";
+                    $update_params[] = $email;
+                }
+                if ($birthdate) {
+                    $update_fields[] = "birthdate = ?";
+                    $update_params[] = $birthdate;
+                }
+                
+                if (!empty($update_fields)) {
+                    $update_params[] = $member_id;
+                    $stmt = $db->prepare("UPDATE members SET " . implode(", ", $update_fields) . " WHERE id = ?");
+                    $stmt->execute($update_params);
+                }
+            }
+        } else {
+            // Neues Mitglied erstellen
+            $stmt = $db->prepare("
+                INSERT INTO members (first_name, last_name, email, birthdate) 
+                VALUES (?, ?, ?, ?)
+            ");
+            $stmt->execute([$first_name, $last_name, $email, $birthdate]);
+            $member_id = $db->lastInsertId();
+        }
+        
+        // Verknüpfe Geräteträger mit Mitglied
+        $stmt = $db->prepare("UPDATE atemschutz_traeger SET member_id = ? WHERE id = ?");
+        $stmt->execute([$member_id, $traeger_id]);
+        
+        return $member_id;
+    } catch (Exception $e) {
+        error_log("Fehler beim Verknüpfen von Geräteträger mit Mitglied: " . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Synchronisiert alle bestehenden Geräteträger mit Mitgliedern
+ * 
+ * @return int Anzahl der verknüpften Geräteträger
+ */
+function sync_all_traeger_to_members() {
+    global $db;
+    
+    try {
+        // Sicherstellen, dass Tabellen existieren
+        $db->exec(
+            "CREATE TABLE IF NOT EXISTS members (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NULL,
+                first_name VARCHAR(100) NOT NULL,
+                last_name VARCHAR(100) NOT NULL,
+                email VARCHAR(255) NULL,
+                birthdate DATE NULL,
+                phone VARCHAR(50) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        );
+        
+        try {
+            $db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN member_id INT NULL");
+        } catch (Exception $e) {
+            // Spalte existiert bereits
+        }
+        
+        // Lade alle Geräteträger ohne member_id
+        $stmt = $db->prepare("
+            SELECT id, first_name, last_name, email, birthdate 
+            FROM atemschutz_traeger 
+            WHERE member_id IS NULL
+        ");
+        $stmt->execute();
+        $traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $count = 0;
+        foreach ($traeger as $t) {
+            $member_id = link_traeger_to_member(
+                $t['id'],
+                $t['first_name'],
+                $t['last_name'],
+                $t['email'],
+                $t['birthdate']
+            );
+            if ($member_id) {
+                $count++;
+            }
+        }
+        
+        return $count;
+    } catch (Exception $e) {
+        error_log("Fehler beim Synchronisieren der Geräteträger: " . $e->getMessage());
+        return 0;
+    }
+}
 ?>

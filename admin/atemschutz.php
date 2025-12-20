@@ -37,13 +37,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 					g263_am DATE NOT NULL,
 					uebung_am DATE NOT NULL,
 					status VARCHAR(50) NOT NULL DEFAULT 'Aktiv',
+					member_id INT NULL,
 					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
 			);
+			
+			// member_id Spalte hinzufügen falls nicht vorhanden
+			try {
+				$db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN member_id INT NULL");
+			} catch (Exception $e) {
+				// Spalte existiert bereits, ignoriere Fehler
+			}
 
 			$stmt = $db->prepare("INSERT INTO atemschutz_traeger (first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'Aktiv')");
 			$stmt->execute([$firstName, $lastName, ($email !== '' ? $email : null), $birthdate, $streckeAm, $g263Am, $uebungAm]);
-			$addSuccess = 'Geräteträger erfolgreich angelegt.';
+			$traeger_id = $db->lastInsertId();
+			
+			// Automatisch mit Mitglied verknüpfen
+			link_traeger_to_member($traeger_id, $firstName, $lastName, ($email !== '' ? $email : null), $birthdate);
+			
+			$addSuccess = 'Geräteträger erfolgreich angelegt und mit Mitglied verknüpft.';
 		} catch (Exception $e) {
 			$addError = 'Fehler beim Speichern: ' . htmlspecialchars($e->getMessage());
 		}
@@ -79,9 +92,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 					g263_am DATE NOT NULL,
 					uebung_am DATE NOT NULL,
 					status VARCHAR(50) NOT NULL DEFAULT 'Aktiv',
+					member_id INT NULL,
 					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
 			);
+			
+			// member_id Spalte hinzufügen falls nicht vorhanden
+			try {
+				$db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN member_id INT NULL");
+			} catch (Exception $e) {
+				// Spalte existiert bereits, ignoriere Fehler
+			}
 			
 			$idsInt = array_map(static fn($v) => (int)$v, $ids);
 			$idsInt = array_values(array_filter($idsInt, static fn($v) => $v > 0));
@@ -98,6 +119,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 			$bulkError = 'Fehler beim Aktualisieren: ' . htmlspecialchars($e->getMessage());
 		}
 	}
+}
+
+// Automatische Synchronisation: Alle Geräteträger mit Mitgliedern verknüpfen
+// Dies wird beim ersten Laden der Seite ausgeführt
+try {
+    sync_all_traeger_to_members();
+} catch (Exception $e) {
+    error_log("Fehler bei automatischer Synchronisation: " . $e->getMessage());
 }
 
 // POST: Übung planen – Filter und Vorschlagsliste erzeugen
