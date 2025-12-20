@@ -118,7 +118,7 @@ require_once 'includes/functions.php';
                 </div>
 
                 <div class="row g-4">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="card h-100 shadow-sm feature-card">
                             <div class="card-body text-center p-4">
                                 <div class="feature-icon mb-3">
@@ -133,7 +133,7 @@ require_once 'includes/functions.php';
                         </div>
                     </div>
 
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="card h-100 shadow-sm feature-card">
                             <div class="card-body text-center p-4">
                                 <div class="feature-icon mb-3">
@@ -146,6 +146,21 @@ require_once 'includes/functions.php';
                                 <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#atemschutzModal">
                                     <i class="fas fa-plus"></i> Eintrag erstellen
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="card h-100 shadow-sm feature-card">
+                            <div class="card-body text-center p-4">
+                                <div class="feature-icon mb-3">
+                                    <i class="fas fa-file-alt text-primary"></i>
+                                </div>
+                                <h5 class="card-title">Formulare</h5>
+                                <p class="card-text">Zugriff auf verschiedene Formulare und Dokumente der Feuerwehr.</p>
+                                <a href="#" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-clipboard-list"></i> Formulare öffnen
+                                </a>
                             </div>
                         </div>
                     </div>
