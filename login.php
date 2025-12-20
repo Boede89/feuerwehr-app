@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
                 </html>';
                 
                 if (send_email($user['email'], $email_subject, $email_body, '', true)) {
-                    $success_message = "Ein neues Passwort wurde generiert und an Ihre E-Mail-Adresse gesendet.";
+                    $success_message = "Ein neues Passwort wurde generiert und an Ihre E-Mail-Adresse gesendet. Bitte prüfen Sie auch Ihren Spam-Ordner, falls die E-Mail nicht im Posteingang ankommt.";
                     log_activity($user['id'], 'password_reset', "Passwort über 'Passwort vergessen' zurückgesetzt");
                 } else {
                     $error = "Passwort wurde zurückgesetzt, aber die E-Mail konnte nicht gesendet werden. Bitte kontaktieren Sie den Administrator.";

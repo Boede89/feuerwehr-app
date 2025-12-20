@@ -214,7 +214,7 @@ if (isset($_GET['reset_password'])) {
             </html>';
             
             if (send_email($user['email'], $email_subject, $email_body, '', true)) {
-                $message = "Passwort wurde zurückgesetzt und eine E-Mail mit dem neuen Passwort wurde an " . htmlspecialchars($user['email']) . " gesendet.";
+                $message = "Passwort wurde zurückgesetzt und eine E-Mail mit dem neuen Passwort wurde an " . htmlspecialchars($user['email']) . " gesendet. Bitte prüfen Sie auch Ihren Spam-Ordner, falls die E-Mail nicht im Posteingang ankommt.";
                 log_activity($_SESSION['user_id'], 'password_reset', "Passwort für Benutzer ID $user_id zurückgesetzt");
             } else {
                 $error = "Passwort wurde zurückgesetzt, aber die E-Mail konnte nicht gesendet werden. Bitte kontaktieren Sie den Benutzer direkt.";
