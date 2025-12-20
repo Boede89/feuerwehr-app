@@ -208,12 +208,12 @@ if (!$isAdmin && !$canAtemschutz) {
             throw new Exception('Benötigte Spalten fehlen (z.B. first_name/last_name/birthdate).');
         }
         // Abgeleitete Felder für Sortierung (Name und Bis-Daten)
-        // Verwende IFNULL um NULL-Werte zu behandeln
+        // Verwende IFNULL und CASE um NULL-Werte zu behandeln
         $select = implode(", ", $selectParts)
             . ", CONCAT(IFNULL(last_name,''), ', ', IFNULL(first_name,'')) AS name_full"
-            . ", IFNULL(DATE_ADD(strecke_am, INTERVAL 1 YEAR), NULL) AS strecke_bis"
-            . ", CASE WHEN birthdate IS NOT NULL AND TIMESTAMPDIFF(YEAR, birthdate, CURDATE()) < 50 THEN IFNULL(DATE_ADD(g263_am, INTERVAL 3 YEAR), NULL) ELSE IFNULL(DATE_ADD(g263_am, INTERVAL 1 YEAR), NULL) END AS g263_bis"
-            . ", IFNULL(DATE_ADD(uebung_am, INTERVAL 1 YEAR), NULL) AS uebung_bis";
+            . ", CASE WHEN strecke_am IS NOT NULL THEN DATE_ADD(strecke_am, INTERVAL 1 YEAR) ELSE NULL END AS strecke_bis"
+            . ", CASE WHEN g263_am IS NOT NULL AND birthdate IS NOT NULL AND TIMESTAMPDIFF(YEAR, birthdate, CURDATE()) < 50 THEN DATE_ADD(g263_am, INTERVAL 3 YEAR) WHEN g263_am IS NOT NULL THEN DATE_ADD(g263_am, INTERVAL 1 YEAR) ELSE NULL END AS g263_bis"
+            . ", CASE WHEN uebung_am IS NOT NULL THEN DATE_ADD(uebung_am, INTERVAL 1 YEAR) ELSE NULL END AS uebung_bis";
 
         // WHERE (Suche)
         $where = '';
@@ -237,9 +237,15 @@ if (!$isAdmin && !$canAtemschutz) {
         $order = "ORDER BY $orderExpr $dir";
 
         $sql = "SELECT $select FROM atemschutz_traeger $where $order";
-        $stmt = $db->prepare($sql);
-        $stmt->execute($params);
-        $traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
+            $traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            error_log("Fehler beim Laden der Geräteträger: " . $e->getMessage() . " SQL: " . $sql);
+            $traeger = [];
+            $error = 'Fehler beim Laden der Geräteträger: ' . $e->getMessage();
+        }
         
         // Status für alle Einträge berechnen (vor Sortierung)
         $now = new DateTime('today');
