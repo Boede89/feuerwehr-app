@@ -71,18 +71,17 @@ require_once 'includes/functions.php';
                         <div class="row g-4">
                             <!-- Mängelbericht -->
                             <div class="col-md-6 col-lg-4">
-                                <div class="card h-100 shadow-sm feature-card">
-                                    <div class="card-body text-center p-4 d-flex flex-column">
-                                        <div class="feature-icon mb-3">
-                                            <i class="fas fa-exclamation-triangle text-warning"></i>
+                                <a href="formulare/maengelbericht.php" class="text-decoration-none">
+                                    <div class="card h-100 shadow-sm feature-card clickable-card">
+                                        <div class="card-body text-center p-4 d-flex flex-column">
+                                            <div class="feature-icon mb-3">
+                                                <i class="fas fa-exclamation-triangle text-warning"></i>
+                                            </div>
+                                            <h5 class="card-title">Mängelbericht</h5>
+                                            <p class="card-text">Erstellen Sie einen Mängelbericht für Fahrzeuge, Geräte oder Ausrüstung.</p>
                                         </div>
-                                        <h5 class="card-title">Mängelbericht</h5>
-                                        <p class="card-text">Erstellen Sie einen Mängelbericht für Fahrzeuge, Geräte oder Ausrüstung.</p>
-                                        <a href="formulare/maengelbericht.php" class="btn btn-primary btn-lg w-100 mt-auto">
-                                            <i class="fas fa-file-alt"></i> Mängelbericht öffnen
-                                        </a>
                                     </div>
-                                </div>
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -110,13 +109,32 @@ require_once 'includes/functions.php';
             font-size: 3rem;
         }
         
-        .feature-card {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        .feature-card .card-body {
+            display: flex;
+            flex-direction: column;
         }
         
-        .feature-card:hover {
+        .feature-card .card-text {
+            flex-grow: 1;
+        }
+        
+        .clickable-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .clickable-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 16px rgba(0,0,0,0.15) !important;
+        }
+        
+        .clickable-card a {
+            color: inherit;
+            text-decoration: none;
+        }
+        
+        .clickable-card:hover .card-title {
+            color: #0d6efd;
         }
     </style>
 </body>
