@@ -77,11 +77,54 @@ if (!$user) {
     exit();
 }
 
+// Sicherstellen, dass Berechtigungsspalten existieren (vor Berechtigungsprüfungen)
+try {
+    $db->exec("ALTER TABLE users ADD COLUMN can_reservations TINYINT(1) DEFAULT 1");
+} catch (Exception $e) {
+    // Spalte existiert bereits, ignoriere Fehler
+}
+try {
+    $db->exec("ALTER TABLE users ADD COLUMN can_users TINYINT(1) DEFAULT 0");
+} catch (Exception $e) {
+    // Spalte existiert bereits, ignoriere Fehler
+}
+try {
+    $db->exec("ALTER TABLE users ADD COLUMN can_settings TINYINT(1) DEFAULT 0");
+} catch (Exception $e) {
+    // Spalte existiert bereits, ignoriere Fehler
+}
+try {
+    $db->exec("ALTER TABLE users ADD COLUMN can_vehicles TINYINT(1) DEFAULT 0");
+} catch (Exception $e) {
+    // Spalte existiert bereits, ignoriere Fehler
+}
+try {
+    $db->exec("ALTER TABLE users ADD COLUMN can_atemschutz TINYINT(1) DEFAULT 0");
+} catch (Exception $e) {
+    // Spalte existiert bereits, ignoriere Fehler
+}
+try {
+    $db->exec("ALTER TABLE users ADD COLUMN can_members TINYINT(1) DEFAULT 0");
+} catch (Exception $e) {
+    // Spalte existiert bereits, ignoriere Fehler
+}
+
 // Berechtigungen prüfen
-$can_reservations = has_permission('reservations');
-$can_atemschutz = has_permission('atemschutz');
-$can_settings = has_permission('settings');
-$can_members = has_permission('members');
+// Für Administratoren: Alle Berechtigungen automatisch aktivieren
+$is_admin = !empty($user['is_admin']);
+if ($is_admin) {
+    // Admin hat alle Berechtigungen
+    $can_reservations = true;
+    $can_atemschutz = true;
+    $can_settings = true;
+    $can_members = true;
+} else {
+    // Für Nicht-Admins: Spezifische Berechtigungen prüfen
+    $can_reservations = has_permission('reservations');
+    $can_atemschutz = has_permission('atemschutz');
+    $can_settings = has_permission('settings');
+    $can_members = has_permission('members');
+}
 
 // Sicherstellen, dass Berechtigungsspalten existieren
 try {
