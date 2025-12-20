@@ -507,93 +507,63 @@ Mit freundlichen Grüßen
         
         function printPDF() {
             // PDF-Drucken: HTML direkt im neuen Fenster öffnen
-            const results = <?php echo json_encode($searchResults); ?>;
-            const params = <?php echo json_encode($searchParams); ?>;
+            const results = <?php echo json_encode($searchResults ?? []); ?>;
+            const params = <?php echo json_encode($searchParams ?? []); ?>;
             
             // Debug: Daten prüfen
             console.log('Druck-Daten:', results);
             console.log('Parameter:', params);
             
-            // Debug: Ersten Eintrag detailliert anzeigen
-            if (results.length > 0) {
-                console.log('Erster Eintrag (alle Felder):', results[0]);
-                console.log('Verfügbare Felder:', Object.keys(results[0]));
+            if (!results || results.length === 0) {
+                alert('Keine Ergebnisse zum Drucken verfügbar.');
+                return;
             }
             
             // HTML für Druck generieren
             const printHTML = generatePrintHTML(results, params);
             
-            // Mobile-freundliche Druckfunktion
-            if (window.navigator.userAgent.match(/Mobile|Android|iPhone|iPad/)) {
-                // Für mobile Geräte: Neues Fenster mit besserer Kompatibilität
-                try {
-                    const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
-                    if (printWindow) {
-                        printWindow.document.write(printHTML);
-                        printWindow.document.close();
-                        
-                        // Warten bis das Fenster geladen ist
-                        printWindow.onload = function() {
-                            setTimeout(() => {
-                                try {
-                                    printWindow.print();
-                                } catch (e) {
-                                    console.error('Druckfehler:', e);
-                                    alert('Drucken fehlgeschlagen. Bitte verwenden Sie die Browser-Druckfunktion (Strg+P)');
-                                }
-                            }, 500);
-                        };
-                        
-                        // Fallback: Falls onload nicht funktioniert
-                        setTimeout(() => {
-                            try {
-                                printWindow.print();
-                            } catch (e) {
-                                console.error('Druckfehler (Fallback):', e);
-                                alert('Drucken fehlgeschlagen. Bitte verwenden Sie die Browser-Druckfunktion (Strg+P)');
-                            }
-                        }, 1000);
-                    } else {
-                        // Fallback: Inline drucken
-                        const printDiv = document.createElement('div');
-                        printDiv.innerHTML = printHTML;
-                        printDiv.style.position = 'absolute';
-                        printDiv.style.left = '-9999px';
-                        printDiv.style.top = '-9999px';
-                        printDiv.style.width = '800px';
-                        printDiv.style.backgroundColor = 'white';
-                        document.body.appendChild(printDiv);
-                        
-                        // Drucken
-                        setTimeout(() => {
-                            try {
-                                window.print();
-                                document.body.removeChild(printDiv);
-                            } catch (e) {
-                                console.error('Inline-Druckfehler:', e);
-                                alert('Drucken fehlgeschlagen. Bitte verwenden Sie die Browser-Druckfunktion (Strg+P)');
-                                document.body.removeChild(printDiv);
-                            }
-                        }, 100);
-                    }
-                } catch (e) {
-                    console.error('Mobile Druckfehler:', e);
-                    alert('Drucken fehlgeschlagen. Bitte verwenden Sie die Browser-Druckfunktion (Strg+P)');
-                }
-            } else {
-                // Für Desktop: Neues Fenster
-                const printWindow = window.open('', '_blank', 'width=800,height=600');
-                if (printWindow) {
-                    printWindow.document.write(printHTML);
-                    printWindow.document.close();
-                    
-                    // Automatisch drucken
-                    printWindow.onload = function() {
+            // Neues Fenster öffnen und HTML schreiben
+            const printWindow = window.open('', '_blank', 'width=800,height=600');
+            
+            if (!printWindow) {
+                alert('Pop-up-Blocker verhindert das Öffnen des Druckfensters. Bitte erlauben Sie Pop-ups für diese Seite.');
+                return;
+            }
+            
+            // HTML in das neue Fenster schreiben
+            printWindow.document.open();
+            printWindow.document.write(printHTML);
+            printWindow.document.close();
+            
+            // Warten bis das Dokument vollständig geladen ist, dann drucken
+            // Verwende sowohl onload als auch setTimeout als Fallback
+            let printed = false;
+            
+            const doPrint = () => {
+                if (!printed) {
+                    printed = true;
+                    try {
+                        printWindow.focus();
                         printWindow.print();
-                    };
-                } else {
-                    alert('Pop-up-Blocker verhindert das Öffnen des Druckfensters. Bitte erlauben Sie Pop-ups für diese Seite.');
+                    } catch (e) {
+                        console.error('Druckfehler:', e);
+                        alert('Drucken fehlgeschlagen. Bitte verwenden Sie die Browser-Druckfunktion (Strg+P oder Cmd+P) im geöffneten Fenster.');
+                    }
                 }
+            };
+            
+            // Versuche onload (funktioniert wenn das Dokument noch nicht geladen ist)
+            if (printWindow.document.readyState === 'complete') {
+                // Dokument ist bereits geladen
+                setTimeout(doPrint, 100);
+            } else {
+                // Warte auf onload
+                printWindow.onload = function() {
+                    setTimeout(doPrint, 100);
+                };
+                
+                // Fallback: Falls onload nicht funktioniert
+                setTimeout(doPrint, 1000);
             }
         }
         
@@ -699,9 +669,9 @@ Mit freundlichen Grüßen
     
     <div class="summary">
         <h3>Suchkriterien</h3>
-        <p><strong>Übungsdatum:</strong> ${new Date(uebungsDatum).toLocaleDateString('de-DE')}</p>
+        <p><strong>Übungsdatum:</strong> ${uebungsDatum ? new Date(uebungsDatum).toLocaleDateString('de-DE') : 'Nicht angegeben'}</p>
         <p><strong>Anzahl:</strong> ${anzahl === 'alle' ? 'Alle verfügbaren' : anzahl + ' PA-Träger'}</p>
-        <p><strong>Status-Filter:</strong> ${statusFilter.join(', ')}</p>
+        <p><strong>Status-Filter:</strong> ${statusFilter && statusFilter.length > 0 ? statusFilter.join(', ') : 'Keine Filter'}</p>
         <p><strong>Gefunden:</strong> ${results.length} PA-Träger</p>
     </div>
     
@@ -719,23 +689,39 @@ Mit freundlichen Grüßen
         <tbody>`;
             
             results.forEach((traeger, index) => {
-                const statusClass = getStatusClass(traeger.status);
-                const fullName = traeger.name || 'Name nicht verfügbar';
+                const statusClass = getStatusClass(traeger.status || 'Tauglich');
+                // Name kann in verschiedenen Feldern sein: name, first_name/last_name, oder full_name
+                let fullName = 'Name nicht verfügbar';
+                if (traeger.name) {
+                    fullName = traeger.name;
+                } else if (traeger.first_name && traeger.last_name) {
+                    fullName = traeger.last_name + ', ' + traeger.first_name;
+                } else if (traeger.full_name) {
+                    fullName = traeger.full_name;
+                } else if (traeger.first_name) {
+                    fullName = traeger.first_name;
+                }
                 
-                // Debug: Namen prüfen
-                console.log(`Geräteträger ${index + 1}:`, {
-                    name: traeger.name,
-                    fullName: fullName
-                });
+                // Datum formatieren
+                const formatDate = (dateStr) => {
+                    if (!dateStr) return 'N/A';
+                    try {
+                        const date = new Date(dateStr);
+                        if (isNaN(date.getTime())) return 'N/A';
+                        return date.toLocaleDateString('de-DE');
+                    } catch (e) {
+                        return dateStr; // Fallback: Original-String zurückgeben
+                    }
+                };
                 
                 html += `
                     <tr>
                         <td>${index + 1}</td>
                         <td><strong>${fullName}</strong></td>
-                        <td><span class="status-badge ${statusClass}">${traeger.status}</span></td>
-                        <td>${traeger.strecke_am ? new Date(traeger.strecke_am).toLocaleDateString('de-DE') : 'N/A'}</td>
-                        <td>${traeger.g263_am ? new Date(traeger.g263_am).toLocaleDateString('de-DE') : 'N/A'}</td>
-                        <td>${traeger.uebung_am ? new Date(traeger.uebung_am).toLocaleDateString('de-DE') : 'N/A'} ${traeger.uebung_bis ? '(bis ' + new Date(traeger.uebung_bis).toLocaleDateString('de-DE') + ')' : ''}</td>
+                        <td><span class="status-badge ${statusClass}">${traeger.status || 'Tauglich'}</span></td>
+                        <td>${formatDate(traeger.strecke_am)}</td>
+                        <td>${formatDate(traeger.g263_am)}</td>
+                        <td>${formatDate(traeger.uebung_am)}${traeger.uebung_bis ? ' (bis ' + formatDate(traeger.uebung_bis) + ')' : ''}</td>
                     </tr>`;
             });
             
