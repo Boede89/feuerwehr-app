@@ -192,6 +192,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && (!isset($_POST['action']) || $_POST[
                                     <i class="fas fa-sign-in-alt"></i> Anmelden
                                 </button>
                             </div>
+                            <div class="text-center mt-3">
+                                <a href="#" class="text-muted text-decoration-none" data-bs-toggle="modal" data-bs-target="#forgotPasswordModal">
+                                    <i class="fas fa-question-circle"></i> Passwort vergessen?
+                                </a>
+                            </div>
                         </form>
                     </div>
                     <div class="card-footer text-center">
@@ -206,6 +211,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && (!isset($_POST['action']) || $_POST[
                         Standard Admin: admin / admin123
                     </small>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Passwort vergessen Modal -->
+    <div class="modal fade" id="forgotPasswordModal" tabindex="-1" aria-labelledby="forgotPasswordModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title" id="forgotPasswordModalLabel">
+                        <i class="fas fa-key me-2"></i>Passwort vergessen
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="">
+                    <input type="hidden" name="action" value="forgot_password">
+                    <div class="modal-body">
+                        <p>Geben Sie Ihre E-Mail-Adresse ein. Wir senden Ihnen ein neues Passwort zu.</p>
+                        <div class="mb-3">
+                            <label for="forgot_email" class="form-label">E-Mail-Adresse</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-envelope"></i>
+                                </span>
+                                <input type="email" class="form-control" id="forgot_email" name="email" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-1"></i>Abbrechen
+                        </button>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-paper-plane me-1"></i>Passwort zurücksetzen
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
