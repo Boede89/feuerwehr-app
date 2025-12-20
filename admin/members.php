@@ -18,30 +18,9 @@ if (!has_permission('members')) {
 $message = '';
 $error = '';
 
-// Doppelte Mitglieder zusammenführen (manuell oder automatisch beim ersten Laden)
-if (isset($_GET['merge_duplicates'])) {
-    try {
-        $merge_result = merge_duplicate_members();
-        if ($merge_result['merged'] > 0) {
-            $message = "Doppelte Mitglieder wurden zusammengeführt: " . $merge_result['merged'] . " Gruppen, " . $merge_result['deleted'] . " Duplikate entfernt.";
-        } else {
-            $message = "Keine doppelten Mitglieder gefunden.";
-        }
-        // Weiterleitung um POST-Problem zu vermeiden
-        header("Location: members.php?success=merged");
-        exit();
-    } catch (Exception $e) {
-        $error = "Fehler beim Zusammenführen: " . $e->getMessage();
-        error_log("Fehler beim Zusammenführen: " . $e->getMessage());
-    }
-}
-
 // Erfolgsmeldung anzeigen
 if (isset($_GET['success'])) {
     switch ($_GET['success']) {
-        case 'merged':
-            $message = "Doppelte Mitglieder wurden erfolgreich zusammengeführt.";
-            break;
         case 'edited':
             $message = "Mitglied wurde erfolgreich bearbeitet.";
             break;
@@ -963,11 +942,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             <div class="col-12 col-md-6 mb-2">
                 <a href="?show_list=<?php echo $show_list ? '0' : '1'; ?>" class="btn btn-outline-primary w-100">
                     <i class="fas fa-list"></i> <?php echo $show_list ? 'Liste ausblenden' : 'Aktuelle Liste anzeigen'; ?>
-                </a>
-            </div>
-            <div class="col-12 col-md-6 mb-2">
-                <a href="?merge_duplicates=1" class="btn btn-outline-warning w-100" onclick="return confirm('Möchten Sie wirklich doppelte Mitglieder zusammenführen? Diese Aktion kann nicht rückgängig gemacht werden.');">
-                    <i class="fas fa-compress-alt"></i> Doppelte Mitglieder zusammenführen
                 </a>
             </div>
         </div>
