@@ -37,8 +37,21 @@ if (isset($_GET['merge_duplicates'])) {
 }
 
 // Erfolgsmeldung anzeigen
-if (isset($_GET['success']) && $_GET['success'] == 'merged') {
-    $message = "Doppelte Mitglieder wurden erfolgreich zusammengeführt.";
+if (isset($_GET['success'])) {
+    switch ($_GET['success']) {
+        case 'merged':
+            $message = "Doppelte Mitglieder wurden erfolgreich zusammengeführt.";
+            break;
+        case 'edited':
+            $message = "Mitglied wurde erfolgreich bearbeitet.";
+            break;
+        case 'deleted':
+            $message = "Mitglied wurde erfolgreich gelöscht.";
+            break;
+        case 'toggle':
+            $message = "PA-Träger Status wurde aktualisiert.";
+            break;
+    }
 }
 
 // Mitglieder laden
@@ -325,6 +338,129 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// Mitglied bearbeiten
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_member') {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        $member_id = (int)($_POST['member_id'] ?? 0);
+        $first_name = trim($_POST['first_name'] ?? '');
+        $last_name = trim($_POST['last_name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $birthdate = trim($_POST['birthdate'] ?? '');
+        $phone = trim($_POST['phone'] ?? '');
+        
+        if (empty($first_name) || empty($last_name)) {
+            $error = 'Bitte geben Sie Vorname und Nachname ein.';
+        } elseif ($member_id <= 0) {
+            $error = 'Ungültige Mitglieds-ID.';
+        } else {
+            try {
+                $db->beginTransaction();
+                
+                // Lade Mitglied
+                $stmt = $db->prepare("SELECT user_id FROM members WHERE id = ?");
+                $stmt->execute([$member_id]);
+                $member = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$member) {
+                    $error = 'Mitglied nicht gefunden.';
+                    $db->rollBack();
+                } else {
+                    // Aktualisiere Mitglied
+                    $stmt = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ?, birthdate = ?, phone = ? WHERE id = ?");
+                    $stmt->execute([
+                        $first_name,
+                        $last_name,
+                        !empty($email) ? $email : null,
+                        !empty($birthdate) ? $birthdate : null,
+                        !empty($phone) ? $phone : null,
+                        $member_id
+                    ]);
+                    
+                    // Wenn Mitglied mit Benutzer verknüpft ist, aktualisiere auch Benutzer
+                    if (!empty($member['user_id'])) {
+                        $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, email = ? WHERE id = ?");
+                        $stmt->execute([$first_name, $last_name, !empty($email) ? $email : null, $member['user_id']]);
+                    }
+                    
+                    // Wenn Mitglied mit Geräteträger verknüpft ist, aktualisiere auch Geräteträger
+                    $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE member_id = ? LIMIT 1");
+                    $stmt->execute([$member_id]);
+                    $traeger = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if ($traeger) {
+                        $stmt = $db->prepare("UPDATE atemschutz_traeger SET first_name = ?, last_name = ?, email = ?, birthdate = ? WHERE id = ?");
+                        $stmt->execute([
+                            $first_name,
+                            $last_name,
+                            !empty($email) ? $email : null,
+                            !empty($birthdate) ? $birthdate : null,
+                            $traeger['id']
+                        ]);
+                    }
+                    
+                    $db->commit();
+                    $message = 'Mitglied wurde erfolgreich aktualisiert.';
+                    header("Location: members.php?show_list=1&success=edited");
+                    exit();
+                }
+            } catch (Exception $e) {
+                $db->rollBack();
+                $error = 'Fehler beim Aktualisieren: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
+// Mitglied löschen
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_member') {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        $member_id = (int)($_POST['member_id'] ?? 0);
+        
+        if ($member_id <= 0) {
+            $error = 'Ungültige Mitglieds-ID.';
+        } else {
+            try {
+                $db->beginTransaction();
+                
+                // Lade Mitglied
+                $stmt = $db->prepare("SELECT user_id FROM members WHERE id = ?");
+                $stmt->execute([$member_id]);
+                $member = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$member) {
+                    $error = 'Mitglied nicht gefunden.';
+                    $db->rollBack();
+                } else {
+                    // Prüfe ob Mitglied mit Benutzer verknüpft ist
+                    if (!empty($member['user_id'])) {
+                        $error = 'Mitglied kann nicht gelöscht werden, da es mit einem Benutzerkonto verknüpft ist. Bitte löschen Sie zuerst das Benutzerkonto.';
+                        $db->rollBack();
+                    } else {
+                        // Lösche zugehörigen Geräteträger (falls vorhanden)
+                        $stmt = $db->prepare("DELETE FROM atemschutz_traeger WHERE member_id = ?");
+                        $stmt->execute([$member_id]);
+                        
+                        // Lösche Mitglied
+                        $stmt = $db->prepare("DELETE FROM members WHERE id = ?");
+                        $stmt->execute([$member_id]);
+                        
+                        $db->commit();
+                        $message = 'Mitglied wurde erfolgreich gelöscht.';
+                        header("Location: members.php?show_list=1&success=deleted");
+                        exit();
+                    }
+                }
+            } catch (Exception $e) {
+                $db->rollBack();
+                $error = 'Fehler beim Löschen: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
 // PA-Träger Toggle
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'toggle_pa_traeger') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -494,6 +630,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             <th>Geburtsdatum</th>
                                             <th>Telefon</th>
                                             <th>PA-Träger</th>
+                                            <th>Aktionen</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -525,6 +662,24 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                                     <span class="text-muted">-</span>
                                                 <?php endif; ?>
                                             </td>
+                                            <td>
+                                                <?php if (!empty($member['member_id']) && empty($member['user_id'])): ?>
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <button type="button" class="btn btn-outline-primary" 
+                                                            onclick="editMember(<?php echo htmlspecialchars(json_encode($member)); ?>)"
+                                                            title="Bearbeiten">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-danger" 
+                                                            onclick="deleteMember(<?php echo (int)$member['member_id']; ?>, '<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>')"
+                                                            title="Löschen">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                                <?php else: ?>
+                                                    <span class="text-muted">-</span>
+                                                <?php endif; ?>
+                                            </td>
                                         </tr>
                                         <?php endforeach; ?>
                                     </tbody>
@@ -538,53 +693,54 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         <?php endif; ?>
     </div>
 
-    <!-- Mitglied hinzufügen Modal -->
+    <!-- Mitglied hinzufügen/bearbeiten Modal -->
     <div class="modal fade" id="addMemberModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title">
+                <div class="modal-header bg-success text-white" id="memberModalHeader">
+                    <h5 class="modal-title" id="memberModalTitle">
                         <i class="fas fa-user-plus me-2"></i> Mitglied hinzufügen
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form method="POST" action="">
+                <form method="POST" action="" id="memberForm">
                     <?php echo generate_csrf_token(); ?>
-                    <input type="hidden" name="action" value="add_member">
+                    <input type="hidden" name="action" value="add_member" id="memberAction">
+                    <input type="hidden" name="member_id" value="" id="memberId">
                     <div class="modal-body">
                         <div class="row g-3">
                             <div class="col-12 col-md-6">
                                 <label class="form-label">
                                     <i class="fas fa-user me-1"></i>Vorname <span class="text-danger">*</span>
                                 </label>
-                                <input type="text" class="form-control" name="first_name" required>
+                                <input type="text" class="form-control" name="first_name" id="memberFirstName" required>
                             </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label">
                                     <i class="fas fa-user me-1"></i>Nachname <span class="text-danger">*</span>
                                 </label>
-                                <input type="text" class="form-control" name="last_name" required>
+                                <input type="text" class="form-control" name="last_name" id="memberLastName" required>
                             </div>
                             <div class="col-12 col-md-6">
-                                <label class="form-label">
+                                <label class="form-label" id="emailLabel">
                                     <i class="fas fa-envelope me-1"></i>E-Mail (optional)
                                 </label>
-                                <input type="email" class="form-control" name="email">
+                                <input type="email" class="form-control" name="email" id="memberEmail">
                             </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label">
                                     <i class="fas fa-calendar me-1"></i>Geburtsdatum (optional)
                                 </label>
-                                <input type="date" class="form-control" name="birthdate">
+                                <input type="date" class="form-control" name="birthdate" id="memberBirthdate">
                             </div>
                             <div class="col-12">
                                 <label class="form-label">
                                     <i class="fas fa-phone me-1"></i>Telefon (optional)
                                 </label>
-                                <input type="tel" class="form-control" name="phone">
+                                <input type="tel" class="form-control" name="phone" id="memberPhone">
                             </div>
-                            <?php if ($is_admin): ?>
-                            <div class="col-12">
+                            <div class="col-12" id="createUserSection">
+                                <?php if ($is_admin): ?>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="create_user" id="create_user" value="1">
                                     <label class="form-check-label" for="create_user">
@@ -594,15 +750,15 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                         Wenn aktiviert, wird automatisch ein Benutzerkonto mit zufälligem Passwort erstellt. Eine E-Mail-Adresse ist dafür erforderlich.
                                     </small>
                                 </div>
+                                <?php endif; ?>
                             </div>
-                            <?php endif; ?>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                             <i class="fas fa-times me-1"></i>Abbrechen
                         </button>
-                        <button type="submit" class="btn btn-success">
+                        <button type="submit" class="btn btn-success" id="memberSubmitBtn">
                             <i class="fas fa-save me-1"></i>Speichern
                         </button>
                     </div>
@@ -613,23 +769,100 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Funktion zum Bearbeiten eines Mitglieds
+        function editMember(member) {
+            const modal = new bootstrap.Modal(document.getElementById('addMemberModal'));
+            const form = document.getElementById('memberForm');
+            const actionInput = document.getElementById('memberAction');
+            const memberIdInput = document.getElementById('memberId');
+            const title = document.getElementById('memberModalTitle');
+            const header = document.getElementById('memberModalHeader');
+            const submitBtn = document.getElementById('memberSubmitBtn');
+            const createUserSection = document.getElementById('createUserSection');
+            
+            // Modal für Bearbeitung konfigurieren
+            actionInput.value = 'edit_member';
+            memberIdInput.value = member.member_id || '';
+            title.innerHTML = '<i class="fas fa-user-edit me-2"></i> Mitglied bearbeiten';
+            header.className = 'modal-header bg-primary text-white';
+            submitBtn.innerHTML = '<i class="fas fa-save me-1"></i>Änderungen speichern';
+            createUserSection.style.display = 'none';
+            
+            // Formularfelder füllen
+            document.getElementById('memberFirstName').value = member.first_name || '';
+            document.getElementById('memberLastName').value = member.last_name || '';
+            document.getElementById('memberEmail').value = member.email || '';
+            document.getElementById('memberBirthdate').value = member.birthdate || '';
+            document.getElementById('memberPhone').value = member.phone || '';
+            
+            // E-Mail wieder optional machen
+            const emailInput = document.getElementById('memberEmail');
+            emailInput.required = false;
+            
+            modal.show();
+        }
+        
+        // Funktion zum Löschen eines Mitglieds
+        function deleteMember(memberId, memberName) {
+            if (confirm('Möchten Sie das Mitglied "' + memberName + '" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '';
+                
+                const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrf_token';
+                csrfInput.value = csrfToken;
+                form.appendChild(csrfInput);
+                
+                const actionInput = document.createElement('input');
+                actionInput.type = 'hidden';
+                actionInput.name = 'action';
+                actionInput.value = 'delete_member';
+                form.appendChild(actionInput);
+                
+                const memberIdInput = document.createElement('input');
+                memberIdInput.type = 'hidden';
+                memberIdInput.name = 'member_id';
+                memberIdInput.value = memberId;
+                form.appendChild(memberIdInput);
+                
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        
         // Modal zurücksetzen beim Schließen
         document.getElementById('addMemberModal').addEventListener('hidden.bs.modal', function() {
-            const form = this.querySelector('form');
-            if (form) {
-                form.reset();
-                // E-Mail wieder optional machen
-                const emailInput = form.querySelector('input[name="email"]');
-                if (emailInput) {
-                    emailInput.required = false;
-                }
+            const form = document.getElementById('memberForm');
+            const actionInput = document.getElementById('memberAction');
+            const memberIdInput = document.getElementById('memberId');
+            const title = document.getElementById('memberModalTitle');
+            const header = document.getElementById('memberModalHeader');
+            const submitBtn = document.getElementById('memberSubmitBtn');
+            const createUserSection = document.getElementById('createUserSection');
+            
+            // Zurück auf "Hinzufügen" zurücksetzen
+            form.reset();
+            actionInput.value = 'add_member';
+            memberIdInput.value = '';
+            title.innerHTML = '<i class="fas fa-user-plus me-2"></i> Mitglied hinzufügen';
+            header.className = 'modal-header bg-success text-white';
+            submitBtn.innerHTML = '<i class="fas fa-save me-1"></i>Speichern';
+            createUserSection.style.display = 'block';
+            
+            // E-Mail wieder optional machen
+            const emailInput = document.getElementById('memberEmail');
+            if (emailInput) {
+                emailInput.required = false;
             }
         });
         
         <?php if ($is_admin): ?>
         // E-Mail als Pflichtfeld setzen wenn "Login erlaubt" aktiviert ist
         const createUserCheckbox = document.getElementById('create_user');
-        const emailInput = document.querySelector('input[name="email"]');
+        const emailInput = document.getElementById('memberEmail');
         
         if (createUserCheckbox && emailInput) {
             createUserCheckbox.addEventListener('change', function() {
