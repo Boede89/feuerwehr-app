@@ -125,6 +125,56 @@ try {
         // Spalte existiert bereits
     }
     
+    // Stelle sicher, dass member_id Spalte in atemschutz_traeger existiert
+    try {
+        $db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN member_id INT NULL");
+    } catch (Exception $e) {
+        // Spalte existiert bereits
+    }
+    
+    // Synchronisiere: Alle Geräteträger sollten is_pa_traeger = 1 haben
+    try {
+        // Setze is_pa_traeger auf 1 für alle Mitglieder, die einen Geräteträger haben
+        $db->exec("
+            UPDATE members m
+            INNER JOIN atemschutz_traeger at ON m.id = at.member_id
+            SET m.is_pa_traeger = 1
+            WHERE m.is_pa_traeger = 0 OR m.is_pa_traeger IS NULL
+        ");
+        
+        // Für Geräteträger ohne member_id: Versuche über Name zu verknüpfen und is_pa_traeger zu setzen
+        $stmt = $db->query("
+            SELECT at.id as traeger_id, at.first_name, at.last_name, at.email, at.birthdate
+            FROM atemschutz_traeger at
+            WHERE at.member_id IS NULL
+        ");
+        $traeger_ohne_member = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        foreach ($traeger_ohne_member as $traeger) {
+            // Suche nach passendem Mitglied
+            $stmt = $db->prepare("
+                SELECT id FROM members 
+                WHERE first_name = ? AND last_name = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$traeger['first_name'], $traeger['last_name']]);
+            $member = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($member) {
+                // Verknüpfe Geräteträger mit Mitglied
+                $stmt = $db->prepare("UPDATE atemschutz_traeger SET member_id = ? WHERE id = ?");
+                $stmt->execute([$member['id'], $traeger['traeger_id']]);
+                
+                // Setze is_pa_traeger auf 1
+                $stmt = $db->prepare("UPDATE members SET is_pa_traeger = 1 WHERE id = ?");
+                $stmt->execute([$member['id']]);
+            }
+        }
+    } catch (Exception $e) {
+        // Fehler ignorieren
+        error_log("Fehler bei PA-Träger Synchronisation: " . $e->getMessage());
+    }
+    
     // Stelle sicher, dass alle Benutzer ein Mitglied haben
     try {
         $stmt = $db->query("
@@ -139,7 +189,7 @@ try {
     }
     
     // Alle Mitglieder laden: Benutzer aus users + zusätzliche Mitglieder aus members
-    // Zuerst alle Benutzer als Mitglieder (mit is_pa_traeger aus members)
+    // Zuerst alle Benutzer als Mitglieder (mit is_pa_traeger aus members, prüfe auch ob Geräteträger existiert)
     $stmt = $db->query("
         SELECT 
             u.id as user_id,
@@ -148,7 +198,10 @@ try {
             u.email,
             m.birthdate,
             m.phone,
-            COALESCE(m.is_pa_traeger, 0) as is_pa_traeger,
+            CASE 
+                WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at WHERE at.member_id = m.id) THEN 1
+                ELSE COALESCE(m.is_pa_traeger, 0)
+            END as is_pa_traeger,
             m.id as member_id,
             u.created_at,
             'user' as source
@@ -159,7 +212,7 @@ try {
     ");
     $user_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Dann zusätzliche Mitglieder (ohne user_id Verknüpfung)
+    // Dann zusätzliche Mitglieder (ohne user_id Verknüpfung, prüfe auch ob Geräteträger existiert)
     $stmt = $db->query("
         SELECT 
             NULL as user_id,
@@ -168,7 +221,10 @@ try {
             email,
             birthdate,
             phone,
-            COALESCE(is_pa_traeger, 0) as is_pa_traeger,
+            CASE 
+                WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at WHERE at.member_id = members.id) THEN 1
+                ELSE COALESCE(is_pa_traeger, 0)
+            END as is_pa_traeger,
             id as member_id,
             created_at,
             'member' as source
