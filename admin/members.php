@@ -432,6 +432,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     }
                 } else {
                     $old_user_id = $member['user_id'];
+                    $user_deleted = false;
+                    $user_created = false;
+                    $new_user_id = null;
+                    $default_password = null;
+                    $username = null;
                     
                     // Prüfe ob Benutzerkonto gelöscht werden soll
                     if (!empty($old_user_id) && !$create_user && $is_admin) {
@@ -443,6 +448,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         $stmt = $db->prepare("UPDATE members SET user_id = NULL WHERE id = ?");
                         $stmt->execute([$member_id]);
                         
+                        $user_deleted = true;
                         $old_user_id = null; // Für weitere Prüfungen
                     }
                     
@@ -494,6 +500,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 // Passwort in Session speichern für Anzeige
                                 $_SESSION['new_user_password_' . $new_user_id] = $default_password;
                                 
+                                $user_created = true;
                                 $old_user_id = $new_user_id; // Für weitere Prüfungen
                             }
                         }
@@ -562,9 +569,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         }
                         
                         // Erfolgsmeldung mit Passwort falls Benutzer erstellt wurde
-                        if (isset($new_user_id) && !empty($new_user_id) && isset($default_password)) {
+                        if ($user_created && !empty($new_user_id) && !empty($default_password) && !empty($username)) {
                             $message = 'Mitglied wurde erfolgreich aktualisiert und Benutzerkonto wurde erstellt. Benutzername: ' . htmlspecialchars($username) . ', Passwort: ' . htmlspecialchars($default_password);
-                        } elseif (!empty($old_user_id) && !$create_user && isset($member['user_id']) && !empty($member['user_id'])) {
+                        } elseif ($user_deleted) {
                             $message = 'Mitglied wurde erfolgreich aktualisiert und Benutzerkonto wurde gelöscht.';
                         } else {
                             $message = 'Mitglied wurde erfolgreich aktualisiert.';
