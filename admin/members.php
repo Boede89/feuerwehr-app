@@ -1647,6 +1647,49 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             }
         }
         
+        // Funktion zum Öffnen des RIC-Zuweisungs-Modals
+        function openRicAssignmentModal(memberId, memberName) {
+            const ricModal = document.getElementById('assignRicModal');
+            if (!ricModal) {
+                alert('RIC-Zuweisungs-Modal nicht gefunden.');
+                return;
+            }
+            
+            // Mitglieds-ID und Name setzen
+            document.getElementById('modal_ric_member_id').value = memberId;
+            document.getElementById('modal_ric_member_name').textContent = memberName;
+            
+            // Alle Checkboxen zurücksetzen
+            document.querySelectorAll('.ric-checkbox').forEach(function(checkbox) {
+                checkbox.checked = false;
+            });
+            
+            // Aktuelle RIC-Zuweisungen laden und markieren
+            fetch('get-member-rics.php?member_id=' + memberId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.rics) {
+                        data.rics.forEach(function(ric) {
+                            // Nur confirmed 'add' Einträge vorauswählen (oder alle wenn Divera Admin)
+                            const isDiveraAdmin = <?php echo $is_divera_admin ? 'true' : 'false'; ?>;
+                            if (ric.status === 'confirmed' && ric.action === 'add' || (isDiveraAdmin && ric.action === 'add')) {
+                                const checkbox = document.getElementById('ric_' + ric.ric_id);
+                                if (checkbox) {
+                                    checkbox.checked = true;
+                                }
+                            }
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Fehler beim Laden der RIC-Zuweisungen:', error);
+                });
+            
+            // Modal öffnen
+            const modal = new bootstrap.Modal(ricModal);
+            modal.show();
+        }
+        
         // Funktion zum Laden der RIC-Codes für ein Mitglied (für Details-Modal)
         function loadMemberRicsForDetails(memberId) {
             const ricsContainer = document.getElementById('memberDetailsRics');
