@@ -994,9 +994,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             onmouseout="this.style.backgroundColor=''">
                                             <td>
                                                 <?php echo htmlspecialchars($member['first_name']); ?>
-                                                <?php if ($member['source'] ?? '' === 'user'): ?>
-                                                    <span class="badge bg-primary ms-2" title="Benutzer des Systems">Benutzer</span>
-                                                <?php endif; ?>
                                             </td>
                                             <td><?php echo htmlspecialchars($member['last_name']); ?></td>
                                             <td><?php echo htmlspecialchars($member['email'] ?? '-'); ?></td>
