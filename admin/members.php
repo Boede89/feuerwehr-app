@@ -1573,46 +1573,34 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 }
                 
                 // PA-Träger Status anzeigen
+                // PA-Träger Status anzeigen (Ja/Nein mit Tauglichkeitsstatus)
                 const paTraegerStatusEl = document.getElementById('memberDetailsPaTraegerStatus');
                 if (paTraegerStatusEl) {
                     if (member.is_pa_traeger == 1 || member.is_pa_traeger === '1' || member.is_pa_traeger === 1) {
-                        paTraegerStatusEl.textContent = 'Ja';
-                    } else {
-                        paTraegerStatusEl.textContent = 'Nein';
-                    }
-                }
-                
-                // PA-Träger Tauglichkeitsstatus berechnen und anzeigen
-                const paTraegerStatusSection = document.getElementById('memberDetailsPaTraegerStatusSection');
-                const fitnessStatusEl = document.getElementById('memberDetailsPaTraegerFitnessStatus');
-                if (paTraegerStatusSection && fitnessStatusEl) {
-                    if (member.is_pa_traeger == 1 || member.is_pa_traeger === '1' || member.is_pa_traeger === 1) {
-                        paTraegerStatusSection.style.display = 'block';
-                        
                         // Status berechnen
                         const status = calculatePaTraegerStatus(member);
-                        let statusHtml = '';
+                        let statusHtml = 'Ja ';
                         let statusClass = '';
                         
                         if (status === 'Tauglich') {
                             statusClass = 'bg-success';
-                            statusHtml = '<span class="badge ' + statusClass + '">Tauglich</span>';
+                            statusHtml += '<span class="badge ' + statusClass + ' ms-2">Tauglich</span>';
                         } else if (status === 'Warnung') {
                             statusClass = 'bg-warning text-dark';
-                            statusHtml = '<span class="badge ' + statusClass + '">Warnung</span>';
+                            statusHtml += '<span class="badge ' + statusClass + ' ms-2">Warnung</span>';
                         } else if (status === 'Übung abgelaufen') {
                             statusClass = 'bg-danger';
-                            statusHtml = '<span class="badge ' + statusClass + '">Übung abgelaufen</span>';
+                            statusHtml += '<span class="badge ' + statusClass + ' ms-2">Übung abgelaufen</span>';
                         } else if (status === 'Abgelaufen') {
                             statusClass = 'bg-danger';
-                            statusHtml = '<span class="badge ' + statusClass + '">Abgelaufen</span>';
+                            statusHtml += '<span class="badge ' + statusClass + ' ms-2">Abgelaufen</span>';
                         } else {
-                            statusHtml = '<span class="text-muted">Status nicht verfügbar</span>';
+                            statusHtml += '<span class="text-muted ms-2">(Status nicht verfügbar)</span>';
                         }
                         
-                        fitnessStatusEl.innerHTML = statusHtml;
+                        paTraegerStatusEl.innerHTML = statusHtml;
                     } else {
-                        paTraegerStatusSection.style.display = 'none';
+                        paTraegerStatusEl.textContent = 'Nein';
                     }
                 }
                 
