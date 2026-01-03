@@ -639,7 +639,10 @@ try {
                     formSubmitted = true;
                     
                     // Button sofort deaktivieren (visuelles Feedback)
-                    disableSaveButton();
+                    // WICHTIG: setTimeout verwenden, damit Submit-Event nicht blockiert wird
+                    setTimeout(function() {
+                        disableSaveButton();
+                    }, 0);
                     
                     // Formular wird normal abgesendet - KEIN preventDefault()
                     // Die Seite wird nach dem Submit neu geladen (Redirect)
