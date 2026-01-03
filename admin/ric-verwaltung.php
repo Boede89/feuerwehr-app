@@ -511,11 +511,12 @@ try {
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <button type="button" class="btn btn-secondary" id="cancelBtn" data-bs-dismiss="modal">
                             <i class="fas fa-times"></i> Abbrechen
                         </button>
-                        <button type="submit" name="save_assignments" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Speichern
+                        <button type="submit" name="save_assignments" class="btn btn-primary" id="saveAssignmentsBtn">
+                            <i class="fas fa-save"></i> <span id="saveBtnText">Speichern</span>
+                            <span id="saveBtnSpinner" class="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true" style="display: none;"></span>
                         </button>
                     </div>
                 </form>
@@ -553,7 +554,71 @@ try {
                     }
                 }
             });
+            
+            // Button-Status zurücksetzen beim Öffnen des Modals
+            resetSaveButton();
         }
+        
+        function resetSaveButton() {
+            const saveBtn = document.getElementById('saveAssignmentsBtn');
+            const saveBtnText = document.getElementById('saveBtnText');
+            const saveBtnSpinner = document.getElementById('saveBtnSpinner');
+            const cancelBtn = document.getElementById('cancelBtn');
+            
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtnText.textContent = 'Speichern';
+                saveBtnSpinner.style.display = 'none';
+            }
+            if (cancelBtn) {
+                cancelBtn.disabled = false;
+            }
+        }
+        
+        function disableSaveButton() {
+            const saveBtn = document.getElementById('saveAssignmentsBtn');
+            const saveBtnText = document.getElementById('saveBtnText');
+            const saveBtnSpinner = document.getElementById('saveBtnSpinner');
+            const cancelBtn = document.getElementById('cancelBtn');
+            
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtnText.textContent = 'Wird gespeichert...';
+                saveBtnSpinner.style.display = 'inline-block';
+            }
+            if (cancelBtn) {
+                cancelBtn.disabled = true;
+            }
+        }
+        
+        // Formular-Submit-Handler
+        document.addEventListener('DOMContentLoaded', function() {
+            const assignRicForm = document.querySelector('#assignRicModal form');
+            if (assignRicForm) {
+                let isSubmitting = false;
+                
+                assignRicForm.addEventListener('submit', function(e) {
+                    if (isSubmitting) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    
+                    isSubmitting = true;
+                    disableSaveButton();
+                    
+                    // Formular wird jetzt abgesendet
+                    // Der Button bleibt deaktiviert bis die Seite neu geladen wird
+                });
+            }
+            
+            // Modal wird geschlossen - Button-Status zurücksetzen
+            const assignRicModal = document.getElementById('assignRicModal');
+            if (assignRicModal) {
+                assignRicModal.addEventListener('hidden.bs.modal', function() {
+                    resetSaveButton();
+                });
+            }
+        });
     </script>
 </body>
 </html>
