@@ -257,6 +257,9 @@ try {
 // Prüfe ob aktueller Benutzer Admin ist
 $is_admin = hasAdminPermission();
 
+// Prüfe RIC-Berechtigung
+$can_ric = has_permission('ric');
+
 // Mitglied hinzufügen
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_member') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -1316,19 +1319,15 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         birthdateEl.textContent = '-';
                     }
                 }
-                if (phoneEl) phoneEl.textContent = member.phone || '-';
                 
-                // Status anzeigen
-                const statusEl = document.getElementById('memberDetailsStatus');
-                if (statusEl) {
-                    let statusHtml = '';
-                    if (member.source === 'user') {
-                        statusHtml = '<span class="badge bg-primary">Benutzer des Systems</span>';
-                    }
+                // PA-Träger Status anzeigen
+                const paTraegerStatusEl = document.getElementById('memberDetailsPaTraegerStatus');
+                if (paTraegerStatusEl) {
                     if (member.is_pa_traeger == 1 || member.is_pa_traeger === '1' || member.is_pa_traeger === 1) {
-                        statusHtml += (statusHtml ? ' ' : '') + '<span class="badge bg-warning text-dark">PA-Träger</span>';
+                        paTraegerStatusEl.textContent = 'Ja';
+                    } else {
+                        paTraegerStatusEl.textContent = 'Nein';
                     }
-                    statusEl.innerHTML = statusHtml || '-';
                 }
                 
                 // PA-Träger Informationen anzeigen
@@ -1402,6 +1401,43 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 console.error('Fehler in showMemberDetails:', error);
                 alert('Fehler beim Öffnen der Mitgliederdetails: ' + error.message);
             }
+        }
+        
+        // Funktion zum Laden der RIC-Codes für ein Mitglied (für Details-Modal)
+        function loadMemberRicsForDetails(memberId) {
+            const ricsContainer = document.getElementById('memberDetailsRics');
+            if (!ricsContainer) return;
+            
+            // AJAX-Anfrage zum Laden der RIC-Zuweisungen
+            fetch('get-member-rics.php?member_id=' + memberId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.rics && data.rics.length > 0) {
+                        let html = '';
+                        data.rics.forEach(function(ric) {
+                            const badgeClass = ric.status === 'pending' ? 'bg-warning' : 'bg-primary';
+                            const badgeStyle = ric.status === 'pending' ? 'background-color: #ffc107 !important;' : '';
+                            const isRemoved = (ric.status === 'pending' && ric.action === 'remove');
+                            html += '<span class="badge ' + badgeClass + ' me-1 mb-1" style="' + badgeStyle + '">';
+                            if (isRemoved) {
+                                html += '<span style="text-decoration: line-through;">' + ric.kurztext + '</span>';
+                            } else {
+                                html += ric.kurztext;
+                            }
+                            if (ric.beschreibung) {
+                                html += ' <small>(' + ric.beschreibung + ')</small>';
+                            }
+                            html += '</span>';
+                        });
+                        ricsContainer.innerHTML = html;
+                    } else {
+                        ricsContainer.innerHTML = '<p class="text-muted">Keine RIC-Codes zugewiesen</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Fehler beim Laden der RIC-Codes:', error);
+                    ricsContainer.innerHTML = '<p class="text-danger">Fehler beim Laden der RIC-Codes</p>';
+                });
         }
         
         // Funktion zum Bearbeiten eines Mitglieds
