@@ -107,8 +107,12 @@ try {
 
 // RIC-Zuweisungen speichern
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Debug: Logge POST-Daten
+    error_log("RIC-Zuweisung POST-Daten: " . print_r($_POST, true));
+    
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "Ungültiger Sicherheitstoken.";
+        error_log("RIC-Zuweisung: CSRF-Token ungültig");
     } else {
         try {
             $db->beginTransaction();
@@ -116,6 +120,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($_POST['save_assignments'])) {
                 $member_id = (int)($_POST['member_id'] ?? 0);
                 $ric_ids = isset($_POST['ric_ids']) ? array_map('intval', $_POST['ric_ids']) : [];
+                
+                error_log("RIC-Zuweisung: member_id=$member_id, ric_ids=" . implode(',', $ric_ids));
                 
                 if ($member_id <= 0) {
                     $error = "Ungültige Mitglieds-ID.";
