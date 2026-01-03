@@ -594,36 +594,39 @@ try {
         // Formular-Submit-Handler
         document.addEventListener('DOMContentLoaded', function() {
             const assignRicForm = document.querySelector('#assignRicModal form');
-            if (assignRicForm) {
-                let isSubmitting = false;
-                
-                assignRicForm.addEventListener('submit', function(e) {
-                    if (isSubmitting) {
+            const saveBtn = document.getElementById('saveAssignmentsBtn');
+            let isSubmitting = false;
+            
+            if (saveBtn) {
+                // Button-Click-Handler - deaktiviert den Button sofort
+                saveBtn.addEventListener('click', function(e) {
+                    if (isSubmitting || this.disabled) {
                         e.preventDefault();
                         e.stopPropagation();
                         return false;
                     }
                     
-                    // Button deaktivieren BEVOR das Formular abgesendet wird
+                    // Button sofort deaktivieren
                     isSubmitting = true;
                     disableSaveButton();
                     
-                    // Formular wird jetzt normal abgesendet
+                    // Formular wird normal abgesendet
                     // Der Button bleibt deaktiviert bis die Seite neu geladen wird
-                    return true;
                 });
-                
-                // Zusätzlicher Schutz: Button-Click-Handler
-                const saveBtn = document.getElementById('saveAssignmentsBtn');
-                if (saveBtn) {
-                    saveBtn.addEventListener('click', function(e) {
-                        if (this.disabled) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            return false;
-                        }
-                    });
-                }
+            }
+            
+            if (assignRicForm) {
+                // Zusätzlicher Schutz im Submit-Handler
+                assignRicForm.addEventListener('submit', function(e) {
+                    if (isSubmitting) {
+                        // Wenn bereits gesendet, verhindere erneutes Absenden
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return false;
+                    }
+                    // Erstes Absenden erlauben
+                    isSubmitting = true;
+                });
             }
             
             // Modal wird geschlossen - Button-Status zurücksetzen
@@ -631,10 +634,7 @@ try {
             if (assignRicModal) {
                 assignRicModal.addEventListener('hidden.bs.modal', function() {
                     resetSaveButton();
-                    // isSubmitting Flag zurücksetzen
-                    if (assignRicForm) {
-                        assignRicForm.isSubmitting = false;
-                    }
+                    isSubmitting = false;
                 });
             }
         });
