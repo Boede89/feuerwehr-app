@@ -595,35 +595,27 @@ try {
         document.addEventListener('DOMContentLoaded', function() {
             const assignRicForm = document.querySelector('#assignRicModal form');
             const saveBtn = document.getElementById('saveAssignmentsBtn');
-            let isSubmitting = false;
+            let formSubmitted = false;
             
-            if (saveBtn) {
-                // Button-Click-Handler - deaktiviert Button, aber lässt Formular absenden
-                saveBtn.addEventListener('click', function(e) {
-                    if (isSubmitting || this.disabled) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return false;
-                    }
-                    
-                    // Button sofort deaktivieren
-                    isSubmitting = true;
-                    disableSaveButton();
-                    
-                    // Formular wird normal abgesendet (kein preventDefault)
-                });
-            }
-            
-            if (assignRicForm) {
+            if (assignRicForm && saveBtn) {
                 // Submit-Handler - verhindert nur mehrfaches Absenden
                 assignRicForm.addEventListener('submit', function(e) {
-                    if (isSubmitting && saveBtn && saveBtn.disabled) {
-                        // Wenn bereits gesendet wurde, verhindere erneutes Absenden
+                    if (formSubmitted) {
+                        // Wenn bereits gesendet, verhindere erneutes Absenden
                         e.preventDefault();
                         e.stopPropagation();
                         return false;
                     }
+                    
                     // Erstes Absenden erlauben
+                    formSubmitted = true;
+                    
+                    // Button deaktivieren NACH dem Submit-Event (asynchron)
+                    setTimeout(function() {
+                        disableSaveButton();
+                    }, 0);
+                    
+                    // Formular wird normal abgesendet
                 });
             }
             
@@ -632,7 +624,13 @@ try {
             if (assignRicModal) {
                 assignRicModal.addEventListener('hidden.bs.modal', function() {
                     resetSaveButton();
-                    isSubmitting = false;
+                    formSubmitted = false;
+                });
+                
+                // Auch beim Öffnen zurücksetzen
+                assignRicModal.addEventListener('show.bs.modal', function() {
+                    resetSaveButton();
+                    formSubmitted = false;
                 });
             }
         });
