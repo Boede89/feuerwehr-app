@@ -408,11 +408,11 @@ try {
     $error = "Fehler beim Laden der RIC-Codes: " . $e->getMessage();
 }
 
-// Zuweisungen für alle Mitglieder laden (mit Status)
+// Zuweisungen für alle Mitglieder laden (mit Status und Action)
 $member_ric_assignments = [];
 $member_ric_statuses = [];
 try {
-    $stmt = $db->prepare("SELECT id, member_id, ric_id, status FROM member_ric");
+    $stmt = $db->prepare("SELECT id, member_id, ric_id, status, action FROM member_ric");
     $stmt->execute();
     $assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($assignments as $assignment) {
@@ -420,11 +420,20 @@ try {
             $member_ric_assignments[$assignment['member_id']] = [];
             $member_ric_statuses[$assignment['member_id']] = [];
         }
-        $member_ric_assignments[$assignment['member_id']][] = $assignment['ric_id'];
+        // Nur bestätigte 'add' oder alle pending (auch 'remove') anzeigen
+        if ($assignment['status'] === 'confirmed' && $assignment['action'] === 'add') {
+            $member_ric_assignments[$assignment['member_id']][] = $assignment['ric_id'];
+        } elseif ($assignment['status'] === 'pending') {
+            // Pending Einträge auch anzeigen (für durchgestrichene Anzeige)
+            if (!in_array($assignment['ric_id'], $member_ric_assignments[$assignment['member_id']])) {
+                $member_ric_assignments[$assignment['member_id']][] = $assignment['ric_id'];
+            }
+        }
         $member_ric_statuses[$assignment['member_id']][$assignment['ric_id']] = [
-                            'status' => $assignment['status'],
-                            'id' => $assignment['id']
-                        ];
+            'status' => $assignment['status'],
+            'action' => $assignment['action'],
+            'id' => $assignment['id']
+        ];
     }
 } catch (Exception $e) {
     error_log("Fehler beim Laden der Zuweisungen: " . $e->getMessage());
