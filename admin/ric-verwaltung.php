@@ -417,7 +417,7 @@ try {
 $member_ric_assignments = [];
 $member_ric_statuses = [];
 try {
-    $stmt = $db->prepare("SELECT id, member_id, ric_id, status, action FROM member_ric");
+    $stmt = $db->prepare("SELECT id, member_id, ric_id, status, action FROM member_ric ORDER BY status ASC, action ASC");
     $stmt->execute();
     $assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($assignments as $assignment) {
@@ -425,20 +425,37 @@ try {
             $member_ric_assignments[$assignment['member_id']] = [];
             $member_ric_statuses[$assignment['member_id']] = [];
         }
-        // Nur bestätigte 'add' oder alle pending (auch 'remove') anzeigen
-        if ($assignment['status'] === 'confirmed' && $assignment['action'] === 'add') {
-            $member_ric_assignments[$assignment['member_id']][] = $assignment['ric_id'];
-        } elseif ($assignment['status'] === 'pending') {
-            // Pending Einträge auch anzeigen (für durchgestrichene Anzeige)
-            if (!in_array($assignment['ric_id'], $member_ric_assignments[$assignment['member_id']])) {
-                $member_ric_assignments[$assignment['member_id']][] = $assignment['ric_id'];
+        
+        $ric_id = $assignment['ric_id'];
+        $member_id = $assignment['member_id'];
+        
+        // Priorität: pending remove > pending add > confirmed add
+        // Wenn bereits ein Eintrag existiert, nur überschreiben wenn höhere Priorität
+        if (!isset($member_ric_statuses[$member_id][$ric_id])) {
+            // Noch kein Eintrag vorhanden
+            $member_ric_assignments[$member_id][] = $ric_id;
+            $member_ric_statuses[$member_id][$ric_id] = [
+                'status' => $assignment['status'],
+                'action' => $assignment['action'],
+                'id' => $assignment['id']
+            ];
+        } else {
+            // Eintrag existiert bereits - prüfe Priorität
+            $existing = $member_ric_statuses[$member_id][$ric_id];
+            $existing_priority = ($existing['status'] === 'pending' && $existing['action'] === 'remove') ? 3 : 
+                                 (($existing['status'] === 'pending' && $existing['action'] === 'add') ? 2 : 1);
+            $new_priority = ($assignment['status'] === 'pending' && $assignment['action'] === 'remove') ? 3 : 
+                            (($assignment['status'] === 'pending' && $assignment['action'] === 'add') ? 2 : 1);
+            
+            // Überschreibe nur wenn neue Priorität höher ist
+            if ($new_priority > $existing_priority) {
+                $member_ric_statuses[$member_id][$ric_id] = [
+                    'status' => $assignment['status'],
+                    'action' => $assignment['action'],
+                    'id' => $assignment['id']
+                ];
             }
         }
-        $member_ric_statuses[$assignment['member_id']][$assignment['ric_id']] = [
-            'status' => $assignment['status'],
-            'action' => $assignment['action'],
-            'id' => $assignment['id']
-        ];
     }
 } catch (Exception $e) {
     error_log("Fehler beim Laden der Zuweisungen: " . $e->getMessage());
