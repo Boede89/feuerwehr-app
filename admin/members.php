@@ -1320,21 +1320,13 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             <label class="form-label fw-bold">PA-Träger</label>
                             <p class="form-control-plaintext" id="memberDetailsPaTraegerStatus"></p>
                         </div>
-                        <div class="col-12" id="memberDetailsPaTraeger" style="display: none;">
+                        <div class="col-12" id="memberDetailsPaTraegerStatusSection" style="display: none;">
                             <hr>
-                            <h6 class="mb-3"><i class="fas fa-user-shield me-2"></i>PA-Träger Informationen</h6>
+                            <h6 class="mb-3"><i class="fas fa-user-shield me-2"></i>PA-Träger Status</h6>
                             <div class="row g-3">
-                                <div class="col-12 col-md-4">
-                                    <label class="form-label fw-bold">Strecke Am</label>
-                                    <p class="form-control-plaintext" id="memberDetailsStreckeAm"></p>
-                                </div>
-                                <div class="col-12 col-md-4">
-                                    <label class="form-label fw-bold">G26.3 Am</label>
-                                    <p class="form-control-plaintext" id="memberDetailsG263Am"></p>
-                                </div>
-                                <div class="col-12 col-md-4">
-                                    <label class="form-label fw-bold">Übung/Einsatz Am</label>
-                                    <p class="form-control-plaintext" id="memberDetailsUebungAm"></p>
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Tauglichkeitsstatus</label>
+                                    <p class="form-control-plaintext" id="memberDetailsPaTraegerFitnessStatus"></p>
                                 </div>
                             </div>
                         </div>
