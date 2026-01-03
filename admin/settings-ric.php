@@ -210,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                     <i class="fas fa-edit"></i>
                                                 </button>
                                                 <form method="POST" style="display: inline;" onsubmit="return confirm('Möchten Sie diesen RIC-Code wirklich löschen?');">
-                                                    <?php echo generate_csrf_token(); ?>
+                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                                                     <input type="hidden" name="ric_id" value="<?php echo $ric['id']; ?>">
                                                     <button type="submit" name="delete_ric" class="btn btn-sm btn-outline-danger">
                                                         <i class="fas fa-trash"></i>
@@ -236,7 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="card-body">
                         <form method="POST" action="" id="ricForm">
-                            <?php echo generate_csrf_token(); ?>
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                             <input type="hidden" name="ric_id" id="ric_id" value="">
                             
                             <div class="mb-3">

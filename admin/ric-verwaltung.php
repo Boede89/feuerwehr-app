@@ -294,7 +294,7 @@ try {
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form method="POST" action="">
-                    <?php echo generate_csrf_token(); ?>
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                     <input type="hidden" name="member_id" id="modal_member_id" value="">
                     <div class="modal-body">
                         <p><strong>Mitglied:</strong> <span id="modal_member_name"></span></p>
