@@ -360,6 +360,8 @@ function has_permission($permission) {
                 return (bool)($user['can_atemschutz'] ?? 0);
             case 'members':
                 return (bool)($user['can_members'] ?? 0);
+            case 'ric':
+                return (bool)($user['can_ric'] ?? 0);
             default:
                 return false;
         }
