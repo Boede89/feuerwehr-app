@@ -15,6 +15,32 @@ if (!hasAdminPermission()) {
 $message = '';
 $error = '';
 
+// Einstellungen laden
+$settings = [];
+try {
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings");
+    $stmt->execute();
+    $settings_data = $stmt->fetchAll();
+    foreach ($settings_data as $setting) {
+        $settings[$setting['setting_key']] = $setting['setting_value'];
+    }
+} catch (Exception $e) {
+    error_log("Fehler beim Laden der Einstellungen: " . $e->getMessage());
+}
+
+// Benutzer laden für Divera Admin Auswahl
+$users = [];
+try {
+    $stmt = $db->prepare("SELECT id, first_name, last_name, email, is_active FROM users WHERE is_active = 1 ORDER BY last_name, first_name");
+    $stmt->execute();
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("Fehler beim Laden der Benutzer: " . $e->getMessage());
+}
+
+// Aktuellen Divera Admin laden
+$divera_admin_user_id = $settings['ric_divera_admin_user_id'] ?? '';
+
 // RIC-Codes Tabelle erstellen
 try {
     $db->exec("
@@ -69,6 +95,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $message = 'RIC-Code wurde erfolgreich hinzugefügt.';
                     }
                 }
+            }
+            
+            // Divera Admin speichern
+            if (isset($_POST['save_divera_admin'])) {
+                $divera_admin_user_id = !empty($_POST['divera_admin_user_id']) ? (int)$_POST['divera_admin_user_id'] : '';
+                
+                $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+                $stmt->execute(['ric_divera_admin_user_id', $divera_admin_user_id]);
+                
+                $message = 'Divera Admin wurde erfolgreich gespeichert.';
+                $settings['ric_divera_admin_user_id'] = $divera_admin_user_id;
             }
             
             // RIC-Code löschen
