@@ -901,12 +901,19 @@ if ($can_atemschutz) {
                                             'rics' => []
                                         ];
                                     }
+                                    $action = $approval['action'] ?? 'add';
+                                    // Debug: Prüfe ob action korrekt gelesen wird
+                                    if (empty($approval['action']) || $approval['action'] === null) {
+                                        error_log("Dashboard: action ist leer für assignment_id=" . $approval['assignment_id'] . ", verwende 'add' als Fallback");
+                                    } else {
+                                        error_log("Dashboard: action=" . $action . " für assignment_id=" . $approval['assignment_id']);
+                                    }
                                     $grouped_approvals[$member_key]['rics'][] = [
                                         'assignment_id' => $approval['assignment_id'],
                                         'ric_id' => $approval['ric_id'],
                                         'ric_kurztext' => $approval['ric_kurztext'],
                                         'ric_beschreibung' => $approval['ric_beschreibung'],
-                                        'action' => $approval['action'] ?? 'add'
+                                        'action' => $action
                                     ];
                                 }
                                 ?>

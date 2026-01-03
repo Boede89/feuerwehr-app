@@ -167,10 +167,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         
                         // Entfernte Zuweisungen als pending mit action='remove' speichern
-                        $stmt = $db->prepare("INSERT INTO member_ric (member_id, ric_id, status, action, created_by) VALUES (?, ?, 'pending', 'remove', ?) ON DUPLICATE KEY UPDATE status = 'pending', created_by = ?");
+                        $stmt = $db->prepare("INSERT INTO member_ric (member_id, ric_id, status, action, created_by) VALUES (?, ?, 'pending', 'remove', ?) ON DUPLICATE KEY UPDATE status = 'pending', action = 'remove', created_by = ?");
                         foreach ($removed_rics as $removed_ric_id) {
                             try {
                                 $stmt->execute([$member_id, $removed_ric_id, $created_by, $created_by]);
+                                error_log("RIC-Entfernung gespeichert: member_id=$member_id, ric_id=$removed_ric_id, action=remove");
                             } catch (Exception $e) {
                                 error_log("Fehler beim Markieren der entfernten RIC-Zuweisung: " . $e->getMessage());
                             }
