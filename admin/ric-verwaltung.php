@@ -600,22 +600,22 @@ try {
             if (assignRicForm && saveBtn) {
                 // Submit-Handler - verhindert nur mehrfaches Absenden
                 assignRicForm.addEventListener('submit', function(e) {
+                    // Prüfe ob bereits gesendet wurde
                     if (formSubmitted) {
-                        // Wenn bereits gesendet, verhindere erneutes Absenden
                         e.preventDefault();
                         e.stopPropagation();
                         return false;
                     }
                     
-                    // Erstes Absenden erlauben
+                    // Markiere als gesendet
                     formSubmitted = true;
                     
-                    // Button deaktivieren NACH dem Submit-Event (asynchron)
-                    setTimeout(function() {
+                    // Button deaktivieren (asynchron, damit Submit durchgeht)
+                    requestAnimationFrame(function() {
                         disableSaveButton();
-                    }, 0);
+                    });
                     
-                    // Formular wird normal abgesendet
+                    // Formular wird normal abgesendet - KEIN preventDefault()
                 });
             }
             
