@@ -610,13 +610,10 @@ try {
                     // Erstes Absenden erlauben
                     isSubmitting = true;
                     
-                    // Button nach kurzer Verzögerung deaktivieren (damit Submit durchgeht)
-                    setTimeout(function() {
-                        disableSaveButton();
-                    }, 10);
+                    // Button sofort deaktivieren (nachdem Submit-Event bereits ausgelöst wurde)
+                    disableSaveButton();
                     
-                    // Formular wird normal abgesendet
-                    return true;
+                    // Formular wird normal abgesendet - kein preventDefault()
                 });
             }
             
