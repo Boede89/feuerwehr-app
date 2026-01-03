@@ -1706,6 +1706,94 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 });
         }
         
+        // Funktion zur Berechnung des PA-Träger Status
+        function calculatePaTraegerStatus(member) {
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            
+            let streckeExpired = false;
+            let g263Expired = false;
+            let uebungExpired = false;
+            let anyWarn = false;
+            
+            // Warnschwelle: 90 Tage (kann aus Einstellungen geladen werden)
+            const warnDays = 90;
+            
+            // Prüfe Strecke (1 Jahr Gültigkeit)
+            if (member.strecke_am) {
+                try {
+                    const streckeAm = new Date(member.strecke_am);
+                    const streckeBis = new Date(streckeAm);
+                    streckeBis.setFullYear(streckeBis.getFullYear() + 1);
+                    
+                    const diff = Math.floor((streckeBis - now) / (1000 * 60 * 60 * 24));
+                    if (diff < 0) {
+                        streckeExpired = true;
+                    } else if (diff <= warnDays && diff >= 0) {
+                        anyWarn = true;
+                    }
+                } catch (e) {
+                    console.error('Fehler beim Berechnen der Strecke:', e);
+                }
+            }
+            
+            // Prüfe G26.3 (3 Jahre unter 50, 1 Jahr über 50)
+            if (member.g263_am && member.birthdate) {
+                try {
+                    const g263Am = new Date(member.g263_am);
+                    const birthdate = new Date(member.birthdate);
+                    const age = Math.floor((now - birthdate) / (1000 * 60 * 60 * 24 * 365.25));
+                    
+                    const g263Bis = new Date(g263Am);
+                    if (age < 50) {
+                        g263Bis.setFullYear(g263Bis.getFullYear() + 3);
+                    } else {
+                        g263Bis.setFullYear(g263Bis.getFullYear() + 1);
+                    }
+                    
+                    const diff = Math.floor((g263Bis - now) / (1000 * 60 * 60 * 24));
+                    if (diff < 0) {
+                        g263Expired = true;
+                    } else if (diff <= warnDays && diff >= 0) {
+                        anyWarn = true;
+                    }
+                } catch (e) {
+                    console.error('Fehler beim Berechnen der G26.3:', e);
+                }
+            }
+            
+            // Prüfe Übung (1 Jahr Gültigkeit)
+            if (member.uebung_am) {
+                try {
+                    const uebungAm = new Date(member.uebung_am);
+                    const uebungBis = new Date(uebungAm);
+                    uebungBis.setFullYear(uebungBis.getFullYear() + 1);
+                    
+                    const diff = Math.floor((uebungBis - now) / (1000 * 60 * 60 * 24));
+                    if (diff < 0) {
+                        uebungExpired = true;
+                    } else if (diff <= warnDays && diff >= 0) {
+                        anyWarn = true;
+                    }
+                } catch (e) {
+                    console.error('Fehler beim Berechnen der Übung:', e);
+                }
+            }
+            
+            // Status bestimmen
+            if (streckeExpired || g263Expired || uebungExpired) {
+                if (uebungExpired && !streckeExpired && !g263Expired) {
+                    return 'Übung abgelaufen';
+                } else {
+                    return 'Abgelaufen';
+                }
+            } else if (anyWarn) {
+                return 'Warnung';
+            } else {
+                return 'Tauglich';
+            }
+        }
+        
         // Funktion zum Bearbeiten eines Mitglieds
         function editMember(member) {
             const modal = new bootstrap.Modal(document.getElementById('addMemberModal'));
