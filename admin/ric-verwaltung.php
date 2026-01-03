@@ -626,8 +626,9 @@ try {
             let formSubmitted = false;
             
             if (assignRicForm && saveBtn) {
-                // Submit-Handler - verhindert nur mehrfaches Absenden
-                assignRicForm.addEventListener('submit', function(e) {
+                // Button-Click-Handler statt Form-Submit-Handler
+                // So können wir das Formular manuell absenden, nachdem wir den Button deaktiviert haben
+                saveBtn.addEventListener('click', function(e) {
                     // Prüfe ob bereits gesendet wurde
                     if (formSubmitted) {
                         e.preventDefault();
@@ -639,13 +640,21 @@ try {
                     formSubmitted = true;
                     
                     // Button sofort deaktivieren (visuelles Feedback)
-                    // WICHTIG: setTimeout verwenden, damit Submit-Event nicht blockiert wird
-                    setTimeout(function() {
-                        disableSaveButton();
-                    }, 0);
+                    disableSaveButton();
                     
-                    // Formular wird normal abgesendet - KEIN preventDefault()
-                    // Die Seite wird nach dem Submit neu geladen (Redirect)
+                    // Formular manuell absenden
+                    assignRicForm.submit();
+                });
+                
+                // Zusätzlich: Submit-Handler als Fallback, falls Formular auf andere Weise abgesendet wird
+                assignRicForm.addEventListener('submit', function(e) {
+                    if (formSubmitted) {
+                        // Bereits verarbeitet, nichts tun
+                        return;
+                    }
+                    // Erstes Submit erlauben
+                    formSubmitted = true;
+                    disableSaveButton();
                 });
             }
             
