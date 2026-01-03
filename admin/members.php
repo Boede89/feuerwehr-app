@@ -1346,6 +1346,63 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         </div>
     </div>
 
+    <!-- RIC-Zuweisung Modal -->
+    <?php if ($can_ric): ?>
+    <div class="modal fade" id="assignRicModal" tabindex="-1" aria-labelledby="assignRicModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title" id="assignRicModalLabel">
+                        <i class="fas fa-broadcast-tower"></i> RIC-Codes zuweisen
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="" id="assignRicForm">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                    <input type="hidden" name="member_id" id="modal_ric_member_id" value="">
+                    <input type="hidden" name="save_ric_assignments" value="1">
+                    <div class="modal-body">
+                        <p><strong>Mitglied:</strong> <span id="modal_ric_member_name"></span></p>
+                        <div class="mb-3">
+                            <p class="form-label mb-2"><strong>RIC-Codes auswählen:</strong></p>
+                            <div class="border rounded p-3" style="max-height: 400px; overflow-y: auto;">
+                                <?php if (empty($ric_codes)): ?>
+                                    <p class="text-muted">Keine RIC-Codes vorhanden. Bitte zuerst RIC-Codes in den Einstellungen anlegen.</p>
+                                <?php else: ?>
+                                    <?php foreach ($ric_codes as $ric): ?>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input ric-checkbox" 
+                                               type="checkbox" 
+                                               name="ric_ids[]" 
+                                               value="<?php echo $ric['id']; ?>" 
+                                               id="ric_<?php echo $ric['id']; ?>">
+                                        <label class="form-check-label" for="ric_<?php echo $ric['id']; ?>">
+                                            <strong><?php echo htmlspecialchars($ric['kurztext']); ?></strong>
+                                            <?php if (!empty($ric['beschreibung'])): ?>
+                                                <br><small class="text-muted"><?php echo htmlspecialchars($ric['beschreibung']); ?></small>
+                                            <?php endif; ?>
+                                        </label>
+                                    </div>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" id="cancelRicBtn" data-bs-dismiss="modal">
+                            <i class="fas fa-times"></i> Abbrechen
+                        </button>
+                        <button type="submit" class="btn btn-warning" id="saveRicAssignmentsBtn">
+                            <i class="fas fa-save"></i> <span id="saveRicBtnText">Speichern</span>
+                            <span id="saveRicBtnSpinner" class="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true" style="display: none;"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Mitglied hinzufügen/bearbeiten Modal -->
     <div class="modal fade" id="addMemberModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
