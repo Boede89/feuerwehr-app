@@ -496,7 +496,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_ric_assignments'
                     $db->commit();
                 }
                 
-                $message = "RIC-Zuweisungen wurden erfolgreich gespeichert.";
+                // Redirect um POST-Problem zu vermeiden
+                header("Location: members.php?show_list=1&success=ric_saved&member_id=" . $member_id);
+                exit();
             }
         } catch (Exception $e) {
             if ($db->inTransaction()) {
