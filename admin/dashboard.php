@@ -865,6 +865,93 @@ if ($can_atemschutz) {
                         </div>
         <?php endif; ?>
 
+        <!-- RIC-Genehmigungen Bereich (nur für Divera Admin) -->
+        <?php if ($is_divera_admin): ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header dashboard-section-header" data-section="ric_approvals" style="cursor: pointer;">
+                        <h6 class="m-0 font-weight-bold text-warning">
+                            <i class="fas fa-chevron-down collapse-icon" data-section="ric_approvals"></i>
+                            <i class="fas fa-broadcast-tower"></i> Offene RIC-Genehmigungen (<?php echo count($pending_ric_approvals); ?>)
+                        </h6>
+                    </div>
+                    <div class="card-body dashboard-section-body" data-section="ric_approvals" <?php echo (isset($dashboard_preferences['ric_approvals']) && $dashboard_preferences['ric_approvals']) ? 'style="display: none;"' : ''; ?>>
+                        <?php if (empty($pending_ric_approvals)): ?>
+                            <div class="text-center py-5">
+                                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                                <h5 class="text-muted">Keine offenen Genehmigungen</h5>
+                                <p class="text-muted">Alle RIC-Zuweisungen wurden bestätigt.</p>
+                            </div>
+                        <?php else: ?>
+                            <div class="row">
+                                <?php 
+                                // Gruppiere nach Mitglied
+                                $grouped_approvals = [];
+                                foreach ($pending_ric_approvals as $approval) {
+                                    $member_key = $approval['member_id'];
+                                    if (!isset($grouped_approvals[$member_key])) {
+                                        $grouped_approvals[$member_key] = [
+                                            'member_id' => $approval['member_id'],
+                                            'member_name' => $approval['member_first_name'] . ' ' . $approval['member_last_name'],
+                                            'created_by' => $approval['created_by_first_name'] . ' ' . $approval['created_by_last_name'],
+                                            'created_by_email' => $approval['created_by_email'],
+                                            'created_at' => $approval['created_at'],
+                                            'rics' => []
+                                        ];
+                                    }
+                                    $grouped_approvals[$member_key]['rics'][] = [
+                                        'assignment_id' => $approval['assignment_id'],
+                                        'ric_id' => $approval['ric_id'],
+                                        'ric_kurztext' => $approval['ric_kurztext'],
+                                        'ric_beschreibung' => $approval['ric_beschreibung']
+                                    ];
+                                }
+                                ?>
+                                <?php foreach ($grouped_approvals as $group): ?>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card border-warning">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                <i class="fas fa-user text-primary"></i>
+                                                <?php echo htmlspecialchars($group['member_name']); ?>
+                                            </h6>
+                                            <p class="card-text mb-2">
+                                                <small class="text-muted">
+                                                    <strong>Geändert von:</strong> <?php echo htmlspecialchars($group['created_by']); ?><br>
+                                                    <strong>Am:</strong> <?php echo date('d.m.Y H:i', strtotime($group['created_at'])); ?>
+                                                </small>
+                                            </p>
+                                            <p class="card-text mb-2">
+                                                <strong>Zugewiesene RIC-Codes:</strong><br>
+                                                <?php foreach ($group['rics'] as $ric): ?>
+                                                    <span class="badge bg-warning text-dark me-1 mb-1">
+                                                        <?php echo htmlspecialchars($ric['ric_kurztext']); ?>
+                                                    </span>
+                                                <?php endforeach; ?>
+                                            </p>
+                                            <div class="d-grid gap-2">
+                                                <a href="ric-verwaltung.php" class="btn btn-warning btn-sm">
+                                                    <i class="fas fa-edit me-1"></i>Zur RIC-Verwaltung
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="card-footer">
+                        <a href="ric-verwaltung.php" class="btn btn-warning">
+                            <i class="fas fa-broadcast-tower"></i> Zur RIC-Verwaltung
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Atemschutz Bereich -->
         <?php if ($can_atemschutz): ?>
         
