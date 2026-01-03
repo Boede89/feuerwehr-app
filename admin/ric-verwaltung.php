@@ -119,6 +119,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if ($member_id <= 0) {
                     $error = "Ungültige Mitglieds-ID.";
+                    if ($db->inTransaction()) {
+                        $db->rollBack();
+                    }
                 } else {
                     // Alte Zuweisungen laden für Vergleich
                     $stmt = $db->prepare("SELECT ric_id FROM member_ric WHERE member_id = ?");
@@ -141,6 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmt->execute([$member_id, $ric_id, $status, $created_by]);
                             } catch (Exception $e) {
                                 // Duplikat ignorieren
+                                error_log("Fehler beim Einfügen der RIC-Zuweisung: " . $e->getMessage());
                             }
                         }
                     }
@@ -247,11 +251,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
                     
-                    $db->commit();
-                    if ($is_divera_admin) {
-                        $message = "RIC-Zuweisungen wurden erfolgreich gespeichert.";
-                    } else {
-                        $message = "RIC-Zuweisungen wurden gespeichert und warten auf Bestätigung durch den Divera Admin.";
+                    // Commit nur wenn alles erfolgreich war
+                    if ($db->inTransaction()) {
+                        $db->commit();
                     }
                     
                     // Weiterleitung um POST-Problem zu vermeiden
