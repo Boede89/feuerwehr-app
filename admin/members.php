@@ -1244,8 +1244,23 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             console.log('Gefundene Mitgliederzeilen:', memberRows.length);
             memberRows.forEach(function(row) {
                 row.addEventListener('click', function(e) {
-                    // Ignoriere Klicks auf Aktionen-Spalte
-                    if (e.target.closest('td:last-child') || e.target.closest('button')) {
+                    console.log('Klick erkannt auf:', e.target);
+                    console.log('Klick auf Button?', e.target.closest('button'));
+                    console.log('Klick auf letzte Spalte?', e.target.closest('td:last-child'));
+                    
+                    // Ignoriere Klicks auf Aktionen-Spalte (letzte Spalte) oder Buttons
+                    const clickedCell = e.target.closest('td');
+                    const allCells = row.querySelectorAll('td');
+                    const isLastCell = clickedCell && allCells.length > 0 && clickedCell === allCells[allCells.length - 1];
+                    
+                    if (isLastCell || e.target.closest('button') || e.target.closest('.btn-group')) {
+                        console.log('Klick auf Aktionen-Spalte ignoriert');
+                        return;
+                    }
+                    
+                    // Ignoriere auch Klicks auf Elemente mit stopPropagation
+                    if (e.target.hasAttribute('onclick') && e.target.getAttribute('onclick').includes('stopPropagation')) {
+                        console.log('Klick auf stopPropagation-Element ignoriert');
                         return;
                     }
                     
@@ -1254,11 +1269,14 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     if (memberData) {
                         try {
                             const member = JSON.parse(memberData);
+                            console.log('Parsed member:', member);
                             showMemberDetails(member);
                         } catch (error) {
                             console.error('Fehler beim Parsen der Mitgliederdaten:', error);
-                            alert('Fehler beim Laden der Mitgliederdaten.');
+                            alert('Fehler beim Laden der Mitgliederdaten: ' + error.message);
                         }
+                    } else {
+                        console.error('Keine Mitgliederdaten gefunden!');
                     }
                 });
             });
