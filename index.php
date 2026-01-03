@@ -200,11 +200,11 @@ require_once 'includes/functions.php';
                         <a href="vehicle-selection.php" class="text-decoration-none">
                             <div class="card h-100 shadow-sm feature-card clickable-card">
                                 <div class="card-body text-center p-4 d-flex flex-column">
-                                    <div class="feature-icon mb-3">
-                                        <i class="fas fa-truck text-primary"></i>
-                                    </div>
-                                    <h5 class="card-title">Fahrzeug Reservierung</h5>
-                                    <p class="card-text">Reservieren Sie Feuerwehrfahrzeuge für Lehrgänge, Übungen etc.</p>
+                                <div class="feature-icon mb-3">
+                                    <i class="fas fa-truck text-primary"></i>
+                                </div>
+                                <h5 class="card-title">Fahrzeug Reservierung</h5>
+                                <p class="card-text">Reservieren Sie Feuerwehrfahrzeuge für Lehrgänge, Übungen etc.</p>
                                 </div>
                             </div>
                         </a>

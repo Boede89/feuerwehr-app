@@ -934,16 +934,23 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
 
         <!-- Aktions-Buttons -->
         <div class="row mb-4">
-            <div class="col-12 col-md-6 mb-2">
+            <div class="col-12 col-md-4 mb-2">
                 <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addMemberModal">
                     <i class="fas fa-user-plus"></i> Mitglied hinzufügen
                 </button>
             </div>
-            <div class="col-12 col-md-6 mb-2">
+            <div class="col-12 col-md-4 mb-2">
                 <a href="?show_list=<?php echo $show_list ? '0' : '1'; ?>" class="btn btn-outline-primary w-100">
                     <i class="fas fa-list"></i> <?php echo $show_list ? 'Liste ausblenden' : 'Aktuelle Liste anzeigen'; ?>
                 </a>
             </div>
+            <?php if (has_permission('members') && has_permission('ric')): ?>
+            <div class="col-12 col-md-4 mb-2">
+                <a href="#" class="btn btn-warning w-100">
+                    <i class="fas fa-broadcast-tower"></i> RIC Verwaltung (Divera)
+                </a>
+            </div>
+            <?php endif; ?>
         </div>
 
         <!-- Mitglieder-Liste -->
