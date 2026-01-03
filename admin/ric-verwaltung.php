@@ -260,9 +260,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Commit nur wenn alles erfolgreich war
                     if ($db->inTransaction()) {
                         $db->commit();
+                        error_log("RIC-Zuweisung: Erfolgreich committed für member_id=$member_id");
+                    } else {
+                        error_log("RIC-Zuweisung: WARNUNG - Keine aktive Transaktion beim Commit!");
                     }
                     
                     // Weiterleitung um POST-Problem zu vermeiden
+                    error_log("RIC-Zuweisung: Weiterleitung zu ric-verwaltung.php?success=saved");
                     header("Location: ric-verwaltung.php?success=saved");
                     exit();
                 }
@@ -619,16 +623,15 @@ try {
             }
         }
         
-        // Formular-Submit-Handler
+        // Formular-Submit-Handler - verhindert mehrfaches Absenden
         document.addEventListener('DOMContentLoaded', function() {
             const assignRicForm = document.querySelector('#assignRicModal form');
             const saveBtn = document.getElementById('saveAssignmentsBtn');
             let formSubmitted = false;
             
             if (assignRicForm && saveBtn) {
-                // Button-Click-Handler statt Form-Submit-Handler
-                // So können wir das Formular manuell absenden, nachdem wir den Button deaktiviert haben
-                saveBtn.addEventListener('click', function(e) {
+                // Submit-Handler: Verhindert nur mehrfaches Absenden, blockiert aber nicht das erste Submit
+                assignRicForm.addEventListener('submit', function(e) {
                     // Prüfe ob bereits gesendet wurde
                     if (formSubmitted) {
                         e.preventDefault();
@@ -639,22 +642,10 @@ try {
                     // Markiere als gesendet
                     formSubmitted = true;
                     
-                    // Button sofort deaktivieren (visuelles Feedback)
-                    disableSaveButton();
-                    
-                    // Formular manuell absenden
-                    assignRicForm.submit();
-                });
-                
-                // Zusätzlich: Submit-Handler als Fallback, falls Formular auf andere Weise abgesendet wird
-                assignRicForm.addEventListener('submit', function(e) {
-                    if (formSubmitted) {
-                        // Bereits verarbeitet, nichts tun
-                        return;
-                    }
-                    // Erstes Submit erlauben
-                    formSubmitted = true;
-                    disableSaveButton();
+                    // Button deaktivieren (asynchron, damit Submit nicht blockiert wird)
+                    setTimeout(function() {
+                        disableSaveButton();
+                    }, 10);
                 });
             }
             
