@@ -354,9 +354,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     if ($assignment) {
                         if ($assignment['action'] === 'remove') {
-                            // Bei Entfernung: Eintrag löschen
+                            // Bei Entfernung: 
+                            // 1. Lösche den pending 'remove' Eintrag
                             $stmt = $db->prepare("DELETE FROM member_ric WHERE id = ?");
                             $stmt->execute([$assignment_id]);
+                            
+                            // 2. Lösche auch den bestätigten 'add' Eintrag (falls vorhanden)
+                            $stmt = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ? AND action = 'add' AND status = 'confirmed'");
+                            $stmt->execute([$assignment['member_id'], $assignment['ric_id']]);
                         } else {
                             // Bei Hinzufügung: Status auf confirmed setzen
                             $stmt = $db->prepare("UPDATE member_ric SET status = 'confirmed' WHERE id = ?");
@@ -546,12 +551,18 @@ try {
                                                             $ric = reset($ric);
                                                             if ($ric):
                                                                 $status = $statuses[$ric_id]['status'] ?? 'confirmed';
+                                                                $action = $statuses[$ric_id]['action'] ?? 'add';
                                                                 $assignment_id = $statuses[$ric_id]['id'] ?? 0;
+                                                                $is_removed = ($status === 'pending' && $action === 'remove');
                                                                 $badge_class = ($status === 'pending') ? 'bg-warning' : 'bg-primary';
-                                                                $badge_title = ($status === 'pending') ? 'Wartet auf Bestätigung' : htmlspecialchars($ric['beschreibung'] ?? '');
+                                                                $badge_title = ($status === 'pending') ? ($is_removed ? 'Wartet auf Bestätigung (Entfernung)' : 'Wartet auf Bestätigung') : htmlspecialchars($ric['beschreibung'] ?? '');
                                                         ?>
                                                             <span class="badge <?php echo $badge_class; ?> me-1" title="<?php echo $badge_title; ?>" style="<?php echo ($status === 'pending') ? 'background-color: #ffc107 !important;' : ''; ?>">
-                                                                <?php echo htmlspecialchars($ric['kurztext']); ?>
+                                                                <?php if ($is_removed): ?>
+                                                                    <span style="text-decoration: line-through;"><?php echo htmlspecialchars($ric['kurztext']); ?></span>
+                                                                <?php else: ?>
+                                                                    <?php echo htmlspecialchars($ric['kurztext']); ?>
+                                                                <?php endif; ?>
                                                                 <?php if ($status === 'pending' && $is_divera_admin && $assignment_id > 0): ?>
                                                                     <form method="POST" style="display: inline;" onsubmit="return confirm('Möchten Sie diese RIC-Zuweisung bestätigen?');">
                                                                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
