@@ -224,6 +224,49 @@ if ($can_atemschutz) {
     }
 }
 
+// RIC-Genehmigungen laden (nur für Divera Admin)
+$pending_ric_approvals = [];
+$is_divera_admin = false;
+try {
+    // Prüfe ob aktueller Benutzer Divera Admin ist
+    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'ric_divera_admin_user_id' LIMIT 1");
+    $stmt->execute();
+    $result = $stmt->fetchColumn();
+    if ($result) {
+        $divera_admin_user_id = (int)$result;
+        $is_divera_admin = ($divera_admin_user_id && $_SESSION['user_id'] == $divera_admin_user_id);
+    }
+    
+    if ($is_divera_admin) {
+        // Lade offene RIC-Genehmigungen
+        $stmt = $db->prepare("
+            SELECT mr.id as assignment_id,
+                   mr.member_id,
+                   mr.ric_id,
+                   mr.status,
+                   mr.created_at,
+                   mr.created_by,
+                   m.first_name as member_first_name,
+                   m.last_name as member_last_name,
+                   rc.kurztext as ric_kurztext,
+                   rc.beschreibung as ric_beschreibung,
+                   u.first_name as created_by_first_name,
+                   u.last_name as created_by_last_name,
+                   u.email as created_by_email
+            FROM member_ric mr
+            JOIN members m ON mr.member_id = m.id
+            JOIN ric_codes rc ON mr.ric_id = rc.id
+            LEFT JOIN users u ON mr.created_by = u.id
+            WHERE mr.status = 'pending'
+            ORDER BY mr.created_at DESC
+        ");
+        $stmt->execute();
+        $pending_ric_approvals = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+} catch (Exception $e) {
+    error_log("Fehler beim Laden der RIC-Genehmigungen: " . $e->getMessage());
+}
+
 // Atemschutz-Warnungen laden (nur wenn berechtigt)
 $atemschutz_warnings = [];
 if ($can_atemschutz) {

@@ -190,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $appUrl = $protocol . '://' . $host . rtrim($basePath, '/');
                             }
                             
-                            $ric_verwaltung_url = rtrim($appUrl, '/') . '/admin/ric-verwaltung.php';
+                            $dashboard_url = rtrim($appUrl, '/') . '/admin/dashboard.php';
                             
                             // Änderungen bestimmen
                             $added_rics = array_diff($ric_ids, $old_assignments);
@@ -266,9 +266,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $email_body .= '
                                         </div>
                                         <p style="text-align: center; margin: 30px 0;">
-                                            <a href="' . htmlspecialchars($ric_verwaltung_url) . '" class="button">Zur RIC-Verwaltung</a>
+                                            <a href="' . htmlspecialchars($dashboard_url) . '" class="button">Zum Dashboard</a>
                                         </p>
-                                        <p>Bitte prüfen und bestätigen Sie die Änderung in der RIC-Verwaltung.</p>
+                                        <p>Bitte prüfen und bestätigen Sie die Änderung im Dashboard oder in der RIC-Verwaltung.</p>
                                     </div>
                                     <div class="footer">
                                         <p>Diese E-Mail wurde automatisch generiert. Bitte antworten Sie nicht auf diese E-Mail.</p>
