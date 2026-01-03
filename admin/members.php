@@ -1233,6 +1233,56 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Funktion zum Anzeigen der Mitgliederdetails
+        function showMemberDetails(member) {
+            const modal = new bootstrap.Modal(document.getElementById('memberDetailsModal'));
+            
+            // Daten in das Modal einfügen
+            document.getElementById('memberDetailsName').textContent = member.first_name + ' ' + member.last_name;
+            document.getElementById('memberDetailsFirstName').textContent = member.first_name || '-';
+            document.getElementById('memberDetailsLastName').textContent = member.last_name || '-';
+            document.getElementById('memberDetailsEmail').textContent = member.email || '-';
+            document.getElementById('memberDetailsBirthdate').textContent = member.birthdate ? new Date(member.birthdate).toLocaleDateString('de-DE') : '-';
+            document.getElementById('memberDetailsPhone').textContent = member.phone || '-';
+            
+            // Status anzeigen
+            let statusHtml = '';
+            if (member.source === 'user') {
+                statusHtml = '<span class="badge bg-primary">Benutzer des Systems</span>';
+            }
+            if (member.is_pa_traeger == 1 || member.is_pa_traeger === '1') {
+                statusHtml += (statusHtml ? ' ' : '') + '<span class="badge bg-warning text-dark">PA-Träger</span>';
+            }
+            document.getElementById('memberDetailsStatus').innerHTML = statusHtml || '-';
+            
+            // PA-Träger Informationen anzeigen
+            const paTraegerSection = document.getElementById('memberDetailsPaTraeger');
+            if (member.is_pa_traeger == 1 || member.is_pa_traeger === '1' || member.strecke_am || member.g263_am || member.uebung_am) {
+                paTraegerSection.style.display = 'block';
+                document.getElementById('memberDetailsStreckeAm').textContent = member.strecke_am ? new Date(member.strecke_am).toLocaleDateString('de-DE') : '-';
+                document.getElementById('memberDetailsG263Am').textContent = member.g263_am ? new Date(member.g263_am).toLocaleDateString('de-DE') : '-';
+                document.getElementById('memberDetailsUebungAm').textContent = member.uebung_am ? new Date(member.uebung_am).toLocaleDateString('de-DE') : '-';
+            } else {
+                paTraegerSection.style.display = 'none';
+            }
+            
+            // Bearbeiten-Button konfigurieren
+            const editBtn = document.getElementById('memberDetailsEditBtn');
+            if (member.member_id) {
+                editBtn.style.display = 'inline-block';
+                editBtn.onclick = function() {
+                    modal.hide();
+                    setTimeout(function() {
+                        editMember(member);
+                    }, 300);
+                };
+            } else {
+                editBtn.style.display = 'none';
+            }
+            
+            modal.show();
+        }
+        
         // Funktion zum Bearbeiten eines Mitglieds
         function editMember(member) {
             const modal = new bootstrap.Modal(document.getElementById('addMemberModal'));
