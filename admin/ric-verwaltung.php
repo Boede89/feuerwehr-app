@@ -173,11 +173,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmtApp = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_url'");
                                 $stmtApp->execute();
                                 $appUrl = $stmtApp->fetchColumn();
-                                if (!$appUrl) {
-                                    $appUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+                                if (!$appUrl || trim($appUrl) === '') {
+                                    // Fallback: URL aus aktueller Anfrage generieren
+                                    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http');
+                                    $host = $_SERVER['HTTP_HOST'];
+                                    $scriptPath = dirname($_SERVER['SCRIPT_NAME']); // z.B. /admin
+                                    $basePath = dirname($scriptPath); // z.B. / oder /feuerwehr-app
+                                    $appUrl = $protocol . '://' . $host . rtrim($basePath, '/');
                                 }
                             } catch (Exception $e) {
-                                $appUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+                                // Fallback: URL aus aktueller Anfrage generieren
+                                $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http');
+                                $host = $_SERVER['HTTP_HOST'];
+                                $scriptPath = dirname($_SERVER['SCRIPT_NAME']); // z.B. /admin
+                                $basePath = dirname($scriptPath); // z.B. / oder /feuerwehr-app
+                                $appUrl = $protocol . '://' . $host . rtrim($basePath, '/');
                             }
                             
                             $ric_verwaltung_url = rtrim($appUrl, '/') . '/admin/ric-verwaltung.php';
