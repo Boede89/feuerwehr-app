@@ -168,6 +168,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $divera_admin = $stmt->fetch(PDO::FETCH_ASSOC);
                         
                         if ($divera_admin && !empty($divera_admin['email'])) {
+                            // Basis-URL für Links in E-Mails: bevorzugt aus Einstellungen 'app_url'
+                            try {
+                                $stmtApp = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_url'");
+                                $stmtApp->execute();
+                                $appUrl = $stmtApp->fetchColumn();
+                                if (!$appUrl) {
+                                    $appUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+                                }
+                            } catch (Exception $e) {
+                                $appUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+                            }
+                            
+                            $ric_verwaltung_url = rtrim($appUrl, '/') . '/admin/ric-verwaltung.php';
+                            
                             // Änderungen bestimmen
                             $added_rics = array_diff($ric_ids, $old_assignments);
                             $removed_rics = array_diff($old_assignments, $ric_ids);
@@ -242,7 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $email_body .= '
                                         </div>
                                         <p style="text-align: center; margin: 30px 0;">
-                                            <a href="https://feuerwehr.boede89.selfhost.co/admin/ric-verwaltung.php" class="button">Zur RIC-Verwaltung</a>
+                                            <a href="' . htmlspecialchars($ric_verwaltung_url) . '" class="button">Zur RIC-Verwaltung</a>
                                         </p>
                                         <p>Bitte prüfen und bestätigen Sie die Änderung in der RIC-Verwaltung.</p>
                                     </div>
