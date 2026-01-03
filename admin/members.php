@@ -1320,16 +1320,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             <label class="form-label fw-bold">PA-Träger</label>
                             <p class="form-control-plaintext" id="memberDetailsPaTraegerStatus"></p>
                         </div>
-                        <div class="col-12" id="memberDetailsPaTraegerStatusSection" style="display: none;">
-                            <hr>
-                            <h6 class="mb-3"><i class="fas fa-user-shield me-2"></i>PA-Träger Status</h6>
-                            <div class="row g-3">
-                                <div class="col-12">
-                                    <label class="form-label fw-bold">Tauglichkeitsstatus</label>
-                                    <p class="form-control-plaintext" id="memberDetailsPaTraegerFitnessStatus"></p>
-                                </div>
-                            </div>
-                        </div>
                         <div class="col-12">
                             <hr>
                             <h6 class="mb-3"><i class="fas fa-broadcast-tower me-2"></i>Zugewiesene RIC-Codes</h6>
