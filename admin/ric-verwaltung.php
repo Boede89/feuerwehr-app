@@ -417,42 +417,64 @@ try {
 $member_ric_assignments = [];
 $member_ric_statuses = [];
 try {
-    $stmt = $db->prepare("SELECT id, member_id, ric_id, status, action FROM member_ric ORDER BY status ASC, action ASC");
+    $stmt = $db->prepare("SELECT id, member_id, ric_id, status, action FROM member_ric");
     $stmt->execute();
     $assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Zuerst alle RICs sammeln (sowohl confirmed add als auch pending remove/add)
+    $all_ric_entries = [];
     foreach ($assignments as $assignment) {
-        if (!isset($member_ric_assignments[$assignment['member_id']])) {
-            $member_ric_assignments[$assignment['member_id']] = [];
-            $member_ric_statuses[$assignment['member_id']] = [];
+        $member_id = $assignment['member_id'];
+        $ric_id = $assignment['ric_id'];
+        
+        if (!isset($all_ric_entries[$member_id])) {
+            $all_ric_entries[$member_id] = [];
+        }
+        if (!isset($all_ric_entries[$member_id][$ric_id])) {
+            $all_ric_entries[$member_id][$ric_id] = [];
+        }
+        $all_ric_entries[$member_id][$ric_id][] = $assignment;
+    }
+    
+    // Dann für jede RIC den richtigen Status bestimmen
+    foreach ($all_ric_entries as $member_id => $rics) {
+        if (!isset($member_ric_assignments[$member_id])) {
+            $member_ric_assignments[$member_id] = [];
+            $member_ric_statuses[$member_id] = [];
         }
         
-        $ric_id = $assignment['ric_id'];
-        $member_id = $assignment['member_id'];
-        
-        // Priorität: pending remove > pending add > confirmed add
-        // Wenn bereits ein Eintrag existiert, nur überschreiben wenn höhere Priorität
-        if (!isset($member_ric_statuses[$member_id][$ric_id])) {
-            // Noch kein Eintrag vorhanden
-            $member_ric_assignments[$member_id][] = $ric_id;
-            $member_ric_statuses[$member_id][$ric_id] = [
-                'status' => $assignment['status'],
-                'action' => $assignment['action'],
-                'id' => $assignment['id']
-            ];
-        } else {
-            // Eintrag existiert bereits - prüfe Priorität
-            $existing = $member_ric_statuses[$member_id][$ric_id];
-            $existing_priority = ($existing['status'] === 'pending' && $existing['action'] === 'remove') ? 3 : 
-                                 (($existing['status'] === 'pending' && $existing['action'] === 'add') ? 2 : 1);
-            $new_priority = ($assignment['status'] === 'pending' && $assignment['action'] === 'remove') ? 3 : 
-                            (($assignment['status'] === 'pending' && $assignment['action'] === 'add') ? 2 : 1);
+        foreach ($rics as $ric_id => $entries) {
+            // Priorität: pending remove > pending add > confirmed add
+            $best_entry = null;
+            $best_priority = 0;
             
-            // Überschreibe nur wenn neue Priorität höher ist
-            if ($new_priority > $existing_priority) {
+            foreach ($entries as $entry) {
+                $priority = 0;
+                if ($entry['status'] === 'pending' && $entry['action'] === 'remove') {
+                    $priority = 3; // Höchste Priorität
+                } elseif ($entry['status'] === 'pending' && $entry['action'] === 'add') {
+                    $priority = 2;
+                } elseif ($entry['status'] === 'confirmed' && $entry['action'] === 'add') {
+                    $priority = 1; // Niedrigste Priorität
+                }
+                
+                if ($priority > $best_priority) {
+                    $best_priority = $priority;
+                    $best_entry = $entry;
+                }
+            }
+            
+            if ($best_entry) {
+                // RIC zur Liste hinzufügen
+                if (!in_array($ric_id, $member_ric_assignments[$member_id])) {
+                    $member_ric_assignments[$member_id][] = $ric_id;
+                }
+                
+                // Status speichern
                 $member_ric_statuses[$member_id][$ric_id] = [
-                    'status' => $assignment['status'],
-                    'action' => $assignment['action'],
-                    'id' => $assignment['id']
+                    'status' => $best_entry['status'],
+                    'action' => $best_entry['action'],
+                    'id' => $best_entry['id']
                 ];
             }
         }
