@@ -1071,8 +1071,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             <p class="form-control-plaintext" id="memberDetailsPhone"></p>
                         </div>
                         <div class="col-12 col-md-6">
-                            <label class="form-label fw-bold">Status</label>
-                            <p class="form-control-plaintext" id="memberDetailsStatus"></p>
+                            <label class="form-label fw-bold">PA-Träger</label>
+                            <p class="form-control-plaintext" id="memberDetailsPaTraegerStatus"></p>
                         </div>
                         <div class="col-12" id="memberDetailsPaTraeger" style="display: none;">
                             <hr>
@@ -1092,12 +1092,24 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                 </div>
                             </div>
                         </div>
+                        <div class="col-12">
+                            <hr>
+                            <h6 class="mb-3"><i class="fas fa-broadcast-tower me-2"></i>Zugewiesene RIC-Codes</h6>
+                            <div id="memberDetailsRics">
+                                <p class="text-muted">Lade RIC-Codes...</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times me-1"></i>Schließen
                     </button>
+                    <?php if ($can_ric): ?>
+                    <button type="button" class="btn btn-warning" id="memberDetailsAssignRicBtn">
+                        <i class="fas fa-broadcast-tower me-1"></i>RIC's Zuweisen
+                    </button>
+                    <?php endif; ?>
                     <button type="button" class="btn btn-primary" id="memberDetailsEditBtn">
                         <i class="fas fa-edit me-1"></i>Bearbeiten
                     </button>
@@ -1380,6 +1392,11 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     }
                 }
                 
+                // RIC-Codes laden
+                if (member.member_id || member.id) {
+                    loadMemberRicsForDetails(member.member_id || member.id);
+                }
+                
                 // Bearbeiten-Button konfigurieren
                 const editBtn = document.getElementById('memberDetailsEditBtn');
                 if (editBtn) {
@@ -1393,6 +1410,23 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         };
                     } else {
                         editBtn.style.display = 'none';
+                    }
+                }
+                
+                // RIC-Zuweisen-Button konfigurieren
+                const assignRicBtn = document.getElementById('memberDetailsAssignRicBtn');
+                if (assignRicBtn) {
+                    if (member.member_id || member.id) {
+                        assignRicBtn.style.display = 'inline-block';
+                        assignRicBtn.onclick = function() {
+                            modal.hide();
+                            setTimeout(function() {
+                                // Öffne RIC-Verwaltung mit diesem Mitglied
+                                window.location.href = 'ric-verwaltung.php?member_id=' + (member.member_id || member.id);
+                            }, 300);
+                        };
+                    } else {
+                        assignRicBtn.style.display = 'none';
                     }
                 }
                 

@@ -738,7 +738,23 @@ try {
             
             // Button-Status zurücksetzen beim Öffnen des Modals
             resetSaveButton();
+            
+            // Modal öffnen
+            const modal = new bootstrap.Modal(document.getElementById('assignRicModal'));
+            modal.show();
         }
+        
+        // Beim Laden der Seite: Wenn member_id in URL, Modal automatisch öffnen
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const memberId = urlParams.get('member_id');
+            if (memberId) {
+                // Kurz warten, damit die Seite vollständig geladen ist
+                setTimeout(function() {
+                    loadMemberRics(parseInt(memberId));
+                }, 500);
+            }
+        });
         
         function resetSaveButton() {
             const saveBtn = document.getElementById('saveAssignmentsBtn');
