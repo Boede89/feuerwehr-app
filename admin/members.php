@@ -1320,20 +1320,20 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             <label class="form-label fw-bold">PA-Träger</label>
                             <p class="form-control-plaintext" id="memberDetailsPaTraegerStatus"></p>
                         </div>
+                        <?php if ($can_ric): ?>
                         <div class="col-12">
                             <hr>
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h6 class="mb-0"><i class="fas fa-broadcast-tower me-2"></i>Zugewiesene RIC-Codes</h6>
-                                <?php if ($can_ric): ?>
                                 <button type="button" class="btn btn-sm btn-warning" id="memberDetailsAssignRicBtn">
                                     <i class="fas fa-edit me-1"></i>Anpassen
                                 </button>
-                                <?php endif; ?>
                             </div>
                             <div id="memberDetailsRics">
                                 <p class="text-muted">Lade RIC-Codes...</p>
                             </div>
                         </div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1663,8 +1663,9 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     }
                 }
                 
-                // RIC-Codes laden
-                if (member.member_id || member.id) {
+                // RIC-Codes laden (nur wenn Benutzer berechtigt ist)
+                const canRic = <?php echo $can_ric ? 'true' : 'false'; ?>;
+                if (canRic && (member.member_id || member.id)) {
                     loadMemberRicsForDetails(member.member_id || member.id);
                 }
                 
