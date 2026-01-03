@@ -983,7 +983,12 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                     </thead>
                                     <tbody>
                                         <?php foreach ($members as $member): ?>
-                                        <tr style="cursor: pointer;" onclick="showMemberDetails(<?php echo htmlspecialchars(json_encode($member)); ?>)" onmouseover="this.style.backgroundColor='#f8f9fa'" onmouseout="this.style.backgroundColor=''">
+                                        <tr style="cursor: pointer;" 
+                                            data-member-id="<?php echo htmlspecialchars($member['member_id'] ?? ''); ?>"
+                                            data-member-data="<?php echo htmlspecialchars(json_encode($member)); ?>"
+                                            class="member-row"
+                                            onmouseover="this.style.backgroundColor='#f8f9fa'" 
+                                            onmouseout="this.style.backgroundColor=''">
                                             <td onclick="event.stopPropagation();">
                                                 <?php echo htmlspecialchars($member['first_name']); ?>
                                                 <?php if ($member['source'] ?? '' === 'user'): ?>
