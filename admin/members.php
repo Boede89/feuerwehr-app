@@ -1592,53 +1592,37 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     }
                 }
                 
-                // PA-Träger Informationen anzeigen
-                const paTraegerSection = document.getElementById('memberDetailsPaTraeger');
-                if (paTraegerSection) {
-                    if (member.is_pa_traeger == 1 || member.is_pa_traeger === '1' || member.is_pa_traeger === 1 || member.strecke_am || member.g263_am || member.uebung_am) {
-                        paTraegerSection.style.display = 'block';
+                // PA-Träger Tauglichkeitsstatus berechnen und anzeigen
+                const paTraegerStatusSection = document.getElementById('memberDetailsPaTraegerStatusSection');
+                const fitnessStatusEl = document.getElementById('memberDetailsPaTraegerFitnessStatus');
+                if (paTraegerStatusSection && fitnessStatusEl) {
+                    if (member.is_pa_traeger == 1 || member.is_pa_traeger === '1' || member.is_pa_traeger === 1) {
+                        paTraegerStatusSection.style.display = 'block';
                         
-                        const streckeEl = document.getElementById('memberDetailsStreckeAm');
-                        const g263El = document.getElementById('memberDetailsG263Am');
-                        const uebungEl = document.getElementById('memberDetailsUebungAm');
+                        // Status berechnen
+                        const status = calculatePaTraegerStatus(member);
+                        let statusHtml = '';
+                        let statusClass = '';
                         
-                        if (streckeEl) {
-                            if (member.strecke_am) {
-                                try {
-                                    streckeEl.textContent = new Date(member.strecke_am).toLocaleDateString('de-DE');
-                                } catch (e) {
-                                    streckeEl.textContent = member.strecke_am;
-                                }
-                            } else {
-                                streckeEl.textContent = '-';
-                            }
+                        if (status === 'Tauglich') {
+                            statusClass = 'bg-success';
+                            statusHtml = '<span class="badge ' + statusClass + '">Tauglich</span>';
+                        } else if (status === 'Warnung') {
+                            statusClass = 'bg-warning text-dark';
+                            statusHtml = '<span class="badge ' + statusClass + '">Warnung</span>';
+                        } else if (status === 'Übung abgelaufen') {
+                            statusClass = 'bg-danger';
+                            statusHtml = '<span class="badge ' + statusClass + '">Übung abgelaufen</span>';
+                        } else if (status === 'Abgelaufen') {
+                            statusClass = 'bg-danger';
+                            statusHtml = '<span class="badge ' + statusClass + '">Abgelaufen</span>';
+                        } else {
+                            statusHtml = '<span class="text-muted">Status nicht verfügbar</span>';
                         }
                         
-                        if (g263El) {
-                            if (member.g263_am) {
-                                try {
-                                    g263El.textContent = new Date(member.g263_am).toLocaleDateString('de-DE');
-                                } catch (e) {
-                                    g263El.textContent = member.g263_am;
-                                }
-                            } else {
-                                g263El.textContent = '-';
-                            }
-                        }
-                        
-                        if (uebungEl) {
-                            if (member.uebung_am) {
-                                try {
-                                    uebungEl.textContent = new Date(member.uebung_am).toLocaleDateString('de-DE');
-                                } catch (e) {
-                                    uebungEl.textContent = member.uebung_am;
-                                }
-                            } else {
-                                uebungEl.textContent = '-';
-                            }
-                        }
+                        fitnessStatusEl.innerHTML = statusHtml;
                     } else {
-                        paTraegerSection.style.display = 'none';
+                        paTraegerStatusSection.style.display = 'none';
                     }
                 }
                 
