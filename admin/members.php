@@ -983,28 +983,28 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                     </thead>
                                     <tbody>
                                         <?php foreach ($members as $member): ?>
-                                        <tr>
-                                            <td>
+                                        <tr style="cursor: pointer;" onclick="showMemberDetails(<?php echo htmlspecialchars(json_encode($member)); ?>)" onmouseover="this.style.backgroundColor='#f8f9fa'" onmouseout="this.style.backgroundColor=''">
+                                            <td onclick="event.stopPropagation();">
                                                 <?php echo htmlspecialchars($member['first_name']); ?>
                                                 <?php if ($member['source'] ?? '' === 'user'): ?>
                                                     <span class="badge bg-primary ms-2" title="Benutzer des Systems">Benutzer</span>
                                                 <?php endif; ?>
                                             </td>
-                                            <td><?php echo htmlspecialchars($member['last_name']); ?></td>
-                                            <td><?php echo htmlspecialchars($member['email'] ?? '-'); ?></td>
-                                            <td><?php echo $member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : '-'; ?></td>
-                                            <td><?php echo htmlspecialchars($member['phone'] ?? '-'); ?></td>
-                                            <td>
+                                            <td onclick="event.stopPropagation();"><?php echo htmlspecialchars($member['last_name']); ?></td>
+                                            <td onclick="event.stopPropagation();"><?php echo htmlspecialchars($member['email'] ?? '-'); ?></td>
+                                            <td onclick="event.stopPropagation();"><?php echo $member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : '-'; ?></td>
+                                            <td onclick="event.stopPropagation();"><?php echo htmlspecialchars($member['phone'] ?? '-'); ?></td>
+                                            <td onclick="event.stopPropagation();">
                                                 <?php if (!empty($member['member_id'])): ?>
                                                 <div class="btn-group btn-group-sm" role="group">
                                                     <button type="button" class="btn btn-outline-primary" 
-                                                            onclick="editMember(<?php echo htmlspecialchars(json_encode($member)); ?>)"
+                                                            onclick="event.stopPropagation(); editMember(<?php echo htmlspecialchars(json_encode($member)); ?>)"
                                                             title="Bearbeiten">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
                                                     <?php if (empty($member['user_id'])): ?>
                                                     <button type="button" class="btn btn-outline-danger" 
-                                                            onclick="deleteMember(<?php echo (int)$member['member_id']; ?>, '<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>')"
+                                                            onclick="event.stopPropagation(); deleteMember(<?php echo (int)$member['member_id']; ?>, '<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>')"
                                                             title="Löschen">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
@@ -1025,6 +1025,77 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             </div>
         </div>
         <?php endif; ?>
+    </div>
+
+    <!-- Mitglied Details Modal -->
+    <div class="modal fade" id="memberDetailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user me-2"></i> Mitglied Details
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <h5 class="mb-3" id="memberDetailsName"></h5>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Vorname</label>
+                            <p class="form-control-plaintext" id="memberDetailsFirstName"></p>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Nachname</label>
+                            <p class="form-control-plaintext" id="memberDetailsLastName"></p>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">E-Mail</label>
+                            <p class="form-control-plaintext" id="memberDetailsEmail"></p>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Geburtsdatum</label>
+                            <p class="form-control-plaintext" id="memberDetailsBirthdate"></p>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Telefon</label>
+                            <p class="form-control-plaintext" id="memberDetailsPhone"></p>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Status</label>
+                            <p class="form-control-plaintext" id="memberDetailsStatus"></p>
+                        </div>
+                        <div class="col-12" id="memberDetailsPaTraeger" style="display: none;">
+                            <hr>
+                            <h6 class="mb-3"><i class="fas fa-user-shield me-2"></i>PA-Träger Informationen</h6>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label fw-bold">Strecke Am</label>
+                                    <p class="form-control-plaintext" id="memberDetailsStreckeAm"></p>
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label fw-bold">G26.3 Am</label>
+                                    <p class="form-control-plaintext" id="memberDetailsG263Am"></p>
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label fw-bold">Übung/Einsatz Am</label>
+                                    <p class="form-control-plaintext" id="memberDetailsUebungAm"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Schließen
+                    </button>
+                    <button type="button" class="btn btn-primary" id="memberDetailsEditBtn">
+                        <i class="fas fa-edit me-1"></i>Bearbeiten
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Mitglied hinzufügen/bearbeiten Modal -->
