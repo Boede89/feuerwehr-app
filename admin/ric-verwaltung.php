@@ -597,26 +597,8 @@ try {
             const saveBtn = document.getElementById('saveAssignmentsBtn');
             let isSubmitting = false;
             
-            if (saveBtn) {
-                // Button-Click-Handler - deaktiviert den Button sofort
-                saveBtn.addEventListener('click', function(e) {
-                    if (isSubmitting || this.disabled) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return false;
-                    }
-                    
-                    // Button sofort deaktivieren
-                    isSubmitting = true;
-                    disableSaveButton();
-                    
-                    // Formular wird normal abgesendet
-                    // Der Button bleibt deaktiviert bis die Seite neu geladen wird
-                });
-            }
-            
-            if (assignRicForm) {
-                // Zusätzlicher Schutz im Submit-Handler
+            if (assignRicForm && saveBtn) {
+                // Submit-Handler - verhindert nur mehrfaches Absenden
                 assignRicForm.addEventListener('submit', function(e) {
                     if (isSubmitting) {
                         // Wenn bereits gesendet, verhindere erneutes Absenden
@@ -624,8 +606,13 @@ try {
                         e.stopPropagation();
                         return false;
                     }
-                    // Erstes Absenden erlauben
+                    
+                    // Erstes Absenden erlauben, aber Button sofort deaktivieren
                     isSubmitting = true;
+                    disableSaveButton();
+                    
+                    // Formular wird normal abgesendet
+                    return true;
                 });
             }
             
