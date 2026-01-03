@@ -1238,6 +1238,32 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Event-Listener für klickbare Zeilen
+        document.addEventListener('DOMContentLoaded', function() {
+            const memberRows = document.querySelectorAll('.member-row');
+            console.log('Gefundene Mitgliederzeilen:', memberRows.length);
+            memberRows.forEach(function(row) {
+                row.addEventListener('click', function(e) {
+                    // Ignoriere Klicks auf Aktionen-Spalte
+                    if (e.target.closest('td:last-child') || e.target.closest('button')) {
+                        return;
+                    }
+                    
+                    const memberData = row.getAttribute('data-member-data');
+                    console.log('Klick auf Mitgliederzeile, Daten:', memberData);
+                    if (memberData) {
+                        try {
+                            const member = JSON.parse(memberData);
+                            showMemberDetails(member);
+                        } catch (error) {
+                            console.error('Fehler beim Parsen der Mitgliederdaten:', error);
+                            alert('Fehler beim Laden der Mitgliederdaten.');
+                        }
+                    }
+                });
+            });
+        });
+        
         // Funktion zum Anzeigen der Mitgliederdetails
         function showMemberDetails(member) {
             try {
