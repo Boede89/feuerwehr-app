@@ -1322,7 +1322,14 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         </div>
                         <div class="col-12">
                             <hr>
-                            <h6 class="mb-3"><i class="fas fa-broadcast-tower me-2"></i>Zugewiesene RIC-Codes</h6>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0"><i class="fas fa-broadcast-tower me-2"></i>Zugewiesene RIC-Codes</h6>
+                                <?php if ($can_ric): ?>
+                                <button type="button" class="btn btn-sm btn-warning" id="memberDetailsAssignRicBtn">
+                                    <i class="fas fa-edit me-1"></i>Anpassen
+                                </button>
+                                <?php endif; ?>
+                            </div>
                             <div id="memberDetailsRics">
                                 <p class="text-muted">Lade RIC-Codes...</p>
                             </div>
@@ -1333,11 +1340,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times me-1"></i>Schließen
                     </button>
-                    <?php if ($can_ric): ?>
-                    <button type="button" class="btn btn-warning" id="memberDetailsAssignRicBtn">
-                        <i class="fas fa-broadcast-tower me-1"></i>RIC's Zuweisen
-                    </button>
-                    <?php endif; ?>
                     <button type="button" class="btn btn-primary" id="memberDetailsEditBtn">
                         <i class="fas fa-edit me-1"></i>Bearbeiten
                     </button>
