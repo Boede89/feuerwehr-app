@@ -315,8 +315,13 @@ function has_permission($permission) {
         } catch (Exception $e) {
             // Spalte existiert bereits, ignoriere Fehler
         }
+        try {
+            $db->exec("ALTER TABLE users ADD COLUMN can_ric TINYINT(1) DEFAULT 0");
+        } catch (Exception $e) {
+            // Spalte existiert bereits, ignoriere Fehler
+        }
         
-        $stmt = $db->prepare("SELECT is_admin, user_role, can_reservations, can_users, can_settings, can_vehicles, can_atemschutz, can_members FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT is_admin, user_role, can_reservations, can_users, can_settings, can_vehicles, can_atemschutz, can_members, can_ric FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         

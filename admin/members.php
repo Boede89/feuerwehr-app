@@ -946,7 +946,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             </div>
             <?php if (has_permission('members') && has_permission('ric')): ?>
             <div class="col-12 col-md-4 mb-2">
-                <a href="#" class="btn btn-warning w-100">
+                <a href="ric-verwaltung.php" class="btn btn-warning w-100">
                     <i class="fas fa-broadcast-tower"></i> RIC Verwaltung (Divera)
                 </a>
             </div>

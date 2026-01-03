@@ -287,6 +287,20 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
+            <!-- Linke Spalte -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-broadcast-tower"></i> RIC Verwaltung</h5>
+                        <p class="text-muted">RIC-Codes verwalten (Kurztext und Beschreibung).</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-ric.php">
+                                <i class="fas fa-cog"></i> RIC-Codes verwalten
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
