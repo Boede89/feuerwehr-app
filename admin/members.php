@@ -989,27 +989,27 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             class="member-row"
                                             onmouseover="this.style.backgroundColor='#f8f9fa'" 
                                             onmouseout="this.style.backgroundColor=''">
-                                            <td onclick="event.stopPropagation();">
+                                            <td>
                                                 <?php echo htmlspecialchars($member['first_name']); ?>
                                                 <?php if ($member['source'] ?? '' === 'user'): ?>
                                                     <span class="badge bg-primary ms-2" title="Benutzer des Systems">Benutzer</span>
                                                 <?php endif; ?>
                                             </td>
-                                            <td onclick="event.stopPropagation();"><?php echo htmlspecialchars($member['last_name']); ?></td>
-                                            <td onclick="event.stopPropagation();"><?php echo htmlspecialchars($member['email'] ?? '-'); ?></td>
-                                            <td onclick="event.stopPropagation();"><?php echo $member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : '-'; ?></td>
-                                            <td onclick="event.stopPropagation();"><?php echo htmlspecialchars($member['phone'] ?? '-'); ?></td>
-                                            <td onclick="event.stopPropagation();">
+                                            <td><?php echo htmlspecialchars($member['last_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($member['email'] ?? '-'); ?></td>
+                                            <td><?php echo $member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : '-'; ?></td>
+                                            <td><?php echo htmlspecialchars($member['phone'] ?? '-'); ?></td>
+                                            <td class="no-click">
                                                 <?php if (!empty($member['member_id'])): ?>
                                                 <div class="btn-group btn-group-sm" role="group">
                                                     <button type="button" class="btn btn-outline-primary" 
-                                                            onclick="event.stopPropagation(); editMember(<?php echo htmlspecialchars(json_encode($member)); ?>)"
+                                                            onclick="editMember(<?php echo htmlspecialchars(json_encode($member)); ?>); return false;"
                                                             title="Bearbeiten">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
                                                     <?php if (empty($member['user_id'])): ?>
                                                     <button type="button" class="btn btn-outline-danger" 
-                                                            onclick="event.stopPropagation(); deleteMember(<?php echo (int)$member['member_id']; ?>, '<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>')"
+                                                            onclick="deleteMember(<?php echo (int)$member['member_id']; ?>, '<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>'); return false;"
                                                             title="Löschen">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
@@ -1248,19 +1248,15 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     console.log('Klick auf Button?', e.target.closest('button'));
                     console.log('Klick auf letzte Spalte?', e.target.closest('td:last-child'));
                     
-                    // Ignoriere Klicks auf Aktionen-Spalte (letzte Spalte) oder Buttons
+                    // Ignoriere Klicks auf Aktionen-Spalte (letzte Spalte mit class="no-click") oder Buttons
                     const clickedCell = e.target.closest('td');
-                    const allCells = row.querySelectorAll('td');
-                    const isLastCell = clickedCell && allCells.length > 0 && clickedCell === allCells[allCells.length - 1];
-                    
-                    if (isLastCell || e.target.closest('button') || e.target.closest('.btn-group')) {
+                    if (clickedCell && clickedCell.classList.contains('no-click')) {
                         console.log('Klick auf Aktionen-Spalte ignoriert');
                         return;
                     }
                     
-                    // Ignoriere auch Klicks auf Elemente mit stopPropagation
-                    if (e.target.hasAttribute('onclick') && e.target.getAttribute('onclick').includes('stopPropagation')) {
-                        console.log('Klick auf stopPropagation-Element ignoriert');
+                    if (e.target.closest('button') || e.target.closest('.btn-group')) {
+                        console.log('Klick auf Button ignoriert');
                         return;
                     }
                     
