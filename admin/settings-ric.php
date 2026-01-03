@@ -211,6 +211,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
 
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-user-shield"></i> Divera Admin
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="" id="diveraAdminForm">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <label for="divera_admin_user_id" class="form-label">Divera Admin auswählen</label>
+                                    <select class="form-select" id="divera_admin_user_id" name="divera_admin_user_id">
+                                        <option value="">-- Kein Divera Admin festgelegt --</option>
+                                        <?php foreach ($users as $user): ?>
+                                        <option value="<?php echo $user['id']; ?>" <?php echo ($divera_admin_user_id == $user['id']) ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                                            <?php if (!empty($user['email'])): ?>
+                                                (<?php echo htmlspecialchars($user['email']); ?>)
+                                            <?php endif; ?>
+                                        </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <small class="form-text text-muted">Wählen Sie einen Benutzer aus, der als Divera Admin fungieren soll.</small>
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <button type="submit" name="save_divera_admin" class="btn btn-primary w-100">
+                                        <i class="fas fa-save"></i> Speichern
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="row">
             <div class="col-12 col-lg-8">
                 <div class="card shadow">
