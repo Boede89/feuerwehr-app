@@ -38,12 +38,32 @@ try {
             id INT AUTO_INCREMENT PRIMARY KEY,
             member_id INT NOT NULL,
             ric_id INT NOT NULL,
+            status ENUM('pending', 'confirmed') DEFAULT 'confirmed',
+            created_by INT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
             FOREIGN KEY (ric_id) REFERENCES ric_codes(id) ON DELETE CASCADE,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
             UNIQUE KEY unique_member_ric (member_id, ric_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
+    
+    // Spalten hinzufügen falls Tabelle bereits existiert
+    try {
+        $db->exec("ALTER TABLE member_ric ADD COLUMN status ENUM('pending', 'confirmed') DEFAULT 'confirmed'");
+    } catch (Exception $e) {
+        // Spalte existiert bereits
+    }
+    try {
+        $db->exec("ALTER TABLE member_ric ADD COLUMN created_by INT NULL");
+    } catch (Exception $e) {
+        // Spalte existiert bereits
+    }
+    try {
+        $db->exec("ALTER TABLE member_ric ADD FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL");
+    } catch (Exception $e) {
+        // Foreign Key existiert bereits
+    }
 } catch (Exception $e) {
     error_log("Fehler beim Erstellen der Tabellen: " . $e->getMessage());
 }
@@ -116,17 +136,23 @@ try {
     $error = "Fehler beim Laden der RIC-Codes: " . $e->getMessage();
 }
 
-// Zuweisungen für alle Mitglieder laden
+// Zuweisungen für alle Mitglieder laden (mit Status)
 $member_ric_assignments = [];
+$member_ric_statuses = [];
 try {
-    $stmt = $db->prepare("SELECT member_id, ric_id FROM member_ric");
+    $stmt = $db->prepare("SELECT id, member_id, ric_id, status FROM member_ric");
     $stmt->execute();
     $assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($assignments as $assignment) {
         if (!isset($member_ric_assignments[$assignment['member_id']])) {
             $member_ric_assignments[$assignment['member_id']] = [];
+            $member_ric_statuses[$assignment['member_id']] = [];
         }
         $member_ric_assignments[$assignment['member_id']][] = $assignment['ric_id'];
+        $member_ric_statuses[$assignment['member_id']][$assignment['ric_id']] = [
+                            'status' => $assignment['status'],
+                            'id' => $assignment['id']
+                        ];
     }
 } catch (Exception $e) {
     error_log("Fehler beim Laden der Zuweisungen: " . $e->getMessage());
@@ -335,6 +361,7 @@ try {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const memberRicAssignments = <?php echo json_encode($member_ric_assignments); ?>;
+        const memberRicStatuses = <?php echo json_encode($member_ric_statuses); ?>;
         
         function loadMemberRics(memberId) {
             const memberName = document.querySelector(`[data-member-id="${memberId}"]`).dataset.memberName;
@@ -346,12 +373,19 @@ try {
                 checkbox.checked = false;
             });
             
-            // Zugewiesene RIC-Codes markieren
+            // Zugewiesene RIC-Codes markieren (nur confirmed oder wenn Divera Admin)
             const assignedRics = memberRicAssignments[memberId] || [];
+            const statuses = memberRicStatuses[memberId] || [];
+            const isDiveraAdmin = <?php echo $is_divera_admin ? 'true' : 'false'; ?>;
+            
             assignedRics.forEach(function(ricId) {
-                const checkbox = document.getElementById('ric_' + ricId);
-                if (checkbox) {
-                    checkbox.checked = true;
+                const status = statuses[ricId] ? statuses[ricId].status : 'confirmed';
+                // Nur confirmed anzeigen, oder alle wenn Divera Admin
+                if (status === 'confirmed' || isDiveraAdmin) {
+                    const checkbox = document.getElementById('ric_' + ricId);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
                 }
             });
         }
