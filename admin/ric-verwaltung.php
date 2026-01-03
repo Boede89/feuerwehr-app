@@ -18,6 +18,18 @@ if (!has_permission('members') || !has_permission('ric')) {
 $message = '';
 $error = '';
 
+// Erfolgsmeldung anzeigen
+if (isset($_GET['success'])) {
+    switch ($_GET['success']) {
+        case 'saved':
+            $message = "RIC-Zuweisungen wurden erfolgreich gespeichert.";
+            break;
+        case 'confirmed':
+            $message = "RIC-Zuweisung wurde erfolgreich bestätigt.";
+            break;
+    }
+}
+
 // Tabellen sicherstellen
 try {
     // RIC-Codes Tabelle
@@ -255,7 +267,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($assignment_id > 0) {
                     $stmt = $db->prepare("UPDATE member_ric SET status = 'confirmed' WHERE id = ? AND status = 'pending'");
                     $stmt->execute([$assignment_id]);
-                    $message = "RIC-Zuweisung wurde erfolgreich bestätigt.";
+                    $db->commit();
+                    
+                    // Weiterleitung um POST-Problem zu vermeiden
+                    header("Location: ric-verwaltung.php?success=confirmed");
+                    exit();
                 }
             }
         } catch (Exception $e) {
