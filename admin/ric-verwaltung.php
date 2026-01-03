@@ -630,12 +630,11 @@ try {
                     // Markiere als gesendet
                     formSubmitted = true;
                     
-                    // Button deaktivieren (asynchron, damit Submit durchgeht)
-                    requestAnimationFrame(function() {
-                        disableSaveButton();
-                    });
+                    // Button sofort deaktivieren (visuelles Feedback)
+                    disableSaveButton();
                     
                     // Formular wird normal abgesendet - KEIN preventDefault()
+                    // Die Seite wird nach dem Submit neu geladen (Redirect)
                 });
             }
             
