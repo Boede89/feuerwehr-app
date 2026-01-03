@@ -600,15 +600,30 @@ try {
                 assignRicForm.addEventListener('submit', function(e) {
                     if (isSubmitting) {
                         e.preventDefault();
+                        e.stopPropagation();
                         return false;
                     }
                     
+                    // Button deaktivieren BEVOR das Formular abgesendet wird
                     isSubmitting = true;
                     disableSaveButton();
                     
-                    // Formular wird jetzt abgesendet
+                    // Formular wird jetzt normal abgesendet
                     // Der Button bleibt deaktiviert bis die Seite neu geladen wird
+                    return true;
                 });
+                
+                // Zusätzlicher Schutz: Button-Click-Handler
+                const saveBtn = document.getElementById('saveAssignmentsBtn');
+                if (saveBtn) {
+                    saveBtn.addEventListener('click', function(e) {
+                        if (this.disabled) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            return false;
+                        }
+                    });
+                }
             }
             
             // Modal wird geschlossen - Button-Status zurücksetzen
@@ -616,6 +631,10 @@ try {
             if (assignRicModal) {
                 assignRicModal.addEventListener('hidden.bs.modal', function() {
                     resetSaveButton();
+                    // isSubmitting Flag zurücksetzen
+                    if (assignRicForm) {
+                        assignRicForm.isSubmitting = false;
+                    }
                 });
             }
         });
