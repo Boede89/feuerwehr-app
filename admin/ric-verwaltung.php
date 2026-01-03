@@ -241,6 +241,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } else {
                         $message = "RIC-Zuweisungen wurden gespeichert und warten auf Bestätigung durch den Divera Admin.";
                     }
+                    
+                    // Weiterleitung um POST-Problem zu vermeiden
+                    header("Location: ric-verwaltung.php?success=saved");
+                    exit();
                 }
             }
             
