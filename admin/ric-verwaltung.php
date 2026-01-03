@@ -518,7 +518,7 @@ try {
                     <div class="modal-body">
                         <p><strong>Mitglied:</strong> <span id="modal_member_name"></span></p>
                         <div class="mb-3">
-                            <label class="form-label">RIC-Codes auswählen:</label>
+                            <p class="form-label mb-2"><strong>RIC-Codes auswählen:</strong></p>
                             <div class="border rounded p-3" style="max-height: 400px; overflow-y: auto;">
                                 <?php foreach ($ric_codes as $ric): ?>
                                 <div class="form-check mb-2">
