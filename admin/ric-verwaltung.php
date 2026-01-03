@@ -72,6 +72,22 @@ try {
         // Spalte existiert bereits
     }
     try {
+        $db->exec("ALTER TABLE member_ric ADD COLUMN action ENUM('add', 'remove') DEFAULT 'add'");
+    } catch (Exception $e) {
+        // Spalte existiert bereits
+    }
+    // UNIQUE KEY anpassen falls nötig
+    try {
+        $db->exec("ALTER TABLE member_ric DROP INDEX unique_member_ric");
+    } catch (Exception $e) {
+        // Index existiert nicht oder hat anderen Namen
+    }
+    try {
+        $db->exec("ALTER TABLE member_ric ADD UNIQUE KEY unique_member_ric (member_id, ric_id, action)");
+    } catch (Exception $e) {
+        // Index existiert bereits
+    }
+    try {
         $db->exec("ALTER TABLE member_ric ADD FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL");
     } catch (Exception $e) {
         // Foreign Key existiert bereits
@@ -129,23 +145,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $db->rollBack();
                     }
                 } else {
-                    // Alte Zuweisungen laden für Vergleich
-                    $stmt = $db->prepare("SELECT ric_id FROM member_ric WHERE member_id = ?");
+                    // Alte bestätigte Zuweisungen laden für Vergleich (nur confirmed, action='add')
+                    $stmt = $db->prepare("SELECT ric_id FROM member_ric WHERE member_id = ? AND status = 'confirmed' AND action = 'add'");
                     $stmt->execute([$member_id]);
                     $old_assignments = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                    
-                    // Alte Zuweisungen löschen
-                    $stmt = $db->prepare("DELETE FROM member_ric WHERE member_id = ?");
-                    $stmt->execute([$member_id]);
                     
                     // Status bestimmen: confirmed wenn Divera Admin, sonst pending
                     $status = $is_divera_admin ? 'confirmed' : 'pending';
                     $created_by = $is_divera_admin ? null : $_SESSION['user_id'];
                     
+                    // Entfernte Zuweisungen bestimmen
+                    $removed_rics = array_diff($old_assignments, $ric_ids);
+                    $added_rics = array_diff($ric_ids, $old_assignments);
+                    
+                    // Entfernte Zuweisungen markieren (nur wenn nicht Divera Admin)
+                    if (!empty($removed_rics) && !$is_divera_admin) {
+                        // Alte pending Einträge für diese RICs löschen (falls vorhanden)
+                        $stmt = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ? AND status = 'pending'");
+                        foreach ($removed_rics as $removed_ric_id) {
+                            $stmt->execute([$member_id, $removed_ric_id]);
+                        }
+                        
+                        // Entfernte Zuweisungen als pending mit action='remove' speichern
+                        $stmt = $db->prepare("INSERT INTO member_ric (member_id, ric_id, status, action, created_by) VALUES (?, ?, 'pending', 'remove', ?) ON DUPLICATE KEY UPDATE status = 'pending', created_by = ?");
+                        foreach ($removed_rics as $removed_ric_id) {
+                            try {
+                                $stmt->execute([$member_id, $removed_ric_id, $created_by, $created_by]);
+                            } catch (Exception $e) {
+                                error_log("Fehler beim Markieren der entfernten RIC-Zuweisung: " . $e->getMessage());
+                            }
+                        }
+                    } elseif (!empty($removed_rics) && $is_divera_admin) {
+                        // Divera Admin: Direkt löschen
+                        $stmt = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ?");
+                        foreach ($removed_rics as $removed_ric_id) {
+                            $stmt->execute([$member_id, $removed_ric_id]);
+                        }
+                    }
+                    
                     // Neue Zuweisungen hinzufügen
-                    if (!empty($ric_ids)) {
-                        $stmt = $db->prepare("INSERT INTO member_ric (member_id, ric_id, status, created_by) VALUES (?, ?, ?, ?)");
-                        foreach ($ric_ids as $ric_id) {
+                    if (!empty($added_rics)) {
+                        // Alte pending Einträge für diese RICs löschen (falls vorhanden)
+                        $stmt = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ? AND status = 'pending'");
+                        foreach ($added_rics as $added_ric_id) {
+                            $stmt->execute([$member_id, $added_ric_id]);
+                        }
+                        
+                        // Neue Zuweisungen als pending mit action='add' speichern
+                        $stmt = $db->prepare("INSERT INTO member_ric (member_id, ric_id, status, action, created_by) VALUES (?, ?, ?, 'add', ?)");
+                        foreach ($added_rics as $ric_id) {
                             try {
                                 $stmt->execute([$member_id, $ric_id, $status, $created_by]);
                             } catch (Exception $e) {
@@ -192,9 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             $dashboard_url = rtrim($appUrl, '/') . '/admin/dashboard.php';
                             
-                            // Änderungen bestimmen
-                            $added_rics = array_diff($ric_ids, $old_assignments);
-                            $removed_rics = array_diff($old_assignments, $ric_ids);
+                            // Änderungen sind bereits oben berechnet ($added_rics und $removed_rics)
                             
                             // RIC-Codes Namen laden
                             $ric_names = [];
@@ -301,13 +347,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $assignment_id = (int)($_POST['assignment_id'] ?? 0);
                 
                 if ($assignment_id > 0) {
-                    $stmt = $db->prepare("UPDATE member_ric SET status = 'confirmed' WHERE id = ? AND status = 'pending'");
+                    // Lade Assignment-Info
+                    $stmt = $db->prepare("SELECT member_id, ric_id, action FROM member_ric WHERE id = ? AND status = 'pending'");
                     $stmt->execute([$assignment_id]);
-                    $db->commit();
+                    $assignment = $stmt->fetch(PDO::FETCH_ASSOC);
                     
-                    // Weiterleitung um POST-Problem zu vermeiden
-                    header("Location: ric-verwaltung.php?success=confirmed");
-                    exit();
+                    if ($assignment) {
+                        if ($assignment['action'] === 'remove') {
+                            // Bei Entfernung: Eintrag löschen
+                            $stmt = $db->prepare("DELETE FROM member_ric WHERE id = ?");
+                            $stmt->execute([$assignment_id]);
+                        } else {
+                            // Bei Hinzufügung: Status auf confirmed setzen
+                            $stmt = $db->prepare("UPDATE member_ric SET status = 'confirmed' WHERE id = ?");
+                            $stmt->execute([$assignment_id]);
+                            
+                            // Entferne alle pending 'remove' Einträge für diese Kombination
+                            $stmt = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ? AND action = 'remove' AND status = 'pending'");
+                            $stmt->execute([$assignment['member_id'], $assignment['ric_id']]);
+                        }
+                        
+                        $db->commit();
+                        
+                        // Weiterleitung um POST-Problem zu vermeiden
+                        header("Location: ric-verwaltung.php?success=confirmed");
+                        exit();
+                    }
                 }
             }
         } catch (Exception $e) {

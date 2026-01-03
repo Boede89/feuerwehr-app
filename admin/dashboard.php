@@ -238,12 +238,13 @@ try {
     }
     
     if ($is_divera_admin) {
-        // Lade offene RIC-Genehmigungen
+        // Lade offene RIC-Genehmigungen (sowohl add als auch remove)
         $stmt = $db->prepare("
             SELECT mr.id as assignment_id,
                    mr.member_id,
                    mr.ric_id,
                    mr.status,
+                   mr.action,
                    mr.created_at,
                    mr.created_by,
                    m.first_name as member_first_name,
@@ -904,7 +905,8 @@ if ($can_atemschutz) {
                                         'assignment_id' => $approval['assignment_id'],
                                         'ric_id' => $approval['ric_id'],
                                         'ric_kurztext' => $approval['ric_kurztext'],
-                                        'ric_beschreibung' => $approval['ric_beschreibung']
+                                        'ric_beschreibung' => $approval['ric_beschreibung'],
+                                        'action' => $approval['action'] ?? 'add'
                                     ];
                                 }
                                 ?>
@@ -923,10 +925,24 @@ if ($can_atemschutz) {
                                                 </small>
                                             </p>
                                             <p class="card-text mb-2">
-                                                <strong>Zugewiesene RIC-Codes:</strong><br>
+                                                <strong>RIC-Codes:</strong><br>
                                                 <?php foreach ($group['rics'] as $ric): ?>
+                                                    <?php $is_removed = ($ric['action'] === 'remove'); ?>
                                                     <span class="badge bg-warning text-dark me-1 mb-1">
-                                                        <?php echo htmlspecialchars($ric['ric_kurztext']); ?>
+                                                        <?php if ($is_removed): ?>
+                                                            <span style="text-decoration: line-through;"><?php echo htmlspecialchars($ric['ric_kurztext']); ?></span>
+                                                            <small>(Entfernung)</small>
+                                                        <?php else: ?>
+                                                            <?php echo htmlspecialchars($ric['ric_kurztext']); ?>
+                                                            <small>(Hinzufügung)</small>
+                                                        <?php endif; ?>
+                                                        <form method="POST" action="ric-verwaltung.php" style="display: inline;" onsubmit="return confirm('Möchten Sie diese Änderung bestätigen?');">
+                                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                                                            <input type="hidden" name="assignment_id" value="<?php echo $ric['assignment_id']; ?>">
+                                                            <button type="submit" name="confirm_assignment" class="btn btn-sm btn-success ms-1" style="padding: 0 5px; font-size: 0.7em;" title="Bestätigen">
+                                                                <i class="fas fa-check"></i>
+                                                            </button>
+                                                        </form>
                                                     </span>
                                                 <?php endforeach; ?>
                                             </p>
