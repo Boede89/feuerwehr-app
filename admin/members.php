@@ -1770,9 +1770,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             } else {
                                 html += ric.kurztext;
                             }
-                            if (ric.beschreibung) {
-                                html += ' <small>(' + ric.beschreibung + ')</small>';
-                            }
                             html += '</span>';
                         });
                         ricsContainer.innerHTML = html;
