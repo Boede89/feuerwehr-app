@@ -1501,6 +1501,18 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
     <script>
         // Event-Listener für klickbare Zeilen
         document.addEventListener('DOMContentLoaded', function() {
+            // Wenn RIC-Zuweisungen gespeichert wurden und member_id vorhanden, Details-Modal öffnen
+            <?php if (isset($_GET['success']) && $_GET['success'] === 'ric_saved' && isset($_GET['member_id'])): ?>
+            const savedMemberId = <?php echo (int)$_GET['member_id']; ?>;
+            setTimeout(function() {
+                const memberRow = document.querySelector('[data-member-id="' + savedMemberId + '"]');
+                if (memberRow) {
+                    const memberData = JSON.parse(memberRow.dataset.memberData);
+                    showMemberDetails(memberData);
+                }
+            }, 500);
+            <?php endif; ?>
+            
             const memberRows = document.querySelectorAll('.member-row');
             console.log('Gefundene Mitgliederzeilen:', memberRows.length);
             memberRows.forEach(function(row) {
