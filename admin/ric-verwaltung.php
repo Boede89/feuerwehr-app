@@ -68,6 +68,31 @@ try {
     error_log("Fehler beim Erstellen der Tabellen: " . $e->getMessage());
 }
 
+// Divera Admin laden
+$divera_admin_user_id = null;
+try {
+    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'ric_divera_admin_user_id' LIMIT 1");
+    $stmt->execute();
+    $result = $stmt->fetchColumn();
+    if ($result !== false && !empty($result)) {
+        $divera_admin_user_id = (int)$result;
+    }
+} catch (Exception $e) {
+    error_log("Fehler beim Laden des Divera Admins: " . $e->getMessage());
+}
+
+$is_divera_admin = ($divera_admin_user_id && $_SESSION['user_id'] == $divera_admin_user_id);
+
+// Aktueller Benutzer Info laden
+$current_user = null;
+try {
+    $stmt = $db->prepare("SELECT id, first_name, last_name, email FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $current_user = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("Fehler beim Laden des aktuellen Benutzers: " . $e->getMessage());
+}
+
 // RIC-Zuweisungen speichern
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -83,24 +108,150 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($member_id <= 0) {
                     $error = "Ungültige Mitglieds-ID.";
                 } else {
+                    // Alte Zuweisungen laden für Vergleich
+                    $stmt = $db->prepare("SELECT ric_id FROM member_ric WHERE member_id = ?");
+                    $stmt->execute([$member_id]);
+                    $old_assignments = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    
                     // Alte Zuweisungen löschen
                     $stmt = $db->prepare("DELETE FROM member_ric WHERE member_id = ?");
                     $stmt->execute([$member_id]);
                     
+                    // Status bestimmen: confirmed wenn Divera Admin, sonst pending
+                    $status = $is_divera_admin ? 'confirmed' : 'pending';
+                    $created_by = $is_divera_admin ? null : $_SESSION['user_id'];
+                    
                     // Neue Zuweisungen hinzufügen
                     if (!empty($ric_ids)) {
-                        $stmt = $db->prepare("INSERT INTO member_ric (member_id, ric_id) VALUES (?, ?)");
+                        $stmt = $db->prepare("INSERT INTO member_ric (member_id, ric_id, status, created_by) VALUES (?, ?, ?, ?)");
                         foreach ($ric_ids as $ric_id) {
                             try {
-                                $stmt->execute([$member_id, $ric_id]);
+                                $stmt->execute([$member_id, $ric_id, $status, $created_by]);
                             } catch (Exception $e) {
                                 // Duplikat ignorieren
                             }
                         }
                     }
                     
+                    // E-Mail an Divera Admin senden wenn nicht selbst geändert
+                    if (!$is_divera_admin && $divera_admin_user_id && $current_user) {
+                        // Mitglied Info laden
+                        $stmt = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
+                        $stmt->execute([$member_id]);
+                        $member = $stmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        // Divera Admin Info laden
+                        $stmt = $db->prepare("SELECT first_name, last_name, email FROM users WHERE id = ?");
+                        $stmt->execute([$divera_admin_user_id]);
+                        $divera_admin = $stmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($divera_admin && !empty($divera_admin['email'])) {
+                            // Änderungen bestimmen
+                            $added_rics = array_diff($ric_ids, $old_assignments);
+                            $removed_rics = array_diff($old_assignments, $ric_ids);
+                            
+                            // RIC-Codes Namen laden
+                            $ric_names = [];
+                            if (!empty($ric_ids) || !empty($old_assignments)) {
+                                $all_ric_ids = array_unique(array_merge($ric_ids, $old_assignments));
+                                if (!empty($all_ric_ids)) {
+                                    $placeholders = implode(',', array_fill(0, count($all_ric_ids), '?'));
+                                    $stmt = $db->prepare("SELECT id, kurztext FROM ric_codes WHERE id IN ($placeholders)");
+                                    $stmt->execute($all_ric_ids);
+                                    $ric_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                                    foreach ($ric_data as $ric) {
+                                        $ric_names[$ric['id']] = $ric['kurztext'];
+                                    }
+                                }
+                            }
+                            
+                            $email_subject = 'RIC-Zuweisung erfordert Bestätigung';
+                            $email_body = '
+                            <html>
+                            <head>
+                                <meta charset="UTF-8">
+                                <style>
+                                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                                    .header { background-color: #ffc107; color: #000; padding: 20px; text-align: center; }
+                                    .content { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
+                                    .info-box { background-color: #fff; padding: 15px; margin: 20px 0; border-left: 4px solid #ffc107; }
+                                    .info-box strong { color: #ffc107; }
+                                    .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+                                    .button { display: inline-block; background-color: #0d6efd; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 20px; }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="container">
+                                    <div class="header">
+                                        <h1>RIC-Zuweisung erfordert Bestätigung</h1>
+                                    </div>
+                                    <div class="content">
+                                        <p>Hallo ' . htmlspecialchars($divera_admin['first_name']) . ',</p>
+                                        <p>Es wurde eine RIC-Zuweisung vorgenommen, die Ihre Bestätigung erfordert:</p>
+                                        <div class="info-box">
+                                            <p><strong>Geändert von:</strong> ' . htmlspecialchars($current_user['first_name'] . ' ' . $current_user['last_name']) . ' (' . htmlspecialchars($current_user['email']) . ')</p>
+                                            <p><strong>Mitglied:</strong> ' . htmlspecialchars($member['first_name'] . ' ' . $member['last_name']) . '</p>';
+                            
+                            if (!empty($added_rics)) {
+                                $added_names = [];
+                                foreach ($added_rics as $ric_id) {
+                                    if (isset($ric_names[$ric_id])) {
+                                        $added_names[] = htmlspecialchars($ric_names[$ric_id]);
+                                    }
+                                }
+                                if (!empty($added_names)) {
+                                    $email_body .= '<p><strong>Hinzugefügte RIC-Codes:</strong> ' . implode(', ', $added_names) . '</p>';
+                                }
+                            }
+                            
+                            if (!empty($removed_rics)) {
+                                $removed_names = [];
+                                foreach ($removed_rics as $ric_id) {
+                                    if (isset($ric_names[$ric_id])) {
+                                        $removed_names[] = htmlspecialchars($ric_names[$ric_id]);
+                                    }
+                                }
+                                if (!empty($removed_names)) {
+                                    $email_body .= '<p><strong>Entfernte RIC-Codes:</strong> ' . implode(', ', $removed_names) . '</p>';
+                                }
+                            }
+                            
+                            $email_body .= '
+                                        </div>
+                                        <p style="text-align: center; margin: 30px 0;">
+                                            <a href="https://feuerwehr.boede89.selfhost.co/admin/ric-verwaltung.php" class="button">Zur RIC-Verwaltung</a>
+                                        </p>
+                                        <p>Bitte prüfen und bestätigen Sie die Änderung in der RIC-Verwaltung.</p>
+                                    </div>
+                                    <div class="footer">
+                                        <p>Diese E-Mail wurde automatisch generiert. Bitte antworten Sie nicht auf diese E-Mail.</p>
+                                    </div>
+                                </div>
+                            </body>
+                            </html>';
+                            
+                            send_email($divera_admin['email'], $email_subject, $email_body, '', true);
+                        }
+                    }
+                    
                     $db->commit();
-                    $message = "RIC-Zuweisungen wurden erfolgreich gespeichert.";
+                    if ($is_divera_admin) {
+                        $message = "RIC-Zuweisungen wurden erfolgreich gespeichert.";
+                    } else {
+                        $message = "RIC-Zuweisungen wurden gespeichert und warten auf Bestätigung durch den Divera Admin.";
+                    }
+                }
+            }
+            
+            // Bestätigung durch Divera Admin
+            if (isset($_POST['confirm_assignment']) && $is_divera_admin) {
+                $assignment_id = (int)($_POST['assignment_id'] ?? 0);
+                
+                if ($assignment_id > 0) {
+                    $stmt = $db->prepare("UPDATE member_ric SET status = 'confirmed' WHERE id = ? AND status = 'pending'");
+                    $stmt->execute([$assignment_id]);
+                    $message = "RIC-Zuweisung wurde erfolgreich bestätigt.";
                 }
             }
         } catch (Exception $e) {
@@ -255,6 +406,7 @@ try {
                                                 <td>
                                                     <?php 
                                                     $assigned_rics = $member_ric_assignments[$member['id']] ?? [];
+                                                    $statuses = $member_ric_statuses[$member['id']] ?? [];
                                                     if (empty($assigned_rics)): 
                                                     ?>
                                                         <span class="text-muted">Keine Zuweisungen</span>
@@ -263,9 +415,22 @@ try {
                                                             $ric = array_filter($ric_codes, function($r) use ($ric_id) { return $r['id'] == $ric_id; });
                                                             $ric = reset($ric);
                                                             if ($ric):
+                                                                $status = $statuses[$ric_id]['status'] ?? 'confirmed';
+                                                                $assignment_id = $statuses[$ric_id]['id'] ?? 0;
+                                                                $badge_class = ($status === 'pending') ? 'bg-warning' : 'bg-primary';
+                                                                $badge_title = ($status === 'pending') ? 'Wartet auf Bestätigung' : htmlspecialchars($ric['beschreibung'] ?? '');
                                                         ?>
-                                                            <span class="badge bg-primary me-1" title="<?php echo htmlspecialchars($ric['beschreibung'] ?? ''); ?>">
+                                                            <span class="badge <?php echo $badge_class; ?> me-1" title="<?php echo $badge_title; ?>" style="<?php echo ($status === 'pending') ? 'background-color: #ffc107 !important;' : ''; ?>">
                                                                 <?php echo htmlspecialchars($ric['kurztext']); ?>
+                                                                <?php if ($status === 'pending' && $is_divera_admin && $assignment_id > 0): ?>
+                                                                    <form method="POST" style="display: inline;" onsubmit="return confirm('Möchten Sie diese RIC-Zuweisung bestätigen?');">
+                                                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                                                                        <input type="hidden" name="assignment_id" value="<?php echo $assignment_id; ?>">
+                                                                        <button type="submit" name="confirm_assignment" class="btn btn-sm btn-success ms-1" style="padding: 0 5px; font-size: 0.7em;" title="Bestätigen">
+                                                                            <i class="fas fa-check"></i>
+                                                                        </button>
+                                                                    </form>
+                                                                <?php endif; ?>
                                                             </span>
                                                         <?php 
                                                             endif;
