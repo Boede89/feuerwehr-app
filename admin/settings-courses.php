@@ -266,13 +266,26 @@ $csrf_token = generate_csrf_token();
                             </div>
                             
                             <div class="mb-3">
-                                <label for="requirements" class="form-label">Anforderungen (Voraussetzungen)</label>
-                                <select class="form-select" id="requirements" name="requirements[]" multiple size="5">
-                                    <?php foreach ($courses as $course): ?>
-                                        <option value="<?php echo $course['id']; ?>"><?php echo htmlspecialchars($course['name']); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <small class="form-text text-muted">Halten Sie Strg (Windows) oder Cmd (Mac) gedrückt, um mehrere Lehrgänge auszuwählen.</small>
+                                <label class="form-label">Anforderungen (Voraussetzungen)</label>
+                                <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                    <?php if (empty($courses)): ?>
+                                        <p class="text-muted mb-0">Noch keine Lehrgänge vorhanden.</p>
+                                    <?php else: ?>
+                                        <?php foreach ($courses as $course): ?>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input requirement-checkbox" 
+                                                       type="checkbox" 
+                                                       name="requirements[]" 
+                                                       value="<?php echo $course['id']; ?>" 
+                                                       id="req_<?php echo $course['id']; ?>">
+                                                <label class="form-check-label" for="req_<?php echo $course['id']; ?>">
+                                                    <?php echo htmlspecialchars($course['name']); ?>
+                                                </label>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </div>
+                                <small class="form-text text-muted">Klicken Sie auf die Lehrgänge, die als Voraussetzung gelten sollen.</small>
                             </div>
                             
                             <button type="submit" class="btn btn-primary" id="submitButton">
@@ -364,18 +377,20 @@ $csrf_token = generate_csrf_token();
             document.getElementById('submitButton').classList.remove('btn-primary');
             document.getElementById('submitButton').classList.add('btn-success');
             
-            // Anforderungen auswählen
-            const requirementsSelect = document.getElementById('requirements');
-            if (requirementsSelect && requirementIds && requirementIds.length > 0) {
-                for (let i = 0; i < requirementsSelect.options.length; i++) {
-                    const optionValue = parseInt(requirementsSelect.options[i].value);
-                    requirementsSelect.options[i].selected = requirementIds.includes(optionValue);
-                }
-            } else {
-                // Alle zurücksetzen wenn keine Anforderungen
-                for (let i = 0; i < requirementsSelect.options.length; i++) {
-                    requirementsSelect.options[i].selected = false;
-                }
+            // Anforderungen auswählen (Checkboxen)
+            // Zuerst alle zurücksetzen
+            document.querySelectorAll('.requirement-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // Dann die gewünschten auswählen
+            if (requirementIds && requirementIds.length > 0) {
+                requirementIds.forEach(reqId => {
+                    const checkbox = document.getElementById('req_' + reqId);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
             }
             
             // Zum Formular scrollen
@@ -391,13 +406,10 @@ $csrf_token = generate_csrf_token();
             document.getElementById('submitButton').classList.remove('btn-success');
             document.getElementById('submitButton').classList.add('btn-primary');
             
-            // Anforderungen zurücksetzen
-            const requirementsSelect = document.getElementById('requirements');
-            if (requirementsSelect) {
-                for (let i = 0; i < requirementsSelect.options.length; i++) {
-                    requirementsSelect.options[i].selected = false;
-                }
-            }
+            // Anforderungen zurücksetzen (Checkboxen)
+            document.querySelectorAll('.requirement-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
         }
         
         // Formular-Reset nach erfolgreichem Submit
