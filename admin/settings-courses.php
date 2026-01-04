@@ -337,8 +337,8 @@ $csrf_token = generate_csrf_token();
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
-                                                    <button type="button" class="btn btn-sm btn-primary" onclick="editCourse(<?php echo $course['id']; ?>, <?php echo json_encode($course['name']); ?>, <?php echo json_encode($course['description'] ?? ''); ?>, [<?php echo !empty($course['requirements']) ? implode(',', array_column($course['requirements'], 'required_course_id')) : ''; ?>])">
-                                                        <i class="fas fa-edit"></i>
+                                                    <button type="button" class="btn btn-sm btn-primary" onclick="editCourse(<?php echo $course['id']; ?>, <?php echo json_encode($course['name']); ?>, <?php echo json_encode($course['description'] ?? ''); ?>, <?php echo json_encode(!empty($course['requirements']) ? array_column($course['requirements'], 'required_course_id') : []); ?>)">
+                                                        <i class="fas fa-edit"></i> Bearbeiten
                                                     </button>
                                                     <a href="?delete=<?php echo $course['id']; ?>&csrf_token=<?php echo $csrf_token; ?>" 
                                                        class="btn btn-sm btn-danger" 
