@@ -204,7 +204,6 @@ require_once 'includes/functions.php';
                                     <i class="fas fa-truck text-primary"></i>
                                 </div>
                                 <h5 class="card-title">Fahrzeug Reservierung</h5>
-                                <p class="card-text">Reservieren Sie Feuerwehrfahrzeuge für Lehrgänge, Übungen etc.</p>
                                 </div>
                             </div>
                         </a>
@@ -233,7 +232,6 @@ require_once 'includes/functions.php';
                                         <i class="fas fa-file-alt text-primary"></i>
                                     </div>
                                     <h5 class="card-title">Formulare</h5>
-                                    <p class="card-text">Zugriff auf verschiedene Formulare und Dokumente der Feuerwehr.</p>
                                 </div>
                             </div>
                         </a>
