@@ -37,7 +37,7 @@ if (isset($_GET['success'])) {
 }
 
 // Lehrgang hinterlegen (POST-Handler)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course']) && $can_courses) {
+// POST-Handler für assign_course wurde nach courses.php verschoben
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "Ungültiger Sicherheitstoken.";
     } else {
