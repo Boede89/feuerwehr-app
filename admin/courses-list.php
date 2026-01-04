@@ -202,8 +202,16 @@ function removeCourseFromMember(memberId, courseId, memberName) {
         return; // Abgebrochen
     }
     
-    // CSRF-Token aus dem Formular holen
-    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
+    // CSRF-Token aus dem Hidden Input holen
+    const csrfTokenInput = document.getElementById('csrf_token_list');
+    const csrfToken = csrfTokenInput ? csrfTokenInput.value : '';
+    
+    console.log('Entferne Lehrgang:', { memberId, courseId, memberName, csrfToken: csrfToken ? 'vorhanden' : 'FEHLT' });
+    
+    if (!csrfToken) {
+        alert('Fehler: CSRF-Token nicht gefunden. Bitte Seite neu laden.');
+        return;
+    }
     
     // AJAX-Anfrage zum Entfernen
     const formData = new FormData();
@@ -217,6 +225,8 @@ function removeCourseFromMember(memberId, courseId, memberName) {
         body: formData
     })
     .then(response => {
+        console.log('Response Status:', response.status);
+        console.log('Response Redirected:', response.redirected);
         if (response.redirected) {
             window.location.href = response.url;
         } else {
@@ -224,12 +234,13 @@ function removeCourseFromMember(memberId, courseId, memberName) {
         }
     })
     .then(data => {
+        console.log('Response Data:', data);
         // Seite neu laden, um aktualisierte Daten anzuzeigen
         location.reload();
     })
     .catch(error => {
         console.error('Fehler beim Entfernen:', error);
-        alert('Fehler beim Entfernen des Lehrgangs.');
+        alert('Fehler beim Entfernen des Lehrgangs: ' + error.message);
     });
 }
 </script>
