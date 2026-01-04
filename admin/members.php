@@ -1823,10 +1823,111 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             
             if (addMemberRicBtn && addMemberRicContainer) {
                 addMemberRicBtn.addEventListener('click', function() {
-                    addMemberRicContainer.style.display = addMemberRicContainer.style.display === 'none' ? 'block' : 'none';
+                    const isVisible = addMemberRicContainer.style.display !== 'none';
+                    if (isVisible) {
+                        addMemberRicContainer.style.display = 'none';
+                    } else {
+                        addMemberRicContainer.style.display = 'block';
+                        // Wenn im Bearbeiten-Modus, aktuelle RICs vorauswählen
+                        const memberIdInput = document.getElementById('memberId');
+                        if (memberIdInput && memberIdInput.value) {
+                            loadAndPreselectRics(memberIdInput.value);
+                        } else {
+                            setupRicButtons([]);
+                        }
+                    }
                 });
                 
-                // Event-Listener für RIC-Buttons
+                // Event-Listener für RIC-Buttons (werden beim Öffnen des Containers registriert)
+                function setupRicButtons(preselectedRicIds = []) {
+                    // Entferne alte Event-Listener durch Klonen
+                    document.querySelectorAll('.add-member-ric-btn').forEach(btn => {
+                        const newBtn = btn.cloneNode(true);
+                        btn.parentNode.replaceChild(newBtn, btn);
+                        
+                        newBtn.addEventListener('click', function() {
+                            const ricId = this.dataset.ricId;
+                            const input = document.getElementById('add_ric_' + ricId);
+                            
+                            // Prüfen ob Button bereits aktiviert ist (hat btn-warning Klasse)
+                            const isActive = this.classList.contains('btn-warning');
+                            
+                            if (isActive) {
+                                // Entfernen - Button ist aktiviert, also deaktivieren
+                                if (input) {
+                                    input.remove();
+                                }
+                                this.classList.remove('btn-warning');
+                                this.classList.add('btn-outline-secondary');
+                            } else {
+                                // Hinzufügen - Button ist nicht aktiviert, also aktivieren
+                                const hiddenInput = document.createElement('input');
+                                hiddenInput.type = 'hidden';
+                                hiddenInput.name = 'ric_ids[]';
+                                hiddenInput.value = ricId;
+                                hiddenInput.id = 'add_ric_' + ricId;
+                                hiddenInput.className = 'add-member-ric-input';
+                                
+                                // Formular finden und Input hinzufügen (nicht in den Button-Container)
+                                const form = document.getElementById('memberForm');
+                                if (form) {
+                                    form.appendChild(hiddenInput);
+                                }
+                                
+                                this.classList.remove('btn-outline-secondary');
+                                this.classList.add('btn-warning');
+                            }
+                        });
+                        
+                        // Vorauswahl: Prüfe ob diese RIC bereits zugewiesen ist
+                        const ricId = newBtn.dataset.ricId;
+                        if (preselectedRicIds.includes(parseInt(ricId))) {
+                            newBtn.classList.remove('btn-outline-secondary');
+                            newBtn.classList.add('btn-warning');
+                            
+                            // Hidden Input erstellen
+                            const hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.name = 'ric_ids[]';
+                            hiddenInput.value = ricId;
+                            hiddenInput.id = 'add_ric_' + ricId;
+                            hiddenInput.className = 'add-member-ric-input';
+                            
+                            const form = document.getElementById('memberForm');
+                            if (form) {
+                                form.appendChild(hiddenInput);
+                            }
+                        }
+                    });
+                }
+                
+                function loadAndPreselectRics(memberId) {
+                    // Lade aktuelle RICs des Mitglieds
+                    fetch('get-member-rics.php?member_id=' + memberId)
+                        .then(response => response.json())
+                        .then(data => {
+                            const preselectedRicIds = [];
+                            if (data.success && data.rics) {
+                                data.rics.forEach(function(ric) {
+                                    // Nur confirmed 'add' Einträge vorauswählen (oder alle wenn Divera Admin)
+                                    const isDiveraAdmin = <?php echo $is_divera_admin ? 'true' : 'false'; ?>;
+                                    if (ric.status === 'confirmed' && ric.action === 'add' || (isDiveraAdmin && ric.action === 'add')) {
+                                        preselectedRicIds.push(ric.ric_id);
+                                    }
+                                });
+                            }
+                            setupRicButtons(preselectedRicIds);
+                        })
+                        .catch(error => {
+                            console.error('Fehler beim Laden der RIC-Zuweisungen:', error);
+                            setupRicButtons([]);
+                        });
+                }
+                
+                // Initial setup (für neue Mitglieder)
+                setupRicButtons([]);
+                
+                // Alte Event-Listener entfernen (falls vorhanden)
                 document.querySelectorAll('.add-member-ric-btn').forEach(btn => {
                     btn.addEventListener('click', function() {
                         const ricId = this.dataset.ricId;
@@ -2091,6 +2192,30 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     }
                 }
                 
+                // Lehrgänge-Anpassen-Button konfigurieren
+                const assignCoursesBtn = document.getElementById('memberDetailsAssignCoursesBtn');
+                if (assignCoursesBtn) {
+                    if (member.member_id || member.id) {
+                        assignCoursesBtn.style.display = 'inline-block';
+                        assignCoursesBtn.onclick = function() {
+                            const memberId = member.member_id || member.id;
+                            // Öffne Bearbeiten-Modal und dann Lehrgänge-Bereich
+                            modal.hide();
+                            setTimeout(function() {
+                                editMember(member);
+                                setTimeout(function() {
+                                    const coursesBtn = document.getElementById('addMemberCoursesBtn');
+                                    if (coursesBtn) {
+                                        coursesBtn.click();
+                                    }
+                                }, 500);
+                            }, 300);
+                        };
+                    } else {
+                        assignCoursesBtn.style.display = 'none';
+                    }
+                }
+                
                 modal.show();
             } catch (error) {
                 console.error('Fehler in showMemberDetails:', error);
@@ -2205,11 +2330,35 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 });
         }
         
-        function loadCoursesForAddMember() {
+        function loadCoursesForAddMember(memberId = null) {
             const container = document.getElementById('addMemberCoursesContainer');
             if (!container) return;
             
             container.innerHTML = '<p class="text-muted">Lade verfügbare Lehrgänge...</p>';
+            
+            // Lade aktuelle Lehrgänge des Mitglieds wenn im Bearbeiten-Modus
+            let currentCourses = [];
+            if (memberId) {
+                fetch('get-member-courses-single.php?member_id=' + memberId)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.courses) {
+                            currentCourses = data.courses;
+                        }
+                        loadCoursesAndPreselect(currentCourses);
+                    })
+                    .catch(error => {
+                        console.error('Fehler beim Laden der aktuellen Lehrgänge:', error);
+                        loadCoursesAndPreselect([]);
+                    });
+            } else {
+                loadCoursesAndPreselect([]);
+            }
+        }
+        
+        function loadCoursesAndPreselect(currentCourses) {
+            const container = document.getElementById('addMemberCoursesContainer');
+            if (!container) return;
             
             fetch('get-courses.php')
                 .then(response => response.json())
