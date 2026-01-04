@@ -2213,7 +2213,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             html += escapeHtml(course.name);
                             html += '</button>';
                             html += '<input type="text" class="form-control form-control-sm course-year-input" style="width: 100px; display: none;" placeholder="Jahr" autocomplete="off" id="add_course_year_' + course.id + '">';
-                            html += '<input type="hidden" class="add-member-course-input" id="add_course_' + course.id + '">';
                             html += '</div>';
                         });
                         html += '</div>';
