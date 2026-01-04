@@ -2273,17 +2273,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         assignCoursesBtn.style.display = 'inline-block';
                         assignCoursesBtn.onclick = function() {
                             const memberId = member.member_id || member.id;
-                            // Öffne Bearbeiten-Modal und dann Lehrgänge-Bereich
-                            modal.hide();
-                            setTimeout(function() {
-                                editMember(member);
-                                setTimeout(function() {
-                                    const coursesBtn = document.getElementById('addMemberCoursesBtn');
-                                    if (coursesBtn) {
-                                        coursesBtn.click();
-                                    }
-                                }, 500);
-                            }, 300);
+                            const memberName = (member.first_name || '') + ' ' + (member.last_name || '');
+                            openCoursesAssignmentModal(memberId, memberName);
                         };
                     } else {
                         assignCoursesBtn.style.display = 'none';
