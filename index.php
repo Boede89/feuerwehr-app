@@ -218,8 +218,8 @@ require_once 'includes/functions.php';
                                         <i class="fas fa-user-shield"></i>
                                     </div>
                                 </div>
-                                <h5 class="card-title">Atemschutzeintrag erstellen</h5>
-                                <p class="card-text">Erstellen Sie einen neuen Atemschutzeintrag für Einsatz/Übung, Atemschutzstrecke oder G26.3.</p>
+                                <h5 class="card-title">Atemschutz</h5>
+                                <p class="card-text">Einsatz/Übung/Strecke/G26.3 hinterlegen</p>
                             </div>
                         </div>
                     </div>
@@ -250,7 +250,7 @@ require_once 'includes/functions.php';
             <div class="modal-content">
                 <div class="modal-header bg-info text-white">
                     <h5 class="modal-title">
-                        <i class="fas fa-user-shield me-2"></i>Atemschutzeintrag erstellen
+                        <i class="fas fa-user-shield me-2"></i>Atemschutz
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -306,7 +306,7 @@ require_once 'includes/functions.php';
 
     <footer class="bg-light mt-5 py-4">
         <div class="container text-center">
-            <p class="text-muted mb-3">&copy; 2025 Boedes Feuerwehr App&nbsp;&nbsp;Version: 2.4&nbsp;&nbsp;Alle Rechte vorbehalten</p>
+            <p class="text-muted mb-3">&copy; 2025 Boedes Feuerwehr App&nbsp;&nbsp;Version: 2.5&nbsp;&nbsp;Alle Rechte vorbehalten</p>
             <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#feedbackModal">
                 <i class="fas fa-comment-dots me-1"></i>Feedback & Wünsche
             </button>
