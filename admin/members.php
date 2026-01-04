@@ -1517,7 +1517,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                                type="checkbox" 
                                                name="ric_ids[]" 
                                                value="<?php echo $ric['id']; ?>" 
-                                               id="ric_<?php echo $ric['id']; ?>">
+                                               id="ric_<?php echo $ric['id']; ?>"
+                                               autocomplete="off">
                                         <label class="form-check-label" for="ric_<?php echo $ric['id']; ?>">
                                             <strong><?php echo htmlspecialchars($ric['kurztext']); ?></strong>
                                             <?php if (!empty($ric['beschreibung'])): ?>
@@ -1562,34 +1563,34 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     <div class="modal-body">
                         <div class="row g-3">
                             <div class="col-12 col-md-6">
-                                <label class="form-label">
+                                <label class="form-label" for="memberFirstName">
                                     <i class="fas fa-user me-1"></i>Vorname <span class="text-danger">*</span>
                                 </label>
-                                <input type="text" class="form-control" name="first_name" id="memberFirstName" required>
+                                <input type="text" class="form-control" name="first_name" id="memberFirstName" autocomplete="given-name" required>
                             </div>
                             <div class="col-12 col-md-6">
-                                <label class="form-label">
+                                <label class="form-label" for="memberLastName">
                                     <i class="fas fa-user me-1"></i>Nachname <span class="text-danger">*</span>
                                 </label>
-                                <input type="text" class="form-control" name="last_name" id="memberLastName" required>
+                                <input type="text" class="form-control" name="last_name" id="memberLastName" autocomplete="family-name" required>
                             </div>
                             <div class="col-12 col-md-6">
-                                <label class="form-label" id="emailLabel">
+                                <label class="form-label" for="memberEmail" id="emailLabel">
                                     <i class="fas fa-envelope me-1"></i>E-Mail (optional)
                                 </label>
-                                <input type="email" class="form-control" name="email" id="memberEmail">
+                                <input type="email" class="form-control" name="email" id="memberEmail" autocomplete="email">
                             </div>
                             <div class="col-12 col-md-6">
-                                <label class="form-label" id="birthdateLabel">
+                                <label class="form-label" for="memberBirthdate" id="birthdateLabel">
                                     <i class="fas fa-calendar me-1"></i>Geburtsdatum (optional)
                                 </label>
-                                <input type="date" class="form-control" name="birthdate" id="memberBirthdate">
+                                <input type="date" class="form-control" name="birthdate" id="memberBirthdate" autocomplete="bday">
                             </div>
                             <div class="col-12">
-                                <label class="form-label">
+                                <label class="form-label" for="memberPhone">
                                     <i class="fas fa-phone me-1"></i>Telefon (optional)
                                 </label>
-                                <input type="tel" class="form-control" name="phone" id="memberPhone">
+                                <input type="tel" class="form-control" name="phone" id="memberPhone" autocomplete="tel">
                             </div>
                                 <div class="col-12">
                                     <div class="form-check form-switch">
@@ -1614,8 +1615,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                                     <h6 class="mb-3"><i class="fas fa-road me-2"></i> Strecke</h6>
                                                     <div class="row g-3">
                                                         <div class="col-12 col-md-6">
-                                                            <label class="form-label">Strecke Am <span class="text-danger">*</span></label>
-                                                            <input type="date" class="form-control" name="strecke_am" id="memberStreckeAm">
+                                                            <label class="form-label" for="memberStreckeAm">Strecke Am <span class="text-danger">*</span></label>
+                                                            <input type="date" class="form-control" name="strecke_am" id="memberStreckeAm" autocomplete="off">
                                                             <small class="form-text text-muted">Bis-Datum wird automatisch auf +1 Jahr gesetzt.</small>
                                                         </div>
                                                     </div>
@@ -1627,8 +1628,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                                     <h6 class="mb-3"><i class="fas fa-stethoscope me-2"></i> G26.3</h6>
                                                     <div class="row g-3">
                                                         <div class="col-12 col-md-6">
-                                                            <label class="form-label">G26.3 Am <span class="text-danger">*</span></label>
-                                                            <input type="date" class="form-control" name="g263_am" id="memberG263Am">
+                                                            <label class="form-label" for="memberG263Am">G26.3 Am <span class="text-danger">*</span></label>
+                                                            <input type="date" class="form-control" name="g263_am" id="memberG263Am" autocomplete="off">
                                                             <small class="form-text text-muted">Bis-Datum: unter 50 Jahre +3 Jahre, ab 50 +1 Jahr.</small>
                                                         </div>
                                                     </div>
@@ -1640,8 +1641,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                                     <h6 class="mb-3"><i class="fas fa-dumbbell me-2"></i> Übung/Einsatz</h6>
                                                     <div class="row g-3">
                                                         <div class="col-12 col-md-6">
-                                                            <label class="form-label">Übung/Einsatz Am <span class="text-danger">*</span></label>
-                                                            <input type="date" class="form-control" name="uebung_am" id="memberUebungAm">
+                                                            <label class="form-label" for="memberUebungAm">Übung/Einsatz Am <span class="text-danger">*</span></label>
+                                                            <input type="date" class="form-control" name="uebung_am" id="memberUebungAm" autocomplete="off">
                                                             <small class="form-text text-muted">Bis-Datum wird automatisch auf +1 Jahr gesetzt.</small>
                                                         </div>
                                                     </div>
@@ -2564,7 +2565,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     <input type="hidden" name="course_id" id="selectedCourseId" value="" autocomplete="off">
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label for="courseButtonsForAssign" class="form-label">Lehrgang auswählen:</label>
+                            <span class="form-label d-block">Lehrgang auswählen:</span>
                             <div class="d-flex flex-wrap gap-2" id="courseButtonsForAssign" role="group" aria-label="Lehrgang auswählen">
                                 <?php foreach ($courses as $course): ?>
                                     <button type="button" class="btn btn-outline-success course-assign-btn" data-course-id="<?php echo $course['id']; ?>" onclick="selectCourseForAssign(<?php echo $course['id']; ?>, '<?php echo htmlspecialchars($course['name'], ENT_QUOTES); ?>')" aria-label="Lehrgang <?php echo htmlspecialchars($course['name']); ?> auswählen">
@@ -2578,7 +2579,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         </div>
                         
                         <div id="assignCourseMembers" style="display: none;">
-                            <label for="assignCourseMembersList" class="form-label">Mitglieder auswählen:</label>
+                            <span class="form-label d-block">Mitglieder auswählen:</span>
                             <div id="assignCourseMembersList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;" role="group" aria-label="Mitglieder auswählen">
                                 <p class="text-muted">Lade Mitglieder...</p>
                             </div>
