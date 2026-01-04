@@ -374,6 +374,45 @@ $csrf_token = generate_csrf_token();
             if (urlParams.has('success')) {
                 resetForm();
             }
+            
+            // Event-Listener für Bearbeiten-Buttons
+            document.querySelectorAll('.edit-course-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const courseId = this.dataset.courseId;
+                    const courseName = this.dataset.courseName;
+                    const courseDescription = this.dataset.courseDescription;
+                    const courseRequirements = JSON.parse(this.dataset.courseRequirements || '[]');
+                    
+                    editCourse(courseId, courseName, courseDescription, courseRequirements);
+                });
+            });
+            
+            // Event-Listener für Anforderungs-Buttons
+            document.querySelectorAll('.requirement-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const requirementId = this.dataset.requirementId;
+                    const input = document.getElementById('req_' + requirementId);
+                    
+                    if (input && input.value) {
+                        // Entfernen
+                        input.remove();
+                        this.classList.remove('btn-success');
+                        this.classList.add('btn-outline-secondary');
+                    } else {
+                        // Hinzufügen
+                        const hiddenInput = document.createElement('input');
+                        hiddenInput.type = 'hidden';
+                        hiddenInput.name = 'requirements[]';
+                        hiddenInput.value = requirementId;
+                        hiddenInput.id = 'req_' + requirementId;
+                        hiddenInput.className = 'requirement-input';
+                        this.parentElement.appendChild(hiddenInput);
+                        
+                        this.classList.remove('btn-outline-secondary');
+                        this.classList.add('btn-success');
+                    }
+                });
+            });
         });
         
         function editCourse(id, name, description, requirementIds) {
@@ -406,22 +445,37 @@ $csrf_token = generate_csrf_token();
             submitButton.classList.remove('btn-primary');
             submitButton.classList.add('btn-success');
             
-            // Anforderungen auswählen (Checkboxen)
-            // Zuerst alle zurücksetzen
-            document.querySelectorAll('.requirement-checkbox').forEach(checkbox => {
-                checkbox.checked = false;
+            // Anforderungen zurücksetzen (alle Buttons und Inputs)
+            document.querySelectorAll('.requirement-btn').forEach(btn => {
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-secondary');
+            });
+            document.querySelectorAll('.requirement-input').forEach(input => {
+                input.remove();
             });
             
             // Dann die gewünschten auswählen
             if (requirementIds && Array.isArray(requirementIds) && requirementIds.length > 0) {
                 console.log('Setze Anforderungen:', requirementIds);
                 requirementIds.forEach(reqId => {
-                    const checkbox = document.getElementById('req_' + reqId);
-                    if (checkbox) {
-                        checkbox.checked = true;
-                        console.log('Checkbox req_' + reqId + ' aktiviert');
+                    const btn = document.getElementById('req_btn_' + reqId);
+                    if (btn) {
+                        // Button aktivieren
+                        btn.classList.remove('btn-outline-secondary');
+                        btn.classList.add('btn-success');
+                        
+                        // Hidden Input hinzufügen
+                        const hiddenInput = document.createElement('input');
+                        hiddenInput.type = 'hidden';
+                        hiddenInput.name = 'requirements[]';
+                        hiddenInput.value = reqId;
+                        hiddenInput.id = 'req_' + reqId;
+                        hiddenInput.className = 'requirement-input';
+                        btn.parentElement.appendChild(hiddenInput);
+                        
+                        console.log('Anforderung req_' + reqId + ' aktiviert');
                     } else {
-                        console.warn('Checkbox req_' + reqId + ' nicht gefunden');
+                        console.warn('Button req_btn_' + reqId + ' nicht gefunden');
                     }
                 });
             } else {
@@ -444,9 +498,13 @@ $csrf_token = generate_csrf_token();
             document.getElementById('submitButton').classList.remove('btn-success');
             document.getElementById('submitButton').classList.add('btn-primary');
             
-            // Anforderungen zurücksetzen (Checkboxen)
-            document.querySelectorAll('.requirement-checkbox').forEach(checkbox => {
-                checkbox.checked = false;
+            // Anforderungen zurücksetzen (Buttons und Inputs)
+            document.querySelectorAll('.requirement-btn').forEach(btn => {
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-secondary');
+            });
+            document.querySelectorAll('.requirement-input').forEach(input => {
+                input.remove();
             });
         }
         
