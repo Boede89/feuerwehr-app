@@ -1644,7 +1644,12 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                                     <div class="row g-3">
                                                         <div class="col-12 col-md-6">
                                                             <label class="form-label" for="memberStreckeAm">Strecke Am <span class="text-danger">*</span></label>
-                                                            <input type="date" class="form-control" name="strecke_am" id="memberStreckeAm" autocomplete="off">
+                                                            <div class="input-group">
+                                                                <input type="date" class="form-control dummy-date-field" name="strecke_am" id="memberStreckeAm" autocomplete="off">
+                                                                <button type="button" class="btn btn-outline-secondary" onclick="setDummyDate('memberStreckeAm')" title="Dummy-Datum eintragen">
+                                                                    <i class="fas fa-clock"></i> Dummyzeiten
+                                                                </button>
+                                                            </div>
                                                             <small class="form-text text-muted">Bis-Datum wird automatisch auf +1 Jahr gesetzt.</small>
                                                         </div>
                                                     </div>
@@ -1657,7 +1662,12 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                                     <div class="row g-3">
                                                         <div class="col-12 col-md-6">
                                                             <label class="form-label" for="memberG263Am">G26.3 Am <span class="text-danger">*</span></label>
-                                                            <input type="date" class="form-control" name="g263_am" id="memberG263Am" autocomplete="off">
+                                                            <div class="input-group">
+                                                                <input type="date" class="form-control dummy-date-field" name="g263_am" id="memberG263Am" autocomplete="off">
+                                                                <button type="button" class="btn btn-outline-secondary" onclick="setDummyDate('memberG263Am')" title="Dummy-Datum eintragen">
+                                                                    <i class="fas fa-clock"></i> Dummyzeiten
+                                                                </button>
+                                                            </div>
                                                             <small class="form-text text-muted">Bis-Datum: unter 50 Jahre +3 Jahre, ab 50 +1 Jahr.</small>
                                                         </div>
                                                     </div>
@@ -1670,7 +1680,12 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                                     <div class="row g-3">
                                                         <div class="col-12 col-md-6">
                                                             <label class="form-label" for="memberUebungAm">Übung/Einsatz Am <span class="text-danger">*</span></label>
-                                                            <input type="date" class="form-control" name="uebung_am" id="memberUebungAm" autocomplete="off">
+                                                            <div class="input-group">
+                                                                <input type="date" class="form-control dummy-date-field" name="uebung_am" id="memberUebungAm" autocomplete="off">
+                                                                <button type="button" class="btn btn-outline-secondary" onclick="setDummyDate('memberUebungAm')" title="Dummy-Datum eintragen">
+                                                                    <i class="fas fa-clock"></i> Dummyzeiten
+                                                                </button>
+                                                            </div>
                                                             <small class="form-text text-muted">Bis-Datum wird automatisch auf +1 Jahr gesetzt.</small>
                                                         </div>
                                                     </div>
