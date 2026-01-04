@@ -1,4 +1,5 @@
 <!-- Liste anzeigen -->
+<input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>" id="csrf_token_list">
 <div class="card">
     <div class="card-header bg-primary text-white">
         <h5 class="mb-0"><i class="fas fa-list"></i> Liste anzeigen</h5>
@@ -125,7 +126,7 @@ function loadCourseListByCourse() {
             if (data.success) {
                 const container = document.getElementById('courseListByCourseContent');
                 if (data.members && data.members.length > 0) {
-                    let html = '<table class="table table-striped"><thead><tr><th>Mitglied</th><th>Abschlussjahr</th><th>Aktion</th></tr></thead><tbody>';
+                    let html = '<table class="table table-striped"><thead><tr><th>Mitglied</th><th>Abschlussjahr</th><th>Aktionen</th></tr></thead><tbody>';
                     data.members.forEach(member => {
                         const year = member.year || (member.completed_date ? member.completed_date.substring(0, 4) : '');
                         const yearDisplay = year || 'nicht bekannt';
@@ -133,9 +134,14 @@ function loadCourseListByCourse() {
                         html += '<td>' + member.name + '</td>';
                         html += '<td><span id="year-display-' + member.id + '">' + yearDisplay + '</span></td>';
                         html += '<td>';
-                        html += '<button type="button" class="btn btn-sm btn-outline-primary" onclick="editCourseYear(' + member.id + ', ' + selectedCourseForList + ', \'' + yearDisplay.replace(/'/g, "\\'") + '\')">';
+                        html += '<div class="btn-group" role="group">';
+                        html += '<button type="button" class="btn btn-sm btn-outline-primary" onclick="editCourseYear(' + member.id + ', ' + selectedCourseForList + ', \'' + yearDisplay.replace(/'/g, "\\'") + '\')" title="Jahr bearbeiten">';
                         html += '<i class="fas fa-edit"></i> Bearbeiten';
                         html += '</button>';
+                        html += '<button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCourseFromMember(' + member.id + ', ' + selectedCourseForList + ', \'' + member.name.replace(/'/g, "\\'") + '\')" title="Lehrgang entfernen">';
+                        html += '<i class="fas fa-trash"></i> Entfernen';
+                        html += '</button>';
+                        html += '</div>';
                         html += '</td>';
                         html += '</tr>';
                     });
@@ -188,6 +194,42 @@ function editCourseYear(memberId, courseId, currentYear) {
     .catch(error => {
         console.error('Fehler beim Aktualisieren:', error);
         alert('Fehler beim Aktualisieren des Abschlussjahrs.');
+    });
+}
+
+function removeCourseFromMember(memberId, courseId, memberName) {
+    if (!confirm('Möchten Sie den Lehrgang wirklich von ' + memberName + ' entfernen?')) {
+        return; // Abgebrochen
+    }
+    
+    // CSRF-Token aus dem Formular holen
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
+    
+    // AJAX-Anfrage zum Entfernen
+    const formData = new FormData();
+    formData.append('remove_course', '1');
+    formData.append('member_id', memberId);
+    formData.append('course_id', courseId);
+    formData.append('csrf_token', csrfToken);
+    
+    fetch('courses.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.redirected) {
+            window.location.href = response.url;
+        } else {
+            return response.text();
+        }
+    })
+    .then(data => {
+        // Seite neu laden, um aktualisierte Daten anzuzeigen
+        location.reload();
+    })
+    .catch(error => {
+        console.error('Fehler beim Entfernen:', error);
+        alert('Fehler beim Entfernen des Lehrgangs.');
     });
 }
 </script>
