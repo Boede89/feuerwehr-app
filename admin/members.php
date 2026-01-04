@@ -2441,6 +2441,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             
             // Event-Listener für Formular-Submit registrieren (wenn noch nicht registriert)
             const assignCourseForm = document.getElementById('assignCourseForm');
+            console.log('Modal geöffnet - assignCourseForm gefunden:', assignCourseForm ? 'JA' : 'NEIN');
             if (assignCourseForm && !assignCourseForm.dataset.listenerAttached) {
                 console.log('Event-Listener für assignCourseForm wird hinzugefügt (beim Modal-Öffnen)');
                 assignCourseForm.dataset.listenerAttached = 'true';
