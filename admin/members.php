@@ -703,10 +703,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $created_by = $is_divera_admin ? null : $_SESSION['user_id'];
                             
                             // RIC-Zuweisungen speichern
-                            $stmt_ric = $db->prepare("INSERT INTO member_ric (member_id, ric_id, status, action, created_by) VALUES (?, ?, ?, 'add', ?)");
+                            // Alte pending Einträge für diese RICs löschen (falls vorhanden)
+                            $stmt_delete = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ? AND status = 'pending'");
                             foreach ($ric_ids as $ric_id) {
                                 if ($ric_id > 0) {
-                                    $stmt_ric->execute([$new_member_id, $ric_id, $status, $created_by]);
+                                    try {
+                                        $stmt_delete->execute([$new_member_id, $ric_id]);
+                                    } catch (Exception $e) {
+                                        // Ignoriere Fehler beim Löschen
+                                    }
+                                }
+                            }
+                            
+                            // Neue Zuweisungen speichern mit ON DUPLICATE KEY UPDATE
+                            $stmt_ric = $db->prepare("INSERT INTO member_ric (member_id, ric_id, status, action, created_by) VALUES (?, ?, ?, 'add', ?) ON DUPLICATE KEY UPDATE status = ?, action = 'add', created_by = ?");
+                            foreach ($ric_ids as $ric_id) {
+                                if ($ric_id > 0) {
+                                    try {
+                                        $stmt_ric->execute([$new_member_id, $ric_id, $status, $created_by, $status, $created_by]);
+                                    } catch (Exception $e) {
+                                        error_log("Fehler beim Einfügen der RIC-Zuweisung für neues Mitglied: " . $e->getMessage());
+                                    }
                                 }
                             }
                             
