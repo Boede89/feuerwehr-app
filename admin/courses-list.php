@@ -125,10 +125,19 @@ function loadCourseListByCourse() {
             if (data.success) {
                 const container = document.getElementById('courseListByCourseContent');
                 if (data.members && data.members.length > 0) {
-                    let html = '<table class="table table-striped"><thead><tr><th>Mitglied</th><th>Abschlussjahr</th></tr></thead><tbody>';
+                    let html = '<table class="table table-striped"><thead><tr><th>Mitglied</th><th>Abschlussjahr</th><th>Aktion</th></tr></thead><tbody>';
                     data.members.forEach(member => {
                         const year = member.year || (member.completed_date ? member.completed_date.substring(0, 4) : '');
-                        html += '<tr><td>' + member.name + '</td><td>' + (year || '-') + '</td></tr>';
+                        const yearDisplay = year || 'nicht bekannt';
+                        html += '<tr id="member-course-row-' + member.id + '">';
+                        html += '<td>' + member.name + '</td>';
+                        html += '<td><span id="year-display-' + member.id + '">' + yearDisplay + '</span></td>';
+                        html += '<td>';
+                        html += '<button type="button" class="btn btn-sm btn-outline-primary" onclick="editCourseYear(' + member.id + ', ' + selectedCourseForList + ', \'' + yearDisplay.replace(/'/g, "\\'") + '\')">';
+                        html += '<i class="fas fa-edit"></i> Bearbeiten';
+                        html += '</button>';
+                        html += '</td>';
+                        html += '</tr>';
                     });
                     html += '</tbody></table>';
                     container.innerHTML = html;
@@ -140,6 +149,46 @@ function loadCourseListByCourse() {
         .catch(error => {
             console.error('Fehler beim Laden der Liste:', error);
         });
+}
+
+function editCourseYear(memberId, courseId, currentYear) {
+    const newYear = prompt('Abschlussjahr eingeben (oder "nicht bekannt"):', currentYear === 'nicht bekannt' ? '' : currentYear);
+    if (newYear === null) {
+        return; // Abgebrochen
+    }
+    
+    const yearValue = newYear.trim().toLowerCase() === 'nicht bekannt' ? 'nicht bekannt' : newYear.trim();
+    
+    // CSRF-Token aus dem Formular holen
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
+    
+    // AJAX-Anfrage zum Aktualisieren
+    const formData = new FormData();
+    formData.append('update_course_year', '1');
+    formData.append('member_id', memberId);
+    formData.append('course_id', courseId);
+    formData.append('completion_year', yearValue);
+    formData.append('csrf_token', csrfToken);
+    
+    fetch('courses.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.redirected) {
+            window.location.href = response.url;
+        } else {
+            return response.text();
+        }
+    })
+    .then(data => {
+        // Seite neu laden, um aktualisierte Daten anzuzeigen
+        location.reload();
+    })
+    .catch(error => {
+        console.error('Fehler beim Aktualisieren:', error);
+        alert('Fehler beim Aktualisieren des Abschlussjahrs.');
+    });
 }
 </script>
 

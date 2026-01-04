@@ -82,15 +82,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course'])) {
             
             $course_id = (int)($_POST['course_id'] ?? 0);
             $member_ids = isset($_POST['member_ids']) ? array_map('intval', $_POST['member_ids']) : [];
-            $completion_year = (int)($_POST['completion_year'] ?? 0);
+            $completion_year_raw = trim($_POST['completion_year'] ?? '');
             
             error_log("=== POST assign_course ===");
             error_log("POST course_id (raw): " . var_export($_POST['course_id'] ?? 'NOT SET', true));
             error_log("POST course_id (int): $course_id");
             error_log("POST member_ids (raw): " . var_export($_POST['member_ids'] ?? 'NOT SET', true));
             error_log("POST member_ids (processed): " . print_r($member_ids, true));
-            error_log("POST completion_year (raw): " . var_export($_POST['completion_year'] ?? 'NOT SET', true));
-            error_log("POST completion_year (int): $completion_year");
+            error_log("POST completion_year (raw): " . var_export($completion_year_raw, true));
             
             if ($course_id <= 0) {
                 $error = "Bitte wählen Sie einen Lehrgang aus.";
@@ -102,24 +101,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course'])) {
                 if ($db->inTransaction()) {
                     $db->rollBack();
                 }
-            } elseif ($completion_year < 1950 || $completion_year > (int)date('Y')) {
-                $error = "Bitte wählen Sie ein gültiges Abschlussjahr aus.";
-                if ($db->inTransaction()) {
-                    $db->rollBack();
-                }
             } else {
-                // Jahr als DATE speichern (1. Januar des Jahres)
-                $completed_date = $completion_year . '-01-01';
+                // Abschlussjahr verarbeiten
+                $completed_date = null;
+                if (!empty($completion_year_raw) && strtolower($completion_year_raw) !== 'nicht bekannt') {
+                    // Versuche Jahr zu extrahieren (nur Zahlen)
+                    $completion_year = (int)preg_replace('/[^0-9]/', '', $completion_year_raw);
+                    if ($completion_year >= 1950 && $completion_year <= (int)date('Y')) {
+                        // Jahr als DATE speichern (1. Januar des Jahres)
+                        $completed_date = $completion_year . '-01-01';
+                    }
+                    // Wenn kein gültiges Jahr gefunden wurde, bleibt $completed_date NULL
+                }
+                
                 $stmt = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE completed_date = ?");
                 $inserted_count = 0;
                 $error_count = 0;
                 foreach ($member_ids as $member_id) {
                     if ($member_id > 0) {
                         try {
-                            error_log("Versuche INSERT: member_id=$member_id, course_id=$course_id, completed_date=$completed_date");
+                            $year_display = $completed_date ? substr($completed_date, 0, 4) : 'nicht bekannt';
+                            error_log("Versuche INSERT: member_id=$member_id, course_id=$course_id, completed_date=" . ($completed_date ?? 'NULL'));
                             $stmt->execute([$member_id, $course_id, $completed_date, $completed_date]);
                             $inserted_count++;
-                            error_log("✓ Erfolgreich: Lehrgang $course_id wurde Mitglied $member_id zugewiesen (Jahr: $completion_year)");
+                            error_log("✓ Erfolgreich: Lehrgang $course_id wurde Mitglied $member_id zugewiesen (Jahr: $year_display)");
                         } catch (Exception $e) {
                             $error_count++;
                             error_log("✗ Fehler beim Zuweisen des Lehrgangs $course_id an Mitglied $member_id: " . $e->getMessage());

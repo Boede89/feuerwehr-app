@@ -26,15 +26,8 @@
             <div id="assignCourseMembers" style="display: none;">
                 <div class="mb-3">
                     <label for="completionYear" class="form-label">Abschlussjahr:</label>
-                    <select class="form-select" id="completionYear" name="completion_year" required autocomplete="off">
-                        <option value="">Bitte wählen...</option>
-                        <?php
-                        $currentYear = (int)date('Y');
-                        for ($year = $currentYear; $year >= 1950; $year--) {
-                            echo '<option value="' . $year . '">' . $year . '</option>';
-                        }
-                        ?>
-                    </select>
+                    <input type="text" class="form-control" id="completionYear" name="completion_year" value="nicht bekannt" placeholder="z.B. 2023 oder 'nicht bekannt'" autocomplete="off">
+                    <small class="form-text text-muted">Geben Sie das Jahr ein oder lassen Sie "nicht bekannt" stehen.</small>
                 </div>
                 
                 <label class="form-label d-block mb-2">
@@ -195,12 +188,7 @@ document.getElementById('assignCourseForm')?.addEventListener('submit', function
         return false;
     }
     
-    const completionYear = document.getElementById('completionYear').value;
-    if (!completionYear || completionYear === '') {
-        e.preventDefault();
-        alert('Bitte wählen Sie ein Abschlussjahr aus.');
-        return false;
-    }
+    // Abschlussjahr ist optional, keine Validierung nötig
     
     // Button deaktivieren während der Übertragung
     const submitBtn = document.getElementById('saveCourseAssignBtn');
