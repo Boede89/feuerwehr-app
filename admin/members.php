@@ -47,6 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course']) && $
             $course_id = (int)($_POST['course_id'] ?? 0);
             $member_ids = isset($_POST['member_ids']) ? array_map('intval', $_POST['member_ids']) : [];
             
+            error_log("POST assign_course - course_id: $course_id, member_ids: " . print_r($member_ids, true));
+            
             if ($course_id <= 0) {
                 $error = "Bitte wählen Sie einen Lehrgang aus.";
                 if ($db->inTransaction()) {
@@ -75,14 +77,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course']) && $
                 if ($inserted_count > 0) {
                     $db->commit();
                     $message = "Lehrgang wurde erfolgreich bei $inserted_count Mitglied(ern) hinterlegt.";
+                    header("Location: members.php?success=course_assigned");
+                    exit();
                 } else {
                     $db->rollBack();
                     $error = "Fehler: Keine Lehrgänge konnten zugewiesen werden.";
-                }
-                
-                if (empty($error)) {
-                    header("Location: members.php?success=course_assigned");
-                    exit();
                 }
             }
         } catch (Exception $e) {
@@ -2451,15 +2450,45 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         const container = document.getElementById('assignCourseMembersList');
                         let html = '';
                         data.members.forEach(member => {
-                            html += '<div class="form-check"><input class="form-check-input" type="checkbox" name="member_ids[]" value="' + member.id + '" id="member_' + member.id + '"><label class="form-check-label" for="member_' + member.id + '">' + member.name + '</label></div>';
+                            html += '<div class="form-check">';
+                            html += '<input class="form-check-input" type="checkbox" name="member_ids[]" value="' + member.id + '" id="member_' + member.id + '" autocomplete="off">';
+                            html += '<label class="form-check-label" for="member_' + member.id + '">' + member.name + '</label>';
+                            html += '</div>';
                         });
                         container.innerHTML = html;
+                    } else {
+                        container.innerHTML = '<p class="text-muted">Keine Mitglieder gefunden.</p>';
                     }
                 })
                 .catch(error => {
                     console.error('Fehler beim Laden der Mitglieder:', error);
+                    const container = document.getElementById('assignCourseMembersList');
+                    container.innerHTML = '<p class="text-danger">Fehler beim Laden der Mitglieder.</p>';
                 });
         }
+        
+        // Formular-Validierung vor dem Absenden
+        document.getElementById('assignCourseForm')?.addEventListener('submit', function(e) {
+            const courseId = document.getElementById('selectedCourseId').value;
+            const memberCheckboxes = document.querySelectorAll('#assignCourseMembersList input[type="checkbox"]:checked');
+            
+            if (!courseId || courseId === '') {
+                e.preventDefault();
+                alert('Bitte wählen Sie einen Lehrgang aus.');
+                return false;
+            }
+            
+            if (memberCheckboxes.length === 0) {
+                e.preventDefault();
+                alert('Bitte wählen Sie mindestens ein Mitglied aus.');
+                return false;
+            }
+            
+            // Button deaktivieren während der Übertragung
+            const submitBtn = document.getElementById('saveCourseAssignBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gespeichert...';
+        });
         <?php endif; ?>
     </script>
     
@@ -2532,13 +2561,13 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 <form method="POST" action="" id="assignCourseForm">
                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     <input type="hidden" name="assign_course" value="1">
-                    <input type="hidden" name="course_id" id="selectedCourseId" value="" required>
+                    <input type="hidden" name="course_id" id="selectedCourseId" value="" autocomplete="off">
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label">Lehrgang auswählen:</label>
-                            <div class="d-flex flex-wrap gap-2" id="courseButtonsForAssign">
+                            <label for="courseButtonsForAssign" class="form-label">Lehrgang auswählen:</label>
+                            <div class="d-flex flex-wrap gap-2" id="courseButtonsForAssign" role="group" aria-label="Lehrgang auswählen">
                                 <?php foreach ($courses as $course): ?>
-                                    <button type="button" class="btn btn-outline-success course-assign-btn" data-course-id="<?php echo $course['id']; ?>" onclick="selectCourseForAssign(<?php echo $course['id']; ?>, '<?php echo htmlspecialchars($course['name'], ENT_QUOTES); ?>')">
+                                    <button type="button" class="btn btn-outline-success course-assign-btn" data-course-id="<?php echo $course['id']; ?>" onclick="selectCourseForAssign(<?php echo $course['id']; ?>, '<?php echo htmlspecialchars($course['name'], ENT_QUOTES); ?>')" aria-label="Lehrgang <?php echo htmlspecialchars($course['name']); ?> auswählen">
                                         <?php echo htmlspecialchars($course['name']); ?>
                                     </button>
                                 <?php endforeach; ?>
@@ -2549,8 +2578,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         </div>
                         
                         <div id="assignCourseMembers" style="display: none;">
-                            <label class="form-label">Mitglieder auswählen:</label>
-                            <div id="assignCourseMembersList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                            <label for="assignCourseMembersList" class="form-label">Mitglieder auswählen:</label>
+                            <div id="assignCourseMembersList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;" role="group" aria-label="Mitglieder auswählen">
                                 <p class="text-muted">Lade Mitglieder...</p>
                             </div>
                         </div>
