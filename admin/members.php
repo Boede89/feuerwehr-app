@@ -1705,26 +1705,26 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                         <i class="fas fa-check-circle text-success"></i> Daten hinterlegt
                                     </span>
                                 </div>
-                                <div id="addMemberRicContainer" class="border rounded p-3" style="display: none; max-height: 200px; overflow-y: auto;">
+                                <div id="addMemberRicContainer" class="border rounded p-3" style="display: none; max-height: 300px; overflow-y: auto;">
                                     <?php if (empty($ric_codes)): ?>
                                         <p class="text-muted">Keine RIC-Codes vorhanden. Bitte zuerst RIC-Codes in den Einstellungen anlegen.</p>
                                     <?php else: ?>
-                                        <?php foreach ($ric_codes as $ric): ?>
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input add-member-ric-checkbox" 
-                                                   type="checkbox" 
-                                                   name="ric_ids[]" 
-                                                   value="<?php echo $ric['id']; ?>" 
-                                                   id="add_ric_<?php echo $ric['id']; ?>"
-                                                   autocomplete="off">
-                                            <label class="form-check-label" for="add_ric_<?php echo $ric['id']; ?>">
-                                                <strong><?php echo htmlspecialchars($ric['kurztext']); ?></strong>
-                                                <?php if (!empty($ric['beschreibung'])): ?>
-                                                    <br><small class="text-muted"><?php echo htmlspecialchars($ric['beschreibung']); ?></small>
-                                                <?php endif; ?>
-                                            </label>
+                                        <div class="d-flex flex-wrap gap-2 mb-3" id="addMemberRicButtons" role="group" aria-label="RIC-Codes auswählen">
+                                            <?php foreach ($ric_codes as $ric): ?>
+                                                <button type="button" 
+                                                        class="btn btn-outline-secondary add-member-ric-btn" 
+                                                        data-ric-id="<?php echo $ric['id']; ?>"
+                                                        id="add_ric_btn_<?php echo $ric['id']; ?>"
+                                                        title="<?php echo htmlspecialchars($ric['beschreibung'] ?? ''); ?>">
+                                                    <?php echo htmlspecialchars($ric['kurztext']); ?>
+                                                </button>
+                                                <input type="hidden" 
+                                                       name="ric_ids[]" 
+                                                       value="<?php echo $ric['id']; ?>" 
+                                                       id="add_ric_<?php echo $ric['id']; ?>"
+                                                       class="add-member-ric-input">
+                                            <?php endforeach; ?>
                                         </div>
-                                        <?php endforeach; ?>
                                     <?php endif; ?>
                                     <div class="mt-3">
                                         <button type="button" class="btn btn-sm btn-primary" id="saveAddMemberRicsBtn">
@@ -1809,11 +1809,46 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     addMemberRicContainer.style.display = addMemberRicContainer.style.display === 'none' ? 'block' : 'none';
                 });
                 
+                // Event-Listener für RIC-Buttons
+                document.querySelectorAll('.add-member-ric-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const ricId = this.dataset.ricId;
+                        const input = document.getElementById('add_ric_' + ricId);
+                        
+                        // Prüfen ob Button bereits aktiviert ist (hat btn-warning Klasse)
+                        const isActive = this.classList.contains('btn-warning');
+                        
+                        if (isActive) {
+                            // Entfernen - Button ist aktiviert, also deaktivieren
+                            if (input) {
+                                input.remove();
+                            }
+                            this.classList.remove('btn-warning');
+                            this.classList.add('btn-outline-secondary');
+                        } else {
+                            // Hinzufügen - Button ist nicht aktiviert, also aktivieren
+                            const hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.name = 'ric_ids[]';
+                            hiddenInput.value = ricId;
+                            hiddenInput.id = 'add_ric_' + ricId;
+                            hiddenInput.className = 'add-member-ric-input';
+                            
+                            // Container finden und Input hinzufügen
+                            const container = document.getElementById('addMemberRicButtons') || this.parentElement;
+                            container.appendChild(hiddenInput);
+                            
+                            this.classList.remove('btn-outline-secondary');
+                            this.classList.add('btn-warning');
+                        }
+                    });
+                });
+                
                 if (saveAddMemberRicsBtn) {
                     saveAddMemberRicsBtn.addEventListener('click', function() {
                         // Prüfe ob mindestens eine RIC ausgewählt wurde
-                        const checkedRics = document.querySelectorAll('.add-member-ric-checkbox:checked');
-                        if (checkedRics.length > 0) {
+                        const selectedRics = document.querySelectorAll('.add-member-ric-input');
+                        if (selectedRics.length > 0) {
                             addMemberRicStatus.style.display = 'inline';
                             addMemberRicContainer.style.display = 'none';
                         }
@@ -1855,12 +1890,11 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     if (canCourses) {
                         // Sammle Lehrgangs-Daten
                         const courseAssignments = [];
-                        document.querySelectorAll('.add-member-course-item').forEach(function(item) {
-                            const courseId = item.dataset.courseId;
-                            const checkbox = item.querySelector('input[type="checkbox"]');
-                            const yearInput = item.querySelector('input[type="text"].course-year-input');
+                        document.querySelectorAll('.add-member-course-input').forEach(function(input) {
+                            const courseId = input.id.replace('add_course_', '');
+                            const yearInput = document.getElementById('add_course_year_' + courseId);
                             
-                            if (checkbox && checkbox.checked && courseId) {
+                            if (courseId) {
                                 const completionYear = yearInput ? yearInput.value.trim() : '';
                                 courseAssignments.push({
                                     course_id: courseId,
@@ -2160,20 +2194,17 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 .then(data => {
                     if (data.success && data.courses && data.courses.length > 0) {
                         let html = '<div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">';
+                        html += '<div class="d-flex flex-wrap gap-2 mb-3" id="addMemberCoursesButtons" role="group" aria-label="Lehrgänge auswählen">';
                         data.courses.forEach(function(course) {
-                            html += '<div class="form-check mb-3 add-member-course-item" data-course-id="' + course.id + '">';
-                            html += '<div class="d-flex align-items-center">';
-                            html += '<input class="form-check-input" type="checkbox" id="add_course_' + course.id + '" autocomplete="off">';
-                            html += '<label class="form-check-label flex-grow-1 ms-2" for="add_course_' + course.id + '">';
-                            html += '<strong>' + escapeHtml(course.name) + '</strong>';
-                            if (course.description) {
-                                html += '<br><small class="text-muted">' + escapeHtml(course.description) + '</small>';
-                            }
-                            html += '</label>';
-                            html += '<input type="text" class="form-control form-control-sm course-year-input ms-2" style="width: 100px;" placeholder="Jahr" autocomplete="off">';
-                            html += '</div>';
+                            html += '<div class="add-member-course-item" data-course-id="' + course.id + '" style="display: flex; flex-direction: column; gap: 5px;">';
+                            html += '<button type="button" class="btn btn-outline-info add-member-course-btn" data-course-id="' + course.id + '" id="add_course_btn_' + course.id + '">';
+                            html += escapeHtml(course.name);
+                            html += '</button>';
+                            html += '<input type="text" class="form-control form-control-sm course-year-input" style="width: 100px; display: none;" placeholder="Jahr" autocomplete="off" id="add_course_year_' + course.id + '">';
+                            html += '<input type="hidden" class="add-member-course-input" id="add_course_' + course.id + '">';
                             html += '</div>';
                         });
+                        html += '</div>';
                         html += '<div class="mt-3">';
                         html += '<button type="button" class="btn btn-sm btn-primary" id="saveAddMemberCoursesBtn">';
                         html += '<i class="fas fa-check me-1"></i>Übernehmen';
@@ -2185,6 +2216,50 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         html += '</div>';
                         container.innerHTML = html;
                         
+                        // Event-Listener für Lehrgangs-Buttons
+                        document.querySelectorAll('.add-member-course-btn').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const courseId = this.dataset.courseId;
+                                const input = document.getElementById('add_course_' + courseId);
+                                const yearInput = document.getElementById('add_course_year_' + courseId);
+                                const item = this.closest('.add-member-course-item');
+                                
+                                // Prüfen ob Button bereits aktiviert ist (hat btn-info Klasse)
+                                const isActive = this.classList.contains('btn-info');
+                                
+                                if (isActive) {
+                                    // Entfernen - Button ist aktiviert, also deaktivieren
+                                    if (input) {
+                                        input.remove();
+                                    }
+                                    if (yearInput) {
+                                        yearInput.style.display = 'none';
+                                        yearInput.value = '';
+                                    }
+                                    this.classList.remove('btn-info');
+                                    this.classList.add('btn-outline-info');
+                                } else {
+                                    // Hinzufügen - Button ist nicht aktiviert, also aktivieren
+                                    const hiddenInput = document.createElement('input');
+                                    hiddenInput.type = 'hidden';
+                                    hiddenInput.className = 'add-member-course-input';
+                                    hiddenInput.id = 'add_course_' + courseId;
+                                    
+                                    // Container finden und Input hinzufügen
+                                    const container = document.getElementById('addMemberCoursesButtons') || this.parentElement;
+                                    container.appendChild(hiddenInput);
+                                    
+                                    // Jahr-Input anzeigen
+                                    if (yearInput) {
+                                        yearInput.style.display = 'block';
+                                    }
+                                    
+                                    this.classList.remove('btn-outline-info');
+                                    this.classList.add('btn-info');
+                                }
+                            });
+                        });
+                        
                         // Event-Listener für Übernehmen-Button
                         const saveBtn = document.getElementById('saveAddMemberCoursesBtn');
                         const cancelBtn = document.getElementById('cancelAddMemberCoursesBtn');
@@ -2193,8 +2268,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         if (saveBtn) {
                             saveBtn.addEventListener('click', function() {
                                 // Prüfe ob mindestens ein Lehrgang ausgewählt wurde
-                                const checkedCourses = document.querySelectorAll('.add-member-course-item input[type="checkbox"]:checked');
-                                if (checkedCourses.length > 0) {
+                                const selectedCourses = document.querySelectorAll('.add-member-course-input');
+                                if (selectedCourses.length > 0) {
                                     if (statusEl) {
                                         statusEl.style.display = 'inline';
                                     }
@@ -2535,9 +2610,13 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             if (addMemberRicStatus) {
                 addMemberRicStatus.style.display = 'none';
             }
-            // RIC-Checkboxen zurücksetzen
-            document.querySelectorAll('.add-member-ric-checkbox').forEach(function(checkbox) {
-                checkbox.checked = false;
+            // RIC-Buttons und Inputs zurücksetzen
+            document.querySelectorAll('.add-member-ric-btn').forEach(function(btn) {
+                btn.classList.remove('btn-warning');
+                btn.classList.add('btn-outline-secondary');
+            });
+            document.querySelectorAll('.add-member-ric-input').forEach(function(input) {
+                input.remove();
             });
             
             // Lehrgänge-Container und Status zurücksetzen
@@ -2550,11 +2629,16 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             if (addMemberCoursesStatus) {
                 addMemberCoursesStatus.style.display = 'none';
             }
-            // Lehrgangs-Checkboxen und Inputs zurücksetzen
-            document.querySelectorAll('.add-member-course-item input[type="checkbox"]').forEach(function(checkbox) {
-                checkbox.checked = false;
+            // Lehrgangs-Buttons und Inputs zurücksetzen
+            document.querySelectorAll('.add-member-course-btn').forEach(function(btn) {
+                btn.classList.remove('btn-info');
+                btn.classList.add('btn-outline-info');
+            });
+            document.querySelectorAll('.add-member-course-input').forEach(function(input) {
+                input.remove();
             });
             document.querySelectorAll('.course-year-input').forEach(function(input) {
+                input.style.display = 'none';
                 input.value = '';
             });
             
