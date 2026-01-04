@@ -2465,11 +2465,21 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         }
         
         function loadMembersForCourseAssignment() {
+            console.log('Lade Mitglieder für Lehrgangszuweisung...');
             fetch('get-members.php')
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Response Status:', response.status);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Mitglieder-Daten erhalten:', data);
                     if (data.success && data.members) {
                         const container = document.getElementById('assignCourseMembersList');
+                        const form = document.getElementById('assignCourseForm');
+                        if (!form) {
+                            console.error('Formular nicht gefunden!');
+                            return;
+                        }
                         let html = '';
                         data.members.forEach(member => {
                             html += '<div class="form-check">';
@@ -2478,7 +2488,9 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             html += '</div>';
                         });
                         container.innerHTML = html;
+                        console.log('Mitglieder-Checkboxen erstellt:', data.members.length);
                     } else {
+                        const container = document.getElementById('assignCourseMembersList');
                         container.innerHTML = '<p class="text-muted">Keine Mitglieder gefunden.</p>';
                     }
                 })
@@ -2490,7 +2502,10 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         }
         
         // Formular-Validierung vor dem Absenden
-        document.getElementById('assignCourseForm')?.addEventListener('submit', function(e) {
+        const assignCourseForm = document.getElementById('assignCourseForm');
+        if (assignCourseForm) {
+            console.log('Event-Listener für assignCourseForm wird hinzugefügt');
+            assignCourseForm.addEventListener('submit', function(e) {
             const courseId = document.getElementById('selectedCourseId').value;
             const memberCheckboxes = document.querySelectorAll('#assignCourseMembersList input[type="checkbox"]:checked');
             
@@ -2534,7 +2549,10 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gespeichert...';
             
             console.log('Formular wird jetzt abgesendet...');
-        });
+            });
+        } else {
+            console.error('assignCourseForm nicht gefunden!');
+        }
         <?php endif; ?>
     </script>
     
