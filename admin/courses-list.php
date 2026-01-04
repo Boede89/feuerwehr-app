@@ -94,8 +94,7 @@ function loadCourseListByName() {
                                 html += '<tr><td>' + member.name + '</td><td>';
                                 if (member.courses && member.courses.length > 0) {
                                     member.courses.forEach(course => {
-                                        const yearText = course.year ? ' (' + course.year + ')' : '';
-                                        html += '<span class="badge bg-primary me-1">' + course.name + yearText + '</span>';
+                                        html += '<span class="badge bg-primary me-1">' + course.name + '</span>';
                                     });
                                 } else {
                                     html += '<span class="text-muted">Keine Lehrgänge</span>';
