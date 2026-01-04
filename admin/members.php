@@ -2561,7 +2561,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     container.innerHTML = '<p class="text-danger">Fehler beim Laden der Mitglieder.</p>';
                 });
         }
-        const assignCourseForm = document.getElementById('assignCourseForm');
         if (assignCourseForm) {
             console.log('Event-Listener für assignCourseForm wird hinzugefügt');
             assignCourseForm.addEventListener('submit', function(e) {
