@@ -32,7 +32,7 @@ try {
                 ) as courses_data
             FROM members m
             LEFT JOIN member_courses mc ON mc.member_id = m.id
-            LEFT JOIN courses c ON c.id = mc.course_id
+            LEFT JOIN courses c ON c.id = mc.course_id AND c.name IS NOT NULL
             GROUP BY m.id, m.first_name, m.last_name
             ORDER BY m.last_name, m.first_name
         ");
@@ -45,14 +45,17 @@ try {
         foreach ($members as $member) {
             $courses = [];
             // Debug-Logging
-            error_log("DEBUG: Mitglied ID " . $member['id'] . " (" . $member['name'] . ") - courses_data: " . ($member['courses_data'] ?? 'NULL'));
+            $courses_data_raw = $member['courses_data'] ?? null;
+            error_log("DEBUG: Mitglied ID " . $member['id'] . " (" . $member['name'] . ") - courses_data: " . var_export($courses_data_raw, true));
             
             // Prüfe ob courses_data nicht NULL und nicht leer ist
-            if (isset($member['courses_data']) && $member['courses_data'] !== null && trim($member['courses_data']) !== '') {
-                $courses_array = explode('||', $member['courses_data']);
+            if (!empty($courses_data_raw) && $courses_data_raw !== null && trim($courses_data_raw) !== '') {
+                $courses_array = explode('||', $courses_data_raw);
+                error_log("DEBUG: Exploded courses_array: " . print_r($courses_array, true));
                 foreach ($courses_array as $course_data) {
                     if (!empty($course_data) && trim($course_data) !== '') {
                         $parts = explode('|', $course_data, 2);
+                        error_log("DEBUG: Course data parts: " . print_r($parts, true));
                         if (count($parts) >= 1 && !empty(trim($parts[0]))) {
                             $courses[] = [
                                 'name' => trim($parts[0]),
