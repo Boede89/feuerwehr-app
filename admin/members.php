@@ -2277,24 +2277,60 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         
         // Lehrgangsverwaltung JavaScript
         // Liste anzeigen Modal - Auswahl zwischen "nach Namen" und "nach Lehrgang"
+        let selectedListType = '';
+        let selectedCourseForList = null;
+        
         document.getElementById('courseListModal')?.addEventListener('show.bs.modal', function() {
             // Modal zurücksetzen
-            document.getElementById('courseListType').value = '';
+            selectedListType = '';
+            selectedCourseForList = null;
             document.getElementById('courseListByName').style.display = 'none';
             document.getElementById('courseListByCourse').style.display = 'none';
+            document.getElementById('btnListByName').classList.remove('active');
+            document.getElementById('btnListByCourse').classList.remove('active');
+            document.querySelectorAll('.course-select-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-success');
+            });
         });
         
-        document.getElementById('courseListType')?.addEventListener('change', function() {
-            const type = this.value;
+        function selectListType(type) {
+            selectedListType = type;
             document.getElementById('courseListByName').style.display = (type === 'name') ? 'block' : 'none';
             document.getElementById('courseListByCourse').style.display = (type === 'course') ? 'block' : 'none';
+            
+            // Button-Stile aktualisieren
+            document.getElementById('btnListByName').classList.toggle('active', type === 'name');
+            document.getElementById('btnListByCourse').classList.toggle('active', type === 'course');
             
             if (type === 'name') {
                 loadCourseListByName();
             } else if (type === 'course') {
-                loadCourseListByCourse();
+                // Reset course selection
+                selectedCourseForList = null;
+                document.getElementById('courseListByCourseContent').innerHTML = '<p class="text-muted">Bitte wählen Sie einen Lehrgang aus.</p>';
             }
-        });
+        }
+        
+        function selectCourseForList(courseId) {
+            selectedCourseForList = courseId;
+            
+            // Button-Stile aktualisieren
+            document.querySelectorAll('.course-select-btn').forEach(btn => {
+                if (parseInt(btn.dataset.courseId) === courseId) {
+                    btn.classList.add('active');
+                    btn.classList.remove('btn-outline-success');
+                    btn.classList.add('btn-success');
+                } else {
+                    btn.classList.remove('active');
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-success');
+                }
+            });
+            
+            loadCourseListByCourse();
+        }
         
         function loadCourseListByName() {
             // AJAX-Anfrage zum Laden der Mitglieder mit Lehrgängen
@@ -2329,13 +2365,12 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         }
         
         function loadCourseListByCourse() {
-            const courseId = document.getElementById('courseSelectForList').value;
-            if (!courseId) {
+            if (!selectedCourseForList) {
                 document.getElementById('courseListByCourseContent').innerHTML = '<p class="text-muted">Bitte wählen Sie einen Lehrgang aus.</p>';
                 return;
             }
             
-            fetch('get-member-courses.php?type=by_course&course_id=' + courseId)
+            fetch('get-member-courses.php?type=by_course&course_id=' + selectedCourseForList)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -2357,23 +2392,45 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 });
         }
         
-        document.getElementById('courseSelectForList')?.addEventListener('change', loadCourseListByCourse);
-        
         // Lehrgang hinterlegen Modal
+        let selectedCourseForAssign = null;
+        
         document.getElementById('assignCourseModal')?.addEventListener('show.bs.modal', function() {
-            document.getElementById('assignCourseSelect').value = '';
+            selectedCourseForAssign = null;
+            document.getElementById('selectedCourseId').value = '';
             document.getElementById('assignCourseMembers').style.display = 'none';
+            document.getElementById('selectedCourseName').style.display = 'none';
+            document.getElementById('saveCourseAssignBtn').disabled = true;
+            document.querySelectorAll('.course-assign-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-success');
+            });
         });
         
-        document.getElementById('assignCourseSelect')?.addEventListener('change', function() {
-            const courseId = this.value;
-            if (courseId) {
-                document.getElementById('assignCourseMembers').style.display = 'block';
-                loadMembersForCourseAssignment();
-            } else {
-                document.getElementById('assignCourseMembers').style.display = 'none';
-            }
-        });
+        function selectCourseForAssign(courseId, courseName) {
+            selectedCourseForAssign = courseId;
+            document.getElementById('selectedCourseId').value = courseId;
+            document.getElementById('selectedCourseNameText').textContent = courseName;
+            document.getElementById('selectedCourseName').style.display = 'block';
+            document.getElementById('assignCourseMembers').style.display = 'block';
+            document.getElementById('saveCourseAssignBtn').disabled = false;
+            
+            // Button-Stile aktualisieren
+            document.querySelectorAll('.course-assign-btn').forEach(btn => {
+                if (parseInt(btn.dataset.courseId) === courseId) {
+                    btn.classList.add('active');
+                    btn.classList.remove('btn-outline-success');
+                    btn.classList.add('btn-success');
+                } else {
+                    btn.classList.remove('active');
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-success');
+                }
+            });
+            
+            loadMembersForCourseAssignment();
+        }
         
         function loadMembersForCourseAssignment() {
             fetch('get-members.php')
@@ -2409,12 +2466,15 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="courseListType" class="form-label">Liste anzeigen:</label>
-                        <select class="form-select" id="courseListType">
-                            <option value="">-- Bitte wählen --</option>
-                            <option value="name">Nach Namen anzeigen</option>
-                            <option value="course">Nach Lehrgang anzeigen</option>
-                        </select>
+                        <label class="form-label">Liste anzeigen:</label>
+                        <div class="d-flex gap-2 mb-3">
+                            <button type="button" class="btn btn-outline-primary" id="btnListByName" onclick="selectListType('name')">
+                                <i class="fas fa-user"></i> Nach Namen anzeigen
+                            </button>
+                            <button type="button" class="btn btn-outline-primary" id="btnListByCourse" onclick="selectListType('course')">
+                                <i class="fas fa-graduation-cap"></i> Nach Lehrgang anzeigen
+                            </button>
+                        </div>
                     </div>
                     
                     <div id="courseListByName" style="display: none;">
@@ -2427,13 +2487,14 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     <div id="courseListByCourse" style="display: none;">
                         <h6>Mitglieder nach Lehrgang</h6>
                         <div class="mb-3">
-                            <label for="courseSelectForList" class="form-label">Lehrgang auswählen:</label>
-                            <select class="form-select" id="courseSelectForList">
-                                <option value="">-- Bitte wählen --</option>
+                            <label class="form-label">Lehrgang auswählen:</label>
+                            <div class="d-flex flex-wrap gap-2" id="courseButtonsForList">
                                 <?php foreach ($courses as $course): ?>
-                                    <option value="<?php echo $course['id']; ?>"><?php echo htmlspecialchars($course['name']); ?></option>
+                                    <button type="button" class="btn btn-outline-success course-select-btn" data-course-id="<?php echo $course['id']; ?>" onclick="selectCourseForList(<?php echo $course['id']; ?>)">
+                                        <?php echo htmlspecialchars($course['name']); ?>
+                                    </button>
                                 <?php endforeach; ?>
-                            </select>
+                            </div>
                         </div>
                         <div id="courseListByCourseContent">
                             <p class="text-muted">Bitte wählen Sie einen Lehrgang aus.</p>
@@ -2460,27 +2521,32 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 <form method="POST" action="" id="assignCourseForm">
                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     <input type="hidden" name="assign_course" value="1">
+                    <input type="hidden" name="course_id" id="selectedCourseId" value="" required>
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label for="assignCourseSelect" class="form-label">Lehrgang auswählen:</label>
-                            <select class="form-select" id="assignCourseSelect" name="course_id" required>
-                                <option value="">-- Bitte wählen --</option>
+                            <label class="form-label">Lehrgang auswählen:</label>
+                            <div class="d-flex flex-wrap gap-2" id="courseButtonsForAssign">
                                 <?php foreach ($courses as $course): ?>
-                                    <option value="<?php echo $course['id']; ?>"><?php echo htmlspecialchars($course['name']); ?></option>
+                                    <button type="button" class="btn btn-outline-success course-assign-btn" data-course-id="<?php echo $course['id']; ?>" onclick="selectCourseForAssign(<?php echo $course['id']; ?>, '<?php echo htmlspecialchars($course['name'], ENT_QUOTES); ?>')">
+                                        <?php echo htmlspecialchars($course['name']); ?>
+                                    </button>
                                 <?php endforeach; ?>
-                            </select>
+                            </div>
+                            <div id="selectedCourseName" class="mt-2" style="display: none;">
+                                <span class="badge bg-success">Ausgewählt: <span id="selectedCourseNameText"></span></span>
+                            </div>
                         </div>
                         
                         <div id="assignCourseMembers" style="display: none;">
                             <label class="form-label">Mitglieder auswählen:</label>
-                            <div id="assignCourseMembersList" class="border p-3" style="max-height: 300px; overflow-y: auto;">
+                            <div id="assignCourseMembersList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
                                 <p class="text-muted">Lade Mitglieder...</p>
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                        <button type="submit" class="btn btn-success">Speichern</button>
+                        <button type="submit" class="btn btn-success" id="saveCourseAssignBtn" disabled>Speichern</button>
                     </div>
                 </form>
             </div>
