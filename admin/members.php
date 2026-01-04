@@ -359,8 +359,6 @@ $is_admin = hasAdminPermission();
 // Prüfe RIC-Berechtigung
 $can_ric = has_permission('ric');
 
-// Prüfe Lehrgangsverwaltungs-Berechtigung (MUSS VOR POST-Handler sein!)
-$can_courses = has_permission('courses');
 
 // Divera Admin Info laden (für RIC-Zuweisungen)
 $divera_admin_user_id = null;
@@ -399,17 +397,6 @@ if ($can_ric) {
     }
 }
 
-// Lehrgänge laden (für Lehrgangsverwaltung)
-$courses = [];
-if ($can_courses) {
-    try {
-        $stmt = $db->prepare("SELECT id, name, description FROM courses ORDER BY name ASC");
-        $stmt->execute();
-        $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        error_log("Fehler beim Laden der Lehrgänge: " . $e->getMessage());
-    }
-}
 
 // RIC-Zuweisungen speichern (POST-Handler)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_ric_assignments']) && $can_ric) {
@@ -2263,127 +2250,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         
     </script>
     
-    <?php if ($can_courses): ?>
-    <!-- Lehrgangsverwaltung Modals -->
-    <!-- Liste anzeigen Modal -->
-    <div class="modal fade" id="courseListModal" tabindex="-1" aria-labelledby="courseListModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title" id="courseListModalLabel">
-                        <i class="fas fa-list"></i> Liste anzeigen
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Liste anzeigen:</label>
-                        <div class="d-flex gap-2 mb-3">
-                            <button type="button" class="btn btn-outline-primary" id="btnListByName" onclick="selectListType('name')">
-                                <i class="fas fa-user"></i> Nach Namen anzeigen
-                            </button>
-                            <button type="button" class="btn btn-outline-primary" id="btnListByCourse" onclick="selectListType('course')">
-                                <i class="fas fa-graduation-cap"></i> Nach Lehrgang anzeigen
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="courseListByName" style="display: none;">
-                        <h6>Mitglieder mit absolvierten Lehrgängen</h6>
-                        <div id="courseListByNameContent">
-                            <p class="text-muted">Lade Daten...</p>
-                        </div>
-                    </div>
-                    
-                    <div id="courseListByCourse" style="display: none;">
-                        <h6>Mitglieder nach Lehrgang</h6>
-                        <div class="mb-3">
-                            <label class="form-label">Lehrgang auswählen:</label>
-                            <div class="d-flex flex-wrap gap-2" id="courseButtonsForList">
-                                <?php foreach ($courses as $course): ?>
-                                    <button type="button" class="btn btn-outline-success course-select-btn" data-course-id="<?php echo $course['id']; ?>" onclick="selectCourseForList(<?php echo $course['id']; ?>)">
-                                        <?php echo htmlspecialchars($course['name']); ?>
-                                    </button>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                        <div id="courseListByCourseContent">
-                            <p class="text-muted">Bitte wählen Sie einen Lehrgang aus.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Lehrgang hinterlegen Modal -->
-    <div class="modal fade" id="assignCourseModal" tabindex="-1" aria-labelledby="assignCourseModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title" id="assignCourseModalLabel">
-                        <i class="fas fa-plus-circle"></i> Lehrgang hinterlegen
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form method="POST" action="" id="assignCourseForm">
-                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                    <input type="hidden" name="assign_course" value="1">
-                    <input type="hidden" name="course_id" id="selectedCourseId" value="" autocomplete="off">
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <span class="form-label d-block">Lehrgang auswählen:</span>
-                            <div class="d-flex flex-wrap gap-2" id="courseButtonsForAssign" role="group" aria-label="Lehrgang auswählen">
-                                <?php foreach ($courses as $course): ?>
-                                    <button type="button" class="btn btn-outline-success course-assign-btn" data-course-id="<?php echo $course['id']; ?>" onclick="selectCourseForAssign(<?php echo $course['id']; ?>, '<?php echo htmlspecialchars($course['name'], ENT_QUOTES); ?>')" aria-label="Lehrgang <?php echo htmlspecialchars($course['name']); ?> auswählen">
-                                        <?php echo htmlspecialchars($course['name']); ?>
-                                    </button>
-                                <?php endforeach; ?>
-                            </div>
-                            <div id="selectedCourseName" class="mt-2" style="display: none;">
-                                <span class="badge bg-success">Ausgewählt: <span id="selectedCourseNameText"></span></span>
-                            </div>
-                        </div>
-                        
-                        <div id="assignCourseMembers" style="display: none;">
-                            <span class="form-label d-block">Mitglieder auswählen:</span>
-                            <div id="assignCourseMembersList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;" role="group" aria-label="Mitglieder auswählen">
-                                <p class="text-muted">Lade Mitglieder...</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                        <button type="submit" class="btn btn-success" id="saveCourseAssignBtn" disabled onclick="console.log('Speichern-Button geklickt'); return true;">Speichern</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Lehrgangsplanung Modal (nur Button) -->
-    <div class="modal fade" id="coursePlanningModal" tabindex="-1" aria-labelledby="coursePlanningModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header bg-info text-white">
-                    <h5 class="modal-title" id="coursePlanningModalLabel">
-                        <i class="fas fa-calendar-alt"></i> Lehrgangsplanung
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Diese Funktion wird in Kürze verfügbar sein.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
 </body>
 </html>
 
