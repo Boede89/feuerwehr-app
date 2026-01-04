@@ -24,6 +24,9 @@ if (isset($_GET['success'])) {
         case 'course_assigned':
             $message = "Lehrgang wurde erfolgreich bei den Mitgliedern hinterlegt.";
             break;
+        case 'year_updated':
+            $message = "Abschlussjahr wurde erfolgreich aktualisiert.";
+            break;
     }
 }
 
