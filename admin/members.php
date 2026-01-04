@@ -1846,9 +1846,11 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             hiddenInput.id = 'add_ric_' + ricId;
                             hiddenInput.className = 'add-member-ric-input';
                             
-                            // Container finden und Input hinzufügen
-                            const container = document.getElementById('addMemberRicButtons') || this.parentElement;
-                            container.appendChild(hiddenInput);
+                            // Formular finden und Input hinzufügen (nicht in den Button-Container)
+                            const form = document.getElementById('memberForm');
+                            if (form) {
+                                form.appendChild(hiddenInput);
+                            }
                             
                             this.classList.remove('btn-outline-secondary');
                             this.classList.add('btn-warning');
