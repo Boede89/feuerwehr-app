@@ -63,42 +63,63 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             try {
                 $db->beginTransaction();
                 
+                // Prüfe ob Name bereits existiert (nur beim Hinzufügen)
                 if ($action == 'add') {
-                    $stmt = $db->prepare("INSERT INTO courses (name, description) VALUES (?, ?)");
-                    $stmt->execute([$name, $description]);
-                    $course_id = $db->lastInsertId();
-                    $message = "Lehrgang wurde erfolgreich hinzugefügt.";
+                    $stmt_check = $db->prepare("SELECT id FROM courses WHERE name = ?");
+                    $stmt_check->execute([$name]);
+                    if ($stmt_check->fetch()) {
+                        $error = "Ein Lehrgang mit diesem Namen existiert bereits.";
+                        $db->rollBack();
+                    } else {
+                        $stmt = $db->prepare("INSERT INTO courses (name, description) VALUES (?, ?)");
+                        $stmt->execute([$name, $description]);
+                        $course_id = $db->lastInsertId();
+                        $message = "Lehrgang wurde erfolgreich hinzugefügt.";
+                    }
                 } elseif ($action == 'edit') {
-                    $stmt = $db->prepare("UPDATE courses SET name = ?, description = ? WHERE id = ?");
-                    $stmt->execute([$name, $description, $course_id]);
-                    $message = "Lehrgang wurde erfolgreich aktualisiert.";
+                    // Prüfe ob Name bereits von einem anderen Lehrgang verwendet wird
+                    $stmt_check = $db->prepare("SELECT id FROM courses WHERE name = ? AND id != ?");
+                    $stmt_check->execute([$name, $course_id]);
+                    if ($stmt_check->fetch()) {
+                        $error = "Ein Lehrgang mit diesem Namen existiert bereits.";
+                        $db->rollBack();
+                    } else {
+                        $stmt = $db->prepare("UPDATE courses SET name = ?, description = ? WHERE id = ?");
+                        $stmt->execute([$name, $description, $course_id]);
+                        $message = "Lehrgang wurde erfolgreich aktualisiert.";
+                    }
                 }
                 
-                // Anforderungen aktualisieren
-                if ($course_id) {
-                    // Alte Anforderungen löschen
-                    $stmt = $db->prepare("DELETE FROM course_requirements WHERE course_id = ?");
-                    $stmt->execute([$course_id]);
-                    
-                    // Neue Anforderungen hinzufügen
-                    if (!empty($requirements) && is_array($requirements)) {
-                        $stmt = $db->prepare("INSERT INTO course_requirements (course_id, required_course_id) VALUES (?, ?)");
-                        foreach ($requirements as $req_id) {
-                            $req_id = (int)$req_id;
-                            if ($req_id > 0 && $req_id != $course_id) { // Verhindere Selbstreferenz
-                                try {
-                                    $stmt->execute([$course_id, $req_id]);
-                                } catch (Exception $e) {
-                                    // Duplikat ignorieren
+                // Nur weiter machen wenn kein Fehler aufgetreten ist
+                if (empty($error)) {
+                
+                    // Anforderungen aktualisieren
+                    if ($course_id) {
+                        // Alte Anforderungen löschen
+                        $stmt = $db->prepare("DELETE FROM course_requirements WHERE course_id = ?");
+                        $stmt->execute([$course_id]);
+                        
+                        // Neue Anforderungen hinzufügen
+                        if (!empty($requirements) && is_array($requirements)) {
+                            $stmt = $db->prepare("INSERT INTO course_requirements (course_id, required_course_id) VALUES (?, ?)");
+                            foreach ($requirements as $req_id) {
+                                $req_id = (int)$req_id;
+                                if ($req_id > 0 && $req_id != $course_id) { // Verhindere Selbstreferenz
+                                    try {
+                                        $stmt->execute([$course_id, $req_id]);
+                                    } catch (Exception $e) {
+                                        // Duplikat ignorieren
+                                        error_log("Fehler beim Einfügen der Anforderung: " . $e->getMessage());
+                                    }
                                 }
                             }
                         }
                     }
+                    
+                    $db->commit();
+                    header("Location: settings-courses.php?success=" . ($action == 'add' ? 'added' : 'updated'));
+                    exit();
                 }
-                
-                $db->commit();
-                header("Location: settings-courses.php?success=" . ($action == 'add' ? 'added' : 'updated'));
-                exit();
             } catch (Exception $e) {
                 $db->rollBack();
                 $error = "Fehler: " . $e->getMessage();
@@ -148,7 +169,7 @@ try {
     $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Anforderungen für jeden Lehrgang laden
-    foreach ($courses as &$course) {
+    foreach ($courses as $key => $course) {
         $stmt_req = $db->prepare("
             SELECT cr.required_course_id, c.name 
             FROM course_requirements cr
@@ -156,7 +177,7 @@ try {
             WHERE cr.course_id = ?
         ");
         $stmt_req->execute([$course['id']]);
-        $course['requirements'] = $stmt_req->fetchAll(PDO::FETCH_ASSOC);
+        $courses[$key]['requirements'] = $stmt_req->fetchAll(PDO::FETCH_ASSOC);
     }
 } catch (Exception $e) {
     error_log("Fehler beim Laden der Lehrgänge: " . $e->getMessage());
