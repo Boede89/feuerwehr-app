@@ -1496,7 +1496,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         <?php if ($can_courses): ?>
                         <div class="col-12">
                             <hr>
-                            <h6 class="mb-3"><i class="fas fa-graduation-cap me-2"></i>Zugewiesene Lehrgänge</h6>
+                            <h6 class="mb-3"><i class="fas fa-graduation-cap me-2"></i>Absolvierte Lehrgänge</h6>
                             <div id="memberDetailsCourses">
                                 <p class="text-muted">Lade Lehrgänge...</p>
                             </div>
@@ -1682,8 +1682,15 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             <?php if ($can_ric): ?>
                             <div class="col-12">
                                 <hr>
-                                <h6 class="mb-3"><i class="fas fa-broadcast-tower me-2"></i>RIC-Codes zuweisen</h6>
-                                <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <button type="button" class="btn btn-outline-warning" id="addMemberRicBtn">
+                                        <i class="fas fa-broadcast-tower me-1"></i>RIC's zuweisen
+                                    </button>
+                                    <span id="addMemberRicStatus" class="text-muted" style="display: none;">
+                                        <i class="fas fa-check-circle text-success"></i> Daten hinterlegt
+                                    </span>
+                                </div>
+                                <div id="addMemberRicContainer" class="border rounded p-3" style="display: none; max-height: 200px; overflow-y: auto;">
                                     <?php if (empty($ric_codes)): ?>
                                         <p class="text-muted">Keine RIC-Codes vorhanden. Bitte zuerst RIC-Codes in den Einstellungen anlegen.</p>
                                     <?php else: ?>
@@ -1704,14 +1711,29 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                         </div>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
+                                    <div class="mt-3">
+                                        <button type="button" class="btn btn-sm btn-primary" id="saveAddMemberRicsBtn">
+                                            <i class="fas fa-check me-1"></i>Übernehmen
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-secondary" id="cancelAddMemberRicsBtn">
+                                            <i class="fas fa-times me-1"></i>Abbrechen
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             <?php endif; ?>
                             <?php if ($can_courses): ?>
                             <div class="col-12">
                                 <hr>
-                                <h6 class="mb-3"><i class="fas fa-graduation-cap me-2"></i>Lehrgänge zuweisen</h6>
-                                <div id="addMemberCoursesContainer">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <button type="button" class="btn btn-outline-info" id="addMemberCoursesBtn">
+                                        <i class="fas fa-graduation-cap me-1"></i>Absolvierte Lehrgänge
+                                    </button>
+                                    <span id="addMemberCoursesStatus" class="text-muted" style="display: none;">
+                                        <i class="fas fa-check-circle text-success"></i> Daten hinterlegt
+                                    </span>
+                                </div>
+                                <div id="addMemberCoursesContainer" style="display: none;">
                                     <p class="text-muted">Lade verfügbare Lehrgänge...</p>
                                 </div>
                             </div>
@@ -2064,7 +2086,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         html += '</div>';
                         coursesContainer.innerHTML = html;
                     } else {
-                        coursesContainer.innerHTML = '<p class="text-muted">Keine Lehrgänge zugewiesen</p>';
+                        coursesContainer.innerHTML = '<p class="text-muted">Keine Lehrgänge absolviert</p>';
                     }
                 })
                 .catch(error => {
@@ -2098,8 +2120,40 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             html += '</div>';
                             html += '</div>';
                         });
+                        html += '<div class="mt-3">';
+                        html += '<button type="button" class="btn btn-sm btn-primary" id="saveAddMemberCoursesBtn">';
+                        html += '<i class="fas fa-check me-1"></i>Übernehmen';
+                        html += '</button>';
+                        html += '<button type="button" class="btn btn-sm btn-secondary ms-2" id="cancelAddMemberCoursesBtn">';
+                        html += '<i class="fas fa-times me-1"></i>Abbrechen';
+                        html += '</button>';
+                        html += '</div>';
                         html += '</div>';
                         container.innerHTML = html;
+                        
+                        // Event-Listener für Übernehmen-Button
+                        const saveBtn = document.getElementById('saveAddMemberCoursesBtn');
+                        const cancelBtn = document.getElementById('cancelAddMemberCoursesBtn');
+                        const statusEl = document.getElementById('addMemberCoursesStatus');
+                        
+                        if (saveBtn) {
+                            saveBtn.addEventListener('click', function() {
+                                // Prüfe ob mindestens ein Lehrgang ausgewählt wurde
+                                const checkedCourses = document.querySelectorAll('.add-member-course-item input[type="checkbox"]:checked');
+                                if (checkedCourses.length > 0) {
+                                    if (statusEl) {
+                                        statusEl.style.display = 'inline';
+                                    }
+                                    container.style.display = 'none';
+                                }
+                            });
+                        }
+                        
+                        if (cancelBtn) {
+                            cancelBtn.addEventListener('click', function() {
+                                container.style.display = 'none';
+                            });
+                        }
                     } else {
                         container.innerHTML = '<p class="text-muted">Keine Lehrgänge vorhanden. Bitte zuerst Lehrgänge in den Einstellungen anlegen.</p>';
                     }
@@ -2375,6 +2429,38 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             if (paTraegerToggle) {
                 paTraegerToggle.checked = false;
             }
+            
+            // RIC-Container und Status zurücksetzen
+            const addMemberRicContainer = document.getElementById('addMemberRicContainer');
+            const addMemberRicStatus = document.getElementById('addMemberRicStatus');
+            if (addMemberRicContainer) {
+                addMemberRicContainer.style.display = 'none';
+            }
+            if (addMemberRicStatus) {
+                addMemberRicStatus.style.display = 'none';
+            }
+            // RIC-Checkboxen zurücksetzen
+            document.querySelectorAll('.add-member-ric-checkbox').forEach(function(checkbox) {
+                checkbox.checked = false;
+            });
+            
+            // Lehrgänge-Container und Status zurücksetzen
+            const addMemberCoursesContainer = document.getElementById('addMemberCoursesContainer');
+            const addMemberCoursesStatus = document.getElementById('addMemberCoursesStatus');
+            if (addMemberCoursesContainer) {
+                addMemberCoursesContainer.style.display = 'none';
+                addMemberCoursesContainer.innerHTML = '<p class="text-muted">Lade verfügbare Lehrgänge...</p>';
+            }
+            if (addMemberCoursesStatus) {
+                addMemberCoursesStatus.style.display = 'none';
+            }
+            // Lehrgangs-Checkboxen und Inputs zurücksetzen
+            document.querySelectorAll('.add-member-course-item input[type="checkbox"]').forEach(function(checkbox) {
+                checkbox.checked = false;
+            });
+            document.querySelectorAll('.course-year-input').forEach(function(input) {
+                input.value = '';
+            });
             
             // PA-Träger Felder ausblenden und zurücksetzen
             const paTraegerFields = document.getElementById('paTraegerFields');
