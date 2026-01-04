@@ -2561,54 +2561,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     container.innerHTML = '<p class="text-danger">Fehler beim Laden der Mitglieder.</p>';
                 });
         }
-                console.log('=== SUBMIT EVENT AUSGELÖST ===');
-                const courseId = document.getElementById('selectedCourseId').value;
-            const memberCheckboxes = document.querySelectorAll('#assignCourseMembersList input[type="checkbox"]:checked');
-            
-            console.log('=== FORMULAR WIRD ABGESENDET ===');
-            console.log('courseId:', courseId);
-            console.log('Anzahl ausgewählter Mitglieder:', memberCheckboxes.length);
-            
-            // Debug: Prüfe ob alle Checkboxen korrekt sind
-            const memberIds = [];
-            memberCheckboxes.forEach(function(cb) {
-                memberIds.push(cb.value);
-                console.log('Mitglied ID:', cb.value, 'Checked:', cb.checked, 'Name:', cb.name);
-            });
-            console.log('Alle member_ids:', memberIds);
-            
-            // Prüfe ob Checkboxen innerhalb des Formulars sind
-            const form = document.getElementById('assignCourseForm');
-            const allCheckboxes = form.querySelectorAll('input[type="checkbox"][name="member_ids[]"]');
-            console.log('Alle Checkboxen im Formular:', allCheckboxes.length);
-            console.log('Ausgewählte Checkboxen im Formular:', form.querySelectorAll('input[type="checkbox"][name="member_ids[]"]:checked').length);
-            
-            if (!courseId || courseId === '') {
-                e.preventDefault();
-                alert('Bitte wählen Sie einen Lehrgang aus.');
-                return false;
-            }
-            
-            if (memberCheckboxes.length === 0) {
-                e.preventDefault();
-                alert('Bitte wählen Sie mindestens ein Mitglied aus.');
-                return false;
-            }
-            
-            // Prüfe ob course_id wirklich gesetzt ist
-            const courseIdInput = form.querySelector('input[name="course_id"]');
-            console.log('course_id Input value:', courseIdInput ? courseIdInput.value : 'NOT FOUND');
-            
-            // Button deaktivieren während der Übertragung
-            const submitBtn = document.getElementById('saveCourseAssignBtn');
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gespeichert...';
-            
-            console.log('Formular wird jetzt abgesendet...');
-            });
-        } else {
-            console.error('assignCourseForm nicht gefunden!');
-        }
         <?php endif; ?>
     </script>
     
