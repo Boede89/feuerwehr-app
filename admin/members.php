@@ -359,7 +359,7 @@ $is_admin = hasAdminPermission();
 // Prüfe RIC-Berechtigung
 $can_ric = has_permission('ric');
 
-// Prüfe Lehrgangsverwaltungs-Berechtigung
+// Prüfe Lehrgangsverwaltungs-Berechtigung (MUSS VOR POST-Handler sein!)
 $can_courses = has_permission('courses');
 
 // Divera Admin Info laden (für RIC-Zuweisungen)
@@ -2494,8 +2494,23 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             const courseId = document.getElementById('selectedCourseId').value;
             const memberCheckboxes = document.querySelectorAll('#assignCourseMembersList input[type="checkbox"]:checked');
             
-            console.log('Formular wird abgesendet - courseId:', courseId);
+            console.log('=== FORMULAR WIRD ABGESENDET ===');
+            console.log('courseId:', courseId);
             console.log('Anzahl ausgewählter Mitglieder:', memberCheckboxes.length);
+            
+            // Debug: Prüfe ob alle Checkboxen korrekt sind
+            const memberIds = [];
+            memberCheckboxes.forEach(function(cb) {
+                memberIds.push(cb.value);
+                console.log('Mitglied ID:', cb.value, 'Checked:', cb.checked, 'Name:', cb.name);
+            });
+            console.log('Alle member_ids:', memberIds);
+            
+            // Prüfe ob Checkboxen innerhalb des Formulars sind
+            const form = document.getElementById('assignCourseForm');
+            const allCheckboxes = form.querySelectorAll('input[type="checkbox"][name="member_ids[]"]');
+            console.log('Alle Checkboxen im Formular:', allCheckboxes.length);
+            console.log('Ausgewählte Checkboxen im Formular:', form.querySelectorAll('input[type="checkbox"][name="member_ids[]"]:checked').length);
             
             if (!courseId || courseId === '') {
                 e.preventDefault();
@@ -2509,18 +2524,16 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 return false;
             }
             
-            // Debug: Prüfe ob alle Checkboxen korrekt sind
-            const memberIds = [];
-            memberCheckboxes.forEach(function(cb) {
-                memberIds.push(cb.value);
-                console.log('Mitglied ID:', cb.value, 'Checked:', cb.checked);
-            });
-            console.log('Alle member_ids:', memberIds);
+            // Prüfe ob course_id wirklich gesetzt ist
+            const courseIdInput = form.querySelector('input[name="course_id"]');
+            console.log('course_id Input value:', courseIdInput ? courseIdInput.value : 'NOT FOUND');
             
             // Button deaktivieren während der Übertragung
             const submitBtn = document.getElementById('saveCourseAssignBtn');
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gespeichert...';
+            
+            console.log('Formular wird jetzt abgesendet...');
         });
         <?php endif; ?>
     </script>
