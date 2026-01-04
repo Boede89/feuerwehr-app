@@ -1782,13 +1782,52 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             }, 500);
             <?php endif; ?>
             
-            // Lehrgänge beim Öffnen des Hinzufügen-Modals laden
-            const addMemberModal = document.getElementById('addMemberModal');
-            if (addMemberModal) {
-                addMemberModal.addEventListener('show.bs.modal', function() {
-                    const canCourses = <?php echo $can_courses ? 'true' : 'false'; ?>;
-                    if (canCourses) {
-                        loadCoursesForAddMember();
+            // RIC-Button Handler für Hinzufügen-Modal
+            const addMemberRicBtn = document.getElementById('addMemberRicBtn');
+            const addMemberRicContainer = document.getElementById('addMemberRicContainer');
+            const saveAddMemberRicsBtn = document.getElementById('saveAddMemberRicsBtn');
+            const cancelAddMemberRicsBtn = document.getElementById('cancelAddMemberRicsBtn');
+            const addMemberRicStatus = document.getElementById('addMemberRicStatus');
+            
+            if (addMemberRicBtn && addMemberRicContainer) {
+                addMemberRicBtn.addEventListener('click', function() {
+                    addMemberRicContainer.style.display = addMemberRicContainer.style.display === 'none' ? 'block' : 'none';
+                });
+                
+                if (saveAddMemberRicsBtn) {
+                    saveAddMemberRicsBtn.addEventListener('click', function() {
+                        // Prüfe ob mindestens eine RIC ausgewählt wurde
+                        const checkedRics = document.querySelectorAll('.add-member-ric-checkbox:checked');
+                        if (checkedRics.length > 0) {
+                            addMemberRicStatus.style.display = 'inline';
+                            addMemberRicContainer.style.display = 'none';
+                        }
+                    });
+                }
+                
+                if (cancelAddMemberRicsBtn) {
+                    cancelAddMemberRicsBtn.addEventListener('click', function() {
+                        addMemberRicContainer.style.display = 'none';
+                    });
+                }
+            }
+            
+            // Lehrgänge-Button Handler für Hinzufügen-Modal
+            const addMemberCoursesBtn = document.getElementById('addMemberCoursesBtn');
+            const addMemberCoursesContainer = document.getElementById('addMemberCoursesContainer');
+            const addMemberCoursesStatus = document.getElementById('addMemberCoursesStatus');
+            
+            if (addMemberCoursesBtn && addMemberCoursesContainer) {
+                addMemberCoursesBtn.addEventListener('click', function() {
+                    const isVisible = addMemberCoursesContainer.style.display !== 'none';
+                    if (isVisible) {
+                        addMemberCoursesContainer.style.display = 'none';
+                    } else {
+                        addMemberCoursesContainer.style.display = 'block';
+                        const canCourses = <?php echo $can_courses ? 'true' : 'false'; ?>;
+                        if (canCourses) {
+                            loadCoursesForAddMember();
+                        }
                     }
                 });
             }
@@ -2168,6 +2207,48 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+        
+        // Funktion zum Setzen von Dummy-Daten
+        function setDummyDate(fieldId) {
+            const field = document.getElementById(fieldId);
+            if (!field) return;
+            
+            // Dummy-Datum: 01.01.2000 (offensichtlich ein Platzhalter)
+            const dummyDate = '2000-01-01';
+            field.value = dummyDate;
+            
+            // Visuellen Marker hinzufügen
+            field.classList.add('dummy-date');
+            field.style.backgroundColor = '#fff3cd';
+            field.style.borderColor = '#ffc107';
+            
+            // Tooltip/Badge hinzufügen
+            const existingBadge = field.parentElement.querySelector('.dummy-badge');
+            if (!existingBadge) {
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-warning text-dark ms-2 dummy-badge';
+                badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Dummy';
+                badge.style.position = 'absolute';
+                badge.style.top = '50%';
+                badge.style.transform = 'translateY(-50%)';
+                badge.style.right = '10px';
+                field.parentElement.style.position = 'relative';
+                field.parentElement.appendChild(badge);
+            }
+            
+            // Event-Listener für Änderungen - wenn Benutzer das Datum ändert, Marker entfernen
+            field.addEventListener('change', function() {
+                if (this.value !== dummyDate) {
+                    this.classList.remove('dummy-date');
+                    this.style.backgroundColor = '';
+                    this.style.borderColor = '';
+                    const badge = this.parentElement.querySelector('.dummy-badge');
+                    if (badge) {
+                        badge.remove();
+                    }
+                }
+            });
         }
         
         // Funktion zur Berechnung des PA-Träger Status
