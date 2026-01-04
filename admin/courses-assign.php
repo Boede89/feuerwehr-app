@@ -149,6 +149,18 @@ function loadMembersForCourseAssignment() {
                 html += '</div>';
                 container.innerHTML = html;
                 console.log('Mitglieder-Cards erstellt:', data.members.length);
+                
+                // Event-Listener für Checkbox-Änderungen hinzufügen
+                container.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                    checkbox.addEventListener('change', function() {
+                        const card = this.closest('.member-select-card');
+                        if (this.checked) {
+                            card.classList.add('selected');
+                        } else {
+                            card.classList.remove('selected');
+                        }
+                    });
+                });
             } else {
                 const container = document.getElementById('assignCourseMembersList');
                 container.innerHTML = '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Keine Mitglieder gefunden.</div>';
@@ -212,7 +224,8 @@ document.getElementById('assignCourseForm')?.addEventListener('submit', function
     transform: translateY(-2px);
 }
 
-.member-select-card:has(.form-check-input:checked) {
+.member-select-card:has(.form-check-input:checked),
+.member-select-card.selected {
     border-color: #0d6efd;
     background-color: #e7f1ff;
 }
