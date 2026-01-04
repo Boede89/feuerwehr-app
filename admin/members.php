@@ -1292,7 +1292,18 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             </div>
             <?php endif; ?>
             <?php if ($can_courses): ?>
-            <div class="col-12 mb-3">
+            <div class="col-12 col-md-4 mb-2">
+                <button type="button" class="btn w-100" style="background-color: #6f42c1; color: white;" id="toggleCourseManagementBtn" onclick="toggleCourseManagement()">
+                    <i class="fas fa-graduation-cap"></i> Lehrgangsverwaltung
+                </button>
+            </div>
+            <?php endif; ?>
+        </div>
+        
+        <?php if ($can_courses): ?>
+        <!-- Lehrgangsverwaltung Buttons (zunächst ausgeblendet) -->
+        <div class="row mb-4" id="courseManagementButtons" style="display: none;">
+            <div class="col-12">
                 <div class="card shadow">
                     <div class="card-header" style="background-color: #6f42c1; color: white;">
                         <h5 class="card-title mb-0">
@@ -1320,7 +1331,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     </div>
                 </div>
             </div>
-            <?php endif; ?>
+        </div>
+        <?php endif; ?>
         </div>
 
         <!-- Mitglieder-Liste -->
@@ -2251,6 +2263,18 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         <?php endif; ?>
         
         <?php if ($can_courses): ?>
+        // Lehrgangsverwaltung ein-/ausblenden
+        function toggleCourseManagement() {
+            const buttonsDiv = document.getElementById('courseManagementButtons');
+            if (buttonsDiv) {
+                if (buttonsDiv.style.display === 'none') {
+                    buttonsDiv.style.display = 'block';
+                } else {
+                    buttonsDiv.style.display = 'none';
+                }
+            }
+        }
+        
         // Lehrgangsverwaltung JavaScript
         // Liste anzeigen Modal - Auswahl zwischen "nach Namen" und "nach Lehrgang"
         document.getElementById('courseListModal')?.addEventListener('show.bs.modal', function() {

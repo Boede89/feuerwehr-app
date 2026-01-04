@@ -303,7 +303,7 @@ $csrf_token = generate_csrf_token();
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
-                                                    <button type="button" class="btn btn-sm btn-primary" onclick="editCourse(<?php echo $course['id']; ?>, '<?php echo htmlspecialchars($course['name'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($course['description'] ?? '', ENT_QUOTES); ?>', [<?php echo implode(',', array_column($course['requirements'], 'required_course_id')); ?>])">
+                                                    <button type="button" class="btn btn-sm btn-primary" onclick="editCourse(<?php echo $course['id']; ?>, <?php echo json_encode($course['name']); ?>, <?php echo json_encode($course['description'] ?? ''); ?>, [<?php echo !empty($course['requirements']) ? implode(',', array_column($course['requirements'], 'required_course_id')) : ''; ?>])">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
                                                     <a href="?delete=<?php echo $course['id']; ?>&csrf_token=<?php echo $csrf_token; ?>" 
@@ -326,19 +326,35 @@ $csrf_token = generate_csrf_token();
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Formular zurücksetzen wenn Seite mit success-Parameter geladen wird
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('success')) {
+                resetForm();
+            }
+        });
+        
         function editCourse(id, name, description, requirementIds) {
             document.getElementById('action').value = 'edit';
             document.getElementById('course_id').value = id;
-            document.getElementById('name').value = name;
-            document.getElementById('description').value = description;
+            document.getElementById('name').value = name || '';
+            document.getElementById('description').value = description || '';
             document.getElementById('submitButton').innerHTML = '<i class="fas fa-save"></i> Aktualisieren';
             document.getElementById('submitButton').classList.remove('btn-primary');
             document.getElementById('submitButton').classList.add('btn-success');
             
             // Anforderungen auswählen
             const requirementsSelect = document.getElementById('requirements');
-            for (let i = 0; i < requirementsSelect.options.length; i++) {
-                requirementsSelect.options[i].selected = requirementIds.includes(parseInt(requirementsSelect.options[i].value));
+            if (requirementsSelect && requirementIds && requirementIds.length > 0) {
+                for (let i = 0; i < requirementsSelect.options.length; i++) {
+                    const optionValue = parseInt(requirementsSelect.options[i].value);
+                    requirementsSelect.options[i].selected = requirementIds.includes(optionValue);
+                }
+            } else {
+                // Alle zurücksetzen wenn keine Anforderungen
+                for (let i = 0; i < requirementsSelect.options.length; i++) {
+                    requirementsSelect.options[i].selected = false;
+                }
             }
             
             // Zum Formular scrollen
@@ -356,10 +372,17 @@ $csrf_token = generate_csrf_token();
             
             // Anforderungen zurücksetzen
             const requirementsSelect = document.getElementById('requirements');
-            for (let i = 0; i < requirementsSelect.options.length; i++) {
-                requirementsSelect.options[i].selected = false;
+            if (requirementsSelect) {
+                for (let i = 0; i < requirementsSelect.options.length; i++) {
+                    requirementsSelect.options[i].selected = false;
+                }
             }
         }
+        
+        // Formular-Reset nach erfolgreichem Submit
+        document.querySelector('form')?.addEventListener('submit', function() {
+            // Formular wird nach Redirect automatisch zurückgesetzt durch DOMContentLoaded
+        });
     </script>
 </body>
 </html>
