@@ -1735,11 +1735,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                                         title="<?php echo htmlspecialchars($ric['beschreibung'] ?? ''); ?>">
                                                     <?php echo htmlspecialchars($ric['kurztext']); ?>
                                                 </button>
-                                                <input type="hidden" 
-                                                       name="ric_ids[]" 
-                                                       value="<?php echo $ric['id']; ?>" 
-                                                       id="add_ric_<?php echo $ric['id']; ?>"
-                                                       class="add-member-ric-input">
                                             <?php endforeach; ?>
                                         </div>
                                     <?php endif; ?>
@@ -1908,7 +1903,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         // Sammle Lehrgangs-Daten
                         const courseAssignments = [];
                         document.querySelectorAll('.add-member-course-input').forEach(function(input) {
-                            const courseId = input.id.replace('add_course_', '');
+                            const courseId = input.dataset.courseId || input.id.replace('add_course_', '');
                             const yearInput = document.getElementById('add_course_year_' + courseId);
                             
                             if (courseId) {
@@ -2261,10 +2256,13 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                     hiddenInput.type = 'hidden';
                                     hiddenInput.className = 'add-member-course-input';
                                     hiddenInput.id = 'add_course_' + courseId;
+                                    hiddenInput.dataset.courseId = courseId;
                                     
-                                    // Container finden und Input hinzufügen
-                                    const container = document.getElementById('addMemberCoursesButtons') || this.parentElement;
-                                    container.appendChild(hiddenInput);
+                                    // Formular finden und Input hinzufügen (nicht in den Button-Container)
+                                    const form = document.getElementById('memberForm');
+                                    if (form) {
+                                        form.appendChild(hiddenInput);
+                                    }
                                     
                                     // Jahr-Input anzeigen
                                     if (yearInput) {
