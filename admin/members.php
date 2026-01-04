@@ -2341,6 +2341,173 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             modal.show();
         }
         
+        // Funktion zum Öffnen des Lehrgangs-Zuweisungs-Modals
+        function openCoursesAssignmentModal(memberId, memberName) {
+            const coursesModal = document.getElementById('assignCoursesModal');
+            if (!coursesModal) {
+                alert('Lehrgangs-Zuweisungs-Modal nicht gefunden.');
+                return;
+            }
+            
+            // Mitglieds-ID und Name setzen
+            document.getElementById('modal_courses_member_id').value = memberId;
+            document.getElementById('modal_courses_member_name').textContent = memberName;
+            
+            // Lehrgänge laden
+            loadCoursesForModal(memberId);
+            
+            // Modal öffnen
+            const modal = new bootstrap.Modal(coursesModal);
+            modal.show();
+        }
+        
+        function loadCoursesForModal(memberId) {
+            const container = document.getElementById('modalCoursesContainer');
+            if (!container) return;
+            
+            container.innerHTML = '<p class="text-muted">Lade verfügbare Lehrgänge...</p>';
+            
+            // Lade alle Lehrgänge und aktuelle Zuweisungen parallel
+            Promise.all([
+                fetch('get-courses.php').then(r => r.json()),
+                fetch('get-member-courses-single.php?member_id=' + memberId).then(r => r.json())
+            ])
+            .then(([coursesData, memberCoursesData]) => {
+                const courses = coursesData.success ? coursesData.courses : [];
+                const currentCourses = memberCoursesData.success ? memberCoursesData.courses : [];
+                
+                if (courses.length === 0) {
+                    container.innerHTML = '<p class="text-muted">Keine Lehrgänge vorhanden. Bitte zuerst Lehrgänge in den Einstellungen anlegen.</p>';
+                    return;
+                }
+                
+                let html = '<div class="d-flex flex-wrap gap-2 mb-3" id="modalCoursesButtons" role="group" aria-label="Lehrgänge auswählen">';
+                courses.forEach(function(course) {
+                    const existingCourse = currentCourses.find(c => c.id == course.id);
+                    const isSelected = !!existingCourse;
+                    const year = existingCourse && existingCourse.year ? existingCourse.year : '';
+                    
+                    html += '<div class="modal-course-item" data-course-id="' + course.id + '" style="display: flex; flex-direction: column; gap: 5px;">';
+                    html += '<button type="button" class="btn ' + (isSelected ? 'btn-info' : 'btn-outline-info') + ' modal-course-btn" data-course-id="' + course.id + '" id="modal_course_btn_' + course.id + '">';
+                    html += escapeHtml(course.name);
+                    html += '</button>';
+                    html += '<input type="text" class="form-control form-control-sm modal-course-year-input" style="width: 100px; ' + (isSelected ? '' : 'display: none;') + '" placeholder="Jahr" autocomplete="off" id="modal_course_year_' + course.id + '" value="' + escapeHtml(year) + '">';
+                    html += '</div>';
+                });
+                html += '</div>';
+                container.innerHTML = html;
+                
+                // Event-Listener für Lehrgangs-Buttons
+                document.querySelectorAll('.modal-course-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const courseId = this.dataset.courseId;
+                        const input = document.getElementById('modal_course_' + courseId);
+                        const yearInput = document.getElementById('modal_course_year_' + courseId);
+                        
+                        // Prüfen ob Button bereits aktiviert ist (hat btn-info Klasse)
+                        const isActive = this.classList.contains('btn-info');
+                        
+                        if (isActive) {
+                            // Entfernen - Button ist aktiviert, also deaktivieren
+                            if (input) {
+                                input.remove();
+                            }
+                            if (yearInput) {
+                                yearInput.style.display = 'none';
+                                yearInput.value = '';
+                            }
+                            this.classList.remove('btn-info');
+                            this.classList.add('btn-outline-info');
+                        } else {
+                            // Hinzufügen - Button ist nicht aktiviert, also aktivieren
+                            const hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.className = 'modal-course-input';
+                            hiddenInput.id = 'modal_course_' + courseId;
+                            hiddenInput.dataset.courseId = courseId;
+                            
+                            // Formular finden und Input hinzufügen
+                            const form = document.getElementById('assignCoursesForm');
+                            if (form) {
+                                form.appendChild(hiddenInput);
+                            }
+                            
+                            // Jahr-Input anzeigen
+                            if (yearInput) {
+                                yearInput.style.display = 'block';
+                            }
+                            
+                            this.classList.remove('btn-outline-info');
+                            this.classList.add('btn-info');
+                        }
+                    });
+                    
+                    // Vorauswahl: Prüfe ob dieser Lehrgang bereits zugewiesen ist
+                    const courseId = btn.dataset.courseId;
+                    const existingCourse = currentCourses.find(c => c.id == courseId);
+                    if (existingCourse) {
+                        // Button ist bereits aktiviert (siehe HTML oben)
+                        // Hidden Input erstellen
+                        const hiddenInput = document.createElement('input');
+                        hiddenInput.type = 'hidden';
+                        hiddenInput.className = 'modal-course-input';
+                        hiddenInput.id = 'modal_course_' + courseId;
+                        hiddenInput.dataset.courseId = courseId;
+                        
+                        const form = document.getElementById('assignCoursesForm');
+                        if (form) {
+                            form.appendChild(hiddenInput);
+                        }
+                    }
+                });
+                
+                // Formular-Submit Handler für Lehrgangs-Zuweisungen
+                const assignCoursesForm = document.getElementById('assignCoursesForm');
+                if (assignCoursesForm) {
+                    // Entferne alte Event-Listener
+                    const newForm = assignCoursesForm.cloneNode(true);
+                    assignCoursesForm.parentNode.replaceChild(newForm, assignCoursesForm);
+                    
+                    newForm.addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        
+                        // Sammle Lehrgangs-Daten
+                        const courseAssignments = [];
+                        document.querySelectorAll('.modal-course-input').forEach(function(input) {
+                            const courseId = input.dataset.courseId || input.id.replace('modal_course_', '');
+                            const yearInput = document.getElementById('modal_course_year_' + courseId);
+                            
+                            if (courseId) {
+                                const completionYear = yearInput ? yearInput.value.trim() : '';
+                                courseAssignments.push({
+                                    course_id: courseId,
+                                    completion_year: completionYear || 'nicht bekannt'
+                                });
+                            }
+                        });
+                        
+                        // Erstelle Hidden Input für course_assignments
+                        let courseAssignmentsInput = document.getElementById('course_assignments_json_modal');
+                        if (!courseAssignmentsInput) {
+                            courseAssignmentsInput = document.createElement('input');
+                            courseAssignmentsInput.type = 'hidden';
+                            courseAssignmentsInput.name = 'course_assignments_json';
+                            courseAssignmentsInput.id = 'course_assignments_json_modal';
+                            newForm.appendChild(courseAssignmentsInput);
+                        }
+                        courseAssignmentsInput.value = JSON.stringify(courseAssignments);
+                        
+                        // Formular absenden
+                        newForm.submit();
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Fehler beim Laden der Lehrgänge:', error);
+                container.innerHTML = '<p class="text-danger">Fehler beim Laden der Lehrgänge</p>';
+            });
+        }
+        
         // Funktion zum Laden der RIC-Codes für ein Mitglied (für Details-Modal)
         function loadMemberRicsForDetails(memberId) {
             const ricsContainer = document.getElementById('memberDetailsRics');
