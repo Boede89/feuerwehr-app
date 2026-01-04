@@ -267,22 +267,25 @@ $csrf_token = generate_csrf_token();
                             
                             <div class="mb-3">
                                 <label class="form-label">Anforderungen (Voraussetzungen)</label>
-                                <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                <div class="border rounded p-3" id="requirementsButtons" style="max-height: 200px; overflow-y: auto;" role="group" aria-label="Anforderungen auswählen">
                                     <?php if (empty($courses)): ?>
                                         <p class="text-muted mb-0">Noch keine Lehrgänge vorhanden.</p>
                                     <?php else: ?>
-                                        <?php foreach ($courses as $course): ?>
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input requirement-checkbox" 
-                                                       type="checkbox" 
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <?php foreach ($courses as $course): ?>
+                                                <button type="button" 
+                                                        class="btn btn-outline-secondary requirement-btn" 
+                                                        data-requirement-id="<?php echo $course['id']; ?>"
+                                                        id="req_btn_<?php echo $course['id']; ?>">
+                                                    <?php echo htmlspecialchars($course['name']); ?>
+                                                </button>
+                                                <input type="hidden" 
                                                        name="requirements[]" 
                                                        value="<?php echo $course['id']; ?>" 
-                                                       id="req_<?php echo $course['id']; ?>">
-                                                <label class="form-check-label" for="req_<?php echo $course['id']; ?>">
-                                                    <?php echo htmlspecialchars($course['name']); ?>
-                                                </label>
-                                            </div>
-                                        <?php endforeach; ?>
+                                                       id="req_<?php echo $course['id']; ?>"
+                                                       class="requirement-input">
+                                            <?php endforeach; ?>
+                                        </div>
                                     <?php endif; ?>
                                 </div>
                                 <small class="form-text text-muted">Klicken Sie auf die Lehrgänge, die als Voraussetzung gelten sollen.</small>
@@ -337,7 +340,12 @@ $csrf_token = generate_csrf_token();
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
-                                                    <button type="button" class="btn btn-sm btn-primary" onclick="editCourse(<?php echo $course['id']; ?>, <?php echo json_encode($course['name']); ?>, <?php echo json_encode($course['description'] ?? ''); ?>, <?php echo json_encode(!empty($course['requirements']) ? array_column($course['requirements'], 'required_course_id') : []); ?>)">
+                                                    <button type="button" 
+                                                            class="btn btn-sm btn-primary edit-course-btn" 
+                                                            data-course-id="<?php echo $course['id']; ?>"
+                                                            data-course-name="<?php echo htmlspecialchars($course['name'], ENT_QUOTES); ?>"
+                                                            data-course-description="<?php echo htmlspecialchars($course['description'] ?? '', ENT_QUOTES); ?>"
+                                                            data-course-requirements="<?php echo htmlspecialchars(json_encode(!empty($course['requirements']) ? array_column($course['requirements'], 'required_course_id') : []), ENT_QUOTES); ?>">
                                                         <i class="fas fa-edit"></i> Bearbeiten
                                                     </button>
                                                     <a href="?delete=<?php echo $course['id']; ?>&csrf_token=<?php echo $csrf_token; ?>" 
