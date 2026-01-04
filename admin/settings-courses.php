@@ -369,13 +369,34 @@ $csrf_token = generate_csrf_token();
         });
         
         function editCourse(id, name, description, requirementIds) {
-            document.getElementById('action').value = 'edit';
-            document.getElementById('course_id').value = id;
-            document.getElementById('name').value = name || '';
-            document.getElementById('description').value = description || '';
-            document.getElementById('submitButton').innerHTML = '<i class="fas fa-save"></i> Aktualisieren';
-            document.getElementById('submitButton').classList.remove('btn-primary');
-            document.getElementById('submitButton').classList.add('btn-success');
+            console.log('editCourse aufgerufen:', { id, name, description, requirementIds });
+            
+            if (!id) {
+                console.error('Keine ID übergeben!');
+                alert('Fehler: Keine Lehrgangs-ID gefunden.');
+                return;
+            }
+            
+            // Formular-Felder setzen
+            const actionField = document.getElementById('action');
+            const courseIdField = document.getElementById('course_id');
+            const nameField = document.getElementById('name');
+            const descriptionField = document.getElementById('description');
+            const submitButton = document.getElementById('submitButton');
+            
+            if (!actionField || !courseIdField || !nameField || !descriptionField || !submitButton) {
+                console.error('Formular-Felder nicht gefunden!');
+                alert('Fehler: Formular-Felder nicht gefunden.');
+                return;
+            }
+            
+            actionField.value = 'edit';
+            courseIdField.value = id;
+            nameField.value = name || '';
+            descriptionField.value = description || '';
+            submitButton.innerHTML = '<i class="fas fa-save"></i> Aktualisieren';
+            submitButton.classList.remove('btn-primary');
+            submitButton.classList.add('btn-success');
             
             // Anforderungen auswählen (Checkboxen)
             // Zuerst alle zurücksetzen
@@ -384,17 +405,26 @@ $csrf_token = generate_csrf_token();
             });
             
             // Dann die gewünschten auswählen
-            if (requirementIds && requirementIds.length > 0) {
+            if (requirementIds && Array.isArray(requirementIds) && requirementIds.length > 0) {
+                console.log('Setze Anforderungen:', requirementIds);
                 requirementIds.forEach(reqId => {
                     const checkbox = document.getElementById('req_' + reqId);
                     if (checkbox) {
                         checkbox.checked = true;
+                        console.log('Checkbox req_' + reqId + ' aktiviert');
+                    } else {
+                        console.warn('Checkbox req_' + reqId + ' nicht gefunden');
                     }
                 });
+            } else {
+                console.log('Keine Anforderungen zu setzen');
             }
             
             // Zum Formular scrollen
-            document.querySelector('.card.shadow').scrollIntoView({ behavior: 'smooth' });
+            const formCard = document.querySelector('.card.shadow');
+            if (formCard) {
+                formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }
         
         function resetForm() {
