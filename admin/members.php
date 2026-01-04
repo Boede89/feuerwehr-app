@@ -36,7 +36,69 @@ if (isset($_GET['success'])) {
     }
 }
 
-// POST-Handler für assign_course wurde nach courses.php verschoben
+// Lehrgangs-Zuweisungen speichern (POST-Handler für Modal)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_course_assignments']) && $can_courses) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = "Ungültiger Sicherheitstoken.";
+    } else {
+        try {
+            $db->beginTransaction();
+            
+            $member_id = (int)($_POST['member_id'] ?? 0);
+            $course_assignments = isset($_POST['course_assignments']) ? $_POST['course_assignments'] : [];
+            
+            if ($member_id <= 0) {
+                $error = "Ungültige Mitglieds-ID.";
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+            } else {
+                // Alte Zuweisungen löschen
+                $stmt_delete = $db->prepare("DELETE FROM member_courses WHERE member_id = ?");
+                $stmt_delete->execute([$member_id]);
+                
+                // Neue Zuweisungen speichern
+                if (!empty($course_assignments)) {
+                    foreach ($course_assignments as $course_data) {
+                        if (is_array($course_data)) {
+                            $course_id = (int)($course_data['course_id'] ?? 0);
+                            $completion_year = trim($course_data['completion_year'] ?? '');
+                        } else {
+                            // Fallback: Wenn course_assignments als Array von IDs übergeben wird
+                            $course_id = (int)$course_data;
+                            $completion_year = '';
+                        }
+                        
+                        if ($course_id > 0) {
+                            // Datum setzen: YYYY-01-01 oder NULL wenn "nicht bekannt"
+                            $completed_date = null;
+                            if (!empty($completion_year) && $completion_year !== 'nicht bekannt' && is_numeric($completion_year)) {
+                                $completed_date = $completion_year . '-01-01';
+                            }
+                            
+                            $stmt_course = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, ?)");
+                            $stmt_course->execute([$member_id, $course_id, $completed_date]);
+                        }
+                    }
+                }
+                
+                if ($db->inTransaction()) {
+                    $db->commit();
+                }
+                
+                // Weiterleitung um POST-Problem zu vermeiden
+                header("Location: members.php?show_list=1&success=course_assigned&member_id=" . $member_id);
+                exit();
+            }
+        } catch (Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            $error = "Fehler beim Speichern der Lehrgangs-Zuweisungen: " . $e->getMessage();
+            error_log("Fehler beim Speichern der Lehrgangs-Zuweisungen: " . $e->getMessage());
+        }
+    }
+}
 
 // Mitglieder laden
 $members = [];
@@ -320,6 +382,17 @@ if ($can_ric) {
         $ric_codes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         error_log("Fehler beim Laden der RIC-Codes: " . $e->getMessage());
+    }
+}
+
+// Lehrgänge laden (für Modal)
+$courses_for_modal = [];
+if ($can_courses) {
+    try {
+        $stmt = $db->query("SELECT id, name, description FROM courses ORDER BY name");
+        $courses_for_modal = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Fehler beim Laden der Lehrgänge: " . $e->getMessage());
     }
 }
 
@@ -1588,6 +1661,45 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         <button type="submit" class="btn btn-warning" id="saveRicAssignmentsBtn">
                             <i class="fas fa-save"></i> <span id="saveRicBtnText">Speichern</span>
                             <span id="saveRicBtnSpinner" class="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true" style="display: none;"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Lehrgangs-Zuweisung Modal -->
+    <?php if ($can_courses): ?>
+    <div class="modal fade" id="assignCoursesModal" tabindex="-1" aria-labelledby="assignCoursesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="assignCoursesModalLabel">
+                        <i class="fas fa-graduation-cap"></i> Lehrgänge zuweisen
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="" id="assignCoursesForm">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                    <input type="hidden" name="member_id" id="modal_courses_member_id" value="">
+                    <input type="hidden" name="save_course_assignments" value="1">
+                    <div class="modal-body">
+                        <p><strong>Mitglied:</strong> <span id="modal_courses_member_name"></span></p>
+                        <div class="mb-3">
+                            <p class="form-label mb-2"><strong>Lehrgänge auswählen:</strong></p>
+                            <div class="border rounded p-3" id="modalCoursesContainer" style="max-height: 400px; overflow-y: auto;">
+                                <p class="text-muted">Lade Lehrgänge...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" id="cancelCoursesBtn" data-bs-dismiss="modal">
+                            <i class="fas fa-times"></i> Abbrechen
+                        </button>
+                        <button type="submit" class="btn btn-info" id="saveCoursesAssignmentsBtn">
+                            <i class="fas fa-save"></i> <span id="saveCoursesBtnText">Speichern</span>
+                            <span id="saveCoursesBtnSpinner" class="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true" style="display: none;"></span>
                         </button>
                     </div>
                 </form>
