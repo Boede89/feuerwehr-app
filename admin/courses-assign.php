@@ -37,9 +37,13 @@
                     </select>
                 </div>
                 
-                <label class="form-label d-block">Mitglieder auswählen:</label>
-                <div id="assignCourseMembersList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;" role="group" aria-label="Mitglieder auswählen">
-                    <p class="text-muted">Lade Mitglieder...</p>
+                <label class="form-label d-block mb-2">
+                    <i class="fas fa-users"></i> Mitglieder auswählen (nur Mitglieder ohne diesen Lehrgang):
+                </label>
+                <div id="assignCourseMembersList" class="border rounded p-3" style="max-height: 400px; overflow-y: auto; background-color: #f8f9fa;" role="group" aria-label="Mitglieder auswählen">
+                    <p class="text-muted text-center py-3">
+                        <i class="fas fa-spinner fa-spin"></i> Lade Mitglieder...
+                    </p>
                 </div>
             </div>
             
@@ -90,8 +94,14 @@ function selectCourseForAssign(courseId, courseName) {
 }
 
 function loadMembersForCourseAssignment() {
-    console.log('Lade Mitglieder für Lehrgangszuweisung...');
-    fetch('get-members.php')
+    const courseId = document.getElementById('selectedCourseId').value;
+    if (!courseId) {
+        console.error('Keine course_id gefunden!');
+        return;
+    }
+    
+    console.log('Lade Mitglieder für Lehrgangszuweisung (ohne Lehrgang ID ' + courseId + ')...');
+    fetch('get-members.php?course_id=' + courseId)
         .then(response => {
             console.log('Response Status:', response.status);
             return response.json();
@@ -105,24 +115,49 @@ function loadMembersForCourseAssignment() {
                     console.error('Formular nicht gefunden!');
                     return;
                 }
-                let html = '';
+                
+                if (data.members.length === 0) {
+                    container.innerHTML = '<div class="alert alert-info"><i class="fas fa-info-circle"></i> Alle Mitglieder haben diesen Lehrgang bereits.</div>';
+                    return;
+                }
+                
+                let html = '<div class="row g-2">';
                 data.members.forEach(member => {
-                    html += '<div class="form-check">';
-                    html += '<input class="form-check-input" type="checkbox" name="member_ids[]" value="' + member.id + '" id="member_' + member.id + '" autocomplete="off">';
-                    html += '<label class="form-check-label" for="member_' + member.id + '">' + member.name + '</label>';
+                    html += '<div class="col-12 col-md-6 col-lg-4">';
+                    html += '<div class="card member-select-card h-100">';
+                    html += '<div class="card-body p-3">';
+                    html += '<div class="form-check h-100 d-flex align-items-center">';
+                    html += '<input class="form-check-input me-3" type="checkbox" name="member_ids[]" value="' + member.id + '" id="member_' + member.id + '" autocomplete="off">';
+                    html += '<label class="form-check-label flex-grow-1" for="member_' + member.id + '" style="cursor: pointer;">';
+                    html += '<div class="d-flex align-items-center">';
+                    html += '<div class="member-avatar me-2">';
+                    html += '<i class="fas fa-user-circle fa-2x text-primary"></i>';
+                    html += '</div>';
+                    html += '<div>';
+                    html += '<div class="fw-bold">' + member.name + '</div>';
+                    if (member.email) {
+                        html += '<small class="text-muted"><i class="fas fa-envelope"></i> ' + member.email + '</small>';
+                    }
+                    html += '</div>';
+                    html += '</div>';
+                    html += '</label>';
+                    html += '</div>';
+                    html += '</div>';
+                    html += '</div>';
                     html += '</div>';
                 });
+                html += '</div>';
                 container.innerHTML = html;
-                console.log('Mitglieder-Checkboxen erstellt:', data.members.length);
+                console.log('Mitglieder-Cards erstellt:', data.members.length);
             } else {
                 const container = document.getElementById('assignCourseMembersList');
-                container.innerHTML = '<p class="text-muted">Keine Mitglieder gefunden.</p>';
+                container.innerHTML = '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Keine Mitglieder gefunden.</div>';
             }
         })
         .catch(error => {
             console.error('Fehler beim Laden der Mitglieder:', error);
             const container = document.getElementById('assignCourseMembersList');
-            container.innerHTML = '<p class="text-danger">Fehler beim Laden der Mitglieder.</p>';
+            container.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> Fehler beim Laden der Mitglieder.</div>';
         });
 }
 
@@ -163,4 +198,57 @@ document.getElementById('assignCourseForm')?.addEventListener('submit', function
     console.log('Formular wird jetzt abgesendet...');
 });
 </script>
+
+<style>
+.member-select-card {
+    transition: all 0.2s ease;
+    border: 2px solid #e9ecef;
+    cursor: pointer;
+}
+
+.member-select-card:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.15);
+    transform: translateY(-2px);
+}
+
+.member-select-card .form-check-input:checked ~ label {
+    color: #0d6efd;
+}
+
+.member-select-card .form-check-input:checked ~ label .member-avatar i {
+    color: #0d6efd !important;
+}
+
+.member-select-card .form-check-input {
+    margin-top: 0.5rem;
+}
+
+.member-avatar {
+    flex-shrink: 0;
+}
+
+#assignCourseMembersList {
+    scrollbar-width: thin;
+    scrollbar-color: #dee2e6 #f8f9fa;
+}
+
+#assignCourseMembersList::-webkit-scrollbar {
+    width: 8px;
+}
+
+#assignCourseMembersList::-webkit-scrollbar-track {
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+#assignCourseMembersList::-webkit-scrollbar-thumb {
+    background: #dee2e6;
+    border-radius: 4px;
+}
+
+#assignCourseMembersList::-webkit-scrollbar-thumb:hover {
+    background: #adb5bd;
+}
+</style>
 
