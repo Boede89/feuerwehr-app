@@ -1324,9 +1324,9 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             <?php endif; ?>
             <?php if ($can_courses): ?>
             <div class="col-12 col-md-4 mb-2">
-                <button type="button" class="btn w-100" style="background-color: #6f42c1; color: white;" id="toggleCourseManagementBtn" onclick="toggleCourseManagement()">
+                <a href="courses.php" class="btn w-100" style="background-color: #6f42c1; color: white;">
                     <i class="fas fa-graduation-cap"></i> Lehrgangsverwaltung
-                </button>
+                </a>
             </div>
             <?php endif; ?>
         </div>
