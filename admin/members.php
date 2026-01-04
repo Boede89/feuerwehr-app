@@ -59,20 +59,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course']) && $
                 }
             } else {
                 $stmt = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, CURDATE()) ON DUPLICATE KEY UPDATE completed_date = CURDATE()");
+                $inserted_count = 0;
                 foreach ($member_ids as $member_id) {
                     if ($member_id > 0) {
                         try {
                             $stmt->execute([$member_id, $course_id]);
+                            $inserted_count++;
+                            error_log("Lehrgang $course_id wurde Mitglied $member_id zugewiesen");
                         } catch (Exception $e) {
                             error_log("Fehler beim Zuweisen des Lehrgangs: " . $e->getMessage());
                         }
                     }
                 }
                 
-                $db->commit();
-                $message = "Lehrgang wurde erfolgreich hinterlegt.";
-                header("Location: members.php?success=course_assigned");
-                exit();
+                if ($inserted_count > 0) {
+                    $db->commit();
+                    $message = "Lehrgang wurde erfolgreich bei $inserted_count Mitglied(ern) hinterlegt.";
+                } else {
+                    $db->rollBack();
+                    $error = "Fehler: Keine Lehrgänge konnten zugewiesen werden.";
+                }
+                
+                if (empty($error)) {
+                    header("Location: members.php?success=course_assigned");
+                    exit();
+                }
             }
         } catch (Exception $e) {
             if ($db->inTransaction()) {

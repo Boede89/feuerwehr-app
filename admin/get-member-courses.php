@@ -21,7 +21,7 @@ try {
                 m.id,
                 CONCAT(m.first_name, ' ', m.last_name) as name,
                 GROUP_CONCAT(
-                    CONCAT(c.name, '|', COALESCE(mc.completed_date, ''))
+                    DISTINCT CONCAT(c.name, '|', COALESCE(mc.completed_date, ''))
                     ORDER BY c.name
                     SEPARATOR '||'
                 ) as courses_data
@@ -37,15 +37,18 @@ try {
         $result = [];
         foreach ($members as $member) {
             $courses = [];
-            if (!empty($member['courses_data'])) {
+            // Prüfe ob courses_data nicht NULL und nicht leer ist
+            if (isset($member['courses_data']) && $member['courses_data'] !== null && trim($member['courses_data']) !== '') {
                 $courses_array = explode('||', $member['courses_data']);
                 foreach ($courses_array as $course_data) {
-                    if (!empty($course_data)) {
-                        list($course_name, $completed_date) = explode('|', $course_data, 2);
-                        $courses[] = [
-                            'name' => $course_name,
-                            'completed_date' => $completed_date
-                        ];
+                    if (!empty($course_data) && trim($course_data) !== '') {
+                        $parts = explode('|', $course_data, 2);
+                        if (count($parts) >= 1 && !empty(trim($parts[0]))) {
+                            $courses[] = [
+                                'name' => trim($parts[0]),
+                                'completed_date' => isset($parts[1]) ? trim($parts[1]) : ''
+                            ];
+                        }
                     }
                 }
             }
