@@ -47,7 +47,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course']) && $
             $course_id = (int)($_POST['course_id'] ?? 0);
             $member_ids = isset($_POST['member_ids']) ? array_map('intval', $_POST['member_ids']) : [];
             
-            error_log("POST assign_course - course_id: $course_id, member_ids: " . print_r($member_ids, true));
+            error_log("=== POST assign_course ===");
+            error_log("POST course_id (raw): " . var_export($_POST['course_id'] ?? 'NOT SET', true));
+            error_log("POST course_id (int): $course_id");
+            error_log("POST member_ids (raw): " . var_export($_POST['member_ids'] ?? 'NOT SET', true));
+            error_log("POST member_ids (processed): " . print_r($member_ids, true));
+            error_log("POST assign_course flag: " . var_export($_POST['assign_course'] ?? 'NOT SET', true));
             
             // Debug: Prüfe ob course_id und member_ids korrekt sind
             if ($course_id <= 0) {
@@ -70,17 +75,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course']) && $
             } else {
                 $stmt = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, CURDATE()) ON DUPLICATE KEY UPDATE completed_date = CURDATE()");
                 $inserted_count = 0;
+                $error_count = 0;
                 foreach ($member_ids as $member_id) {
                     if ($member_id > 0) {
                         try {
-                            $stmt->execute([$member_id, $course_id]);
+                            error_log("Versuche INSERT: member_id=$member_id, course_id=$course_id");
+                            $result = $stmt->execute([$member_id, $course_id]);
                             $inserted_count++;
-                            error_log("Lehrgang $course_id wurde Mitglied $member_id zugewiesen");
+                            error_log("✓ Erfolgreich: Lehrgang $course_id wurde Mitglied $member_id zugewiesen (affected rows: " . $stmt->rowCount() . ")");
                         } catch (Exception $e) {
-                            error_log("Fehler beim Zuweisen des Lehrgangs: " . $e->getMessage());
+                            $error_count++;
+                            error_log("✗ Fehler beim Zuweisen des Lehrgangs $course_id an Mitglied $member_id: " . $e->getMessage());
+                            error_log("Exception Details: " . print_r($e, true));
                         }
+                    } else {
+                        error_log("WARNUNG: member_id ist 0 oder negativ: $member_id");
                     }
                 }
+                
+                error_log("Zusammenfassung: $inserted_count erfolgreich, $error_count Fehler");
                 
                 if ($inserted_count > 0) {
                     $db->commit();
@@ -2481,6 +2494,9 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             const courseId = document.getElementById('selectedCourseId').value;
             const memberCheckboxes = document.querySelectorAll('#assignCourseMembersList input[type="checkbox"]:checked');
             
+            console.log('Formular wird abgesendet - courseId:', courseId);
+            console.log('Anzahl ausgewählter Mitglieder:', memberCheckboxes.length);
+            
             if (!courseId || courseId === '') {
                 e.preventDefault();
                 alert('Bitte wählen Sie einen Lehrgang aus.');
@@ -2492,6 +2508,14 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 alert('Bitte wählen Sie mindestens ein Mitglied aus.');
                 return false;
             }
+            
+            // Debug: Prüfe ob alle Checkboxen korrekt sind
+            const memberIds = [];
+            memberCheckboxes.forEach(function(cb) {
+                memberIds.push(cb.value);
+                console.log('Mitglied ID:', cb.value, 'Checked:', cb.checked);
+            });
+            console.log('Alle member_ids:', memberIds);
             
             // Button deaktivieren während der Übertragung
             const submitBtn = document.getElementById('saveCourseAssignBtn');
