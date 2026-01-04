@@ -24,6 +24,19 @@
             </div>
             
             <div id="assignCourseMembers" style="display: none;">
+                <div class="mb-3">
+                    <label for="completionYear" class="form-label">Abschlussjahr:</label>
+                    <select class="form-select" id="completionYear" name="completion_year" required autocomplete="off">
+                        <option value="">Bitte wählen...</option>
+                        <?php
+                        $currentYear = (int)date('Y');
+                        for ($year = $currentYear; $year >= 1950; $year--) {
+                            echo '<option value="' . $year . '">' . $year . '</option>';
+                        }
+                        ?>
+                    </select>
+                </div>
+                
                 <label class="form-label d-block">Mitglieder auswählen:</label>
                 <div id="assignCourseMembersList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;" role="group" aria-label="Mitglieder auswählen">
                     <p class="text-muted">Lade Mitglieder...</p>
@@ -132,6 +145,13 @@ document.getElementById('assignCourseForm')?.addEventListener('submit', function
     if (memberCheckboxes.length === 0) {
         e.preventDefault();
         alert('Bitte wählen Sie mindestens ein Mitglied aus.');
+        return false;
+    }
+    
+    const completionYear = document.getElementById('completionYear').value;
+    if (!completionYear || completionYear === '') {
+        e.preventDefault();
+        alert('Bitte wählen Sie ein Abschlussjahr aus.');
         return false;
     }
     

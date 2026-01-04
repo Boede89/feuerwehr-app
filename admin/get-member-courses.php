@@ -57,9 +57,17 @@ try {
                         $parts = explode('|', $course_data, 2);
                         error_log("DEBUG: Course data parts: " . print_r($parts, true));
                         if (count($parts) >= 1 && !empty(trim($parts[0]))) {
+                            $completed_date = isset($parts[1]) ? trim($parts[1]) : '';
+                            // Jahr extrahieren (falls vollständiges Datum vorhanden)
+                            $year = '';
+                            if (!empty($completed_date)) {
+                                $date_parts = explode('-', $completed_date);
+                                $year = $date_parts[0] ?? '';
+                            }
                             $courses[] = [
                                 'name' => trim($parts[0]),
-                                'completed_date' => isset($parts[1]) ? trim($parts[1]) : ''
+                                'completed_date' => $completed_date,
+                                'year' => $year
                             ];
                         }
                     }
@@ -90,7 +98,8 @@ try {
             SELECT 
                 m.id,
                 CONCAT(m.first_name, ' ', m.last_name) as name,
-                mc.completed_date
+                mc.completed_date,
+                YEAR(mc.completed_date) as year
             FROM member_courses mc
             INNER JOIN members m ON m.id = mc.member_id
             WHERE mc.course_id = ?
@@ -98,6 +107,16 @@ try {
         ");
         $stmt->execute([$course_id]);
         $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Jahr extrahieren für Anzeige
+        foreach ($members as &$member) {
+            if (!empty($member['completed_date'])) {
+                $member['year'] = $member['year'] ?: substr($member['completed_date'], 0, 4);
+            } else {
+                $member['year'] = '';
+            }
+        }
+        unset($member);
         
         echo json_encode(['success' => true, 'members' => $members]);
         

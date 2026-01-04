@@ -90,17 +90,18 @@ function loadCourseListByName() {
                 const container = document.getElementById('courseListByNameContent');
                 if (data.members && data.members.length > 0) {
                     let html = '<table class="table table-striped"><thead><tr><th>Mitglied</th><th>Lehrgänge</th></tr></thead><tbody>';
-                    data.members.forEach(member => {
-                        html += '<tr><td>' + member.name + '</td><td>';
-                        if (member.courses && member.courses.length > 0) {
-                            member.courses.forEach(course => {
-                                html += '<span class="badge bg-primary me-1">' + course.name + '</span>';
+                            data.members.forEach(member => {
+                                html += '<tr><td>' + member.name + '</td><td>';
+                                if (member.courses && member.courses.length > 0) {
+                                    member.courses.forEach(course => {
+                                        const yearText = course.year ? ' (' + course.year + ')' : '';
+                                        html += '<span class="badge bg-primary me-1">' + course.name + yearText + '</span>';
+                                    });
+                                } else {
+                                    html += '<span class="text-muted">Keine Lehrgänge</span>';
+                                }
+                                html += '</td></tr>';
                             });
-                        } else {
-                            html += '<span class="text-muted">Keine Lehrgänge</span>';
-                        }
-                        html += '</td></tr>';
-                    });
                     html += '</tbody></table>';
                     container.innerHTML = html;
                 } else {
@@ -125,9 +126,10 @@ function loadCourseListByCourse() {
             if (data.success) {
                 const container = document.getElementById('courseListByCourseContent');
                 if (data.members && data.members.length > 0) {
-                    let html = '<table class="table table-striped"><thead><tr><th>Mitglied</th><th>Abschlussdatum</th></tr></thead><tbody>';
+                    let html = '<table class="table table-striped"><thead><tr><th>Mitglied</th><th>Abschlussjahr</th></tr></thead><tbody>';
                     data.members.forEach(member => {
-                        html += '<tr><td>' + member.name + '</td><td>' + (member.completed_date || '-') + '</td></tr>';
+                        const year = member.year || (member.completed_date ? member.completed_date.substring(0, 4) : '');
+                        html += '<tr><td>' + member.name + '</td><td>' + (year || '-') + '</td></tr>';
                     });
                     html += '</tbody></table>';
                     container.innerHTML = html;
