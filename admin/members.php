@@ -1513,7 +1513,12 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         <?php if ($can_courses): ?>
                         <div class="col-12">
                             <hr>
-                            <h6 class="mb-3"><i class="fas fa-graduation-cap me-2"></i>Absolvierte Lehrgänge</h6>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0"><i class="fas fa-graduation-cap me-2"></i>Absolvierte Lehrgänge</h6>
+                                <button type="button" class="btn btn-sm btn-info" id="memberDetailsAssignCoursesBtn">
+                                    <i class="fas fa-edit me-1"></i>Anpassen
+                                </button>
+                            </div>
                             <div id="memberDetailsCourses">
                                 <p class="text-muted">Lade Lehrgänge...</p>
                             </div>
@@ -1890,7 +1895,10 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         addMemberCoursesContainer.style.display = 'block';
                         const canCourses = <?php echo $can_courses ? 'true' : 'false'; ?>;
                         if (canCourses) {
-                            loadCoursesForAddMember();
+                            // Prüfe ob im Bearbeiten-Modus
+                            const memberIdInput = document.getElementById('memberId');
+                            const memberId = memberIdInput && memberIdInput.value ? memberIdInput.value : null;
+                            loadCoursesForAddMember(memberId);
                         }
                     }
                 });
@@ -2274,6 +2282,36 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                     this.classList.add('btn-info');
                                 }
                             });
+                            
+                            // Vorauswahl: Prüfe ob dieser Lehrgang bereits zugewiesen ist
+                            const courseId = btn.dataset.courseId;
+                            const existingCourse = currentCourses.find(c => c.id == courseId);
+                            if (existingCourse) {
+                                // Button aktivieren
+                                btn.classList.remove('btn-outline-info');
+                                btn.classList.add('btn-info');
+                                
+                                // Hidden Input erstellen
+                                const hiddenInput = document.createElement('input');
+                                hiddenInput.type = 'hidden';
+                                hiddenInput.className = 'add-member-course-input';
+                                hiddenInput.id = 'add_course_' + courseId;
+                                hiddenInput.dataset.courseId = courseId;
+                                
+                                const form = document.getElementById('memberForm');
+                                if (form) {
+                                    form.appendChild(hiddenInput);
+                                }
+                                
+                                // Jahr-Input anzeigen und füllen
+                                const yearInput = document.getElementById('add_course_year_' + courseId);
+                                if (yearInput) {
+                                    yearInput.style.display = 'block';
+                                    if (existingCourse.year) {
+                                        yearInput.value = existingCourse.year;
+                                    }
+                                }
+                            }
                         });
                         
                         // Event-Listener für Übernehmen-Button
@@ -2550,6 +2588,13 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         emailLabel.innerHTML = '<i class="fas fa-envelope me-1"></i>E-Mail (optional)';
                     }
                 }
+            }
+            
+            // RICs und Lehrgänge für Bearbeitung vorbereiten (werden geladen wenn Buttons geklickt werden)
+            const memberId = member.member_id || '';
+            if (memberId) {
+                // Speichere memberId für späteres Laden
+                window.currentEditMemberId = memberId;
             }
             
             modal.show();
