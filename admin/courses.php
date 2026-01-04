@@ -158,6 +158,110 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course'])) {
     }
 }
 
+// Abschlussjahr aktualisieren (POST-Handler)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_course_year'])) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = "Ungültiger Sicherheitstoken.";
+    } else {
+        try {
+            $db->beginTransaction();
+            
+            $member_id = (int)($_POST['member_id'] ?? 0);
+            $course_id = (int)($_POST['course_id'] ?? 0);
+            $completion_year_raw = trim($_POST['completion_year'] ?? '');
+            
+            if ($member_id <= 0 || $course_id <= 0) {
+                $error = "Ungültige Parameter.";
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+            } else {
+                // Abschlussjahr verarbeiten
+                $completed_date = null;
+                if (!empty($completion_year_raw) && strtolower($completion_year_raw) !== 'nicht bekannt') {
+                    // Versuche Jahr zu extrahieren (nur Zahlen)
+                    $completion_year = (int)preg_replace('/[^0-9]/', '', $completion_year_raw);
+                    if ($completion_year >= 1950 && $completion_year <= (int)date('Y')) {
+                        // Jahr als DATE speichern (1. Januar des Jahres)
+                        $completed_date = $completion_year . '-01-01';
+                    }
+                }
+                
+                $stmt = $db->prepare("UPDATE member_courses SET completed_date = ? WHERE member_id = ? AND course_id = ?");
+                $stmt->execute([$completed_date, $member_id, $course_id]);
+                
+                $db->commit();
+                $message = "Abschlussjahr wurde erfolgreich aktualisiert.";
+                header("Location: courses.php?view=list&success=year_updated");
+                exit();
+            }
+        } catch (Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            $error = "Fehler beim Aktualisieren des Abschlussjahrs: " . $e->getMessage();
+            error_log("Fehler beim Aktualisieren des Abschlussjahrs: " . $e->getMessage());
+        }
+    }
+}
+
+// Lehrgang von Mitglied entfernen (POST-Handler)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_course'])) {
+    error_log("=== POST remove_course ===");
+    error_log("POST remove_course: " . var_export($_POST['remove_course'] ?? 'NOT SET', true));
+    error_log("POST member_id: " . var_export($_POST['member_id'] ?? 'NOT SET', true));
+    error_log("POST course_id: " . var_export($_POST['course_id'] ?? 'NOT SET', true));
+    error_log("POST csrf_token: " . var_export(isset($_POST['csrf_token']), true));
+    
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        error_log("CSRF-Token ungültig!");
+        $error = "Ungültiger Sicherheitstoken.";
+    } else {
+        try {
+            $db->beginTransaction();
+            
+            $member_id = (int)($_POST['member_id'] ?? 0);
+            $course_id = (int)($_POST['course_id'] ?? 0);
+            
+            error_log("member_id (int): $member_id");
+            error_log("course_id (int): $course_id");
+            
+            if ($member_id <= 0 || $course_id <= 0) {
+                $error = "Ungültige Parameter.";
+                error_log("ERROR: Ungültige Parameter - member_id=$member_id, course_id=$course_id");
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+            } else {
+                $stmt = $db->prepare("DELETE FROM member_courses WHERE member_id = ? AND course_id = ?");
+                $stmt->execute([$member_id, $course_id]);
+                $rowCount = $stmt->rowCount();
+                
+                error_log("DELETE ausgeführt - affected rows: $rowCount");
+                
+                if ($rowCount > 0) {
+                    $db->commit();
+                    $message = "Lehrgang wurde erfolgreich vom Mitglied entfernt.";
+                    error_log("✓ Erfolgreich: Lehrgang $course_id wurde von Mitglied $member_id entfernt");
+                    header("Location: courses.php?view=list&success=course_removed");
+                    exit();
+                } else {
+                    $db->rollBack();
+                    $error = "Lehrgang konnte nicht entfernt werden. Möglicherweise existiert die Zuordnung nicht.";
+                    error_log("WARNUNG: Keine Zeilen betroffen - Zuordnung existiert möglicherweise nicht");
+                }
+            }
+        } catch (Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            $error = "Fehler beim Entfernen des Lehrgangs: " . $e->getMessage();
+            error_log("Fehler beim Entfernen des Lehrgangs: " . $e->getMessage());
+            error_log("Exception: " . print_r($e, true));
+        }
+    }
+}
+
 // Lehrgänge laden
 $courses = [];
 try {
