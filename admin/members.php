@@ -2561,8 +2561,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     container.innerHTML = '<p class="text-danger">Fehler beim Laden der Mitglieder.</p>';
                 });
         }
-            console.log('Event-Listener für assignCourseForm wird hinzugefügt');
-            assignCourseForm.addEventListener('submit', function(e) {
                 console.log('=== SUBMIT EVENT AUSGELÖST ===');
                 const courseId = document.getElementById('selectedCourseId').value;
             const memberCheckboxes = document.querySelectorAll('#assignCourseMembersList input[type="checkbox"]:checked');
