@@ -301,6 +301,20 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
+            <!-- Rechte Spalte -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-graduation-cap"></i> Lehrgangsverwaltung</h5>
+                        <p class="text-muted">Lehrgänge definieren und Anforderungen festlegen.</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-courses.php">
+                                <i class="fas fa-cog"></i> Lehrgänge verwalten
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

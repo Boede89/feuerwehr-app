@@ -36,6 +36,54 @@ if (isset($_GET['success'])) {
     }
 }
 
+// Lehrgang hinterlegen (POST-Handler)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course']) && $can_courses) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = "Ungültiger Sicherheitstoken.";
+    } else {
+        try {
+            $db->beginTransaction();
+            
+            $course_id = (int)($_POST['course_id'] ?? 0);
+            $member_ids = isset($_POST['member_ids']) ? array_map('intval', $_POST['member_ids']) : [];
+            
+            if ($course_id <= 0) {
+                $error = "Bitte wählen Sie einen Lehrgang aus.";
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+            } elseif (empty($member_ids)) {
+                $error = "Bitte wählen Sie mindestens ein Mitglied aus.";
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+            } else {
+                $stmt = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, CURDATE()) ON DUPLICATE KEY UPDATE completed_date = CURDATE()");
+                foreach ($member_ids as $member_id) {
+                    if ($member_id > 0) {
+                        try {
+                            $stmt->execute([$member_id, $course_id]);
+                        } catch (Exception $e) {
+                            error_log("Fehler beim Zuweisen des Lehrgangs: " . $e->getMessage());
+                        }
+                    }
+                }
+                
+                $db->commit();
+                $message = "Lehrgang wurde erfolgreich hinterlegt.";
+                header("Location: members.php?success=course_assigned");
+                exit();
+            }
+        } catch (Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            $error = "Fehler beim Hinterlegen des Lehrgangs: " . $e->getMessage();
+            error_log("Fehler beim Hinterlegen des Lehrgangs: " . $e->getMessage());
+        }
+    }
+}
+
 // Mitglieder laden
 $members = [];
 try {
@@ -97,6 +145,26 @@ try {
         $db->exec("ALTER TABLE members ADD FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL");
     } catch (Exception $e) {
         // Foreign Key existiert bereits oder Fehler, ignoriere
+    }
+    
+    // member_courses Tabelle erstellen (Lehrgangszuweisungen)
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS member_courses (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                member_id INT NOT NULL,
+                course_id INT NOT NULL,
+                completed_date DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+                FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+                UNIQUE KEY unique_member_course (member_id, course_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+    } catch (Exception $e) {
+        // Tabelle existiert bereits oder Fehler, ignoriere
+        error_log("Fehler beim Erstellen der member_courses Tabelle: " . $e->getMessage());
     }
     
     // Bestehende Benutzer synchronisieren (erstelle Mitglieder für Benutzer die noch kein Mitglied haben)
@@ -260,6 +328,9 @@ $is_admin = hasAdminPermission();
 // Prüfe RIC-Berechtigung
 $can_ric = has_permission('ric');
 
+// Prüfe Lehrgangsverwaltungs-Berechtigung
+$can_courses = has_permission('courses');
+
 // Divera Admin Info laden (für RIC-Zuweisungen)
 $divera_admin_user_id = null;
 try {
@@ -294,6 +365,18 @@ if ($can_ric) {
         $ric_codes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         error_log("Fehler beim Laden der RIC-Codes: " . $e->getMessage());
+    }
+}
+
+// Lehrgänge laden (für Lehrgangsverwaltung)
+$courses = [];
+if ($can_courses) {
+    try {
+        $stmt = $db->prepare("SELECT id, name, description FROM courses ORDER BY name ASC");
+        $stmt->execute();
+        $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Fehler beim Laden der Lehrgänge: " . $e->getMessage());
     }
 }
 
@@ -1137,6 +1220,11 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="../assets/css/style.css" rel="stylesheet">
+    <style>
+        .bg-purple {
+            background-color: #6f42c1 !important;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -1201,6 +1289,36 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 <a href="ric-verwaltung.php" class="btn btn-warning w-100">
                     <i class="fas fa-broadcast-tower"></i> RIC Verwaltung (Divera)
                 </a>
+            </div>
+            <?php endif; ?>
+            <?php if ($can_courses): ?>
+            <div class="col-12 mb-3">
+                <div class="card shadow">
+                    <div class="card-header" style="background-color: #6f42c1; color: white;">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-graduation-cap"></i> Lehrgangsverwaltung
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-12 col-md-4 mb-2">
+                                <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#courseListModal">
+                                    <i class="fas fa-list"></i> Liste anzeigen
+                                </button>
+                            </div>
+                            <div class="col-12 col-md-4 mb-2">
+                                <button type="button" class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#assignCourseModal">
+                                    <i class="fas fa-plus-circle"></i> Lehrgang hinterlegen
+                                </button>
+                            </div>
+                            <div class="col-12 col-md-4 mb-2">
+                                <button type="button" class="btn btn-info w-100" data-bs-toggle="modal" data-bs-target="#coursePlanningModal">
+                                    <i class="fas fa-calendar-alt"></i> Lehrgangsplanung
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <?php endif; ?>
         </div>
@@ -2131,7 +2249,240 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             });
         }
         <?php endif; ?>
+        
+        <?php if ($can_courses): ?>
+        // Lehrgangsverwaltung JavaScript
+        // Liste anzeigen Modal - Auswahl zwischen "nach Namen" und "nach Lehrgang"
+        document.getElementById('courseListModal')?.addEventListener('show.bs.modal', function() {
+            // Modal zurücksetzen
+            document.getElementById('courseListType').value = '';
+            document.getElementById('courseListByName').style.display = 'none';
+            document.getElementById('courseListByCourse').style.display = 'none';
+        });
+        
+        document.getElementById('courseListType')?.addEventListener('change', function() {
+            const type = this.value;
+            document.getElementById('courseListByName').style.display = (type === 'name') ? 'block' : 'none';
+            document.getElementById('courseListByCourse').style.display = (type === 'course') ? 'block' : 'none';
+            
+            if (type === 'name') {
+                loadCourseListByName();
+            } else if (type === 'course') {
+                loadCourseListByCourse();
+            }
+        });
+        
+        function loadCourseListByName() {
+            // AJAX-Anfrage zum Laden der Mitglieder mit Lehrgängen
+            fetch('get-member-courses.php?type=by_name')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const container = document.getElementById('courseListByNameContent');
+                        if (data.members && data.members.length > 0) {
+                            let html = '<table class="table table-striped"><thead><tr><th>Mitglied</th><th>Lehrgänge</th></tr></thead><tbody>';
+                            data.members.forEach(member => {
+                                html += '<tr><td>' + member.name + '</td><td>';
+                                if (member.courses && member.courses.length > 0) {
+                                    member.courses.forEach(course => {
+                                        html += '<span class="badge bg-primary me-1">' + course.name + '</span>';
+                                    });
+                                } else {
+                                    html += '<span class="text-muted">Keine Lehrgänge</span>';
+                                }
+                                html += '</td></tr>';
+                            });
+                            html += '</tbody></table>';
+                            container.innerHTML = html;
+                        } else {
+                            container.innerHTML = '<p class="text-muted">Keine Mitglieder gefunden.</p>';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Fehler beim Laden der Liste:', error);
+                });
+        }
+        
+        function loadCourseListByCourse() {
+            const courseId = document.getElementById('courseSelectForList').value;
+            if (!courseId) {
+                document.getElementById('courseListByCourseContent').innerHTML = '<p class="text-muted">Bitte wählen Sie einen Lehrgang aus.</p>';
+                return;
+            }
+            
+            fetch('get-member-courses.php?type=by_course&course_id=' + courseId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const container = document.getElementById('courseListByCourseContent');
+                        if (data.members && data.members.length > 0) {
+                            let html = '<table class="table table-striped"><thead><tr><th>Mitglied</th><th>Abschlussdatum</th></tr></thead><tbody>';
+                            data.members.forEach(member => {
+                                html += '<tr><td>' + member.name + '</td><td>' + (member.completed_date || '-') + '</td></tr>';
+                            });
+                            html += '</tbody></table>';
+                            container.innerHTML = html;
+                        } else {
+                            container.innerHTML = '<p class="text-muted">Keine Mitglieder mit diesem Lehrgang gefunden.</p>';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Fehler beim Laden der Liste:', error);
+                });
+        }
+        
+        document.getElementById('courseSelectForList')?.addEventListener('change', loadCourseListByCourse);
+        
+        // Lehrgang hinterlegen Modal
+        document.getElementById('assignCourseModal')?.addEventListener('show.bs.modal', function() {
+            document.getElementById('assignCourseSelect').value = '';
+            document.getElementById('assignCourseMembers').style.display = 'none';
+        });
+        
+        document.getElementById('assignCourseSelect')?.addEventListener('change', function() {
+            const courseId = this.value;
+            if (courseId) {
+                document.getElementById('assignCourseMembers').style.display = 'block';
+                loadMembersForCourseAssignment();
+            } else {
+                document.getElementById('assignCourseMembers').style.display = 'none';
+            }
+        });
+        
+        function loadMembersForCourseAssignment() {
+            fetch('get-members.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.members) {
+                        const container = document.getElementById('assignCourseMembersList');
+                        let html = '';
+                        data.members.forEach(member => {
+                            html += '<div class="form-check"><input class="form-check-input" type="checkbox" name="member_ids[]" value="' + member.id + '" id="member_' + member.id + '"><label class="form-check-label" for="member_' + member.id + '">' + member.name + '</label></div>';
+                        });
+                        container.innerHTML = html;
+                    }
+                })
+                .catch(error => {
+                    console.error('Fehler beim Laden der Mitglieder:', error);
+                });
+        }
+        <?php endif; ?>
     </script>
+    
+    <?php if ($can_courses): ?>
+    <!-- Lehrgangsverwaltung Modals -->
+    <!-- Liste anzeigen Modal -->
+    <div class="modal fade" id="courseListModal" tabindex="-1" aria-labelledby="courseListModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="courseListModalLabel">
+                        <i class="fas fa-list"></i> Liste anzeigen
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="courseListType" class="form-label">Liste anzeigen:</label>
+                        <select class="form-select" id="courseListType">
+                            <option value="">-- Bitte wählen --</option>
+                            <option value="name">Nach Namen anzeigen</option>
+                            <option value="course">Nach Lehrgang anzeigen</option>
+                        </select>
+                    </div>
+                    
+                    <div id="courseListByName" style="display: none;">
+                        <h6>Mitglieder mit absolvierten Lehrgängen</h6>
+                        <div id="courseListByNameContent">
+                            <p class="text-muted">Lade Daten...</p>
+                        </div>
+                    </div>
+                    
+                    <div id="courseListByCourse" style="display: none;">
+                        <h6>Mitglieder nach Lehrgang</h6>
+                        <div class="mb-3">
+                            <label for="courseSelectForList" class="form-label">Lehrgang auswählen:</label>
+                            <select class="form-select" id="courseSelectForList">
+                                <option value="">-- Bitte wählen --</option>
+                                <?php foreach ($courses as $course): ?>
+                                    <option value="<?php echo $course['id']; ?>"><?php echo htmlspecialchars($course['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div id="courseListByCourseContent">
+                            <p class="text-muted">Bitte wählen Sie einen Lehrgang aus.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Lehrgang hinterlegen Modal -->
+    <div class="modal fade" id="assignCourseModal" tabindex="-1" aria-labelledby="assignCourseModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="assignCourseModalLabel">
+                        <i class="fas fa-plus-circle"></i> Lehrgang hinterlegen
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="" id="assignCourseForm">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <input type="hidden" name="assign_course" value="1">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="assignCourseSelect" class="form-label">Lehrgang auswählen:</label>
+                            <select class="form-select" id="assignCourseSelect" name="course_id" required>
+                                <option value="">-- Bitte wählen --</option>
+                                <?php foreach ($courses as $course): ?>
+                                    <option value="<?php echo $course['id']; ?>"><?php echo htmlspecialchars($course['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <div id="assignCourseMembers" style="display: none;">
+                            <label class="form-label">Mitglieder auswählen:</label>
+                            <div id="assignCourseMembersList" class="border p-3" style="max-height: 300px; overflow-y: auto;">
+                                <p class="text-muted">Lade Mitglieder...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-success">Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Lehrgangsplanung Modal (nur Button) -->
+    <div class="modal fade" id="coursePlanningModal" tabindex="-1" aria-labelledby="coursePlanningModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="coursePlanningModalLabel">
+                        <i class="fas fa-calendar-alt"></i> Lehrgangsplanung
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Diese Funktion wird in Kürze verfügbar sein.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 </body>
 </html>
 
