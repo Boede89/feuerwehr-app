@@ -1927,43 +1927,6 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 // Initial setup (für neue Mitglieder)
                 setupRicButtons([]);
                 
-                // Alte Event-Listener entfernen (falls vorhanden)
-                document.querySelectorAll('.add-member-ric-btn').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const ricId = this.dataset.ricId;
-                        const input = document.getElementById('add_ric_' + ricId);
-                        
-                        // Prüfen ob Button bereits aktiviert ist (hat btn-warning Klasse)
-                        const isActive = this.classList.contains('btn-warning');
-                        
-                        if (isActive) {
-                            // Entfernen - Button ist aktiviert, also deaktivieren
-                            if (input) {
-                                input.remove();
-                            }
-                            this.classList.remove('btn-warning');
-                            this.classList.add('btn-outline-secondary');
-                        } else {
-                            // Hinzufügen - Button ist nicht aktiviert, also aktivieren
-                            const hiddenInput = document.createElement('input');
-                            hiddenInput.type = 'hidden';
-                            hiddenInput.name = 'ric_ids[]';
-                            hiddenInput.value = ricId;
-                            hiddenInput.id = 'add_ric_' + ricId;
-                            hiddenInput.className = 'add-member-ric-input';
-                            
-                            // Formular finden und Input hinzufügen (nicht in den Button-Container)
-                            const form = document.getElementById('memberForm');
-                            if (form) {
-                                form.appendChild(hiddenInput);
-                            }
-                            
-                            this.classList.remove('btn-outline-secondary');
-                            this.classList.add('btn-warning');
-                        }
-                    });
-                });
-                
                 if (saveAddMemberRicsBtn) {
                     saveAddMemberRicsBtn.addEventListener('click', function() {
                         // Prüfe ob mindestens eine RIC ausgewählt wurde
