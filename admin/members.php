@@ -694,6 +694,124 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     
                     $new_member_id = $db->lastInsertId();
                     
+                    // RIC-Zuweisungen speichern (nur wenn can_ric und RICs übergeben wurden)
+                    if ($can_ric && isset($_POST['ric_ids']) && is_array($_POST['ric_ids'])) {
+                        $ric_ids = array_map('intval', $_POST['ric_ids']);
+                        if (!empty($ric_ids)) {
+                            // Status bestimmen: confirmed wenn Divera Admin, sonst pending
+                            $status = $is_divera_admin ? 'confirmed' : 'pending';
+                            $created_by = $is_divera_admin ? null : $_SESSION['user_id'];
+                            
+                            // RIC-Zuweisungen speichern
+                            $stmt_ric = $db->prepare("INSERT INTO member_ric (member_id, ric_id, status, action, created_by) VALUES (?, ?, ?, 'add', ?)");
+                            foreach ($ric_ids as $ric_id) {
+                                if ($ric_id > 0) {
+                                    $stmt_ric->execute([$new_member_id, $ric_id, $status, $created_by]);
+                                }
+                            }
+                            
+                            // E-Mail an Divera Admin senden wenn nicht selbst geändert
+                            if (!$is_divera_admin && $divera_admin_user_id && $current_user) {
+                                // Divera Admin Info laden
+                                $stmt = $db->prepare("SELECT first_name, last_name, email FROM users WHERE id = ?");
+                                $stmt->execute([$divera_admin_user_id]);
+                                $divera_admin = $stmt->fetch(PDO::FETCH_ASSOC);
+                                
+                                if ($divera_admin && !empty($divera_admin['email'])) {
+                                    // Basis-URL für Links in E-Mails
+                                    try {
+                                        $stmtApp = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_url'");
+                                        $stmtApp->execute();
+                                        $appUrl = $stmtApp->fetchColumn();
+                                        if (!$appUrl || trim($appUrl) === '') {
+                                            $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http');
+                                            $host = $_SERVER['HTTP_HOST'];
+                                            $script = dirname($_SERVER['SCRIPT_NAME']);
+                                            $appUrl = $protocol . '://' . $host . ($script !== '/' ? $script : '');
+                                        }
+                                    } catch (Exception $e) {
+                                        $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http');
+                                        $host = $_SERVER['HTTP_HOST'];
+                                        $script = dirname($_SERVER['SCRIPT_NAME']);
+                                        $appUrl = $protocol . '://' . $host . ($script !== '/' ? $script : '');
+                                    }
+                                    
+                                    // RIC-Namen laden
+                                    $stmt = $db->prepare("SELECT id, kurztext FROM ric_codes WHERE id IN (" . implode(',', array_fill(0, count($ric_ids), '?')) . ")");
+                                    $stmt->execute($ric_ids);
+                                    $ric_names = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                                    $ric_list = implode(', ', array_column($ric_names, 'kurztext'));
+                                    
+                                    $email_subject = 'Neue RIC-Zuweisungen für neues Mitglied';
+                                    $email_body = '
+                                    <html>
+                                    <head>
+                                        <meta charset="UTF-8">
+                                        <style>
+                                            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                                            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                                            .header { background-color: #ffc107; color: #000; padding: 20px; text-align: center; }
+                                            .content { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
+                                            .info-box { background-color: #fff; padding: 15px; margin: 20px 0; border-left: 4px solid #ffc107; }
+                                            .button { display: inline-block; background-color: #ffc107; color: #000; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 20px; }
+                                        </style>
+                                    </head>
+                                    <body>
+                                        <div class="container">
+                                            <div class="header">
+                                                <h1>Neue RIC-Zuweisungen</h1>
+                                            </div>
+                                            <div class="content">
+                                                <p>Hallo ' . htmlspecialchars($divera_admin['first_name']) . ',</p>
+                                                <p>Es wurden neue RIC-Zuweisungen für ein neues Mitglied erstellt, die Ihre Bestätigung benötigen:</p>
+                                                <div class="info-box">
+                                                    <p><strong>Mitglied:</strong> ' . htmlspecialchars($first_name . ' ' . $last_name) . '</p>
+                                                    <p><strong>Geändert von:</strong> ' . htmlspecialchars($current_user['first_name'] . ' ' . $current_user['last_name']) . '</p>
+                                                    <p><strong>RIC-Codes:</strong> ' . htmlspecialchars($ric_list) . '</p>
+                                                    <p><strong>Status:</strong> Hinzufügung</p>
+                                                </div>
+                                                <p style="text-align: center;">
+                                                    <a href="' . htmlspecialchars($appUrl) . '/admin/dashboard.php" class="button">Zur Bestätigung</a>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </body>
+                                    </html>';
+                                    
+                                    if (send_email($divera_admin['email'], $email_subject, $email_body, '', true)) {
+                                        error_log("RIC-Benachrichtigungs-E-Mail erfolgreich gesendet an: " . $divera_admin['email']);
+                                    } else {
+                                        error_log("Fehler beim Senden der RIC-Benachrichtigungs-E-Mail an: " . $divera_admin['email']);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Lehrgänge speichern (nur wenn can_courses und Lehrgänge übergeben wurden)
+                    if ($can_courses && isset($_POST['course_assignments_json'])) {
+                        $course_assignments_json = $_POST['course_assignments_json'];
+                        $course_assignments = json_decode($course_assignments_json, true);
+                        
+                        if (is_array($course_assignments)) {
+                            foreach ($course_assignments as $course_data) {
+                                $course_id = (int)($course_data['course_id'] ?? 0);
+                                $completion_year = trim($course_data['completion_year'] ?? '');
+                                
+                                if ($course_id > 0) {
+                                    // Datum setzen: YYYY-01-01 oder NULL wenn "nicht bekannt"
+                                    $completed_date = null;
+                                    if (!empty($completion_year) && $completion_year !== 'nicht bekannt' && is_numeric($completion_year)) {
+                                        $completed_date = $completion_year . '-01-01';
+                                    }
+                                    
+                                    $stmt_course = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE completed_date = ?");
+                                    $stmt_course->execute([$new_member_id, $course_id, $completed_date, $completed_date]);
+                                }
+                            }
+                        }
+                    }
+                    
                     // Wenn PA-Träger aktiviert, erstelle automatisch Geräteträger
                     if ($is_pa_traeger == 1) {
                         $birthdate_value = !empty($birthdate) ? $birthdate : date('Y-m-d');
@@ -1375,6 +1493,15 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             </div>
                         </div>
                         <?php endif; ?>
+                        <?php if ($can_courses): ?>
+                        <div class="col-12">
+                            <hr>
+                            <h6 class="mb-3"><i class="fas fa-graduation-cap me-2"></i>Zugewiesene Lehrgänge</h6>
+                            <div id="memberDetailsCourses">
+                                <p class="text-muted">Lade Lehrgänge...</p>
+                            </div>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1552,6 +1679,43 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                         </div>
                                     </div>
                                 </div>
+                            <?php if ($can_ric): ?>
+                            <div class="col-12">
+                                <hr>
+                                <h6 class="mb-3"><i class="fas fa-broadcast-tower me-2"></i>RIC-Codes zuweisen</h6>
+                                <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                    <?php if (empty($ric_codes)): ?>
+                                        <p class="text-muted">Keine RIC-Codes vorhanden. Bitte zuerst RIC-Codes in den Einstellungen anlegen.</p>
+                                    <?php else: ?>
+                                        <?php foreach ($ric_codes as $ric): ?>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input add-member-ric-checkbox" 
+                                                   type="checkbox" 
+                                                   name="ric_ids[]" 
+                                                   value="<?php echo $ric['id']; ?>" 
+                                                   id="add_ric_<?php echo $ric['id']; ?>"
+                                                   autocomplete="off">
+                                            <label class="form-check-label" for="add_ric_<?php echo $ric['id']; ?>">
+                                                <strong><?php echo htmlspecialchars($ric['kurztext']); ?></strong>
+                                                <?php if (!empty($ric['beschreibung'])): ?>
+                                                    <br><small class="text-muted"><?php echo htmlspecialchars($ric['beschreibung']); ?></small>
+                                                <?php endif; ?>
+                                            </label>
+                                        </div>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                            <?php if ($can_courses): ?>
+                            <div class="col-12">
+                                <hr>
+                                <h6 class="mb-3"><i class="fas fa-graduation-cap me-2"></i>Lehrgänge zuweisen</h6>
+                                <div id="addMemberCoursesContainer">
+                                    <p class="text-muted">Lade verfügbare Lehrgänge...</p>
+                                </div>
+                            </div>
+                            <?php endif; ?>
                             <div class="col-12" id="createUserSection">
                                 <?php if ($is_admin): ?>
                                 <div class="form-check">
@@ -1595,6 +1759,53 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 }
             }, 500);
             <?php endif; ?>
+            
+            // Lehrgänge beim Öffnen des Hinzufügen-Modals laden
+            const addMemberModal = document.getElementById('addMemberModal');
+            if (addMemberModal) {
+                addMemberModal.addEventListener('show.bs.modal', function() {
+                    const canCourses = <?php echo $can_courses ? 'true' : 'false'; ?>;
+                    if (canCourses) {
+                        loadCoursesForAddMember();
+                    }
+                });
+            }
+            
+            // Formular-Submit Handler für Lehrgänge
+            const memberForm = document.getElementById('memberForm');
+            if (memberForm) {
+                memberForm.addEventListener('submit', function(e) {
+                    const canCourses = <?php echo $can_courses ? 'true' : 'false'; ?>;
+                    if (canCourses) {
+                        // Sammle Lehrgangs-Daten
+                        const courseAssignments = [];
+                        document.querySelectorAll('.add-member-course-item').forEach(function(item) {
+                            const courseId = item.dataset.courseId;
+                            const checkbox = item.querySelector('input[type="checkbox"]');
+                            const yearInput = item.querySelector('input[type="text"].course-year-input');
+                            
+                            if (checkbox && checkbox.checked && courseId) {
+                                const completionYear = yearInput ? yearInput.value.trim() : '';
+                                courseAssignments.push({
+                                    course_id: courseId,
+                                    completion_year: completionYear || 'nicht bekannt'
+                                });
+                            }
+                        });
+                        
+                        // Erstelle Hidden Input für course_assignments
+                        let courseAssignmentsInput = document.getElementById('course_assignments_json');
+                        if (!courseAssignmentsInput) {
+                            courseAssignmentsInput = document.createElement('input');
+                            courseAssignmentsInput.type = 'hidden';
+                            courseAssignmentsInput.name = 'course_assignments_json';
+                            courseAssignmentsInput.id = 'course_assignments_json';
+                            memberForm.appendChild(courseAssignmentsInput);
+                        }
+                        courseAssignmentsInput.value = JSON.stringify(courseAssignments);
+                    }
+                });
+            }
             
             const memberRows = document.querySelectorAll('.member-row');
             console.log('Gefundene Mitgliederzeilen:', memberRows.length);
@@ -1711,6 +1922,12 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     loadMemberRicsForDetails(member.member_id || member.id);
                 }
                 
+                // Lehrgänge laden (nur wenn Benutzer berechtigt ist)
+                const canCourses = <?php echo $can_courses ? 'true' : 'false'; ?>;
+                if (canCourses && (member.member_id || member.id)) {
+                    loadMemberCoursesForDetails(member.member_id || member.id);
+                }
+                
                 // Bearbeiten-Button konfigurieren
                 const editBtn = document.getElementById('memberDetailsEditBtn');
                 if (editBtn) {
@@ -1824,6 +2041,79 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     console.error('Fehler beim Laden der RIC-Codes:', error);
                     ricsContainer.innerHTML = '<p class="text-danger">Fehler beim Laden der RIC-Codes</p>';
                 });
+        }
+        
+        function loadMemberCoursesForDetails(memberId) {
+            const coursesContainer = document.getElementById('memberDetailsCourses');
+            if (!coursesContainer) return;
+            
+            // AJAX-Anfrage zum Laden der Lehrgänge
+            fetch('get-member-courses-single.php?member_id=' + memberId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.courses && data.courses.length > 0) {
+                        let html = '<div class="d-flex flex-wrap gap-2">';
+                        data.courses.forEach(function(course) {
+                            html += '<span class="badge bg-info me-1 mb-1">';
+                            html += course.name;
+                            if (course.year) {
+                                html += ' (' + course.year + ')';
+                            }
+                            html += '</span>';
+                        });
+                        html += '</div>';
+                        coursesContainer.innerHTML = html;
+                    } else {
+                        coursesContainer.innerHTML = '<p class="text-muted">Keine Lehrgänge zugewiesen</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Fehler beim Laden der Lehrgänge:', error);
+                    coursesContainer.innerHTML = '<p class="text-danger">Fehler beim Laden der Lehrgänge</p>';
+                });
+        }
+        
+        function loadCoursesForAddMember() {
+            const container = document.getElementById('addMemberCoursesContainer');
+            if (!container) return;
+            
+            container.innerHTML = '<p class="text-muted">Lade verfügbare Lehrgänge...</p>';
+            
+            fetch('get-courses.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.courses && data.courses.length > 0) {
+                        let html = '<div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">';
+                        data.courses.forEach(function(course) {
+                            html += '<div class="form-check mb-3 add-member-course-item" data-course-id="' + course.id + '">';
+                            html += '<div class="d-flex align-items-center">';
+                            html += '<input class="form-check-input" type="checkbox" id="add_course_' + course.id + '" autocomplete="off">';
+                            html += '<label class="form-check-label flex-grow-1 ms-2" for="add_course_' + course.id + '">';
+                            html += '<strong>' + escapeHtml(course.name) + '</strong>';
+                            if (course.description) {
+                                html += '<br><small class="text-muted">' + escapeHtml(course.description) + '</small>';
+                            }
+                            html += '</label>';
+                            html += '<input type="text" class="form-control form-control-sm course-year-input ms-2" style="width: 100px;" placeholder="Jahr" autocomplete="off">';
+                            html += '</div>';
+                            html += '</div>';
+                        });
+                        html += '</div>';
+                        container.innerHTML = html;
+                    } else {
+                        container.innerHTML = '<p class="text-muted">Keine Lehrgänge vorhanden. Bitte zuerst Lehrgänge in den Einstellungen anlegen.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Fehler beim Laden der Lehrgänge:', error);
+                    container.innerHTML = '<p class="text-danger">Fehler beim Laden der Lehrgänge</p>';
+                });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
         
         // Funktion zur Berechnung des PA-Träger Status
