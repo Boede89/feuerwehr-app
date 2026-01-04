@@ -16,6 +16,11 @@ $type = $_GET['type'] ?? '';
 try {
     if ($type === 'by_name') {
         // Liste nach Namen: Alle Mitglieder mit ihren Lehrgängen
+        // Zuerst prüfen, ob Daten in member_courses vorhanden sind
+        $debug_stmt = $db->query("SELECT COUNT(*) as cnt FROM member_courses");
+        $debug_result = $debug_stmt->fetch(PDO::FETCH_ASSOC);
+        error_log("DEBUG: Anzahl Einträge in member_courses: " . $debug_result['cnt']);
+        
         $stmt = $db->prepare("
             SELECT 
                 m.id,
@@ -34,9 +39,14 @@ try {
         $stmt->execute();
         $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
+        error_log("DEBUG: Anzahl Mitglieder gefunden: " . count($members));
+        
         $result = [];
         foreach ($members as $member) {
             $courses = [];
+            // Debug-Logging
+            error_log("DEBUG: Mitglied ID " . $member['id'] . " (" . $member['name'] . ") - courses_data: " . ($member['courses_data'] ?? 'NULL'));
+            
             // Prüfe ob courses_data nicht NULL und nicht leer ist
             if (isset($member['courses_data']) && $member['courses_data'] !== null && trim($member['courses_data']) !== '') {
                 $courses_array = explode('||', $member['courses_data']);
@@ -52,6 +62,9 @@ try {
                     }
                 }
             }
+            
+            error_log("DEBUG: Mitglied ID " . $member['id'] . " - Anzahl Lehrgänge: " . count($courses));
+            
             $result[] = [
                 'id' => $member['id'],
                 'name' => $member['name'],

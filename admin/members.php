@@ -49,6 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course']) && $
             
             error_log("POST assign_course - course_id: $course_id, member_ids: " . print_r($member_ids, true));
             
+            // Debug: Prüfe ob course_id und member_ids korrekt sind
+            if ($course_id <= 0) {
+                error_log("ERROR: course_id ist 0 oder leer");
+            }
+            if (empty($member_ids)) {
+                error_log("ERROR: member_ids ist leer");
+            }
+            
             if ($course_id <= 0) {
                 $error = "Bitte wählen Sie einen Lehrgang aus.";
                 if ($db->inTransaction()) {
