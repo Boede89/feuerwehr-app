@@ -124,11 +124,11 @@ function loadMembersForCourseAssignment() {
                 let html = '<div class="row g-2">';
                 data.members.forEach(member => {
                     html += '<div class="col-12 col-md-6 col-lg-4">';
-                    html += '<div class="card member-select-card h-100">';
+                    html += '<div class="card member-select-card h-100" onclick="document.getElementById(\'member_' + member.id + '\').click();">';
                     html += '<div class="card-body p-3">';
                     html += '<div class="form-check h-100 d-flex align-items-center">';
-                    html += '<input class="form-check-input me-3" type="checkbox" name="member_ids[]" value="' + member.id + '" id="member_' + member.id + '" autocomplete="off">';
-                    html += '<label class="form-check-label flex-grow-1" for="member_' + member.id + '" style="cursor: pointer;">';
+                    html += '<input class="form-check-input me-3" type="checkbox" name="member_ids[]" value="' + member.id + '" id="member_' + member.id + '" autocomplete="off" onclick="event.stopPropagation();">';
+                    html += '<label class="form-check-label flex-grow-1" for="member_' + member.id + '" style="cursor: pointer;" onclick="event.stopPropagation();">';
                     html += '<div class="d-flex align-items-center">';
                     html += '<div class="member-avatar me-2">';
                     html += '<i class="fas fa-user-circle fa-2x text-primary"></i>';
@@ -210,6 +210,11 @@ document.getElementById('assignCourseForm')?.addEventListener('submit', function
     border-color: #0d6efd;
     box-shadow: 0 2px 8px rgba(13, 110, 253, 0.15);
     transform: translateY(-2px);
+}
+
+.member-select-card:has(.form-check-input:checked) {
+    border-color: #0d6efd;
+    background-color: #e7f1ff;
 }
 
 .member-select-card .form-check-input:checked ~ label {
