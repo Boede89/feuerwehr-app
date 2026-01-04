@@ -98,8 +98,7 @@ try {
             SELECT 
                 m.id,
                 CONCAT(m.first_name, ' ', m.last_name) as name,
-                mc.completed_date,
-                YEAR(mc.completed_date) as year
+                mc.completed_date
             FROM member_courses mc
             INNER JOIN members m ON m.id = mc.member_id
             WHERE mc.course_id = ?
@@ -111,12 +110,15 @@ try {
         // Jahr extrahieren für Anzeige
         foreach ($members as &$member) {
             if (!empty($member['completed_date'])) {
-                $member['year'] = $member['year'] ?: substr($member['completed_date'], 0, 4);
+                $date_parts = explode('-', $member['completed_date']);
+                $member['year'] = $date_parts[0] ?? '';
             } else {
                 $member['year'] = '';
             }
         }
         unset($member);
+        
+        error_log("DEBUG: Anzahl Mitglieder mit Lehrgang ID $course_id: " . count($members));
         
         echo json_encode(['success' => true, 'members' => $members]);
         

@@ -128,9 +128,6 @@ function loadMembersForCourseAssignment() {
                     html += '</div>';
                     html += '<div>';
                     html += '<div class="fw-bold">' + member.name + '</div>';
-                    if (member.email) {
-                        html += '<small class="text-muted"><i class="fas fa-envelope"></i> ' + member.email + '</small>';
-                    }
                     html += '</div>';
                     html += '</div>';
                     html += '</label>';
