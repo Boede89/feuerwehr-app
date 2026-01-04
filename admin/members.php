@@ -359,6 +359,9 @@ $is_admin = hasAdminPermission();
 // Prüfe RIC-Berechtigung
 $can_ric = has_permission('ric');
 
+// Prüfe Lehrgangsverwaltungs-Berechtigung (für Button-Anzeige)
+$can_courses = has_permission('courses');
+
 
 // Divera Admin Info laden (für RIC-Zuweisungen)
 $divera_admin_user_id = null;
