@@ -45,7 +45,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_course_assignmen
             $db->beginTransaction();
             
             $member_id = (int)($_POST['member_id'] ?? 0);
-            $course_assignments = isset($_POST['course_assignments']) ? $_POST['course_assignments'] : [];
+            $course_assignments_json = $_POST['course_assignments_json'] ?? '[]';
+            $course_assignments = json_decode($course_assignments_json, true);
+            
+            if (!is_array($course_assignments)) {
+                $course_assignments = [];
+            }
             
             if ($member_id <= 0) {
                 $error = "Ungültige Mitglieds-ID.";
@@ -60,19 +65,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_course_assignmen
                 // Neue Zuweisungen speichern
                 if (!empty($course_assignments)) {
                     foreach ($course_assignments as $course_data) {
-                        if (is_array($course_data)) {
-                            $course_id = (int)($course_data['course_id'] ?? 0);
-                            $completion_year = trim($course_data['completion_year'] ?? '');
-                        } else {
-                            // Fallback: Wenn course_assignments als Array von IDs übergeben wird
-                            $course_id = (int)$course_data;
-                            $completion_year = '';
-                        }
+                        $course_id = (int)($course_data['course_id'] ?? 0);
+                        $completion_year = trim($course_data['completion_year'] ?? '');
                         
                         if ($course_id > 0) {
                             // Datum setzen: YYYY-01-01 oder NULL wenn "nicht bekannt"
                             $completed_date = null;
-                            if (!empty($completion_year) && $completion_year !== 'nicht bekannt' && is_numeric($completion_year)) {
+                            if (!empty($completion_year) && strtolower($completion_year) !== 'nicht bekannt' && is_numeric($completion_year)) {
                                 $completed_date = $completion_year . '-01-01';
                             }
                             
