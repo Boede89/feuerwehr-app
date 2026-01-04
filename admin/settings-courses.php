@@ -271,7 +271,7 @@ $csrf_token = generate_csrf_token();
                                     <?php if (empty($courses)): ?>
                                         <p class="text-muted mb-0">Noch keine Lehrgänge vorhanden.</p>
                                     <?php else: ?>
-                                        <div class="d-flex flex-wrap gap-2">
+                                        <div class="d-flex flex-wrap gap-2" id="requirementsContainer">
                                             <?php foreach ($courses as $course): ?>
                                                 <button type="button" 
                                                         class="btn btn-outline-secondary requirement-btn" 
@@ -279,11 +279,6 @@ $csrf_token = generate_csrf_token();
                                                         id="req_btn_<?php echo $course['id']; ?>">
                                                     <?php echo htmlspecialchars($course['name']); ?>
                                                 </button>
-                                                <input type="hidden" 
-                                                       name="requirements[]" 
-                                                       value="<?php echo $course['id']; ?>" 
-                                                       id="req_<?php echo $course['id']; ?>"
-                                                       class="requirement-input">
                                             <?php endforeach; ?>
                                         </div>
                                     <?php endif; ?>
@@ -389,24 +384,33 @@ $csrf_token = generate_csrf_token();
             
             // Event-Listener für Anforderungs-Buttons
             document.querySelectorAll('.requirement-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
                     const requirementId = this.dataset.requirementId;
                     const input = document.getElementById('req_' + requirementId);
                     
-                    if (input && input.value) {
-                        // Entfernen
-                        input.remove();
+                    // Prüfen ob Button bereits aktiviert ist (hat btn-success Klasse)
+                    const isActive = this.classList.contains('btn-success');
+                    
+                    if (isActive) {
+                        // Entfernen - Button ist aktiviert, also deaktivieren
+                        if (input) {
+                            input.remove();
+                        }
                         this.classList.remove('btn-success');
                         this.classList.add('btn-outline-secondary');
                     } else {
-                        // Hinzufügen
+                        // Hinzufügen - Button ist nicht aktiviert, also aktivieren
                         const hiddenInput = document.createElement('input');
                         hiddenInput.type = 'hidden';
                         hiddenInput.name = 'requirements[]';
                         hiddenInput.value = requirementId;
                         hiddenInput.id = 'req_' + requirementId;
                         hiddenInput.className = 'requirement-input';
-                        this.parentElement.appendChild(hiddenInput);
+                        
+                        // Container finden und Input hinzufügen
+                        const container = document.getElementById('requirementsContainer') || this.parentElement;
+                        container.appendChild(hiddenInput);
                         
                         this.classList.remove('btn-outline-secondary');
                         this.classList.add('btn-success');
@@ -471,7 +475,8 @@ $csrf_token = generate_csrf_token();
                         hiddenInput.value = reqId;
                         hiddenInput.id = 'req_' + reqId;
                         hiddenInput.className = 'requirement-input';
-                        btn.parentElement.appendChild(hiddenInput);
+                        const container = document.getElementById('requirementsContainer') || btn.parentElement;
+                        container.appendChild(hiddenInput);
                         
                         console.log('Anforderung req_' + reqId + ' aktiviert');
                     } else {
