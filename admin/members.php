@@ -2441,8 +2441,15 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         });
         
         function selectCourseForAssign(courseId, courseName) {
+            console.log('selectCourseForAssign aufgerufen:', courseId, courseName);
             selectedCourseForAssign = courseId;
-            document.getElementById('selectedCourseId').value = courseId;
+            const courseIdInput = document.getElementById('selectedCourseId');
+            if (!courseIdInput) {
+                console.error('selectedCourseId Input nicht gefunden!');
+                return;
+            }
+            courseIdInput.value = courseId;
+            console.log('course_id Input gesetzt auf:', courseIdInput.value);
             document.getElementById('selectedCourseNameText').textContent = courseName;
             document.getElementById('selectedCourseName').style.display = 'block';
             document.getElementById('assignCourseMembers').style.display = 'block';
@@ -2506,7 +2513,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         if (assignCourseForm) {
             console.log('Event-Listener für assignCourseForm wird hinzugefügt');
             assignCourseForm.addEventListener('submit', function(e) {
-            const courseId = document.getElementById('selectedCourseId').value;
+                console.log('=== SUBMIT EVENT AUSGELÖST ===');
+                const courseId = document.getElementById('selectedCourseId').value;
             const memberCheckboxes = document.querySelectorAll('#assignCourseMembersList input[type="checkbox"]:checked');
             
             console.log('=== FORMULAR WIRD ABGESENDET ===');
@@ -2650,7 +2658,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                        <button type="submit" class="btn btn-success" id="saveCourseAssignBtn" disabled>Speichern</button>
+                        <button type="submit" class="btn btn-success" id="saveCourseAssignBtn" disabled onclick="console.log('Speichern-Button geklickt'); return true;">Speichern</button>
                     </div>
                 </form>
             </div>
