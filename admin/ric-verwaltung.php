@@ -612,8 +612,19 @@ try {
                                     <i class="fas fa-info-circle"></i> Noch keine Mitglieder vorhanden.
                                 </p>
                             <?php else: ?>
+                                <div class="mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fas fa-search"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="ricMemberSearchInput" placeholder="Mitglied suchen (Name, E-Mail, RIC-Codes...)" autocomplete="off">
+                                        <button class="btn btn-outline-secondary" type="button" id="ricClearSearchBtn" style="display: none;">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                                 <div class="table-responsive">
-                                    <table class="table table-hover">
+                                    <table class="table table-hover" id="ricMembersTable">
                                         <thead>
                                             <tr>
                                                 <th>Name</th>
@@ -623,8 +634,20 @@ try {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <?php foreach ($members as $member): ?>
-                                            <tr>
+                                            <?php foreach ($members as $member): 
+                                                // RIC-Codes für Suche sammeln
+                                                $assigned_rics_for_search = $member_ric_assignments[$member['id']] ?? [];
+                                                $ric_search_text = '';
+                                                foreach ($assigned_rics_for_search as $ric_id) {
+                                                    $ric = array_filter($ric_codes, function($r) use ($ric_id) { return $r['id'] == $ric_id; });
+                                                    $ric = reset($ric);
+                                                    if ($ric) {
+                                                        $ric_search_text .= $ric['kurztext'] . ' ';
+                                                    }
+                                                }
+                                                $search_text = strtolower($member['first_name'] . ' ' . $member['last_name'] . ' ' . ($member['email'] ?? '') . ' ' . $ric_search_text);
+                                            ?>
+                                            <tr class="ric-member-row" data-search-text="<?php echo htmlspecialchars($search_text); ?>">
                                                 <td>
                                                     <strong><?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?></strong>
                                                 </td>
@@ -886,6 +909,47 @@ try {
                 assignRicModal.addEventListener('show.bs.modal', function() {
                     resetSaveButton();
                     formSubmitted = false;
+                });
+            }
+            
+            // Live-Suche für Mitgliederliste in RIC-Verwaltung
+            const ricSearchInput = document.getElementById('ricMemberSearchInput');
+            const ricClearBtn = document.getElementById('ricClearSearchBtn');
+            const ricMemberRows = document.querySelectorAll('.ric-member-row');
+            
+            if (ricSearchInput) {
+                ricSearchInput.addEventListener('input', function() {
+                    const searchTerm = this.value.toLowerCase().trim();
+                    let visibleCount = 0;
+                    
+                    ricMemberRows.forEach(function(row) {
+                        const searchText = row.getAttribute('data-search-text') || '';
+                        if (searchText.includes(searchTerm)) {
+                            row.style.display = '';
+                            visibleCount++;
+                        } else {
+                            row.style.display = 'none';
+                        }
+                    });
+                    
+                    // Clear-Button anzeigen/verstecken
+                    if (ricClearBtn) {
+                        if (searchTerm.length > 0) {
+                            ricClearBtn.style.display = 'block';
+                        } else {
+                            ricClearBtn.style.display = 'none';
+                        }
+                    }
+                });
+            }
+            
+            // Clear-Button Handler
+            if (ricClearBtn) {
+                ricClearBtn.addEventListener('click', function() {
+                    if (ricSearchInput) {
+                        ricSearchInput.value = '';
+                        ricSearchInput.dispatchEvent(new Event('input'));
+                    }
                 });
             }
         });

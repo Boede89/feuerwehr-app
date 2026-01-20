@@ -1654,8 +1654,19 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                 <i class="fas fa-info-circle"></i> Noch keine Mitglieder vorhanden.
                             </p>
                         <?php else: ?>
+                            <div class="mb-3">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-search"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="memberSearchInput" placeholder="Mitglied suchen (Vorname, Nachname, E-Mail, Telefon, Geburtsdatum...)" autocomplete="off">
+                                    <button class="btn btn-outline-secondary" type="button" id="clearSearchBtn" style="display: none;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
                             <div class="table-responsive">
-                                <table class="table table-hover">
+                                <table class="table table-hover" id="membersTable">
                                     <thead>
                                         <tr>
                                             <th>Vorname</th>
@@ -1672,6 +1683,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             data-member-id="<?php echo htmlspecialchars($member['member_id'] ?? ''); ?>"
                                             data-member-data="<?php echo htmlspecialchars(json_encode($member)); ?>"
                                             class="member-row"
+                                            data-search-text="<?php echo htmlspecialchars(strtolower($member['first_name'] . ' ' . $member['last_name'] . ' ' . ($member['email'] ?? '') . ' ' . ($member['phone'] ?? '') . ' ' . ($member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : ''))); ?>"
                                             onmouseover="this.style.backgroundColor='#f8f9fa'" 
                                             onmouseout="this.style.backgroundColor=''">
                                             <td>
@@ -3165,6 +3177,49 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             
             modal.show();
         }
+        
+        // Live-Suche für Mitgliederliste
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('memberSearchInput');
+            const clearBtn = document.getElementById('clearSearchBtn');
+            const memberRows = document.querySelectorAll('.member-row');
+            
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    const searchTerm = this.value.toLowerCase().trim();
+                    let visibleCount = 0;
+                    
+                    memberRows.forEach(function(row) {
+                        const searchText = row.getAttribute('data-search-text') || '';
+                        if (searchText.includes(searchTerm)) {
+                            row.style.display = '';
+                            visibleCount++;
+                        } else {
+                            row.style.display = 'none';
+                        }
+                    });
+                    
+                    // Clear-Button anzeigen/verstecken
+                    if (clearBtn) {
+                        if (searchTerm.length > 0) {
+                            clearBtn.style.display = 'block';
+                        } else {
+                            clearBtn.style.display = 'none';
+                        }
+                    }
+                });
+            }
+            
+            // Clear-Button Handler
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    if (searchInput) {
+                        searchInput.value = '';
+                        searchInput.dispatchEvent(new Event('input'));
+                    }
+                });
+            }
+        });
         
         // Funktion zum Löschen eines Mitglieds
         function deleteMember(memberId, memberName) {
