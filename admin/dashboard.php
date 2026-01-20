@@ -933,7 +933,7 @@ if ($can_atemschutz) {
                                             </p>
                                             <p class="card-text mb-2">
                                                 <strong>RIC-Codes:</strong><br>
-                                                <?php foreach ($group['rics'] as $ric): ?>
+                                <?php foreach ($group['rics'] as $ric): ?>
                                                     <?php $is_removed = ($ric['action'] === 'remove'); ?>
                                                     <span class="badge bg-warning text-dark me-1 mb-1">
                                                         <?php if ($is_removed): ?>
@@ -953,7 +953,16 @@ if ($can_atemschutz) {
                                                     </span>
                                                 <?php endforeach; ?>
                                             </p>
-                                            <div class="d-grid gap-2">
+                                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                                <form method="POST" action="ric-verwaltung.php" onsubmit="return confirm('Möchten Sie wirklich alle RIC-Änderungen für dieses Mitglied bestätigen?');">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                                                    <input type="hidden" name="confirm_member_assignments" value="1">
+                                                    <input type="hidden" name="member_id" value="<?php echo (int)$group['member_id']; ?>">
+                                                    <input type="hidden" name="redirect_to_dashboard" value="1">
+                                                    <button type="submit" class="btn btn-success btn-sm">
+                                                        <i class="fas fa-check-double me-1"></i>Alle RICs für dieses Mitglied bestätigen
+                                                    </button>
+                                                </form>
                                                 <a href="ric-verwaltung.php" class="btn btn-warning btn-sm">
                                                     <i class="fas fa-edit me-1"></i>Zur RIC-Verwaltung
                                                 </a>
@@ -965,17 +974,7 @@ if ($can_atemschutz) {
                             </div>
                         <?php endif; ?>
                     </div>
-                    <div class="card-footer d-flex flex-wrap gap-2">
-                        <?php if (!empty($pending_ric_approvals)): ?>
-                        <form method="POST" action="ric-verwaltung.php" class="me-2" onsubmit="return confirm('Möchten Sie wirklich alle offenen RIC-Genehmigungen bestätigen?');">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
-                            <input type="hidden" name="confirm_all_assignments" value="1">
-                            <input type="hidden" name="redirect_to_dashboard" value="1">
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-check-double me-1"></i>Alle offenen RICs bestätigen
-                            </button>
-                        </form>
-                        <?php endif; ?>
+                    <div class="card-footer">
                         <a href="ric-verwaltung.php" class="btn btn-warning">
                             <i class="fas fa-broadcast-tower"></i> Zur RIC-Verwaltung
                         </a>

@@ -27,8 +27,8 @@ if (isset($_GET['success'])) {
         case 'confirmed':
             $message = "RIC-Zuweisung wurde erfolgreich bestätigt.";
             break;
-        case 'confirmed_all':
-            $message = "Alle offenen RIC-Zuweisungen wurden erfolgreich bestätigt.";
+        case 'confirmed_member':
+            $message = "Alle offenen RIC-Zuweisungen für dieses Mitglied wurden erfolgreich bestätigt.";
             break;
     }
 }
@@ -385,48 +385,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Bestätigung aller offenen Zuweisungen durch Divera Admin (Bulk-Aktion)
-            if (isset($_POST['confirm_all_assignments']) && $is_divera_admin) {
-                // Alle pending Assignments laden
-                $stmt = $db->prepare("SELECT id, member_id, ric_id, action FROM member_ric WHERE status = 'pending'");
-                $stmt->execute();
-                $assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // Bestätigung aller offenen Zuweisungen für EIN Mitglied durch Divera Admin (Bulk-Aktion pro Mitglied)
+            if (isset($_POST['confirm_member_assignments']) && $is_divera_admin) {
+                $member_id = (int)($_POST['member_id'] ?? 0);
 
-                foreach ($assignments as $assignment) {
-                    $assignment_id = (int)$assignment['id'];
-                    
-                    if ($assignment['action'] === 'remove') {
-                        // Bei Entfernung:
-                        // 1. Lösche den pending 'remove' Eintrag
-                        $stmtDelPending = $db->prepare("DELETE FROM member_ric WHERE id = ?");
-                        $stmtDelPending->execute([$assignment_id]);
+                if ($member_id > 0) {
+                    // Alle pending Assignments für dieses Mitglied laden
+                    $stmt = $db->prepare("SELECT id, member_id, ric_id, action FROM member_ric WHERE status = 'pending' AND member_id = ?");
+                    $stmt->execute([$member_id]);
+                    $assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    foreach ($assignments as $assignment) {
+                        $assignment_id = (int)$assignment['id'];
                         
-                        // 2. Lösche auch den bestätigten 'add' Eintrag (falls vorhanden)
-                        $stmtDelConfirmed = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ? AND action = 'add' AND status = 'confirmed'");
-                        $stmtDelConfirmed->execute([$assignment['member_id'], $assignment['ric_id']]);
-                    } else {
-                        // Bei Hinzufügung: Status auf confirmed setzen
-                        $stmtUpdate = $db->prepare("UPDATE member_ric SET status = 'confirmed' WHERE id = ?");
-                        $stmtUpdate->execute([$assignment_id]);
-                        
-                        // Entferne alle pending 'remove' Einträge für diese Kombination
-                        $stmtDelRemoves = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ? AND action = 'remove' AND status = 'pending'");
-                        $stmtDelRemoves->execute([$assignment['member_id'], $assignment['ric_id']]);
+                        if ($assignment['action'] === 'remove') {
+                            // Bei Entfernung:
+                            // 1. Lösche den pending 'remove' Eintrag
+                            $stmtDelPending = $db->prepare("DELETE FROM member_ric WHERE id = ?");
+                            $stmtDelPending->execute([$assignment_id]);
+                            
+                            // 2. Lösche auch den bestätigten 'add' Eintrag (falls vorhanden)
+                            $stmtDelConfirmed = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ? AND action = 'add' AND status = 'confirmed'");
+                            $stmtDelConfirmed->execute([$assignment['member_id'], $assignment['ric_id']]);
+                        } else {
+                            // Bei Hinzufügung: Status auf confirmed setzen
+                            $stmtUpdate = $db->prepare("UPDATE member_ric SET status = 'confirmed' WHERE id = ?");
+                            $stmtUpdate->execute([$assignment_id]);
+                            
+                            // Entferne alle pending 'remove' Einträge für diese Kombination
+                            $stmtDelRemoves = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ? AND action = 'remove' AND status = 'pending'");
+                            $stmtDelRemoves->execute([$assignment['member_id'], $assignment['ric_id']]);
+                        }
                     }
-                }
 
-                if ($db->inTransaction()) {
-                    $db->commit();
-                }
+                    if ($db->inTransaction()) {
+                        $db->commit();
+                    }
 
-                // Optional: zurück zum Dashboard oder zur RIC-Verwaltung
-                $redirectToDashboard = !empty($_POST['redirect_to_dashboard']);
-                if ($redirectToDashboard) {
-                    header("Location: dashboard.php");
-                } else {
-                    header("Location: ric-verwaltung.php?success=confirmed_all");
+                    // Optional: zurück zum Dashboard oder zur RIC-Verwaltung
+                    $redirectToDashboard = !empty($_POST['redirect_to_dashboard']);
+                    if ($redirectToDashboard) {
+                        header("Location: dashboard.php");
+                    } else {
+                        header("Location: ric-verwaltung.php?success=confirmed_member");
+                    }
+                    exit();
                 }
-                exit();
             }
         } catch (Exception $e) {
             if ($db->inTransaction()) {
