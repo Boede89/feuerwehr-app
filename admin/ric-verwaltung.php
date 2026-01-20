@@ -865,12 +865,21 @@ try {
                 });
             }
             
-            // Modal wird geschlossen - Button-Status zurücksetzen
+            // Modal wird geschlossen - Button-Status zurücksetzen und Backdrop entfernen
             const assignRicModal = document.getElementById('assignRicModal');
             if (assignRicModal) {
                 assignRicModal.addEventListener('hidden.bs.modal', function() {
                     resetSaveButton();
                     formSubmitted = false;
+                    // Backdrop explizit entfernen falls vorhanden
+                    const backdrop = document.querySelector('.modal-backdrop');
+                    if (backdrop) {
+                        backdrop.remove();
+                    }
+                    // Body-Klasse zurücksetzen
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
                 });
                 
                 // Auch beim Öffnen zurücksetzen

@@ -1644,7 +1644,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 <div class="card shadow">
                     <div class="card-header">
                         <h5 class="card-title mb-0">
-                            <i class="fas fa-users"></i> Aktuelle Mitgliederliste
+                            <i class="fas fa-users"></i> Aktuelle Mitgliederliste 
+                            <span class="badge bg-primary ms-2"><?php echo count($members); ?> Mitglieder</span>
                         </h5>
                     </div>
                     <div class="card-body">
