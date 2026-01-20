@@ -965,7 +965,17 @@ if ($can_atemschutz) {
                             </div>
                         <?php endif; ?>
                     </div>
-                    <div class="card-footer">
+                    <div class="card-footer d-flex flex-wrap gap-2">
+                        <?php if (!empty($pending_ric_approvals)): ?>
+                        <form method="POST" action="ric-verwaltung.php" class="me-2" onsubmit="return confirm('Möchten Sie wirklich alle offenen RIC-Genehmigungen bestätigen?');">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                            <input type="hidden" name="confirm_all_assignments" value="1">
+                            <input type="hidden" name="redirect_to_dashboard" value="1">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-check-double me-1"></i>Alle offenen RICs bestätigen
+                            </button>
+                        </form>
+                        <?php endif; ?>
                         <a href="ric-verwaltung.php" class="btn btn-warning">
                             <i class="fas fa-broadcast-tower"></i> Zur RIC-Verwaltung
                         </a>
