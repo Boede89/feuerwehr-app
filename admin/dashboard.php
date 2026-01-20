@@ -933,24 +933,26 @@ if ($can_atemschutz) {
                                             </p>
                                             <p class="card-text mb-2">
                                                 <strong>RIC-Codes:</strong><br>
-                                <?php foreach ($group['rics'] as $ric): ?>
+                                                <?php foreach ($group['rics'] as $ric): ?>
                                                     <?php $is_removed = ($ric['action'] === 'remove'); ?>
-                                                    <span class="badge bg-warning text-dark me-1 mb-1">
-                                                        <?php if ($is_removed): ?>
-                                                            <span style="text-decoration: line-through;"><?php echo htmlspecialchars($ric['ric_kurztext']); ?></span>
-                                                            <small>(Entfernung)</small>
-                                                        <?php else: ?>
-                                                            <?php echo htmlspecialchars($ric['ric_kurztext']); ?>
-                                                            <small>(Hinzufügung)</small>
-                                                        <?php endif; ?>
-                                                        <form method="POST" action="ric-verwaltung.php" style="display: inline;" onsubmit="return confirm('Möchten Sie diese Änderung bestätigen?');">
+                                                    <div class="d-inline-flex align-items-center me-2 mb-1">
+                                                        <span class="badge bg-warning text-dark">
+                                                            <?php if ($is_removed): ?>
+                                                                <span style="text-decoration: line-through;"><?php echo htmlspecialchars($ric['ric_kurztext']); ?></span>
+                                                                <small>(Entfernung)</small>
+                                                            <?php else: ?>
+                                                                <?php echo htmlspecialchars($ric['ric_kurztext']); ?>
+                                                                <small>(Hinzufügung)</small>
+                                                            <?php endif; ?>
+                                                        </span>
+                                                        <form method="POST" action="ric-verwaltung.php" class="ms-1" onsubmit="return confirm('Möchten Sie diese Änderung bestätigen?');">
                                                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                                                             <input type="hidden" name="assignment_id" value="<?php echo $ric['assignment_id']; ?>">
-                                                            <button type="submit" name="confirm_assignment" class="btn btn-sm btn-success ms-1" style="padding: 0 5px; font-size: 0.7em;" title="Bestätigen">
+                                                            <button type="submit" name="confirm_assignment" class="btn btn-sm btn-success" style="padding: 0 6px; font-size: 0.75rem;" title="Bestätigen">
                                                                 <i class="fas fa-check"></i>
                                                             </button>
                                                         </form>
-                                                    </span>
+                                                    </div>
                                                 <?php endforeach; ?>
                                             </p>
                                             <div class="d-flex flex-wrap gap-2 mt-2">
