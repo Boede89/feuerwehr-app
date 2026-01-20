@@ -1188,10 +1188,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         }
                         
                         // Wenn Mitglied mit Benutzer verknüpft ist, aktualisiere auch Benutzer
-                        if (!empty($old_user_id)) {
-                            $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, email = ? WHERE id = ?");
-                            $stmt->execute([$first_name, $last_name, !empty($email) ? $email : null, $old_user_id]);
-                        }
+                    if (!empty($old_user_id)) {
+                        $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, email = ? WHERE id = ?");
+                        $stmt->execute([$first_name, $last_name, !empty($email) ? $email : null, $old_user_id]);
+                    }
                     
                     // Wenn Mitglied mit Geräteträger verknüpft ist, aktualisiere auch Geräteträger
                     $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE member_id = ? LIMIT 1");
@@ -1207,22 +1207,206 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $traeger['id']
                         ]);
                     }
+
+                    // RIC-Zuweisungen aus dem Bearbeiten-Formular speichern (wie im RIC-Zuweisungs-Modal)
+                    if ($can_ric && isset($_POST['ric_ids']) && is_array($_POST['ric_ids'])) {
+                        $ric_ids = array_map('intval', $_POST['ric_ids']);
+
+                        // Alte bestätigte Zuweisungen laden
+                        $stmt = $db->prepare("SELECT ric_id FROM member_ric WHERE member_id = ? AND status = 'confirmed' AND action = 'add'");
+                        $stmt->execute([$member_id]);
+                        $old_assignments = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+                        // Status bestimmen: confirmed wenn Divera Admin, sonst pending
+                        $status = $is_divera_admin ? 'confirmed' : 'pending';
+                        $created_by = $is_divera_admin ? null : $_SESSION['user_id'];
+
+                        // Entfernte und hinzugefügte Zuweisungen bestimmen
+                        $removed_rics = array_diff($old_assignments, $ric_ids);
+                        $added_rics = array_diff($ric_ids, $old_assignments);
+
+                        // Entfernte Zuweisungen markieren (nur wenn nicht Divera Admin)
+                        if (!empty($removed_rics) && !$is_divera_admin) {
+                            // Alte pending Einträge für diese RICs löschen
+                            $stmt = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ? AND status = 'pending'");
+                            foreach ($removed_rics as $removed_ric_id) {
+                                $stmt->execute([$member_id, $removed_ric_id]);
+                            }
+
+                            // Entfernte Zuweisungen als pending mit action='remove' speichern
+                            $stmt = $db->prepare("INSERT INTO member_ric (member_id, ric_id, status, action, created_by) VALUES (?, ?, 'pending', 'remove', ?) ON DUPLICATE KEY UPDATE status = 'pending', action = 'remove', created_by = ?");
+                            foreach ($removed_rics as $removed_ric_id) {
+                                try {
+                                    $stmt->execute([$member_id, $removed_ric_id, $created_by, $created_by]);
+                                } catch (Exception $e) {
+                                    error_log("Fehler beim Markieren der entfernten RIC-Zuweisung (edit_member): " . $e->getMessage());
+                                }
+                            }
+                        } elseif (!empty($removed_rics) && $is_divera_admin) {
+                            // Divera Admin: Direkt löschen
+                            $stmt = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ?");
+                            foreach ($removed_rics as $removed_ric_id) {
+                                $stmt->execute([$member_id, $removed_ric_id]);
+                            }
+                        }
+
+                        // Neue Zuweisungen hinzufügen
+                        if (!empty($added_rics)) {
+                            // Alte pending Einträge für diese RICs löschen
+                            $stmt = $db->prepare("DELETE FROM member_ric WHERE member_id = ? AND ric_id = ? AND status = 'pending'");
+                            foreach ($added_rics as $added_ric_id) {
+                                $stmt->execute([$member_id, $added_ric_id]);
+                            }
+
+                            // Neue Zuweisungen als pending mit action='add' speichern
+                            $stmt = $db->prepare("INSERT INTO member_ric (member_id, ric_id, status, action, created_by) VALUES (?, ?, ?, 'add', ?) ON DUPLICATE KEY UPDATE status = ?, action = 'add', created_by = ?");
+                            foreach ($added_rics as $ric_id) {
+                                try {
+                                    $stmt->execute([$member_id, $ric_id, $status, $created_by, $status, $created_by]);
+                                } catch (Exception $e) {
+                                    error_log("Fehler beim Einfügen der RIC-Zuweisung (edit_member): " . $e->getMessage());
+                                }
+                            }
+                        }
+
+                        // E-Mail an Divera Admin senden wenn nicht selbst geändert
+                        if (!$is_divera_admin && $divera_admin_user_id && $current_user && (!empty($added_rics) || !empty($removed_rics))) {
+                            // Mitglied Info laden
+                            $stmt = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
+                            $stmt->execute([$member_id]);
+                            $memberInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                            // Divera Admin Info laden
+                            $stmt = $db->prepare("SELECT first_name, last_name, email FROM users WHERE id = ?");
+                            $stmt->execute([$divera_admin_user_id]);
+                            $divera_admin = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                            if ($divera_admin && !empty($divera_admin['email'])) {
+                                // Basis-URL für Links in E-Mails
+                                try {
+                                    $stmtApp = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_url'");
+                                    $stmtApp->execute();
+                                    $appUrl = $stmtApp->fetchColumn();
+                                    if (!$appUrl || trim($appUrl) === '') {
+                                        $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http');
+                                        $host = $_SERVER['HTTP_HOST'];
+                                        $scriptPath = dirname($_SERVER['SCRIPT_NAME']);
+                                        $basePath = dirname($scriptPath);
+                                        $appUrl = $protocol . '://' . $host . rtrim($basePath, '/');
+                                    }
+                                } catch (Exception $e) {
+                                    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http');
+                                    $host = $_SERVER['HTTP_HOST'];
+                                    $scriptPath = dirname($_SERVER['SCRIPT_NAME']);
+                                    $basePath = dirname($scriptPath);
+                                    $appUrl = $protocol . '://' . $host . rtrim($basePath, '/');
+                                }
+
+                                $dashboard_url = rtrim($appUrl, '/') . '/admin/dashboard.php';
+
+                                // RIC-Codes Namen laden
+                                $ric_names = [];
+                                if (!empty($ric_ids) || !empty($old_assignments)) {
+                                    $all_ric_ids = array_unique(array_merge($ric_ids, $old_assignments));
+                                    if (!empty($all_ric_ids)) {
+                                        $placeholders = implode(',', array_fill(0, count($all_ric_ids), '?'));
+                                        $stmt = $db->prepare("SELECT id, kurztext FROM ric_codes WHERE id IN ($placeholders)");
+                                        $stmt->execute($all_ric_ids);
+                                        $ric_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                                        foreach ($ric_data as $ric) {
+                                            $ric_names[$ric['id']] = $ric['kurztext'];
+                                        }
+                                    }
+                                }
+
+                                $added_names = [];
+                                foreach ($added_rics as $id) {
+                                    if (isset($ric_names[$id])) {
+                                        $added_names[] = $ric_names[$id];
+                                    }
+                                }
+
+                                $removed_names = [];
+                                foreach ($removed_rics as $id) {
+                                    if (isset($ric_names[$id])) {
+                                        $removed_names[] = $ric_names[$id];
+                                    }
+                                }
+
+                                $email_subject = 'RIC-Zuweisung erfordert Bestätigung';
+                                $email_body = '
+                                <html>
+                                <head>
+                                    <meta charset="UTF-8">
+                                    <style>
+                                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                                        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                                        .header { background-color: #ffc107; color: #000; padding: 20px; text-align: center; }
+                                        .content { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
+                                        .info-box { background-color: #fff; padding: 15px; margin: 20px 0; border-left: 4px solid #ffc107; }
+                                        .info-box strong { color: #ffc107; }
+                                        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+                                        .button { display: inline-block; background-color: #0d6efd; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 20px; }
+                                    </style>
+                                </head>
+                                <body>
+                                    <div class="container">
+                                        <div class="header">
+                                            <h1>RIC-Zuweisung erfordert Bestätigung</h1>
+                                        </div>
+                                        <div class="content">
+                                            <p>Hallo ' . htmlspecialchars($divera_admin['first_name']) . ',</p>
+                                            <p>Es wurde eine RIC-Zuweisung vorgenommen, die Ihre Bestätigung erfordert:</p>
+                                            <div class="info-box">
+                                                <p><strong>Geändert von:</strong> ' . htmlspecialchars($current_user['first_name'] . ' ' . $current_user['last_name']) . ' (' . htmlspecialchars($current_user['email']) . ')</p>
+                                                <p><strong>Mitglied:</strong> ' . htmlspecialchars($memberInfo['first_name'] . ' ' . $memberInfo['last_name']) . '</p>
+                                                <p><strong>Aktion:</strong> Bearbeiten des Mitglieds</p>
+                                            </div>';
+
+                                if (!empty($added_names)) {
+                                    $email_body .= '<p><strong>Hinzugefügte RIC-Codes:</strong> ' . implode(', ', $added_names) . '</p>';
+                                }
+
+                                if (!empty($removed_names)) {
+                                    $email_body .= '<p><strong>Entfernte RIC-Codes:</strong> ' . implode(', ', $removed_names) . '</p>';
+                                }
+
+                                $email_body .= '
+                                            <p style="text-align: center;">
+                                                <a href="' . htmlspecialchars($dashboard_url) . '" class="button">Zur Bestätigung</a>
+                                            </p>
+                                        </div>
+                                        <div class="footer">
+                                            <p>Diese E-Mail wurde automatisch generiert. Bitte antworten Sie nicht auf diese E-Mail.</p>
+                                        </div>
+                                    </div>
+                                </body>
+                                </html>';
+
+                                if (send_email($divera_admin['email'], $email_subject, $email_body, '', true)) {
+                                    error_log("RIC-Benachrichtigungs-E-Mail (edit_member) erfolgreich gesendet an: " . $divera_admin['email']);
+                                } else {
+                                    error_log("Fehler beim Senden der RIC-Benachrichtigungs-E-Mail (edit_member) an: " . $divera_admin['email']);
+                                }
+                            }
+                        }
+                    }
                     
-                        if ($db->inTransaction()) {
-                            $db->commit();
-                        }
-                        
-                        // Erfolgsmeldung mit Passwort falls Benutzer erstellt wurde
-                        if ($user_created && !empty($new_user_id) && !empty($default_password) && !empty($username)) {
-                            $message = 'Mitglied wurde erfolgreich aktualisiert und Benutzerkonto wurde erstellt. Benutzername: ' . htmlspecialchars($username) . ', Passwort: ' . htmlspecialchars($default_password);
-                        } elseif ($user_deleted) {
-                            $message = 'Mitglied wurde erfolgreich aktualisiert und Benutzerkonto wurde gelöscht.';
-                        } else {
-                            $message = 'Mitglied wurde erfolgreich aktualisiert.';
-                        }
-                        
-                        header("Location: members.php?show_list=1&success=edited");
-                        exit();
+                    if ($db->inTransaction()) {
+                        $db->commit();
+                    }
+                    
+                    // Erfolgsmeldung mit Passwort falls Benutzer erstellt wurde
+                    if ($user_created && !empty($new_user_id) && !empty($default_password) && !empty($username)) {
+                        $message = 'Mitglied wurde erfolgreich aktualisiert und Benutzerkonto wurde erstellt. Benutzername: ' . htmlspecialchars($username) . ', Passwort: ' . htmlspecialchars($default_password);
+                    } elseif ($user_deleted) {
+                        $message = 'Mitglied wurde erfolgreich aktualisiert und Benutzerkonto wurde gelöscht.';
+                    } else {
+                        $message = 'Mitglied wurde erfolgreich aktualisiert.';
+                    }
+                    
+                    header("Location: members.php?show_list=1&success=edited");
+                    exit();
                     }
                 }
             } catch (Exception $e) {
