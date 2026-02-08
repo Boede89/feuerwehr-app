@@ -32,6 +32,7 @@ try {
             dienstplan_id INT NULL,
             typ ENUM('dienst','einsatz','manuell') NOT NULL DEFAULT 'dienst',
             bezeichnung VARCHAR(255) NULL,
+            bemerkung TEXT NULL,
             user_id INT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -61,7 +62,10 @@ try {
 
 $message = '';
 $error = '';
-// Datum: POST (beim Speichern), GET (nach Datumsänderung), sonst heute
+if (isset($_GET['message']) && $_GET['message'] === 'erfolg') {
+    $message = 'Anwesenheitsliste wurde angelegt.';
+}
+// Datum: GET (z. B. nach Schritt 2) oder heute
 $datum = date('Y-m-d');
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['datum'])) {
     $datum = trim($_POST['datum']);
@@ -92,50 +96,23 @@ try {
     // Tabelle kann fehlen
 }
 
-// Alle Dienste ohne Anwesenheitsliste (für "Anderen Dienst auswählen") - alle Daten, auch vergangene
+// Alle Dienste ohne Anwesenheitsliste (für "Anderen Dienst auswählen") - nur bis heute, keine Zukunft
 $andere_dienste = [];
 try {
-    $stmt = $db->query("
+    $stmt = $db->prepare("
         SELECT d.id, d.datum, d.bezeichnung
         FROM dienstplan d
         LEFT JOIN anwesenheitslisten a ON a.dienstplan_id = d.id
-        WHERE a.id IS NULL
+        WHERE a.id IS NULL AND d.datum <= ?
         ORDER BY d.datum DESC, d.bezeichnung
     ");
+    $stmt->execute([$datum]);
     $andere_dienste = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // ignore
 }
 
-// POST: Anwesenheitsliste speichern
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save') {
-    $datum = trim($_POST['datum'] ?? date('Y-m-d'));
-    $auswahl = trim($_POST['auswahl'] ?? '');
-
-    $dienstplan_id = null;
-    $typ = 'dienst';
-    $bezeichnung = null;
-
-    if ($auswahl === 'einsatz') {
-        $typ = 'einsatz';
-    } else {
-        $dienstplan_id = (int)$auswahl;
-        if ($dienstplan_id > 0) {
-            $typ = 'dienst';
-        }
-    }
-
-    try {
-        $stmt = $db->prepare("
-            INSERT INTO anwesenheitslisten (datum, dienstplan_id, typ, bezeichnung, user_id)
-            VALUES (?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([$datum, $dienstplan_id ?: null, $typ, $bezeichnung, $_SESSION['user_id']]);
-        $message = 'Anwesenheitsliste wurde angelegt.';
-    } catch (Exception $e) {
-        $error = 'Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.';
-    }
-}
+// Speichern erfolgt auf der nächsten Seite (anwesenheitsliste-eingaben.php)
 
 // Letzte Anwesenheitslisten (Übersicht)
 $letzte_listen = [];
@@ -235,47 +212,36 @@ try {
                             <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
                         <?php endif; ?>
 
-                        <form method="post" id="anwesenheitsForm">
-                            <input type="hidden" name="action" value="save">
-                            <input type="hidden" name="auswahl" id="auswahl" value="">
-                            <input type="hidden" name="datum" value="<?php echo htmlspecialchars($datum); ?>">
-
-                            <div class="mb-4">
-                                <label class="form-label">Anwesenheitsliste für heute</label>
-                                <div class="row g-3">
-                                    <?php if ($vorschlag): ?>
-                                        <div class="col-12 col-md-4">
-                                            <button type="button" class="btn btn-primary w-100 h-100 anwesenheits-btn" id="btnVorschlag" data-id="<?php echo (int)$vorschlag['id']; ?>" data-label="<?php echo htmlspecialchars($vorschlag['bezeichnung'] . ' — ' . date('d.m.Y', strtotime($vorschlag['datum']))); ?>">
-                                                <div class="feature-icon mb-2"><i class="fas fa-check"></i></div>
-                                                <h5 class="card-title mb-1"><?php echo htmlspecialchars($vorschlag['bezeichnung']); ?></h5>
-                                                <p class="mb-0 small opacity-90">Übungsdienst · <?php echo date('d.m.Y', strtotime($vorschlag['datum'])); ?></p>
-                                                <small class="d-block mt-1 opacity-75">(Vorschlag für heute)</small>
-                                            </button>
-                                        </div>
-                                    <?php endif; ?>
+                        <div class="mb-4">
+                            <label class="form-label">Anwesenheitsliste für heute</label>
+                            <div class="row g-3">
+                                <?php if ($vorschlag): ?>
                                     <div class="col-12 col-md-4">
-                                        <button type="button" class="btn btn-outline-primary w-100 h-100 anwesenheits-btn" id="btnAndererDienst" data-bs-toggle="modal" data-bs-target="#andereDiensteModal">
-                                            <div class="feature-icon mb-2"><i class="fas fa-list"></i></div>
-                                            <h5 class="card-title mb-0">Anderen Dienst auswählen</h5>
-                                        </button>
+                                        <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=<?php echo (int)$vorschlag['id']; ?>" class="btn btn-primary w-100 h-100 anwesenheits-btn text-decoration-none">
+                                            <div class="feature-icon mb-2"><i class="fas fa-check"></i></div>
+                                            <h5 class="card-title mb-1"><?php echo htmlspecialchars($vorschlag['bezeichnung']); ?></h5>
+                                            <p class="mb-0 small opacity-90">Übungsdienst · <?php echo date('d.m.Y', strtotime($vorschlag['datum'])); ?></p>
+                                            <small class="d-block mt-1 opacity-75">(Vorschlag für heute)</small>
+                                        </a>
                                     </div>
-                                    <div class="col-12 col-md-4">
-                                        <button type="button" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn" id="btnEinsatz">
-                                            <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
-                                            <h5 class="card-title mb-0">Anwesenheit Einsatz</h5>
-                                        </button>
-                                    </div>
+                                <?php endif; ?>
+                                <div class="col-12 col-md-4">
+                                    <button type="button" class="btn btn-outline-primary w-100 h-100 anwesenheits-btn" data-bs-toggle="modal" data-bs-target="#andereDiensteModal">
+                                        <div class="feature-icon mb-2"><i class="fas fa-list"></i></div>
+                                        <h5 class="card-title mb-0">Anderen Dienst auswählen</h5>
+                                    </button>
                                 </div>
-                                <p class="text-muted small mt-2 mb-0" id="auswahlAnzeige">Bitte wählen Sie eine der Optionen oben.</p>
+                                <div class="col-12 col-md-4">
+                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=einsatz" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn text-decoration-none">
+                                        <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
+                                        <h5 class="card-title mb-0">Sonstige Anwesenheit (Einsatz, etc.)</h5>
+                                    </a>
+                                </div>
                             </div>
+                            <p class="text-muted small mt-2 mb-0">Wählen Sie eine Option – Sie werden zur Eingabe weitergeleitet.</p>
+                        </div>
 
-                            <div class="d-flex flex-wrap gap-2">
-                                <button type="submit" class="btn btn-success" id="btnSpeichern" disabled>
-                                    <i class="fas fa-save"></i> Anwesenheitsliste speichern
-                                </button>
-                                <a href="formulare.php" class="btn btn-link">Zurück zu Formulare</a>
-                            </div>
-                        </form>
+                        <a href="formulare.php" class="btn btn-link">Zurück zu Formulare</a>
 
                         <!-- Modal: Anderen Dienst auswählen -->
                         <div class="modal fade" id="andereDiensteModal" tabindex="-1">
@@ -292,9 +258,9 @@ try {
                                         <?php else: ?>
                                             <div class="list-group">
                                                 <?php foreach ($andere_dienste as $d): ?>
-                                                    <button type="button" class="list-group-item list-group-item-action dienst-option" data-id="<?php echo (int)$d['id']; ?>" data-bezeichnung="<?php echo htmlspecialchars($d['bezeichnung']); ?>" data-datum="<?php echo htmlspecialchars($d['datum']); ?>">
+                                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($d['datum']); ?>&auswahl=<?php echo (int)$d['id']; ?>" class="list-group-item list-group-item-action">
                                                         <strong><?php echo date('d.m.Y', strtotime($d['datum'])); ?></strong> — <?php echo htmlspecialchars($d['bezeichnung']); ?>
-                                                    </button>
+                                                    </a>
                                                 <?php endforeach; ?>
                                             </div>
                                         <?php endif; ?>
@@ -336,46 +302,5 @@ try {
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        var auswahlEl = document.getElementById('auswahl');
-        var auswahlAnzeige = document.getElementById('auswahlAnzeige');
-        var btnSpeichern = document.getElementById('btnSpeichern');
-        var andereModal = document.getElementById('andereDiensteModal');
-
-        function setAuswahl(value, label) {
-            auswahlEl.value = value;
-            auswahlAnzeige.textContent = 'Gewählt: ' + label;
-            btnSpeichern.disabled = false;
-        }
-
-        var btnVorschlag = document.getElementById('btnVorschlag');
-        if (btnVorschlag) {
-            btnVorschlag.addEventListener('click', function() {
-                setAuswahl(this.dataset.id, this.dataset.label || this.querySelector('.card-title').textContent.trim());
-            });
-        }
-
-        document.getElementById('btnEinsatz').addEventListener('click', function() {
-            setAuswahl('einsatz', 'Anwesenheit Einsatz');
-        });
-
-        document.querySelectorAll('.dienst-option').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var datumLabel = this.dataset.datum ? new Date(this.dataset.datum + 'T12:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-                setAuswahl(this.dataset.id, datumLabel + ' — ' + this.dataset.bezeichnung);
-                if (andereModal && window.bootstrap) {
-                    var m = bootstrap.Modal.getInstance(andereModal);
-                    if (m) m.hide();
-                }
-            });
-        });
-
-        document.getElementById('anwesenheitsForm').addEventListener('submit', function(e) {
-            if (!auswahlEl.value) {
-                e.preventDefault();
-                alert('Bitte wählen Sie zuerst einen Dienst oder „Anwesenheit Einsatz“.');
-            }
-        });
-    </script>
 </body>
 </html>
