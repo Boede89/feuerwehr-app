@@ -118,12 +118,14 @@ if ($is_admin) {
     $can_atemschutz = true;
     $can_settings = true;
     $can_members = true;
+    $can_forms = true;
 } else {
     // Für Nicht-Admins: Spezifische Berechtigungen prüfen
     $can_reservations = has_permission('reservations');
     $can_atemschutz = has_permission('atemschutz');
     $can_settings = has_permission('settings');
     $can_members = has_permission('members');
+    $can_forms = has_permission('forms');
 }
 
 // Sicherstellen, dass Berechtigungsspalten existieren
@@ -678,6 +680,14 @@ if ($can_atemschutz) {
             <div class="col-12 col-md-3">
                 <a href="members.php" class="btn btn-outline-success w-100">
                     <i class="fas fa-users"></i> Mitgliederverwaltung
+                </a>
+            </div>
+            <?php endif; ?>
+            
+            <?php if ($can_forms): ?>
+            <div class="col-12 col-md-3">
+                <a href="formularcenter.php" class="btn btn-outline-info w-100">
+                    <i class="fas fa-file-alt"></i> Formularcenter
                 </a>
             </div>
             <?php endif; ?>

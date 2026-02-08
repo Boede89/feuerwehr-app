@@ -223,7 +223,7 @@ require_once 'includes/functions.php';
                         </div>
                     </div>
 
-                    <?php if (is_logged_in() && hasAdminPermission()): ?>
+                    <?php if (is_logged_in()): ?>
                     <div class="col-12 col-sm-6 col-lg-4">
                         <a href="formulare.php" class="text-decoration-none">
                             <div class="card h-100 shadow-sm feature-card clickable-card">

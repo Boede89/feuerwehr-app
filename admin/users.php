@@ -50,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $can_members = isset($_POST['can_members']) ? 1 : 0;
         $can_ric = isset($_POST['can_ric']) ? 1 : 0;
         $can_courses = isset($_POST['can_courses']) ? 1 : 0;
+        $can_forms = isset($_POST['can_forms']) ? 1 : 0;
         // Benutzerverwaltung/Einstellungen werden durch Administrator gesetzt
         $can_users = $is_admin ? 1 : 0;
         $can_settings = $is_admin ? 1 : 0;
@@ -85,9 +86,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         } catch (Exception $e) {
                             // Spalte existiert bereits, ignoriere Fehler
                         }
+                        try {
+                            $db->exec("ALTER TABLE users ADD COLUMN can_forms TINYINT(1) DEFAULT 0");
+                        } catch (Exception $e) {
+                            // Spalte existiert bereits, ignoriere Fehler
+                        }
                         
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_users, $can_settings, $can_vehicles, $email_notifications]);
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $email_notifications]);
                         $new_user_id = $db->lastInsertId();
                         
                         // Mitglied automatisch erstellen/verknüpfen
@@ -129,14 +135,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     } catch (Exception $e) {
                         // Spalte existiert bereits, ignoriere Fehler
                     }
+                    try {
+                        $db->exec("ALTER TABLE users ADD COLUMN can_forms TINYINT(1) DEFAULT 0");
+                    } catch (Exception $e) {
+                        // Spalte existiert bereits, ignoriere Fehler
+                    }
                     
                     if (!empty($password)) {
                         $password_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_users, $can_settings, $can_vehicles, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_users, $can_settings, $can_vehicles, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $user_id]);
                     }
                     
                     // Mitglied aktualisieren falls vorhanden
@@ -286,8 +297,13 @@ try {
     } catch (Exception $e) {
         // Spalte existiert bereits, ignoriere Fehler
     }
+    try {
+        $db->exec("ALTER TABLE users ADD COLUMN can_forms TINYINT(1) DEFAULT 0");
+    } catch (Exception $e) {
+        // Spalte existiert bereits, ignoriere Fehler
+    }
     
-    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, is_active, created_at, is_admin, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
+    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, is_active, created_at, is_admin, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
     $stmt->execute();
     $users = $stmt->fetchAll();
 } catch(PDOException $e) {
@@ -402,6 +418,9 @@ try {
                                                     <?php if (!empty($user['can_courses'])): ?>
                                                         <span class="badge bg-purple">Lehrgangsverwaltung</span>
                                                     <?php endif; ?>
+                                                    <?php if (!empty($user['can_forms'])): ?>
+                                                        <span class="badge bg-secondary">Formularcenter</span>
+                                                    <?php endif; ?>
                                                 </div>
                                             </td>
                                             <td>
@@ -425,7 +444,8 @@ try {
                                                     data-can-atemschutz="<?php echo (int)$user['can_atemschutz']; ?>"
                                                     data-can-members="<?php echo (int)($user['can_members'] ?? 0); ?>"
                                                     data-can-ric="<?php echo (int)($user['can_ric'] ?? 0); ?>"
-                                                    data-can-courses="<?php echo (int)($user['can_courses'] ?? 0); ?>">
+                                                    data-can-courses="<?php echo (int)($user['can_courses'] ?? 0); ?>"
+                                                    data-can-forms="<?php echo (int)($user['can_forms'] ?? 0); ?>">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
                                                 <?php if (!empty($user['email'])): ?>
@@ -527,6 +547,12 @@ try {
                                             Lehrgangsverwaltung
                                         </label>
                                     </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="can_forms" name="can_forms">
+                                        <label class="form-check-label" for="can_forms">
+                                            Formularcenter
+                                        </label>
+                                    </div>
                                 </div>
                                 <div class="col-md-6">
                                     <!-- Benutzerverwaltung/Einstellungen werden automatisch durch Administrator gesetzt -->
@@ -610,7 +636,7 @@ try {
             }
         }
         
-        function editUser(userId, username, email, firstName, lastName, userRole, emailNotifications, isActive, isAdmin, canReservations, canAtemschutz, canMembers, canRic, canCourses, canUsers, canSettings, canVehicles) {
+        function editUser(userId, username, email, firstName, lastName, userRole, emailNotifications, isActive, isAdmin, canReservations, canAtemschutz, canMembers, canRic, canCourses, canForms, canUsers, canSettings, canVehicles) {
             // Modal anzeigen
             const modal = document.getElementById('userModal');
             if (modal) {
@@ -638,6 +664,9 @@ try {
                 }
                 if (document.getElementById('can_courses')) {
                     document.getElementById('can_courses').checked = canCourses == 1;
+                }
+                if (document.getElementById('can_forms')) {
+                    document.getElementById('can_forms').checked = canForms == 1;
                 }
                 // Benutzerverwaltung/Einstellungen werden von Admin-Checkbox bestimmt
                 document.getElementById('can_vehicles').checked = canVehicles == 1;
@@ -675,6 +704,7 @@ try {
                     const canMem = getBool(this.dataset.canMembers);
                     const canRic = getBool(this.dataset.canRic);
                     const canCourses = getBool(this.dataset.canCourses);
+                    const canForms = getBool(this.dataset.canForms);
                     document.getElementById('can_reservations').checked = canRes;
                     const atmEl = document.getElementById('can_atemschutz');
                     if (atmEl) atmEl.checked = canAtm;
@@ -684,6 +714,8 @@ try {
                     if (ricEl) ricEl.checked = canRic;
                     const coursesEl = document.getElementById('can_courses');
                     if (coursesEl) coursesEl.checked = canCourses;
+                    const formsEl = document.getElementById('can_forms');
+                    if (formsEl) formsEl.checked = canForms;
                     toggleAdminPermissions(getBool(this.dataset.isAdmin));
                     document.getElementById('action').value = 'edit';
                     document.getElementById('submitButton').textContent = 'Aktualisieren';
