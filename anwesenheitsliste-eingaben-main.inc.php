@@ -331,10 +331,13 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                 <label for="einsatzleiter" class="form-label">Einsatzleiter</label>
                                 <select class="form-select" id="einsatzleiter" name="einsatzleiter">
                                     <option value="">— keine Auswahl —</option>
-                                    <?php foreach ($members_for_einsatzleiter as $m): ?>
-                                        <option value="<?php echo (int)$m['id']; ?>" <?php echo (isset($draft['einsatzleiter_member_id']) && (int)$draft['einsatzleiter_member_id'] === (int)$m['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></option>
+                                    <?php foreach ($members_for_einsatzleiter as $m):
+                                        $sel = (isset($draft['einsatzleiter_member_id']) && (int)$draft['einsatzleiter_member_id'] === (int)$m['id']) ? ' selected' : '';
+                                    ?>
+                                        <option value="<?php echo (int)$m['id']; ?>"<?php echo $sel; ?>><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></option>
                                     <?php endforeach; ?>
-                                    <option value="__freitext__" <?php echo !empty($draft['einsatzleiter_freitext']) ? 'selected' : ''; ?>>— Freitext (z. B. andere Feuerwehr) —</option>
+                                    <?php $sel_f = !empty($draft['einsatzleiter_freitext']) ? ' selected' : ''; ?>
+                                    <option value="__freitext__"<?php echo $sel_f; ?>>— Freitext (z. B. andere Feuerwehr) —</option>
                                 </select>
                                 <div class="mt-2" id="einsatzleiter_freitext_wrap" style="display: <?php echo !empty($draft['einsatzleiter_freitext']) ? 'block' : 'none'; ?>;">
                                     <input type="text" class="form-control" id="einsatzleiter_freitext" name="einsatzleiter_freitext" placeholder="Name Einsatzleiter (z. B. andere Feuerwehr)" value="<?php echo htmlspecialchars($draft['einsatzleiter_freitext'] ?? ''); ?>">
