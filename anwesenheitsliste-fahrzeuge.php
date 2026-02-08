@@ -42,7 +42,7 @@ try {
     //
 }
 
-// POST: Fahrzeuge + Maschinist/Einheitsführer speichern; Personen die nur hier gewählt wurden dem Personal hinzufügen
+// POST: Fahrzeuge + Maschinist/Einheitsführer speichern; Personen die nur hier gewählt wurden dem Personal hinzufügen inkl. Fahrzeugzuordnung und Rolle
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $draft['vehicles'] = [];
     $draft['vehicle_maschinist'] = [];
@@ -57,12 +57,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $einh = isset($_POST['einheitsfuehrer'][$vid]) ? (int)$_POST['einheitsfuehrer'][$vid] : 0;
                 if ($masch > 0) {
                     $draft['vehicle_maschinist'][$vid] = $masch;
+                    $draft['member_vehicle'][$masch] = $vid;
                     if (!isset($members_set[$masch])) {
                         $draft['members'][] = $masch;
                     }
                 }
                 if ($einh > 0) {
                     $draft['vehicle_einheitsfuehrer'][$vid] = $einh;
+                    $draft['member_vehicle'][$einh] = $vid;
                     if (!isset($members_set[$einh])) {
                         $draft['members'][] = $einh;
                     }
