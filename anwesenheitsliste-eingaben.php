@@ -445,18 +445,27 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                 var q = input.value.trim();
                 if (q.length < 3) { suggestionsEl.style.display = 'none'; suggestionsEl.innerHTML = ''; return; }
                 debounceTimer = setTimeout(function() {
-                    fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(q) + '&countrycodes=de,at,ch&limit=5', {
+                    fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(q) + '&countrycodes=de,at,ch&limit=5&addressdetails=1', {
                         headers: { 'Accept': 'application/json' }
                     }).then(function(r) { return r.json(); }).then(function(data) {
                         suggestionsEl.innerHTML = '';
                         if (!data || data.length === 0) { suggestionsEl.style.display = 'none'; return; }
                         data.forEach(function(item) {
+                            var addr = item.address || {};
+                            var strasse = addr.road || '';
+                            var hausnummer = addr.house_number || '';
+                            var plz = addr.postcode || '';
+                            var ort = addr.city || addr.town || addr.village || addr.municipality || '';
+                            var zeile1 = [strasse, hausnummer].filter(Boolean).join(' ');
+                            var zeile2 = [plz, ort].filter(Boolean).join(' ');
+                            var display = [zeile1, zeile2].filter(Boolean).join(', ');
+                            if (!display) display = item.display_name || item.name || '';
                             var a = document.createElement('button');
                             a.type = 'button';
                             a.className = 'list-group-item list-group-item-action list-group-item-light text-start';
-                            a.textContent = item.display_name || item.name || '';
+                            a.textContent = display;
                             a.addEventListener('click', function() {
-                                input.value = item.display_name || item.name || '';
+                                input.value = display;
                                 suggestionsEl.style.display = 'none';
                                 suggestionsEl.innerHTML = '';
                             });
