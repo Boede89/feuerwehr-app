@@ -101,6 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_course_assignmen
 
 // Mitglieder laden
 $members = [];
+$qualifications = [];
 try {
     // Tabelle sicherstellen mit user_id Verknüpfung
     $db->exec(
@@ -160,6 +161,31 @@ try {
         $db->exec("ALTER TABLE members ADD FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL");
     } catch (Exception $e) {
         // Foreign Key existiert bereits oder Fehler, ignoriere
+    }
+    
+    // member_qualifications Tabelle (Qualifikationen für Auswahl bei Mitgliedern)
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS member_qualifications (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_name (name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+    } catch (Exception $e) {
+        // ignore
+    }
+    try {
+        $db->exec("ALTER TABLE members ADD COLUMN qualification_id INT NULL");
+    } catch (Exception $e) {
+        // Spalte existiert bereits
+    }
+    try {
+        $db->exec("ALTER TABLE members ADD CONSTRAINT fk_members_qualification FOREIGN KEY (qualification_id) REFERENCES member_qualifications(id) ON DELETE SET NULL");
+    } catch (Exception $e) {
+        // FK existiert bereits oder Tabelle noch ohne Spalte
     }
     
     // member_courses Tabelle erstellen (Lehrgangszuweisungen)
@@ -277,6 +303,8 @@ try {
             u.email,
             m.birthdate,
             m.phone,
+            m.qualification_id,
+            q.name as qualification_name,
             CASE 
                 WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
                 ELSE COALESCE(m.is_pa_traeger, 0)
@@ -289,6 +317,7 @@ try {
             'user' as source
         FROM users u
         INNER JOIN members m ON m.user_id = u.id
+        LEFT JOIN member_qualifications q ON q.id = m.qualification_id
         LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
         WHERE u.is_active = 1
         ORDER BY u.last_name, u.first_name
@@ -304,6 +333,8 @@ try {
             m.email,
             m.birthdate,
             m.phone,
+            m.qualification_id,
+            q.name as qualification_name,
             CASE 
                 WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
                 ELSE COALESCE(m.is_pa_traeger, 0)
@@ -315,6 +346,7 @@ try {
             at.uebung_am,
             'member' as source
         FROM members m
+        LEFT JOIN member_qualifications q ON q.id = m.qualification_id
         LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
         WHERE m.user_id IS NULL
         ORDER BY m.last_name, m.first_name
@@ -332,6 +364,16 @@ try {
         }
         return $cmp;
     });
+    
+    // Qualifikationen für Dropdown laden
+    try {
+        $q = $db->query("SELECT id, name FROM member_qualifications ORDER BY sort_order, name");
+        if ($q) {
+            $qualifications = $q->fetchAll(PDO::FETCH_ASSOC);
+        }
+    } catch (Exception $e) {
+        // Tabelle evtl. noch nicht vorhanden
+    }
     
 } catch (Exception $e) {
     $error = 'Fehler beim Laden der Mitglieder: ' . $e->getMessage();
@@ -618,6 +660,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $email = trim($_POST['email'] ?? '');
         $birthdate = trim($_POST['birthdate'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
+        $qualification_id = !empty($_POST['qualification_id']) ? (int)$_POST['qualification_id'] : null;
         $create_user = isset($_POST['create_user']) && $_POST['create_user'] == '1';
         $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
         $strecke_am = trim($_POST['strecke_am'] ?? '');
@@ -753,7 +796,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     // Mitglied erstellen
                     $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
                     
-                    $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, is_pa_traeger) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                    $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, qualification_id, is_pa_traeger) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                     $stmt->execute([
                         $user_id,
                         $first_name,
@@ -761,6 +804,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         !empty($email) ? $email : null,
                         !empty($birthdate) ? $birthdate : null,
                         !empty($phone) ? $phone : null,
+                        $qualification_id,
                         $is_pa_traeger
                     ]);
                     
@@ -962,6 +1006,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $email = trim($_POST['email'] ?? '');
         $birthdate = trim($_POST['birthdate'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
+        $qualification_id = !empty($_POST['qualification_id']) ? (int)$_POST['qualification_id'] : null;
         $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
         $create_user = isset($_POST['create_user']) && $_POST['create_user'] == '1';
         $strecke_am = trim($_POST['strecke_am'] ?? '');
@@ -1128,13 +1173,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     
                     if (empty($error)) {
                         // Aktualisiere Mitglied
-                        $stmt = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ?, birthdate = ?, phone = ?, is_pa_traeger = ? WHERE id = ?");
+                        $stmt = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ?, birthdate = ?, phone = ?, qualification_id = ?, is_pa_traeger = ? WHERE id = ?");
                         $stmt->execute([
                             $first_name,
                             $last_name,
                             !empty($email) ? $email : null,
                             !empty($birthdate) ? $birthdate : null,
                             !empty($phone) ? $phone : null,
+                            $qualification_id,
                             $is_pa_traeger,
                             $member_id
                         ]);
@@ -1674,6 +1720,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             <th>E-Mail</th>
                                             <th>Geburtsdatum</th>
                                             <th>Telefon</th>
+                                            <th>Qualifikation</th>
                                             <th>Aktionen</th>
                                         </tr>
                                     </thead>
@@ -1683,7 +1730,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             data-member-id="<?php echo htmlspecialchars($member['member_id'] ?? ''); ?>"
                                             data-member-data="<?php echo htmlspecialchars(json_encode($member)); ?>"
                                             class="member-row"
-                                            data-search-text="<?php echo htmlspecialchars(strtolower($member['first_name'] . ' ' . $member['last_name'] . ' ' . ($member['email'] ?? '') . ' ' . ($member['phone'] ?? '') . ' ' . ($member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : ''))); ?>"
+                                            data-search-text="<?php echo htmlspecialchars(strtolower($member['first_name'] . ' ' . $member['last_name'] . ' ' . ($member['email'] ?? '') . ' ' . ($member['phone'] ?? '') . ' ' . ($member['qualification_name'] ?? '') . ' ' . ($member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : ''))); ?>"
                                             onmouseover="this.style.backgroundColor='#f8f9fa'" 
                                             onmouseout="this.style.backgroundColor=''">
                                             <td>
@@ -1693,6 +1740,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             <td><?php echo htmlspecialchars($member['email'] ?? '-'); ?></td>
                                             <td><?php echo $member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : '-'; ?></td>
                                             <td><?php echo htmlspecialchars($member['phone'] ?? '-'); ?></td>
+                                            <td><?php echo htmlspecialchars($member['qualification_name'] ?? '-'); ?></td>
                                             <td class="no-click">
                                                 <?php if (!empty($member['member_id'])): ?>
                                                 <div class="btn-group btn-group-sm" role="group">
@@ -1949,6 +1997,17 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                     <i class="fas fa-phone me-1"></i>Telefon (optional)
                                 </label>
                                 <input type="tel" class="form-control" name="phone" id="memberPhone" autocomplete="tel">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="memberQualification">
+                                    <i class="fas fa-certificate me-1"></i>Qualifikation
+                                </label>
+                                <select class="form-select" name="qualification_id" id="memberQualification">
+                                    <option value="">— keine —</option>
+                                    <?php foreach ($qualifications as $q): ?>
+                                    <option value="<?php echo (int)$q['id']; ?>"><?php echo htmlspecialchars($q['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
                                 <div class="col-12">
                                     <div class="form-check form-switch">
@@ -3090,6 +3149,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             document.getElementById('memberEmail').value = member.email || '';
             document.getElementById('memberBirthdate').value = member.birthdate || '';
             document.getElementById('memberPhone').value = member.phone || '';
+            const qualEl = document.getElementById('memberQualification');
+            if (qualEl) qualEl.value = member.qualification_id || '';
             const isPaTraeger = member.is_pa_traeger == 1;
             document.getElementById('memberIsPaTraeger').checked = isPaTraeger;
             

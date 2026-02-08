@@ -315,6 +315,20 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
+            <!-- Mitgliederverwaltung -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-users-cog"></i> Mitgliederverwaltung</h5>
+                        <p class="text-muted">Qualifikationen für Mitglieder anlegen (z. B. für das Auswahlfeld bei Mitgliedern).</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-members.php">
+                                <i class="fas fa-certificate"></i> Qualifikationen verwalten
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
