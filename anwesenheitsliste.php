@@ -48,6 +48,7 @@ try {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 anwesenheitsliste_id INT NOT NULL,
                 member_id INT NOT NULL,
+                vehicle_id INT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (anwesenheitsliste_id) REFERENCES anwesenheitslisten(id) ON DELETE CASCADE,
                 UNIQUE KEY unique_list_member (anwesenheitsliste_id, member_id)
@@ -56,6 +57,27 @@ try {
     } catch (Exception $e2) {
         // members-Tabelle kann fehlen oder andere DB-Struktur
         error_log('Anwesenheitsliste_mitglieder Tabelle: ' . $e2->getMessage());
+    }
+    try {
+        $db->exec("ALTER TABLE anwesenheitsliste_mitglieder ADD COLUMN vehicle_id INT NULL");
+    } catch (Exception $e2) {
+        // Spalte existiert bereits
+    }
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS anwesenheitsliste_fahrzeuge (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                anwesenheitsliste_id INT NOT NULL,
+                vehicle_id INT NOT NULL,
+                maschinist_member_id INT NULL,
+                einheitsfuehrer_member_id INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (anwesenheitsliste_id) REFERENCES anwesenheitslisten(id) ON DELETE CASCADE,
+                UNIQUE KEY unique_list_vehicle (anwesenheitsliste_id, vehicle_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+    } catch (Exception $e2) {
+        error_log('Anwesenheitsliste_fahrzeuge Tabelle: ' . $e2->getMessage());
     }
 } catch (Exception $e) {
     error_log('Anwesenheitsliste Tabellen: ' . $e->getMessage());

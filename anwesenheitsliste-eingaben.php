@@ -1,6 +1,6 @@
 <?php
 /**
- * Anwesenheitsliste – Schritt 2: Weitere Daten eingeben und speichern.
+ * Anwesenheitsliste – Schritt 2: Personal/Fahrzeuge auswählen, nur hier speichern.
  */
 session_start();
 require_once __DIR__ . '/config/database.php';
@@ -24,6 +24,7 @@ $dienstplan_id = null;
 $typ = 'dienst';
 $titel_anzeige = '';
 $is_einsatz = ($auswahl === 'einsatz');
+$bezeichnung_save = null;
 
 if ($is_einsatz) {
     $typ = 'einsatz';
@@ -50,59 +51,109 @@ if ($is_einsatz) {
     }
 }
 
+// Session-Draft für diese Anwesenheitsliste (ein Draft pro User)
+$draft_key = 'anwesenheit_draft';
+if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum || $_SESSION[$draft_key]['auswahl'] !== $auswahl) {
+    $_SESSION[$draft_key] = [
+        'datum' => $datum,
+        'auswahl' => $auswahl,
+        'dienstplan_id' => $is_einsatz ? null : $dienstplan_id,
+        'typ' => $typ,
+        'bezeichnung_sonstige' => null,
+        'bemerkung' => '',
+        'members' => [],
+        'member_vehicle' => [],
+        'vehicles' => [],
+        'vehicle_maschinist' => [],
+        'vehicle_einheitsfuehrer' => [],
+    ];
+}
+$draft = &$_SESSION[$draft_key];
+
 $message = '';
 $error = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Speichern (nur auf dieser Seite): Liste anlegen + Personal/Fahrzeuge aus Session
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
     $bemerkung = trim($_POST['bemerkung'] ?? '');
-    $datum_post = trim($_POST['datum'] ?? '');
-    $auswahl_post = trim($_POST['auswahl'] ?? '');
     $typ_sonstige = trim($_POST['typ_sonstige'] ?? '');
     $typ_sonstige_freitext = trim($_POST['typ_sonstige_freitext'] ?? '');
-    if ($datum_post === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum_post)) {
-        $error = 'Ungültiges Datum.';
-    } else {
-        $dp_id = ($auswahl_post === 'einsatz') ? null : (int)$auswahl_post;
-        $typ_save = ($auswahl_post === 'einsatz') ? 'einsatz' : 'dienst';
-        if ($auswahl_post === 'einsatz') {
-            $typen = get_dienstplan_typen();
-            if ($typ_sonstige === '__custom__') {
-                $bezeichnung_save = $typ_sonstige_freitext !== '' ? $typ_sonstige_freitext : 'Sonstiges';
-            } else {
-                $typen = get_dienstplan_typen_auswahl();
-                $bezeichnung_save = $typen[$typ_sonstige] ?? 'Einsatz';
-            }
+    $draft['bemerkung'] = $bemerkung;
+    if ($draft['typ'] === 'einsatz') {
+        if ($typ_sonstige === '__custom__') {
+            $draft['bezeichnung_sonstige'] = $typ_sonstige_freitext !== '' ? $typ_sonstige_freitext : 'Sonstiges';
         } else {
-            $bezeichnung_save = null;
-        }
-        try {
-            try {
-                $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN bemerkung TEXT NULL");
-            } catch (Exception $e) {
-                // Spalte existiert bereits
-            }
-            $stmt = $db->prepare("
-                INSERT INTO anwesenheitslisten (datum, dienstplan_id, typ, bezeichnung, user_id, bemerkung)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([$datum_post, $dp_id, $typ_save, $bezeichnung_save, $_SESSION['user_id'], $bemerkung !== '' ? $bemerkung : null]);
-            header('Location: anwesenheitsliste.php?message=erfolg');
-            exit;
-        } catch (Exception $e) {
-            $error = 'Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.';
+            $draft['bezeichnung_sonstige'] = get_dienstplan_typen_auswahl()[$typ_sonstige] ?? 'Einsatz';
         }
     }
+    $dp_id = $draft['dienstplan_id'];
+    $typ_save = $draft['typ'];
+    $bezeichnung_save = $draft['typ'] === 'einsatz' ? $draft['bezeichnung_sonstige'] : null;
+    try {
+        try {
+            $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN bemerkung TEXT NULL");
+        } catch (Exception $e) {
+            // ignore
+        }
+        $stmt = $db->prepare("
+            INSERT INTO anwesenheitslisten (datum, dienstplan_id, typ, bezeichnung, user_id, bemerkung)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$draft['datum'], $dp_id, $typ_save, $bezeichnung_save, $_SESSION['user_id'], $draft['bemerkung'] !== '' ? $draft['bemerkung'] : null]);
+        $list_id = $db->lastInsertId();
+        foreach ($draft['members'] as $mid) {
+            $vid = isset($draft['member_vehicle'][$mid]) ? $draft['member_vehicle'][$mid] : null;
+            $stmt = $db->prepare("INSERT INTO anwesenheitsliste_mitglieder (anwesenheitsliste_id, member_id, vehicle_id) VALUES (?, ?, ?)");
+            $stmt->execute([$list_id, $mid, $vid]);
+        }
+        $all_vehicle_ids = array_unique(array_merge($draft['vehicles'], array_values(array_filter($draft['member_vehicle']))));
+        foreach ($all_vehicle_ids as $vid) {
+            if ((int)$vid <= 0) continue;
+            $masch = isset($draft['vehicle_maschinist'][$vid]) ? $draft['vehicle_maschinist'][$vid] : null;
+            $einh = isset($draft['vehicle_einheitsfuehrer'][$vid]) ? $draft['vehicle_einheitsfuehrer'][$vid] : null;
+            try {
+                $stmt = $db->prepare("INSERT INTO anwesenheitsliste_fahrzeuge (anwesenheitsliste_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$list_id, $vid, $masch, $einh]);
+            } catch (Exception $e) {
+                // Tabelle evtl. nicht vorhanden
+            }
+        }
+        unset($_SESSION[$draft_key]);
+        header('Location: anwesenheitsliste.php?message=erfolg');
+        exit;
+    } catch (Exception $e) {
+        $error = 'Speichern fehlgeschlagen: ' . $e->getMessage();
+    }
 }
+
+$back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+$personal_url = 'anwesenheitsliste-personal.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+$fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 ?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anwesenheitsliste – weitere Daten - Feuerwehr App</title>
+    <title>Anwesenheitsliste – Personal & Fahrzeuge - Feuerwehr App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
+    <style>
+        .anwesenheits-option-btn {
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .anwesenheits-option-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -136,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="col-lg-8">
                 <div class="card shadow">
                     <div class="card-header">
-                        <h3 class="mb-0"><i class="fas fa-clipboard-list"></i> Anwesenheitsliste – weitere Daten</h3>
+                        <h3 class="mb-0"><i class="fas fa-clipboard-list"></i> Anwesenheitsliste – Personal & Fahrzeuge</h3>
                     </div>
                     <div class="card-body p-4">
                         <?php if ($error): ?>
@@ -148,9 +199,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <span class="text-muted"><?php echo date('d.m.Y', strtotime($datum)); ?></span> — <?php echo htmlspecialchars($titel_anzeige); ?>
                         </div>
 
-                        <form method="post">
-                            <input type="hidden" name="datum" value="<?php echo htmlspecialchars($datum); ?>">
-                            <input type="hidden" name="auswahl" value="<?php echo $is_einsatz ? 'einsatz' : (int)$dienstplan_id; ?>">
+                        <form method="post" id="mainForm">
+                            <input type="hidden" name="save_final" value="1">
                             <?php if ($is_einsatz): ?>
                             <div class="mb-4">
                                 <label for="typ_sonstige" class="form-label">Typ</label>
@@ -161,19 +211,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <option value="__custom__">— Anderer Typ (Freitext) —</option>
                                 </select>
                                 <div class="mt-2" id="typ_sonstige_freitext_wrap" style="display: none;">
-                                    <input type="text" class="form-control" id="typ_sonstige_freitext" name="typ_sonstige_freitext" placeholder="Typ eingeben (z. B. Lehrgang, Versammlung)">
+                                    <input type="text" class="form-control" id="typ_sonstige_freitext" name="typ_sonstige_freitext" placeholder="Typ eingeben">
                                 </div>
                             </div>
                             <?php endif; ?>
                             <div class="mb-4">
                                 <label for="bemerkung" class="form-label">Bemerkung (optional)</label>
-                                <textarea class="form-control" id="bemerkung" name="bemerkung" rows="3" placeholder="z. B. kurze Anmerkung zur Anwesenheitsliste"></textarea>
+                                <textarea class="form-control" id="bemerkung" name="bemerkung" rows="2" placeholder="z. B. kurze Anmerkung"><?php echo htmlspecialchars($draft['bemerkung'] ?? ''); ?></textarea>
                             </div>
+
+                            <p class="form-label mb-2">Personal und Fahrzeuge erfassen:</p>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <a href="<?php echo htmlspecialchars($personal_url); ?>" class="btn btn-primary w-100 anwesenheits-option-btn">
+                                        <i class="fas fa-users fa-2x mb-2"></i>
+                                        <span>Personal</span>
+                                        <small class="d-block mt-1 opacity-90">Anwesende auswählen, Fahrzeug zuordnen</small>
+                                    </a>
+                                </div>
+                                <div class="col-md-6">
+                                    <a href="<?php echo htmlspecialchars($fahrzeuge_url); ?>" class="btn btn-outline-primary w-100 anwesenheits-option-btn">
+                                        <i class="fas fa-truck fa-2x mb-2"></i>
+                                        <span>Fahrzeuge</span>
+                                        <small class="d-block mt-1 opacity-90">Eingesetzte Fahrzeuge, Maschinist & Einheitsführer</small>
+                                    </a>
+                                </div>
+                            </div>
+
                             <div class="d-flex flex-wrap gap-2">
                                 <button type="submit" class="btn btn-success">
                                     <i class="fas fa-save"></i> Anwesenheitsliste speichern
                                 </button>
-                                <a href="anwesenheitsliste.php" class="btn btn-secondary">Zurück</a>
+                                <a href="anwesenheitsliste.php" class="btn btn-secondary">Zurück zur Auswahl</a>
                             </div>
                         </form>
                     </div>
@@ -192,8 +261,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if ($is_einsatz): ?>
     <script>
         document.getElementById('typ_sonstige').addEventListener('change', function() {
-            var wrap = document.getElementById('typ_sonstige_freitext_wrap');
-            wrap.style.display = this.value === '__custom__' ? 'block' : 'none';
+            document.getElementById('typ_sonstige_freitext_wrap').style.display = this.value === '__custom__' ? 'block' : 'none';
         });
     </script>
     <?php endif; ?>
