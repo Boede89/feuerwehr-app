@@ -80,10 +80,22 @@ try {
                         <p class="text-muted mb-0">Wählen Sie ein Formular aus, das Sie ausfüllen möchten</p>
                     </div>
                     <div class="card-body p-4">
-                        <?php if (empty($forms)): ?>
-                            <p class="text-muted mb-0">Derzeit sind keine Formulare zum Ausfüllen freigegeben. Bei Fragen wenden Sie sich an die Verwaltung.</p>
-                        <?php else: ?>
-                            <div class="row g-4">
+                        <div class="row g-4">
+                            <!-- Anwesenheitsliste (fixer Eintrag) -->
+                            <div class="col-md-6 col-lg-4">
+                                <a href="anwesenheitsliste.php" class="text-decoration-none">
+                                    <div class="card h-100 shadow-sm feature-card clickable-card">
+                                        <div class="card-body text-center p-4 d-flex flex-column">
+                                            <div class="feature-icon mb-3">
+                                                <i class="fas fa-clipboard-list text-primary"></i>
+                                            </div>
+                                            <h5 class="card-title">Anwesenheitsliste</h5>
+                                            <p class="card-text text-muted small">Anwesenheit bei Diensten und Einsätzen erfassen. Vorschlag aus dem Dienstplan für den Tag.</p>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                            <?php if (!empty($forms)): ?>
                                 <?php foreach ($forms as $form): ?>
                                 <div class="col-md-6 col-lg-4">
                                     <a href="formulare-ausfuellen.php?id=<?php echo (int)$form['id']; ?>" class="text-decoration-none">
@@ -103,7 +115,10 @@ try {
                                     </a>
                                 </div>
                                 <?php endforeach; ?>
-                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <?php if (empty($forms)): ?>
+                            <p class="text-muted mt-3 mb-0 small">Weitere Formulare können im Formularcenter angelegt werden.</p>
                         <?php endif; ?>
                     </div>
                 </div>

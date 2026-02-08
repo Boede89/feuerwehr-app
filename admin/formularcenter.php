@@ -159,6 +159,7 @@ if (isset($_GET['edit_submission'])) {
             <div class="navbar-nav ms-auto">
                 <a class="nav-link" href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
                 <a class="nav-link" href="formularcenter.php"><i class="fas fa-file-alt"></i> Formularcenter</a>
+                <a class="nav-link" href="dienstplan.php"><i class="fas fa-calendar-alt"></i> Dienstplan</a>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
                         <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>

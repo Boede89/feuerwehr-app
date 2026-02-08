@@ -690,6 +690,11 @@ if ($can_atemschutz) {
                     <i class="fas fa-file-alt"></i> Formularcenter
                 </a>
             </div>
+            <div class="col-12 col-md-3">
+                <a href="dienstplan.php" class="btn btn-outline-secondary w-100">
+                    <i class="fas fa-calendar-alt"></i> Dienstplan
+                </a>
+            </div>
             <?php endif; ?>
         </div>
 
