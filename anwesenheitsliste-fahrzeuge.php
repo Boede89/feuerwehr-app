@@ -42,6 +42,38 @@ try {
     //
 }
 
+// POST: Besatzung hinzufügen/entfernen (Modal) – vor dem Hauptformular prüfen
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $redirect_self = 'Location: anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+    if (!empty($_POST['add_crew_member'])) {
+        $vid = (int)($_POST['besatzung_vehicle_id'] ?? 0);
+        $mid = (int)($_POST['besatzung_member_id'] ?? 0);
+        if ($vid > 0 && $mid > 0) {
+            $draft['member_vehicle'][$mid] = $vid;
+            if (!in_array($mid, $draft['members'])) {
+                $draft['members'][] = $mid;
+            }
+        }
+        header($redirect_self);
+        exit;
+    }
+    if (!empty($_POST['remove_crew_member'])) {
+        $vid = (int)($_POST['besatzung_vehicle_id'] ?? 0);
+        $mid = (int)($_POST['besatzung_member_id'] ?? 0);
+        if ($vid > 0 && $mid > 0) {
+            unset($draft['member_vehicle'][$mid]);
+            if (isset($draft['vehicle_maschinist'][$vid]) && (int)$draft['vehicle_maschinist'][$vid] === $mid) {
+                unset($draft['vehicle_maschinist'][$vid]);
+            }
+            if (isset($draft['vehicle_einheitsfuehrer'][$vid]) && (int)$draft['vehicle_einheitsfuehrer'][$vid] === $mid) {
+                unset($draft['vehicle_einheitsfuehrer'][$vid]);
+            }
+        }
+        header($redirect_self);
+        exit;
+    }
+}
+
 // POST: Fahrzeuge + Maschinist/Einheitsführer speichern; Personen die nur hier gewählt wurden dem Personal hinzufügen inkl. Fahrzeugzuordnung und Rolle
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $draft['vehicles'] = [];
@@ -165,6 +197,7 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                                                 <th>Fahrzeug</th>
                                                 <th>Maschinist</th>
                                                 <th>Einheitsführer</th>
+                                                <th class="text-center">Besatzung</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -175,6 +208,10 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                                             $einh_val = isset($draft['vehicle_einheitsfuehrer'][$v['id']]) ? $draft['vehicle_einheitsfuehrer'][$v['id']] : '';
                                             $is_selected = isset($selected_vehicles[$v['id']]);
                                             $row_bg = $is_selected ? ' style="background-color: #b6d4fe;"' : '';
+                                            $crew_for_vehicle = $groups['on_vehicle'];
+                                            $available_for_vehicle = $groups['others'];
+                                            $crew_json = htmlspecialchars(json_encode(array_map(function($m) { return ['id' => (int)$m['id'], 'name' => $m['last_name'] . ', ' . $m['first_name']]; }, $crew_for_vehicle)), ENT_QUOTES, 'UTF-8');
+                                            $available_json = htmlspecialchars(json_encode(array_map(function($m) { return ['id' => (int)$m['id'], 'name' => $m['last_name'] . ', ' . $m['first_name']]; }, $available_for_vehicle)), ENT_QUOTES, 'UTF-8');
                                             ?>
                                             <tr class="anw-row <?php echo $is_selected ? 'selected' : ''; ?>" data-vehicle-id="<?php echo (int)$v['id']; ?>">
                                                 <td class="name-cell"<?php echo $row_bg; ?>>
@@ -197,6 +234,11 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                                                         <?php endforeach; ?>
                                                     </select>
                                                 </td>
+                                                <td class="no-click text-center"<?php echo $row_bg; ?>>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary besatzung-btn" data-vehicle-id="<?php echo (int)$v['id']; ?>" data-vehicle-name="<?php echo htmlspecialchars($v['name'], ENT_QUOTES, 'UTF-8'); ?>" data-crew="<?php echo $crew_json; ?>" data-available="<?php echo $available_json; ?>" title="Besatzung anzeigen und verwalten">
+                                                        <i class="fas fa-users"></i> Besatzung
+                                                    </button>
+                                                </td>
                                             </tr>
                                             <?php endforeach; ?>
                                         </tbody>
@@ -207,6 +249,36 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                                 <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Übernehmen und zurück</button>
                                 <a href="<?php echo htmlspecialchars($back_url); ?>" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Zurück (ohne Speichern)</a>
                             </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Besatzung pro Fahrzeug -->
+        <div class="modal fade" id="besatzungModal" tabindex="-1" data-datum="<?php echo htmlspecialchars($datum); ?>" data-auswahl="<?php echo htmlspecialchars($auswahl); ?>">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="besatzungModalTitle"><i class="fas fa-users"></i> Besatzung</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <h6 class="mb-2">Aktuelle Besatzung</h6>
+                        <ul class="list-group list-group-flush mb-3" id="besatzungCrewList"></ul>
+                        <hr>
+                        <h6 class="mb-2">Person hinzufügen</h6>
+                        <form method="post" id="besatzungAddForm" class="d-flex gap-2 flex-wrap align-items-end" action="anwesenheitsliste-fahrzeuge.php?datum=<?php echo urlencode($datum); ?>&auswahl=<?php echo urlencode($auswahl); ?>">
+                            <input type="hidden" name="add_crew_member" value="1">
+                            <input type="hidden" name="besatzung_vehicle_id" id="besatzungVehicleIdInput" value="">
+                            <input type="hidden" name="datum" value="<?php echo htmlspecialchars($datum); ?>">
+                            <input type="hidden" name="auswahl" value="<?php echo htmlspecialchars($auswahl); ?>">
+                            <div class="flex-grow-1" style="min-width: 180px;">
+                                <select class="form-select form-select-sm" name="besatzung_member_id" id="besatzungMemberSelect">
+                                    <option value="">— Person wählen —</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Hinzufügen</button>
                         </form>
                     </div>
                 </div>
@@ -237,6 +309,58 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                     row.classList.remove('selected');
                     cells.forEach(function(td) { td.style.backgroundColor = ''; });
                 }
+            });
+        });
+
+        document.querySelectorAll('.besatzung-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var vid = this.getAttribute('data-vehicle-id');
+                var vname = this.getAttribute('data-vehicle-name');
+                var crew = [];
+                var available = [];
+                try {
+                    crew = JSON.parse(this.getAttribute('data-crew') || '[]');
+                    available = JSON.parse(this.getAttribute('data-available') || '[]');
+                } catch (err) {}
+                var modal = document.getElementById('besatzungModal');
+                var titleEl = document.getElementById('besatzungModalTitle');
+                var listEl = document.getElementById('besatzungCrewList');
+                var selectEl = document.getElementById('besatzungMemberSelect');
+                var vehicleInput = document.getElementById('besatzungVehicleIdInput');
+                titleEl.textContent = 'Besatzung: ' + (vname || '');
+                vehicleInput.value = vid || '';
+                listEl.innerHTML = '';
+                crew.forEach(function(p) {
+                    var li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.innerHTML = '<span>' + (p.name || '') + '</span>';
+                    var form = document.createElement('form');
+                    form.method = 'post';
+                    form.action = 'anwesenheitsliste-fahrzeuge.php?datum=' + encodeURIComponent(modal.dataset.datum || '') + '&auswahl=' + encodeURIComponent(modal.dataset.auswahl || '');
+                    form.style.display = 'inline';
+                    form.innerHTML = '<input type="hidden" name="remove_crew_member" value="1">' +
+                        '<input type="hidden" name="besatzung_vehicle_id" value="' + (vid || '') + '">' +
+                        '<input type="hidden" name="besatzung_member_id" value="' + (p.id || '') + '">' +
+                        '<button type="submit" class="btn btn-sm btn-outline-danger">Entfernen</button>';
+                    li.appendChild(form);
+                    listEl.appendChild(li);
+                });
+                if (crew.length === 0) {
+                    var li = document.createElement('li');
+                    li.className = 'list-group-item text-muted';
+                    li.textContent = 'Noch keine Besatzung zugewiesen.';
+                    listEl.appendChild(li);
+                }
+                selectEl.innerHTML = '<option value="">— Person wählen —</option>';
+                available.forEach(function(p) {
+                    var opt = document.createElement('option');
+                    opt.value = p.id || '';
+                    opt.textContent = p.name || '';
+                    selectEl.appendChild(opt);
+                });
+                new bootstrap.Modal(modal).show();
             });
         });
     </script>
