@@ -44,10 +44,26 @@ try {
 } catch (Exception $e) {
     error_log('Formularcenter Tabellen: ' . $e->getMessage());
 }
+try {
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS dienstplan (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            datum DATE NOT NULL,
+            bezeichnung VARCHAR(255) NOT NULL,
+            typ VARCHAR(50) DEFAULT 'uebungsdienst',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            KEY idx_datum (datum)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+} catch (Exception $e) {
+    error_log('Dienstplan Tabelle: ' . $e->getMessage());
+}
 
 $message = '';
 $error = '';
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'forms';
+$dienstplan_jahr = isset($_GET['jahr']) ? (int)$_GET['jahr'] : (int)date('Y');
 
 // CSRF-Token erzeugen
 if (empty($_SESSION['form_center_csrf'])) {
@@ -100,6 +116,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
             }
         }
     }
+    if ($action === 'dienstplan_save' && !$error) {
+        $id = isset($_POST['dienstplan_id']) ? (int)$_POST['dienstplan_id'] : 0;
+        $datum = trim($_POST['dienstplan_datum'] ?? '');
+        $thema = trim($_POST['dienstplan_thema'] ?? '');
+        $thema_neu = trim($_POST['dienstplan_thema_neu'] ?? '');
+        $typ = 'uebungsdienst';
+        $thema_value = $thema === '__neu__' ? $thema_neu : $thema;
+        if (empty($datum) || $thema_value === '') {
+            $error = 'Datum und Thema sind erforderlich.';
+        } else {
+            try {
+                if ($id) {
+                    $stmt = $db->prepare("UPDATE dienstplan SET datum = ?, bezeichnung = ?, typ = ? WHERE id = ?");
+                    $stmt->execute([$datum, $thema_value, $typ, $id]);
+                    $message = 'Dienstplan-Eintrag wurde aktualisiert.';
+                } else {
+                    $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ) VALUES (?, ?, ?)");
+                    $stmt->execute([$datum, $thema_value, $typ]);
+                    $message = 'Dienstplan-Eintrag wurde angelegt.';
+                }
+                $active_tab = 'dienstplan';
+            } catch (Exception $e) {
+                $error = 'Speichern fehlgeschlagen: ' . $e->getMessage();
+            }
+        }
+    }
+    if ($action === 'dienstplan_delete' && !$error) {
+        $id = (int)($_POST['dienstplan_id'] ?? 0);
+        if ($id) {
+            try {
+                $db->prepare("DELETE FROM dienstplan WHERE id = ?")->execute([$id]);
+                $message = 'Dienstplan-Eintrag wurde gelöscht.';
+                $active_tab = 'dienstplan';
+            } catch (Exception $e) {
+                $error = 'Löschen fehlgeschlagen.';
+            }
+        }
+    }
 }
 
 // Formulare laden
@@ -127,12 +181,41 @@ try {
     // Tabelle kann fehlen
 }
 
+// Dienstplan-Einträge und Themen für Dropdown
+$dienstplan_eintraege = [];
+$dienstplan_themen = [];
+try {
+    $stmt = $db->prepare("
+        SELECT * FROM dienstplan
+        WHERE datum >= ? AND datum <= ?
+        ORDER BY datum, bezeichnung
+    ");
+    $stmt->execute([$dienstplan_jahr . '-01-01', $dienstplan_jahr . '-12-31']);
+    $dienstplan_eintraege = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $db->query("SELECT DISTINCT bezeichnung FROM dienstplan ORDER BY bezeichnung");
+    $dienstplan_themen = $stmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+    // ignore
+}
+
 $edit_form = null;
 $edit_submission = null;
+$edit_dienstplan = null;
 if (isset($_GET['edit_form'])) {
     $id = (int)$_GET['edit_form'];
     foreach ($forms as $f) {
         if ((int)$f['id'] === $id) { $edit_form = $f; break; }
+    }
+}
+if (isset($_GET['edit_dienstplan'])) {
+    $id = (int)$_GET['edit_dienstplan'];
+    foreach ($dienstplan_eintraege as $e) {
+        if ((int)$e['id'] === $id) { $edit_dienstplan = $e; break; }
+    }
+    if (!$edit_dienstplan && $id) {
+        $stmt = $db->prepare("SELECT * FROM dienstplan WHERE id = ?");
+        $stmt->execute([$id]);
+        $edit_dienstplan = $stmt->fetch(PDO::FETCH_ASSOC);
     }
 }
 if (isset($_GET['edit_submission'])) {
@@ -159,7 +242,6 @@ if (isset($_GET['edit_submission'])) {
             <div class="navbar-nav ms-auto">
                 <a class="nav-link" href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
                 <a class="nav-link" href="formularcenter.php"><i class="fas fa-file-alt"></i> Formularcenter</a>
-                <a class="nav-link" href="dienstplan.php"><i class="fas fa-calendar-alt"></i> Dienstplan</a>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
                         <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>
@@ -197,6 +279,11 @@ if (isset($_GET['edit_submission'])) {
             <li class="nav-item">
                 <a class="nav-link <?php echo $active_tab === 'submissions' ? 'active' : ''; ?>" href="?tab=submissions">
                     <i class="fas fa-inbox"></i> Eingegangene Formulare (<?php echo count($submissions); ?>)
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?php echo $active_tab === 'dienstplan' ? 'active' : ''; ?>" href="?tab=dienstplan">
+                    <i class="fas fa-calendar-alt"></i> Dienstplan
                 </a>
             </li>
         </ul>
@@ -281,6 +368,108 @@ if (isset($_GET['edit_submission'])) {
                 </div>
             </div>
         <?php endif; ?>
+
+        <?php if ($active_tab === 'dienstplan'): ?>
+            <div class="card shadow">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span><i class="fas fa-calendar-alt"></i> Dienstplan</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <form method="get" class="d-inline">
+                            <input type="hidden" name="tab" value="dienstplan">
+                            <select name="jahr" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                                <?php for ($y = date('Y') + 1; $y >= date('Y') - 2; $y--): ?>
+                                    <option value="<?php echo $y; ?>" <?php echo $dienstplan_jahr === $y ? 'selected' : ''; ?>><?php echo $y; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </form>
+                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#dienstplanModal" onclick="openDienstplanModal()">
+                            <i class="fas fa-plus"></i> Neuer Eintrag
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <?php if (empty($dienstplan_eintraege)): ?>
+                        <p class="text-muted mb-0">Keine Einträge für <?php echo $dienstplan_jahr; ?>. Legen Sie Übungsdienste an.</p>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Datum</th>
+                                        <th>Typ</th>
+                                        <th>Thema</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($dienstplan_eintraege as $e): ?>
+                                    <tr>
+                                        <td><?php echo date('d.m.Y', strtotime($e['datum'])); ?></td>
+                                        <td><span class="badge bg-primary">Übungsdienst</span></td>
+                                        <td><?php echo htmlspecialchars($e['bezeichnung']); ?></td>
+                                        <td>
+                                            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#dienstplanModal" onclick='openDienstplanModal(<?php echo json_encode($e); ?>)'><i class="fas fa-edit"></i></button>
+                                            <form method="post" class="d-inline" onsubmit="return confirm('Eintrag wirklich löschen?');">
+                                                <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
+                                                <input type="hidden" name="action" value="dienstplan_delete">
+                                                <input type="hidden" name="dienstplan_id" value="<?php echo (int)$e['id']; ?>">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <!-- Modal: Dienstplan Eintrag -->
+    <div class="modal fade" id="dienstplanModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post">
+                    <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
+                    <input type="hidden" name="action" value="dienstplan_save">
+                    <input type="hidden" name="dienstplan_id" id="dienstplan_id" value="">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="dienstplanModalTitle">Neuer Eintrag</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="dienstplan_datum" class="form-label">Datum *</label>
+                            <input type="date" class="form-control" id="dienstplan_datum" name="dienstplan_datum" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Typ</label>
+                            <input type="text" class="form-control" value="Übungsdienst" readonly disabled>
+                            <input type="hidden" name="dienstplan_typ" value="uebungsdienst">
+                        </div>
+                        <div class="mb-3">
+                            <label for="dienstplan_thema" class="form-label">Thema *</label>
+                            <select class="form-select" id="dienstplan_thema" name="dienstplan_thema">
+                                <option value="">— Bitte wählen oder neues Thema eingeben —</option>
+                                <?php foreach ($dienstplan_themen as $t): ?>
+                                    <option value="<?php echo htmlspecialchars($t); ?>"><?php echo htmlspecialchars($t); ?></option>
+                                <?php endforeach; ?>
+                                <option value="__neu__">— Neues Thema eingeben —</option>
+                            </select>
+                            <div class="mt-2" id="dienstplan_thema_neu_wrap" style="display: none;">
+                                <input type="text" class="form-control" id="dienstplan_thema_neu" name="dienstplan_thema_neu" placeholder="Neues Thema (wird für spätere Einträge gespeichert)">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary">Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <!-- Modal: Formular anlegen/bearbeiten -->
@@ -381,6 +570,41 @@ if (isset($_GET['edit_submission'])) {
             d.textContent = s;
             return d.innerHTML;
         }
+        function openDienstplanModal(entry) {
+            document.getElementById('dienstplanModalTitle').textContent = entry ? 'Eintrag bearbeiten' : 'Neuer Eintrag';
+            document.getElementById('dienstplan_id').value = entry ? entry.id : '';
+            document.getElementById('dienstplan_datum').value = entry ? (entry.datum || '') : '';
+            var themaSel = document.getElementById('dienstplan_thema');
+            var themaNeuWrap = document.getElementById('dienstplan_thema_neu_wrap');
+            var themaNeu = document.getElementById('dienstplan_thema_neu');
+            if (entry && entry.bezeichnung) {
+                var opt = Array.from(themaSel.options).find(function(o) { return o.value === entry.bezeichnung; });
+                if (opt) {
+                    themaSel.value = entry.bezeichnung;
+                    themaNeuWrap.style.display = 'none';
+                } else {
+                    themaSel.value = '__neu__';
+                    themaNeu.value = entry.bezeichnung;
+                    themaNeuWrap.style.display = 'block';
+                }
+            } else {
+                themaSel.value = '';
+                themaNeu.value = '';
+                themaNeuWrap.style.display = 'none';
+            }
+            themaSel.onchange();
+        }
+        document.getElementById('dienstplan_thema').addEventListener('change', function() {
+            var wrap = document.getElementById('dienstplan_thema_neu_wrap');
+            wrap.style.display = this.value === '__neu__' ? 'block' : 'none';
+        });
+        <?php if ($edit_dienstplan): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            openDienstplanModal(<?php echo json_encode($edit_dienstplan); ?>);
+            var m = document.getElementById('dienstplanModal');
+            if (m) new bootstrap.Modal(m).show();
+        });
+        <?php endif; ?>
         <?php if ($edit_form): ?>
         document.addEventListener('DOMContentLoaded', function() {
             openFormModal(<?php echo json_encode($edit_form); ?>);

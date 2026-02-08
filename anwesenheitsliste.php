@@ -74,22 +74,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['datum'])) {
     $datum = date('Y-m-d');
 }
 
-// Dienste für gewähltes Datum laden
+// Dienste für gewähltes Datum laden (nur solche, für die noch KEINE Anwesenheitsliste existiert)
 $dienste_fuer_tag = [];
+$vorschlag = null;
 try {
-    $stmt = $db->prepare("SELECT id, bezeichnung, typ FROM dienstplan WHERE datum = ? ORDER BY bezeichnung");
+    $stmt = $db->prepare("
+        SELECT d.id, d.bezeichnung, d.typ, d.datum
+        FROM dienstplan d
+        LEFT JOIN anwesenheitslisten a ON a.dienstplan_id = d.id
+        WHERE d.datum = ? AND a.id IS NULL
+        ORDER BY d.bezeichnung
+    ");
     $stmt->execute([$datum]);
     $dienste_fuer_tag = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $vorschlag = $dienste_fuer_tag[0] ?? null;
 } catch (Exception $e) {
     // Tabelle kann fehlen
 }
-$vorschlag = $dienste_fuer_tag[0] ?? null;
+
+// Alle Dienste ohne Anwesenheitsliste (für "Anderen Dienst auswählen") - alle Daten, auch vergangene
+$andere_dienste = [];
+try {
+    $stmt = $db->query("
+        SELECT d.id, d.datum, d.bezeichnung
+        FROM dienstplan d
+        LEFT JOIN anwesenheitslisten a ON a.dienstplan_id = d.id
+        WHERE a.id IS NULL
+        ORDER BY d.datum DESC, d.bezeichnung
+    ");
+    $andere_dienste = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // ignore
+}
 
 // POST: Anwesenheitsliste speichern
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save') {
     $datum = trim($_POST['datum'] ?? date('Y-m-d'));
     $auswahl = trim($_POST['auswahl'] ?? '');
-    $bezeichnung_manuell = trim($_POST['bezeichnung_manuell'] ?? '');
 
     $dienstplan_id = null;
     $typ = 'dienst';
@@ -97,18 +118,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     if ($auswahl === 'einsatz') {
         $typ = 'einsatz';
-    } elseif ($auswahl === 'manuell') {
-        $typ = 'manuell';
-        $bezeichnung = $bezeichnung_manuell !== '' ? $bezeichnung_manuell : 'Manuelle Anwesenheit';
     } else {
         $dienstplan_id = (int)$auswahl;
         if ($dienstplan_id > 0) {
-            foreach ($dienste_fuer_tag as $d) {
-                if ((int)$d['id'] === $dienstplan_id) {
-                    $typ = 'dienst';
-                    break;
-                }
-            }
+            $typ = 'dienst';
         }
     }
 
@@ -119,9 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         ");
         $stmt->execute([$datum, $dienstplan_id ?: null, $typ, $bezeichnung, $_SESSION['user_id']]);
         $message = 'Anwesenheitsliste wurde angelegt.';
-        // Formular zurücksetzen: gleiches Datum, leere Auswahl
-    // Nach Speichern: gleiches Datum beibehalten
-} catch (Exception $e) {
+    } catch (Exception $e) {
         $error = 'Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.';
     }
 }
@@ -197,47 +208,63 @@ try {
 
                         <form method="post" id="anwesenheitsForm">
                             <input type="hidden" name="action" value="save">
+                            <input type="hidden" name="auswahl" id="auswahl" value="">
                             <div class="mb-4">
                                 <label for="datum" class="form-label">Datum</label>
                                 <input type="date" class="form-control" id="datum" name="datum" value="<?php echo htmlspecialchars($datum); ?>">
                             </div>
 
-                            <div class="mb-3">
-                                <label for="auswahl" class="form-label">Art / Dienst für diesen Tag</label>
-                                <select class="form-select" id="auswahl" name="auswahl" required>
-                                    <option value="">Bitte wählen...</option>
-                                    <?php if (!empty($dienste_fuer_tag)): ?>
-                                        <?php foreach ($dienste_fuer_tag as $d): ?>
-                                            <option value="<?php echo (int)$d['id']; ?>" <?php echo $vorschlag && (int)$vorschlag['id'] === (int)$d['id'] ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($d['bezeichnung']); ?> (<?php echo $d['typ'] === 'uebung' ? 'Übung' : 'Dienst'; ?>)
-                                            </option>
-                                        <?php endforeach; ?>
+                            <div class="mb-4">
+                                <label class="form-label">Anwesenheitsliste für diesen Tag</label>
+                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                    <?php if ($vorschlag): ?>
+                                        <button type="button" class="btn btn-primary" id="btnVorschlag" data-id="<?php echo (int)$vorschlag['id']; ?>">
+                                            <i class="fas fa-check"></i> <?php echo htmlspecialchars($vorschlag['bezeichnung']); ?> (Vorschlag)
+                                        </button>
                                     <?php endif; ?>
-                                    <option value="einsatz" <?php echo empty($dienste_fuer_tag) ? '' : ''; ?>>— Einsatz —</option>
-                                    <option value="manuell">— Manuelle Anwesenheit erstellen —</option>
-                                </select>
-                                <?php if ($vorschlag): ?>
-                                    <small class="text-muted">Vorschlag für heute: <strong><?php echo htmlspecialchars($vorschlag['bezeichnung']); ?></strong></small>
-                                <?php else: ?>
-                                    <small class="text-muted">Für dieses Datum ist kein Dienst im Dienstplan eingetragen. Sie können „Einsatz“ oder „Manuelle Anwesenheit“ wählen.</small>
-                                <?php endif; ?>
-                            </div>
-
-                            <div class="mb-4" id="manuellBezeichnung" style="display: none;">
-                                <label for="bezeichnung_manuell" class="form-label">Bezeichnung (optional)</label>
-                                <input type="text" class="form-control" id="bezeichnung_manuell" name="bezeichnung_manuell" placeholder="z. B. Sonderübung, Nachschulung">
+                                    <button type="button" class="btn btn-outline-primary" id="btnAndererDienst" data-bs-toggle="modal" data-bs-target="#andereDiensteModal">
+                                        <i class="fas fa-list"></i> Anderen Dienst auswählen
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger" id="btnEinsatz">
+                                        <i class="fas fa-exclamation-triangle"></i> Anwesenheit Einsatz
+                                    </button>
+                                </div>
+                                <p class="text-muted small mb-0" id="auswahlAnzeige">Bitte wählen Sie einen der Buttons oben.</p>
                             </div>
 
                             <div class="d-flex flex-wrap gap-2">
-                                <button type="submit" class="btn btn-primary">
+                                <button type="submit" class="btn btn-success" id="btnSpeichern" disabled>
                                     <i class="fas fa-save"></i> Anwesenheitsliste speichern
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" id="btnManuell">
-                                    <i class="fas fa-plus"></i> Manuelle Anwesenheit erstellen
                                 </button>
                                 <a href="formulare.php" class="btn btn-link">Zurück zu Formulare</a>
                             </div>
                         </form>
+
+                        <!-- Modal: Anderen Dienst auswählen -->
+                        <div class="modal fade" id="andereDiensteModal" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-scrollable">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Anderen Dienst auswählen</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p class="text-muted small">Nur Dienste, für die noch keine Anwesenheitsliste existiert.</p>
+                                        <?php if (empty($andere_dienste)): ?>
+                                            <p class="text-muted">Keine weiteren Dienste zur Auswahl.</p>
+                                        <?php else: ?>
+                                            <div class="list-group">
+                                                <?php foreach ($andere_dienste as $d): ?>
+                                                    <button type="button" class="list-group-item list-group-item-action dienst-option" data-id="<?php echo (int)$d['id']; ?>" data-bezeichnung="<?php echo htmlspecialchars($d['bezeichnung']); ?>" data-datum="<?php echo htmlspecialchars($d['datum']); ?>">
+                                                        <strong><?php echo date('d.m.Y', strtotime($d['datum'])); ?></strong> — <?php echo htmlspecialchars($d['bezeichnung']); ?>
+                                                    </button>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <?php if (!empty($letzte_listen)): ?>
                         <hr class="my-4">
@@ -273,36 +300,49 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        var auswahl = document.getElementById('auswahl');
-        var manuellBezeichnung = document.getElementById('manuellBezeichnung');
-        var btnManuell = document.getElementById('btnManuell');
+        var auswahlEl = document.getElementById('auswahl');
+        var auswahlAnzeige = document.getElementById('auswahlAnzeige');
+        var btnSpeichern = document.getElementById('btnSpeichern');
         var datumEl = document.getElementById('datum');
+        var andereModal = document.getElementById('andereDiensteModal');
 
-        function toggleManuell() {
-            var isManuell = auswahl.value === 'manuell';
-            manuellBezeichnung.style.display = isManuell ? 'block' : 'none';
+        function setAuswahl(value, label) {
+            auswahlEl.value = value;
+            auswahlAnzeige.textContent = 'Gewählt: ' + label;
+            btnSpeichern.disabled = false;
         }
 
-        auswahl.addEventListener('change', function() {
-            toggleManuell();
+        var btnVorschlag = document.getElementById('btnVorschlag');
+        if (btnVorschlag) {
+            btnVorschlag.addEventListener('click', function() {
+                setAuswahl(this.dataset.id, this.textContent.trim().replace(' (Vorschlag)', ''));
+            });
+        }
+
+        document.getElementById('btnEinsatz').addEventListener('click', function() {
+            setAuswahl('einsatz', 'Anwesenheit Einsatz');
         });
 
-        btnManuell.addEventListener('click', function() {
-            auswahl.value = 'manuell';
-            toggleManuell();
-            manuellBezeichnung.querySelector('input').focus();
+        document.querySelectorAll('.dienst-option').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                setAuswahl(this.dataset.id, this.dataset.datum + ' — ' + this.dataset.bezeichnung);
+                if (andereModal && window.bootstrap) {
+                    var m = bootstrap.Modal.getInstance(andereModal);
+                    if (m) m.hide();
+                }
+            });
         });
 
-        // Beim Änderung des Datums: Seite neu laden, damit Dienste für dieses Datum geladen werden
         datumEl.addEventListener('change', function() {
-            var form = document.getElementById('anwesenheitsForm');
-            var action = form.getAttribute('action') || '';
-            form.action = 'anwesenheitsliste.php?datum=' + encodeURIComponent(this.value);
-            // Statt Reload: Form mit method=get nicht ideal. Besser: Formular mit neuem Datum per GET laden
             window.location.href = 'anwesenheitsliste.php?datum=' + encodeURIComponent(this.value);
         });
 
-        toggleManuell();
+        document.getElementById('anwesenheitsForm').addEventListener('submit', function(e) {
+            if (!auswahlEl.value) {
+                e.preventDefault();
+                alert('Bitte wählen Sie zuerst einen Dienst oder „Anwesenheit Einsatz“.');
+            }
+        });
     </script>
 </body>
 </html>
