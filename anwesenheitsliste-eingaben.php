@@ -29,6 +29,13 @@ register_shutdown_function(function () {
 set_exception_handler(function (Throwable $e) {
     anwesenheit_eingaben_show_error($e->getMessage(), $e->getFile(), $e->getLine());
 });
+set_error_handler(function ($severity, $message, $file, $line) {
+    if (!(error_reporting() & $severity)) return false;
+    if (in_array($severity, [E_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR], true)) {
+        throw new ErrorException($message, 0, $severity, $file, $line);
+    }
+    return false;
+});
 
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
