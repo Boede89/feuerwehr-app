@@ -6,6 +6,7 @@
 session_start();
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/dienstplan-typen.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -220,7 +221,7 @@ try {
                                         <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=<?php echo (int)$vorschlag['id']; ?>" class="btn btn-primary w-100 h-100 anwesenheits-btn text-decoration-none">
                                             <div class="feature-icon mb-2"><i class="fas fa-check"></i></div>
                                             <h5 class="card-title mb-1"><?php echo htmlspecialchars($vorschlag['bezeichnung']); ?></h5>
-                                            <p class="mb-0 small opacity-90">Übungsdienst · <?php echo date('d.m.Y', strtotime($vorschlag['datum'])); ?></p>
+                                            <p class="mb-0 small opacity-90"><?php echo htmlspecialchars(get_dienstplan_typ_label($vorschlag['typ'] ?? 'uebungsdienst')); ?> · <?php echo date('d.m.Y', strtotime($vorschlag['datum'])); ?></p>
                                             <small class="d-block mt-1 opacity-75">(Vorschlag für heute)</small>
                                         </a>
                                     </div>

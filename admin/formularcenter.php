@@ -6,6 +6,7 @@
 session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/dienstplan-typen.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -121,7 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
         $datum = trim($_POST['dienstplan_datum'] ?? '');
         $thema = trim($_POST['dienstplan_thema'] ?? '');
         $thema_neu = trim($_POST['dienstplan_thema_neu'] ?? '');
-        $typ = 'uebungsdienst';
+        $typ_raw = trim($_POST['dienstplan_typ'] ?? '');
+        $typen = get_dienstplan_typen_auswahl();
+        $typ = array_key_exists($typ_raw, $typen) ? $typ_raw : 'uebungsdienst';
         $thema_value = $thema === '__neu__' ? $thema_neu : $thema;
         if (empty($datum) || $thema_value === '') {
             $error = 'Datum und Thema sind erforderlich.';
@@ -405,7 +408,7 @@ if (isset($_GET['edit_submission'])) {
                                     <?php foreach ($dienstplan_eintraege as $e): ?>
                                     <tr>
                                         <td><?php echo date('d.m.Y', strtotime($e['datum'])); ?></td>
-                                        <td><span class="badge bg-primary">Übungsdienst</span></td>
+                                        <td><span class="badge bg-primary"><?php echo htmlspecialchars(get_dienstplan_typ_label($e['typ'] ?? 'uebungsdienst')); ?></span></td>
                                         <td><?php echo htmlspecialchars($e['bezeichnung']); ?></td>
                                         <td>
                                             <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#dienstplanModal" onclick='openDienstplanModal(<?php echo json_encode($e); ?>)'><i class="fas fa-edit"></i></button>
@@ -445,9 +448,12 @@ if (isset($_GET['edit_submission'])) {
                             <input type="date" class="form-control" id="dienstplan_datum" name="dienstplan_datum" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Typ</label>
-                            <input type="text" class="form-control" value="Übungsdienst" readonly disabled>
-                            <input type="hidden" name="dienstplan_typ" value="uebungsdienst">
+                            <label for="dienstplan_typ" class="form-label">Typ</label>
+                            <select class="form-select" id="dienstplan_typ" name="dienstplan_typ">
+                                <?php foreach (get_dienstplan_typen_auswahl() as $key => $label): ?>
+                                    <option value="<?php echo htmlspecialchars($key); ?>"><?php echo htmlspecialchars($label); ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                         <div class="mb-3">
                             <label for="dienstplan_thema" class="form-label">Thema *</label>
@@ -574,6 +580,8 @@ if (isset($_GET['edit_submission'])) {
             document.getElementById('dienstplanModalTitle').textContent = entry ? 'Eintrag bearbeiten' : 'Neuer Eintrag';
             document.getElementById('dienstplan_id').value = entry ? entry.id : '';
             document.getElementById('dienstplan_datum').value = entry ? (entry.datum || '') : '';
+            var typSel = document.getElementById('dienstplan_typ');
+            if (typSel) typSel.value = entry && entry.typ ? entry.typ : 'uebungsdienst';
             var themaSel = document.getElementById('dienstplan_thema');
             var themaNeuWrap = document.getElementById('dienstplan_thema_neu_wrap');
             var themaNeu = document.getElementById('dienstplan_thema_neu');

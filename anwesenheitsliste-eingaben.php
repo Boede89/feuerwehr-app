@@ -5,6 +5,7 @@
 session_start();
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/dienstplan-typen.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -34,14 +35,15 @@ if ($is_einsatz) {
         exit;
     }
     try {
-        $stmt = $db->prepare("SELECT id, datum, bezeichnung FROM dienstplan WHERE id = ?");
+        $stmt = $db->prepare("SELECT id, datum, bezeichnung, typ FROM dienstplan WHERE id = ?");
         $stmt->execute([$dienstplan_id]);
         $dienst = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$dienst) {
             header('Location: anwesenheitsliste.php?error=auswahl');
             exit;
         }
-        $titel_anzeige = $dienst['bezeichnung'] . ' (Übungsdienst · ' . date('d.m.Y', strtotime($dienst['datum'])) . ')';
+        $typ_label = get_dienstplan_typ_label($dienst['typ'] ?? 'uebungsdienst');
+        $titel_anzeige = $dienst['bezeichnung'] . ' (' . $typ_label . ' · ' . date('d.m.Y', strtotime($dienst['datum'])) . ')';
     } catch (Exception $e) {
         header('Location: anwesenheitsliste.php?error=auswahl');
         exit;
@@ -55,12 +57,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $bemerkung = trim($_POST['bemerkung'] ?? '');
     $datum_post = trim($_POST['datum'] ?? '');
     $auswahl_post = trim($_POST['auswahl'] ?? '');
+    $typ_sonstige = trim($_POST['typ_sonstige'] ?? '');
+    $typ_sonstige_freitext = trim($_POST['typ_sonstige_freitext'] ?? '');
     if ($datum_post === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum_post)) {
         $error = 'Ungültiges Datum.';
     } else {
         $dp_id = ($auswahl_post === 'einsatz') ? null : (int)$auswahl_post;
         $typ_save = ($auswahl_post === 'einsatz') ? 'einsatz' : 'dienst';
-        $bezeichnung_save = ($auswahl_post === 'einsatz') ? 'Sonstige Anwesenheit (Einsatz, etc.)' : null;
+        if ($auswahl_post === 'einsatz') {
+            $typen = get_dienstplan_typen();
+            if ($typ_sonstige === '__custom__') {
+                $bezeichnung_save = $typ_sonstige_freitext !== '' ? $typ_sonstige_freitext : 'Sonstiges';
+            } else {
+                $typen = get_dienstplan_typen_auswahl();
+                $bezeichnung_save = $typen[$typ_sonstige] ?? 'Einsatz';
+            }
+        } else {
+            $bezeichnung_save = null;
+        }
         try {
             try {
                 $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN bemerkung TEXT NULL");
@@ -137,6 +151,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <form method="post">
                             <input type="hidden" name="datum" value="<?php echo htmlspecialchars($datum); ?>">
                             <input type="hidden" name="auswahl" value="<?php echo $is_einsatz ? 'einsatz' : (int)$dienstplan_id; ?>">
+                            <?php if ($is_einsatz): ?>
+                            <div class="mb-4">
+                                <label for="typ_sonstige" class="form-label">Typ</label>
+                                <select class="form-select" id="typ_sonstige" name="typ_sonstige">
+                                    <?php foreach (get_dienstplan_typen_auswahl() as $key => $label): ?>
+                                        <option value="<?php echo htmlspecialchars($key); ?>" <?php echo $key === 'einsatz' ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
+                                    <?php endforeach; ?>
+                                    <option value="__custom__">— Anderer Typ (Freitext) —</option>
+                                </select>
+                                <div class="mt-2" id="typ_sonstige_freitext_wrap" style="display: none;">
+                                    <input type="text" class="form-control" id="typ_sonstige_freitext" name="typ_sonstige_freitext" placeholder="Typ eingeben (z. B. Lehrgang, Versammlung)">
+                                </div>
+                            </div>
+                            <?php endif; ?>
                             <div class="mb-4">
                                 <label for="bemerkung" class="form-label">Bemerkung (optional)</label>
                                 <textarea class="form-control" id="bemerkung" name="bemerkung" rows="3" placeholder="z. B. kurze Anmerkung zur Anwesenheitsliste"></textarea>
@@ -161,5 +189,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?php if ($is_einsatz): ?>
+    <script>
+        document.getElementById('typ_sonstige').addEventListener('change', function() {
+            var wrap = document.getElementById('typ_sonstige_freitext_wrap');
+            wrap.style.display = this.value === '__custom__' ? 'block' : 'none';
+        });
+    </script>
+    <?php endif; ?>
 </body>
 </html>
