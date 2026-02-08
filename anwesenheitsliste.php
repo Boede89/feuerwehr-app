@@ -227,16 +227,16 @@ try {
                                     </div>
                                 <?php endif; ?>
                                 <div class="col-12 col-md-4">
+                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=einsatz" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn text-decoration-none">
+                                        <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
+                                        <h5 class="card-title mb-0">Einsatz oder Manuelle Anwesenheit</h5>
+                                    </a>
+                                </div>
+                                <div class="col-12 col-md-4">
                                     <button type="button" class="btn btn-outline-primary w-100 h-100 anwesenheits-btn" data-bs-toggle="modal" data-bs-target="#andereDiensteModal">
                                         <div class="feature-icon mb-2"><i class="fas fa-list"></i></div>
                                         <h5 class="card-title mb-0">Anderen Dienst auswählen</h5>
                                     </button>
-                                </div>
-                                <div class="col-12 col-md-4">
-                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=einsatz" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn text-decoration-none">
-                                        <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
-                                        <h5 class="card-title mb-0">Sonstige Anwesenheit (Einsatz, etc.)</h5>
-                                    </a>
                                 </div>
                             </div>
                             <p class="text-muted small mt-2 mb-0">Wählen Sie eine Option – Sie werden zur Eingabe weitergeleitet.</p>
