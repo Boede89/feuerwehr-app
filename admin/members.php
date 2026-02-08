@@ -58,17 +58,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_course_assignmen
                     $db->rollBack();
                 }
             } else {
+                $agt_course_name = 'AGT';
+                $agt_course_id = null;
+                try {
+                    $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1");
+                    $stmt_agt->execute([$agt_course_name]);
+                    $row = $stmt_agt->fetch(PDO::FETCH_ASSOC);
+                    if ($row) {
+                        $agt_course_id = (int)$row['id'];
+                    }
+                } catch (Exception $e) {
+                    // ignore
+                }
+                $is_pa = false;
+                try {
+                    $stmt_pa = $db->prepare("SELECT 1 FROM atemschutz_traeger WHERE member_id = ? LIMIT 1");
+                    $stmt_pa->execute([$member_id]);
+                    $is_pa = (bool)$stmt_pa->fetch();
+                    if (!$is_pa) {
+                        $stmt_pa = $db->prepare("SELECT 1 FROM members WHERE id = ? AND is_pa_traeger = 1 LIMIT 1");
+                        $stmt_pa->execute([$member_id]);
+                        $is_pa = (bool)$stmt_pa->fetch();
+                    }
+                } catch (Exception $e) {
+                    // ignore
+                }
+                if ($is_pa && $agt_course_id && $agt_course_id > 0) {
+                    $has_agt = false;
+                    foreach ($course_assignments as $ca) {
+                        if ((int)($ca['course_id'] ?? 0) === $agt_course_id) {
+                            $has_agt = true;
+                            break;
+                        }
+                    }
+                    if (!$has_agt) {
+                        $course_assignments[] = ['course_id' => $agt_course_id, 'completion_year' => ''];
+                    }
+                }
+                
                 // Alte Zuweisungen löschen
                 $stmt_delete = $db->prepare("DELETE FROM member_courses WHERE member_id = ?");
                 $stmt_delete->execute([$member_id]);
                 
                 // Neue Zuweisungen speichern
+                $saved_has_agt = false;
                 if (!empty($course_assignments)) {
                     foreach ($course_assignments as $course_data) {
                         $course_id = (int)($course_data['course_id'] ?? 0);
                         $completion_year = trim($course_data['completion_year'] ?? '');
                         
                         if ($course_id > 0) {
+                            if ($agt_course_id && $course_id === $agt_course_id) {
+                                $saved_has_agt = true;
+                            }
                             // Datum setzen: YYYY-01-01 oder NULL wenn "nicht bekannt"
                             $completed_date = null;
                             if (!empty($completion_year) && strtolower($completion_year) !== 'nicht bekannt' && is_numeric($completion_year)) {
@@ -77,6 +119,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_course_assignmen
                             
                             $stmt_course = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, ?)");
                             $stmt_course->execute([$member_id, $course_id, $completed_date]);
+                        }
+                    }
+                }
+                
+                // Wenn AGT zugewiesen: Mitglied als Atemschutzgeräteträger setzen
+                if ($saved_has_agt) {
+                    $stmt = $db->prepare("UPDATE members SET is_pa_traeger = 1 WHERE id = ?");
+                    $stmt->execute([$member_id]);
+                    $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE member_id = ? LIMIT 1");
+                    $stmt->execute([$member_id]);
+                    if (!$stmt->fetch()) {
+                        $stmt = $db->prepare("SELECT first_name, last_name, email, birthdate FROM members WHERE id = ?");
+                        $stmt->execute([$member_id]);
+                        $m = $stmt->fetch(PDO::FETCH_ASSOC);
+                        if ($m) {
+                            $birth = !empty($m['birthdate']) ? $m['birthdate'] : date('Y-m-d');
+                            $stmt_ins = $db->prepare("INSERT INTO atemschutz_traeger (first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am, status, member_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'Aktiv', ?)");
+                            $stmt_ins->execute([
+                                $m['first_name'],
+                                $m['last_name'],
+                                $m['email'] ?? null,
+                                $birth,
+                                $birth,
+                                $birth,
+                                $birth,
+                                $member_id
+                            ]);
                         }
                     }
                 }
@@ -1020,6 +1089,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $uebung_am,
                             $new_member_id
                         ]);
+                        // AGT-Lehrgang automatisch zuweisen (alle PA-Träger haben AGT)
+                        try {
+                            $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' LIMIT 1");
+                            $stmt_agt->execute();
+                            $row = $stmt_agt->fetch(PDO::FETCH_ASSOC);
+                            if ($row) {
+                                $agt_id = (int)$row['id'];
+                                $stmt_ins = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, NULL) ON DUPLICATE KEY UPDATE member_id = member_id");
+                                $stmt_ins->execute([$new_member_id, $agt_id]);
+                            }
+                        } catch (Exception $e) {
+                            // ignore
+                        }
                     }
                     
                     // Nur committen wenn Transaktion noch aktiv ist
@@ -1291,6 +1373,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     $uebung_am,
                                     $existing_traeger['id']
                                 ]);
+                            }
+                            // AGT-Lehrgang automatisch zuweisen (alle PA-Träger haben AGT)
+                            try {
+                                $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' LIMIT 1");
+                                $stmt_agt->execute();
+                                $row = $stmt_agt->fetch(PDO::FETCH_ASSOC);
+                                if ($row) {
+                                    $agt_id = (int)$row['id'];
+                                    $stmt_ins = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, NULL) ON DUPLICATE KEY UPDATE member_id = member_id");
+                                    $stmt_ins->execute([$member_id, $agt_id]);
+                                }
+                            } catch (Exception $e) {
+                                // ignore
                             }
                         }
                         
@@ -1637,6 +1732,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 $member_id
                             ]);
                         }
+                    }
+                    // AGT-Lehrgang automatisch zuweisen (alle PA-Träger haben AGT)
+                    try {
+                        $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' LIMIT 1");
+                        $stmt_agt->execute();
+                        $row = $stmt_agt->fetch(PDO::FETCH_ASSOC);
+                        if ($row) {
+                            $agt_id = (int)$row['id'];
+                            $stmt_ins = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, NULL) ON DUPLICATE KEY UPDATE member_id = member_id");
+                            $stmt_ins->execute([$member_id, $agt_id]);
+                        }
+                    } catch (Exception $e) {
+                        // ignore
                     }
                 }
                 

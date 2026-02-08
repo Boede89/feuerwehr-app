@@ -185,6 +185,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_missing_qualific
     }
 }
 
+// AGT-Lehrgang bei allen PA-Trägern nachziehen
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_agt_pa'])) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        try {
+            $stmt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' LIMIT 1");
+            $stmt->execute();
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                $message = 'Lehrgang „AGT“ wurde in der Lehrgangsverwaltung nicht gefunden. Bitte zuerst anlegen.';
+            } else {
+                $agt_id = (int)$row['id'];
+                $stmt = $db->query("
+                    SELECT DISTINCT m.id
+                    FROM members m
+                    LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
+                    WHERE at.member_id IS NOT NULL OR m.is_pa_traeger = 1
+                ");
+                $members = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+                $stmt_ins = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, NULL) ON DUPLICATE KEY UPDATE member_id = member_id");
+                $count = 0;
+                foreach ($members as $m) {
+                    $stmt_ins->execute([(int)$m['id'], $agt_id]);
+                    $count++;
+                }
+                header("Location: settings-members.php?success=agt_sync&count=" . $count);
+                exit;
+            }
+        } catch (Exception $e) {
+            $error = 'Fehler: ' . $e->getMessage();
+        }
+    }
+}
+
 // Erfolgsmeldung nach Redirect (sync)
 if (isset($_GET['success']) && $_GET['success'] === 'sync') {
     $fc = (int)($_GET['from_courses'] ?? 0);
@@ -198,6 +233,11 @@ if (isset($_GET['success']) && $_GET['success'] === 'sync') {
     } else {
         $message = "Keine Mitglieder ohne Qualifikation gefunden – es wurde nichts geändert.";
     }
+}
+if (isset($_GET['success']) && $_GET['success'] === 'agt_sync') {
+    $message = isset($_GET['count']) && (int)$_GET['count'] > 0
+        ? "Lehrgang AGT wurde bei " . (int)$_GET['count'] . " Atemschutzgeräteträger(n) hinterlegt."
+        : "AGT-Nachzug ausgeführt.";
 }
 ?>
 <!DOCTYPE html>
@@ -308,6 +348,27 @@ if (isset($_GET['success']) && $_GET['success'] === 'sync') {
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                             <button type="submit" name="sync_missing_qualifications" class="btn btn-warning">
                                 <i class="fas fa-sync-alt"></i> Jetzt nachziehen
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-12 col-lg-6">
+                <div class="card shadow">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-mask"></i> AGT bei Atemschutzgeräteträgern
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small">Hinterlegt den Lehrgang <strong>AGT</strong> bei allen Mitgliedern, die als Atemschutzgeräteträger geführt sind, falls der Lehrgang dort noch fehlt. (Der Lehrgang „AGT“ muss in der Lehrgangsverwaltung existieren.)</p>
+                        <form method="POST" action="" onsubmit="return confirm('AGT-Lehrgang bei allen Atemschutzgeräteträgern nachziehen?');">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                            <button type="submit" name="sync_agt_pa" class="btn btn-secondary">
+                                <i class="fas fa-sync-alt"></i> AGT bei PA-Trägern nachziehen
                             </button>
                         </form>
                     </div>
