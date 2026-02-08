@@ -95,6 +95,20 @@ try {
                                     </div>
                                 </a>
                             </div>
+                            <!-- Termin an Divera 24/7 senden -->
+                            <div class="col-md-6 col-lg-4">
+                                <a href="divera-termin-senden.php" class="text-decoration-none">
+                                    <div class="card h-100 shadow-sm feature-card clickable-card">
+                                        <div class="card-body text-center p-4 d-flex flex-column">
+                                            <div class="feature-icon mb-3">
+                                                <i class="fas fa-calendar-plus text-primary"></i>
+                                            </div>
+                                            <h5 class="card-title">Termin an Divera 24/7</h5>
+                                            <p class="card-text text-muted small">Datum, Zeit, Titel und Ort eingeben – Termin wird per API an Divera 24/7 übermittelt.</p>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
                             <?php if (!empty($forms)): ?>
                                 <?php foreach ($forms as $form): ?>
                                 <div class="col-md-6 col-lg-4">

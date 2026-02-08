@@ -1,0 +1,7 @@
+<?php
+/**
+ * Divera 24/7 – lokale Konfiguration (Access Key)
+ * Kopieren Sie diese Datei nach divera.local.php und tragen Sie Ihren Access Key ein.
+ * divera.local.php wird von Git ignoriert.
+ */
+$divera_config['access_key'] = 'Ihr-Access-Key-von-Divera';

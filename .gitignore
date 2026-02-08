@@ -59,6 +59,7 @@ files/
 # Sensitive configuration
 config/local.php
 config/production.php
+config/divera.local.php
 
 # Node modules (if using any frontend build tools)
 node_modules/
