@@ -4,24 +4,30 @@
  */
 session_start();
 ob_start();
+function anwesenheit_eingaben_show_error($message, $file = '', $line = 0) {
+    if (ob_get_level()) ob_end_clean();
+    if (!headers_sent()) {
+        header('Content-Type: text/html; charset=utf-8');
+        header('HTTP/1.0 200 OK');
+    }
+    echo '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Fehler – Anwesenheitsliste</title></head><body style="font-family:sans-serif;max-width:600px;margin:2rem auto;padding:1rem;">';
+    echo '<h1>Fehler beim Laden der Anwesenheitsliste</h1>';
+    echo '<p>Die Seite konnte nicht geladen werden.</p>';
+    echo '<p><strong>Technische Details:</strong><br><code>' . htmlspecialchars($message) . '</code></p>';
+    if ($file !== '' || $line > 0) echo '<p><small>Datei: ' . htmlspecialchars($file) . ' · Zeile: ' . (int)$line . '</small></p>';
+    echo '<p><a href="anwesenheitsliste.php">Zurück zur Anwesenheitsliste</a> · <a href="index.php">Zur Startseite</a></p>';
+    echo '</body></html>';
+    exit;
+}
 register_shutdown_function(function () {
     $err = error_get_last();
     if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
-        ob_end_clean();
-        if (!headers_sent()) {
-            header('Content-Type: text/html; charset=utf-8');
-            header('HTTP/1.0 500 Internal Server Error');
-        }
-        echo '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Fehler – Anwesenheitsliste</title></head><body style="font-family:sans-serif;max-width:600px;margin:2rem auto;padding:1rem;">';
-        echo '<h1>Fehler beim Laden der Anwesenheitsliste</h1>';
-        echo '<p>Die Seite konnte nicht geladen werden. Bitte prüfen Sie die Konfiguration (Datenbank, PHP-Version) oder wenden Sie sich an den Administrator.</p>';
-        echo '<p><strong>Technische Details:</strong><br><code>' . htmlspecialchars($err['message']) . '</code></p>';
-        echo '<p><small>Datei: ' . htmlspecialchars($err['file']) . ' · Zeile: ' . (int)$err['line'] . '</small></p>';
-        echo '<p><a href="anwesenheitsliste.php">Zurück zur Anwesenheitsliste</a> · <a href="index.php">Zur Startseite</a></p>';
-        echo '</body></html>';
-    } else {
-        ob_end_flush();
+        anwesenheit_eingaben_show_error($err['message'], $err['file'], $err['line']);
     }
+    if (ob_get_level()) ob_end_flush();
+});
+set_exception_handler(function (Throwable $e) {
+    anwesenheit_eingaben_show_error($e->getMessage(), $e->getFile(), $e->getLine());
 });
 
 require_once __DIR__ . '/config/database.php';
@@ -121,6 +127,11 @@ foreach ($draft_defaults as $k => $v) {
         $draft[$k] = $v;
     }
 }
+if (!is_array($draft['members'])) $draft['members'] = [];
+if (!is_array($draft['member_vehicle'])) $draft['member_vehicle'] = [];
+if (!is_array($draft['vehicles'])) $draft['vehicles'] = [];
+if (!is_array($draft['vehicle_maschinist'])) $draft['vehicle_maschinist'] = [];
+if (!is_array($draft['vehicle_einheitsfuehrer'])) $draft['vehicle_einheitsfuehrer'] = [];
 
 // Sicherstellen, dass anwesenheitslisten alle Spalten hat (falls Nutzer direkt diese Seite aufruft)
 $extra_columns = [
