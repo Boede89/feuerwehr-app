@@ -162,6 +162,35 @@ try {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
+    <style>
+        .anwesenheits-btn {
+            min-height: 160px;
+            padding: 1.5rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .anwesenheits-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+        }
+        .anwesenheits-btn .feature-icon {
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .anwesenheits-btn .feature-icon i {
+            font-size: 2.25rem;
+        }
+        .anwesenheits-btn .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -209,27 +238,35 @@ try {
                         <form method="post" id="anwesenheitsForm">
                             <input type="hidden" name="action" value="save">
                             <input type="hidden" name="auswahl" id="auswahl" value="">
-                            <div class="mb-4">
-                                <label for="datum" class="form-label">Datum</label>
-                                <input type="date" class="form-control" id="datum" name="datum" value="<?php echo htmlspecialchars($datum); ?>">
-                            </div>
+                            <input type="hidden" name="datum" value="<?php echo htmlspecialchars($datum); ?>">
 
                             <div class="mb-4">
-                                <label class="form-label">Anwesenheitsliste für diesen Tag</label>
-                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                <label class="form-label">Anwesenheitsliste für heute</label>
+                                <div class="row g-3">
                                     <?php if ($vorschlag): ?>
-                                        <button type="button" class="btn btn-primary" id="btnVorschlag" data-id="<?php echo (int)$vorschlag['id']; ?>">
-                                            <i class="fas fa-check"></i> <?php echo htmlspecialchars($vorschlag['bezeichnung']); ?> (Vorschlag)
-                                        </button>
+                                        <div class="col-12 col-md-4">
+                                            <button type="button" class="btn btn-primary w-100 h-100 anwesenheits-btn" id="btnVorschlag" data-id="<?php echo (int)$vorschlag['id']; ?>" data-label="<?php echo htmlspecialchars($vorschlag['bezeichnung'] . ' — ' . date('d.m.Y', strtotime($vorschlag['datum']))); ?>">
+                                                <div class="feature-icon mb-2"><i class="fas fa-check"></i></div>
+                                                <h5 class="card-title mb-1"><?php echo htmlspecialchars($vorschlag['bezeichnung']); ?></h5>
+                                                <p class="mb-0 small opacity-90">Übungsdienst · <?php echo date('d.m.Y', strtotime($vorschlag['datum'])); ?></p>
+                                                <small class="d-block mt-1 opacity-75">(Vorschlag für heute)</small>
+                                            </button>
+                                        </div>
                                     <?php endif; ?>
-                                    <button type="button" class="btn btn-outline-primary" id="btnAndererDienst" data-bs-toggle="modal" data-bs-target="#andereDiensteModal">
-                                        <i class="fas fa-list"></i> Anderen Dienst auswählen
-                                    </button>
-                                    <button type="button" class="btn btn-outline-danger" id="btnEinsatz">
-                                        <i class="fas fa-exclamation-triangle"></i> Anwesenheit Einsatz
-                                    </button>
+                                    <div class="col-12 col-md-4">
+                                        <button type="button" class="btn btn-outline-primary w-100 h-100 anwesenheits-btn" id="btnAndererDienst" data-bs-toggle="modal" data-bs-target="#andereDiensteModal">
+                                            <div class="feature-icon mb-2"><i class="fas fa-list"></i></div>
+                                            <h5 class="card-title mb-0">Anderen Dienst auswählen</h5>
+                                        </button>
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <button type="button" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn" id="btnEinsatz">
+                                            <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
+                                            <h5 class="card-title mb-0">Anwesenheit Einsatz</h5>
+                                        </button>
+                                    </div>
                                 </div>
-                                <p class="text-muted small mb-0" id="auswahlAnzeige">Bitte wählen Sie einen der Buttons oben.</p>
+                                <p class="text-muted small mt-2 mb-0" id="auswahlAnzeige">Bitte wählen Sie eine der Optionen oben.</p>
                             </div>
 
                             <div class="d-flex flex-wrap gap-2">
@@ -303,7 +340,6 @@ try {
         var auswahlEl = document.getElementById('auswahl');
         var auswahlAnzeige = document.getElementById('auswahlAnzeige');
         var btnSpeichern = document.getElementById('btnSpeichern');
-        var datumEl = document.getElementById('datum');
         var andereModal = document.getElementById('andereDiensteModal');
 
         function setAuswahl(value, label) {
@@ -315,7 +351,7 @@ try {
         var btnVorschlag = document.getElementById('btnVorschlag');
         if (btnVorschlag) {
             btnVorschlag.addEventListener('click', function() {
-                setAuswahl(this.dataset.id, this.textContent.trim().replace(' (Vorschlag)', ''));
+                setAuswahl(this.dataset.id, this.dataset.label || this.querySelector('.card-title').textContent.trim());
             });
         }
 
@@ -325,16 +361,13 @@ try {
 
         document.querySelectorAll('.dienst-option').forEach(function(btn) {
             btn.addEventListener('click', function() {
-                setAuswahl(this.dataset.id, this.dataset.datum + ' — ' + this.dataset.bezeichnung);
+                var datumLabel = this.dataset.datum ? new Date(this.dataset.datum + 'T12:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                setAuswahl(this.dataset.id, datumLabel + ' — ' + this.dataset.bezeichnung);
                 if (andereModal && window.bootstrap) {
                     var m = bootstrap.Modal.getInstance(andereModal);
                     if (m) m.hide();
                 }
             });
-        });
-
-        datumEl.addEventListener('change', function() {
-            window.location.href = 'anwesenheitsliste.php?datum=' + encodeURIComponent(this.value);
         });
 
         document.getElementById('anwesenheitsForm').addEventListener('submit', function(e) {
