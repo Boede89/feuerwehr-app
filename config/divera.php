@@ -23,11 +23,11 @@ if (!empty($db)) {
         $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url')");
         $stmt->execute();
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            if ($row['setting_key'] === 'divera_access_key' && $row['setting_value'] !== '') {
-                $divera_config['access_key'] = $row['setting_value'];
+            if ($row['setting_key'] === 'divera_access_key' && trim((string) $row['setting_value']) !== '') {
+                $divera_config['access_key'] = trim((string) $row['setting_value']);
             }
-            if ($row['setting_key'] === 'divera_api_base_url' && $row['setting_value'] !== '') {
-                $divera_config['api_base_url'] = $row['setting_value'];
+            if ($row['setting_key'] === 'divera_api_base_url' && trim((string) $row['setting_value']) !== '') {
+                $divera_config['api_base_url'] = rtrim(trim((string) $row['setting_value']), '/');
             }
         }
     } catch (Exception $e) {

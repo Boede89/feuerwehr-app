@@ -51,7 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $divera_ok) {
 
     if (empty($fehler)) {
 
-        $url = rtrim($divera_config['api_base_url'], '/') . '/api/v2/events?accesskey=' . urlencode($divera_config['access_key']);
+        $access_key = trim((string) ($divera_config['access_key'] ?? ''));
+        $base_url = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+        $url = $base_url . '/api/v2/events?accesskey=' . urlencode($access_key);
         // API-Layout laut Divera OpenAPI: Event-Objekt mit notification_type, title, ts_start, ts_end, address, text
         $body = [
             'Event' => [
@@ -92,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $divera_ok) {
             }
             if ($msg === null || $msg === '') {
                 $msg = $code === 403
-                    ? 'Accesskey fehlt oder ist ungültig. Bitte in den globalen Einstellungen prüfen (Divera 24/7 → Access Key).'
+                    ? 'Accesskey fehlt oder ist ungültig. Verwenden Sie den Einheits-Accesskey (nicht den Benutzer-Key aus dem Debug-Tab). In Divera: Verwaltung → Konto / Vertragsdaten oder Ansteuerungen. Key ohne Leerzeichen eintragen und erneut speichern.'
                     : 'Unbekannter Fehler.';
             }
             $message = 'Divera hat den Termin abgelehnt (HTTP ' . $code . '): ' . htmlspecialchars($msg);

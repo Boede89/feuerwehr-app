@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Divera 24/7 (Termin-API); Access Key nur überschreiben wenn etwas eingegeben
             $divera_access_key = trim($_POST['divera_access_key'] ?? '');
             if ($divera_access_key === '') {
-                $divera_access_key = $settings['divera_access_key'] ?? '';
+                $divera_access_key = trim((string) ($settings['divera_access_key'] ?? ''));
             }
             $divera = [
                 'divera_access_key' => $divera_access_key,
@@ -221,9 +221,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="card h-100">
                     <div class="card-header"><i class="fas fa-calendar-plus"></i> Divera 24/7</div>
                     <div class="card-body">
-                        <p class="text-muted small">Für das Formular „Termin an Divera 24/7 senden“. Access Key in Divera unter Verwaltung → API-Verwaltung erzeugen.</p>
+                        <p class="text-muted small mb-2">Für das Formular „Termin an Divera 24/7 senden“.</p>
+                        <p class="text-muted small mb-3"><strong>Wichtig:</strong> Verwenden Sie den <strong>Einheits-Accesskey</strong> (nicht den Benutzer-Key aus dem Debug-Tab). In Divera 24/7: <strong>Verwaltung → Konto</strong> (Kontakt- und Vertragsdaten) oder bei Ansteuerungen. Key ohne Leerzeichen am Anfang/Ende eintragen.</p>
                         <div class="mb-3">
-                            <label class="form-label">Access Key</label>
+                            <label class="form-label">Access Key (Einheits-Key)</label>
                             <input class="form-control" type="password" name="divera_access_key" value="" placeholder="Leer lassen zum Beibehalten" autocomplete="off">
                             <small class="text-muted"><?php echo !empty($settings['divera_access_key']) ? 'Key ist hinterlegt. Neuen Key eintragen zum Überschreiben.' : 'Leer lassen zum Beibehalten.'; ?></small>
                         </div>
