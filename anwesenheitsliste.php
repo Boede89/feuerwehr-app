@@ -63,6 +63,27 @@ try {
     } catch (Exception $e2) {
         // Spalte existiert bereits
     }
+    $anwesenheit_extra_columns = [
+        "uhrzeit_von TIME NULL",
+        "uhrzeit_bis TIME NULL",
+        "alarmierung_durch VARCHAR(100) NULL",
+        "einsatzstelle VARCHAR(255) NULL",
+        "objekt TEXT NULL",
+        "eigentuemer VARCHAR(255) NULL",
+        "geschaedigter VARCHAR(255) NULL",
+        "klassifizierung VARCHAR(100) NULL",
+        "kostenpflichtiger_einsatz VARCHAR(10) NULL",
+        "personenschaeden VARCHAR(50) NULL",
+        "brandwache VARCHAR(10) NULL",
+    ];
+    foreach ($anwesenheit_extra_columns as $colDef) {
+        $colName = preg_replace('/\s.*/', '', $colDef);
+        try {
+            $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN {$colDef}");
+        } catch (Exception $e2) {
+            // Spalte existiert bereits
+        }
+    }
     try {
         $db->exec("
             CREATE TABLE IF NOT EXISTS anwesenheitsliste_fahrzeuge (

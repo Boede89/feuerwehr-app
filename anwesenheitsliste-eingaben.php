@@ -66,6 +66,17 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'vehicles' => [],
         'vehicle_maschinist' => [],
         'vehicle_einheitsfuehrer' => [],
+        'uhrzeit_von' => '',
+        'uhrzeit_bis' => '',
+        'alarmierung_durch' => '',
+        'einsatzstelle' => '',
+        'objekt' => '',
+        'eigentuemer' => '',
+        'geschaedigter' => '',
+        'klassifizierung' => '',
+        'kostenpflichtiger_einsatz' => '',
+        'personenschaeden' => '',
+        'brandwache' => '',
     ];
 }
 $draft = &$_SESSION[$draft_key];
@@ -73,12 +84,28 @@ $draft = &$_SESSION[$draft_key];
 $message = '';
 $error = '';
 
+// Optionen für Auswahlfelder
+$alarmierung_optionen = ['Telefon', 'DME Löschzug', 'DME Kleinhilfe', 'Sirene'];
+$klassifizierung_optionen = ['Grossbrand', 'Mittelbrand', 'Kleinbrand', 'Gelöschtes Feuer', 'Gefahrenmeldeanlage', 'Menschen in Notlage', 'Tiere in Notlage', 'Verkehrsunfall', 'Techn. Hilfeleistung', 'Wasserrettung', 'CBRN-Einsatz', 'Unterstützung RD', 'Sonstiger Einsatz', 'Fehlalarm', 'Böswill. Alarm'];
+$personenschaeden_optionen = ['Ja', 'Nein', 'Person gerettet', 'Person verstorben'];
+
 // Speichern (nur auf dieser Seite): Liste anlegen + Personal/Fahrzeuge aus Session
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
     $bemerkung = trim($_POST['bemerkung'] ?? '');
     $typ_sonstige = trim($_POST['typ_sonstige'] ?? '');
     $typ_sonstige_freitext = trim($_POST['typ_sonstige_freitext'] ?? '');
     $draft['bemerkung'] = $bemerkung;
+    $draft['uhrzeit_von'] = trim($_POST['uhrzeit_von'] ?? '');
+    $draft['uhrzeit_bis'] = trim($_POST['uhrzeit_bis'] ?? '');
+    $draft['alarmierung_durch'] = trim($_POST['alarmierung_durch'] ?? '');
+    $draft['einsatzstelle'] = trim($_POST['einsatzstelle'] ?? '');
+    $draft['objekt'] = trim($_POST['objekt'] ?? '');
+    $draft['eigentuemer'] = trim($_POST['eigentuemer'] ?? '');
+    $draft['geschaedigter'] = trim($_POST['geschaedigter'] ?? '');
+    $draft['klassifizierung'] = trim($_POST['klassifizierung'] ?? '');
+    $draft['kostenpflichtiger_einsatz'] = trim($_POST['kostenpflichtiger_einsatz'] ?? '');
+    $draft['personenschaeden'] = trim($_POST['personenschaeden'] ?? '');
+    $draft['brandwache'] = trim($_POST['brandwache'] ?? '');
     if ($draft['typ'] === 'einsatz') {
         if ($typ_sonstige === '__custom__') {
             $draft['bezeichnung_sonstige'] = $typ_sonstige_freitext !== '' ? $typ_sonstige_freitext : 'Sonstiges';
@@ -89,6 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
     $dp_id = $draft['dienstplan_id'];
     $typ_save = $draft['typ'];
     $bezeichnung_save = $draft['typ'] === 'einsatz' ? $draft['bezeichnung_sonstige'] : null;
+    $uhrzeit_von_save = $draft['uhrzeit_von'] !== '' ? $draft['uhrzeit_von'] : null;
+    $uhrzeit_bis_save = $draft['uhrzeit_bis'] !== '' ? $draft['uhrzeit_bis'] : null;
     try {
         try {
             $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN bemerkung TEXT NULL");
@@ -96,10 +125,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             // ignore
         }
         $stmt = $db->prepare("
-            INSERT INTO anwesenheitslisten (datum, dienstplan_id, typ, bezeichnung, user_id, bemerkung)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO anwesenheitslisten (datum, dienstplan_id, typ, bezeichnung, user_id, bemerkung,
+                uhrzeit_von, uhrzeit_bis, alarmierung_durch, einsatzstelle, objekt, eigentuemer, geschaedigter,
+                klassifizierung, kostenpflichtiger_einsatz, personenschaeden, brandwache)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$draft['datum'], $dp_id, $typ_save, $bezeichnung_save, $_SESSION['user_id'], $draft['bemerkung'] !== '' ? $draft['bemerkung'] : null]);
+        $stmt->execute([
+            $draft['datum'], $dp_id, $typ_save, $bezeichnung_save, $_SESSION['user_id'], $draft['bemerkung'] !== '' ? $draft['bemerkung'] : null,
+            $uhrzeit_von_save, $uhrzeit_bis_save,
+            $draft['alarmierung_durch'] !== '' ? $draft['alarmierung_durch'] : null,
+            $draft['einsatzstelle'] !== '' ? $draft['einsatzstelle'] : null,
+            $draft['objekt'] !== '' ? $draft['objekt'] : null,
+            $draft['eigentuemer'] !== '' ? $draft['eigentuemer'] : null,
+            $draft['geschaedigter'] !== '' ? $draft['geschaedigter'] : null,
+            $draft['klassifizierung'] !== '' ? $draft['klassifizierung'] : null,
+            $draft['kostenpflichtiger_einsatz'] !== '' ? $draft['kostenpflichtiger_einsatz'] : null,
+            $draft['personenschaeden'] !== '' ? $draft['personenschaeden'] : null,
+            $draft['brandwache'] !== '' ? $draft['brandwache'] : null
+        ]);
         $list_id = $db->lastInsertId();
         foreach ($draft['members'] as $mid) {
             $vid = isset($draft['member_vehicle'][$mid]) ? $draft['member_vehicle'][$mid] : null;
@@ -201,6 +244,86 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
 
                         <form method="post" id="mainForm">
                             <input type="hidden" name="save_final" value="1">
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <label for="uhrzeit_von" class="form-label">Uhrzeit von</label>
+                                    <input type="time" class="form-control" id="uhrzeit_von" name="uhrzeit_von" value="<?php echo htmlspecialchars($draft['uhrzeit_von'] ?? ''); ?>">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="uhrzeit_bis" class="form-label">Uhrzeit bis</label>
+                                    <input type="time" class="form-control" id="uhrzeit_bis" name="uhrzeit_bis" value="<?php echo htmlspecialchars($draft['uhrzeit_bis'] ?? ''); ?>">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="alarmierung_durch" class="form-label">Alarmierung durch</label>
+                                <select class="form-select" id="alarmierung_durch" name="alarmierung_durch">
+                                    <option value="">— keine Auswahl —</option>
+                                    <?php foreach ($alarmierung_optionen as $opt): ?>
+                                        <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo ($draft['alarmierung_durch'] ?? '') === $opt ? 'selected' : ''; ?>><?php echo htmlspecialchars($opt); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="mb-3 position-relative">
+                                <label for="einsatzstelle" class="form-label">Einsatzstelle</label>
+                                <input type="text" class="form-control" id="einsatzstelle" name="einsatzstelle" placeholder="Adresse eingeben (Autovervollständigung)" value="<?php echo htmlspecialchars($draft['einsatzstelle'] ?? ''); ?>" autocomplete="off">
+                                <div id="einsatzstelle_suggestions" class="list-group position-absolute w-100 mt-1 shadow" style="z-index: 1050; max-height: 200px; overflow-y: auto; display: none;"></div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="objekt" class="form-label">Objekt</label>
+                                <input type="text" class="form-control" id="objekt" name="objekt" placeholder="Freitext" value="<?php echo htmlspecialchars($draft['objekt'] ?? ''); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label for="eigentuemer" class="form-label">Eigentümer</label>
+                                <input type="text" class="form-control" id="eigentuemer" name="eigentuemer" placeholder="Freitext" value="<?php echo htmlspecialchars($draft['eigentuemer'] ?? ''); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label for="geschaedigter" class="form-label">Geschädigter</label>
+                                <input type="text" class="form-control" id="geschaedigter" name="geschaedigter" placeholder="Freitext" value="<?php echo htmlspecialchars($draft['geschaedigter'] ?? ''); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label for="klassifizierung" class="form-label">Klassifizierung / Stichwörter</label>
+                                <select class="form-select" id="klassifizierung" name="klassifizierung">
+                                    <option value="">— keine Auswahl —</option>
+                                    <?php foreach ($klassifizierung_optionen as $opt): ?>
+                                        <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo ($draft['klassifizierung'] ?? '') === $opt ? 'selected' : ''; ?>><?php echo htmlspecialchars($opt); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Kostenpflichtiger Einsatz</label>
+                                <div class="d-flex gap-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="kostenpflichtiger_einsatz" id="kosten_ja" value="ja" <?php echo ($draft['kostenpflichtiger_einsatz'] ?? '') === 'ja' ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="kosten_ja">Ja</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="kostenpflichtiger_einsatz" id="kosten_nein" value="nein" <?php echo ($draft['kostenpflichtiger_einsatz'] ?? '') === 'nein' ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="kosten_nein">Nein</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="personenschaeden" class="form-label">Personenschäden</label>
+                                <select class="form-select" id="personenschaeden" name="personenschaeden">
+                                    <option value="">— keine Auswahl —</option>
+                                    <?php foreach ($personenschaeden_optionen as $opt): ?>
+                                        <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo ($draft['personenschaeden'] ?? '') === $opt ? 'selected' : ''; ?>><?php echo htmlspecialchars($opt); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label">Brandwache</label>
+                                <div class="d-flex gap-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="brandwache" id="brandwache_ja" value="ja" <?php echo ($draft['brandwache'] ?? '') === 'ja' ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="brandwache_ja">Ja</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="brandwache" id="brandwache_nein" value="nein" <?php echo ($draft['brandwache'] ?? '') === 'nein' ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="brandwache_nein">Nein</label>
+                                    </div>
+                                </div>
+                            </div>
                             <?php if ($is_einsatz): ?>
                             <div class="mb-4">
                                 <label for="typ_sonstige" class="form-label">Typ</label>
@@ -258,6 +381,44 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (function() {
+            var input = document.getElementById('einsatzstelle');
+            var suggestionsEl = document.getElementById('einsatzstelle_suggestions');
+            if (!input || !suggestionsEl) return;
+            var debounceTimer;
+            input.addEventListener('input', function() {
+                clearTimeout(debounceTimer);
+                var q = input.value.trim();
+                if (q.length < 3) { suggestionsEl.style.display = 'none'; suggestionsEl.innerHTML = ''; return; }
+                debounceTimer = setTimeout(function() {
+                    fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(q) + '&countrycodes=de,at,ch&limit=5', {
+                        headers: { 'Accept': 'application/json' }
+                    }).then(function(r) { return r.json(); }).then(function(data) {
+                        suggestionsEl.innerHTML = '';
+                        if (!data || data.length === 0) { suggestionsEl.style.display = 'none'; return; }
+                        data.forEach(function(item) {
+                            var a = document.createElement('button');
+                            a.type = 'button';
+                            a.className = 'list-group-item list-group-item-action list-group-item-light text-start';
+                            a.textContent = item.display_name || item.name || '';
+                            a.addEventListener('click', function() {
+                                input.value = item.display_name || item.name || '';
+                                suggestionsEl.style.display = 'none';
+                                suggestionsEl.innerHTML = '';
+                            });
+                            suggestionsEl.appendChild(a);
+                        });
+                        suggestionsEl.style.display = 'block';
+                    }).catch(function() { suggestionsEl.style.display = 'none'; });
+                }, 400);
+            });
+            input.addEventListener('blur', function() { setTimeout(function() { suggestionsEl.style.display = 'none'; }, 200); });
+            document.addEventListener('click', function(e) {
+                if (!input.contains(e.target) && !suggestionsEl.contains(e.target)) suggestionsEl.style.display = 'none';
+            });
+        })();
+    </script>
     <?php if ($is_einsatz): ?>
     <script>
         document.getElementById('typ_sonstige').addEventListener('change', function() {
