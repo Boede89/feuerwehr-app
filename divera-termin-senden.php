@@ -52,12 +52,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $divera_ok) {
     if (empty($fehler)) {
 
         $url = rtrim($divera_config['api_base_url'], '/') . '/api/v2/events?accesskey=' . urlencode($divera_config['access_key']);
+        // API-Layout laut Divera OpenAPI: Event-Objekt mit notification_type, title, ts_start, ts_end, address, text
         $body = [
-            'title'   => $titel,
-            'start'   => $start_ts,
-            'end'     => $end_ts,
-            'address' => $ort,
-            'comment' => $ort !== '' ? 'Ort: ' . $ort : '',
+            'Event' => [
+                'notification_type' => 2, // 2 = Alle des Standortes
+                'title'             => $titel,
+                'ts_start'          => $start_ts,
+                'ts_end'            => $end_ts,
+                'address'           => $ort,
+                'text'              => $ort !== '' ? 'Ort: ' . $ort : '',
+            ],
         ];
 
         $ctx = stream_context_create([
@@ -79,9 +83,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $divera_ok) {
             $message = 'Der Termin wurde erfolgreich an Divera 24/7 übermittelt.';
             $message_type = 'success';
         } else {
-            $msg = $data['data']['message'] ?? $data['message'] ?? 'Unbekannter Fehler';
+            $msg = $data['data']['message'] ?? $data['message'] ?? $data['error'] ?? null;
             if (is_array($msg)) {
                 $msg = implode(' ', $msg);
+            }
+            if ($msg === null && is_array($data['errors'] ?? null)) {
+                $msg = implode(' ', $data['errors']);
+            }
+            if ($msg === null || $msg === '') {
+                $msg = $code === 403
+                    ? 'Accesskey fehlt oder ist ungültig. Bitte in den globalen Einstellungen prüfen (Divera 24/7 → Access Key).'
+                    : 'Unbekannter Fehler.';
             }
             $message = 'Divera hat den Termin abgelehnt (HTTP ' . $code . '): ' . htmlspecialchars($msg);
             $message_type = 'danger';
