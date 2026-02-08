@@ -17,17 +17,33 @@ $error = '';
 
 // Tabellen erstellen
 try {
+    // Qualifikationen-Tabelle (für Verknüpfung Lehrgang → Qualifikation)
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS member_qualifications (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            sort_order INT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_name (name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
     // Lehrgänge Tabelle
     $db->exec("
         CREATE TABLE IF NOT EXISTS courses (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
             description TEXT,
+            qualification_id INT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY unique_name (name)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
+    try {
+        $db->exec("ALTER TABLE courses ADD COLUMN qualification_id INT NULL");
+    } catch (Exception $e) {
+        // Spalte existiert bereits
+    }
     
     // Lehrgangsanforderungen Tabelle (welche Lehrgänge sind Voraussetzung für einen anderen)
     $db->exec("
@@ -64,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $db->beginTransaction();
                 
                 // Prüfe ob Name bereits existiert (nur beim Hinzufügen)
+                $qualification_id = !empty($_POST['qualification_id']) ? (int)$_POST['qualification_id'] : null;
                 if ($action == 'add') {
                     $stmt_check = $db->prepare("SELECT id FROM courses WHERE name = ?");
                     $stmt_check->execute([$name]);
@@ -71,8 +88,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $error = "Ein Lehrgang mit diesem Namen existiert bereits.";
                         $db->rollBack();
                     } else {
-                        $stmt = $db->prepare("INSERT INTO courses (name, description) VALUES (?, ?)");
-                        $stmt->execute([$name, $description]);
+                        $stmt = $db->prepare("INSERT INTO courses (name, description, qualification_id) VALUES (?, ?, ?)");
+                        $stmt->execute([$name, $description, $qualification_id]);
                         $course_id = $db->lastInsertId();
                         $message = "Lehrgang wurde erfolgreich hinzugefügt.";
                     }
@@ -84,8 +101,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $error = "Ein Lehrgang mit diesem Namen existiert bereits.";
                         $db->rollBack();
                     } else {
-                        $stmt = $db->prepare("UPDATE courses SET name = ?, description = ? WHERE id = ?");
-                        $stmt->execute([$name, $description, $course_id]);
+                        $stmt = $db->prepare("UPDATE courses SET name = ?, description = ?, qualification_id = ? WHERE id = ?");
+                        $stmt->execute([$name, $description, $qualification_id, $course_id]);
                         $message = "Lehrgang wurde erfolgreich aktualisiert.";
                     }
                 }
@@ -161,10 +178,27 @@ if (isset($_GET['success'])) {
     }
 }
 
+// Qualifikationen für Dropdown laden
+$qualifications = [];
+try {
+    $q = $db->query("SELECT id, name FROM member_qualifications ORDER BY sort_order, name");
+    if ($q) {
+        $qualifications = $q->fetchAll(PDO::FETCH_ASSOC);
+    }
+} catch (Exception $e) {
+    // Tabelle evtl. nicht vorhanden
+}
+
 // Lehrgänge laden
 $courses = [];
 try {
-    $stmt = $db->prepare("SELECT id, name, description, created_at, updated_at FROM courses ORDER BY name ASC");
+    $stmt = $db->prepare("
+        SELECT c.id, c.name, c.description, c.qualification_id, c.created_at, c.updated_at,
+               q.name AS qualification_name
+        FROM courses c
+        LEFT JOIN member_qualifications q ON q.id = c.qualification_id
+        ORDER BY c.name ASC
+    ");
     $stmt->execute();
     $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
@@ -266,6 +300,17 @@ $csrf_token = generate_csrf_token();
                             </div>
                             
                             <div class="mb-3">
+                                <label for="qualification_id" class="form-label">Qualifikation</label>
+                                <select class="form-select" id="qualification_id" name="qualification_id">
+                                    <option value="">— keine —</option>
+                                    <?php foreach ($qualifications as $q): ?>
+                                    <option value="<?php echo (int)$q['id']; ?>"><?php echo htmlspecialchars($q['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="form-text text-muted">Wenn gesetzt, wird diese Qualifikation beim Mitglied gesetzt, sobald der Lehrgang dem Mitglied zugewiesen wird. Bei mehreren Lehrgängen mit Qualifikation gilt die Reihenfolge aus den Einstellungen Mitgliederverwaltung.</small>
+                            </div>
+                            
+                            <div class="mb-3">
                                 <label class="form-label">Anforderungen (Voraussetzungen)</label>
                                 <div class="border rounded p-3" id="requirementsButtons" style="max-height: 200px; overflow-y: auto;" role="group" aria-label="Anforderungen auswählen">
                                     <?php if (empty($courses)): ?>
@@ -316,6 +361,7 @@ $csrf_token = generate_csrf_token();
                                         <tr>
                                             <th>Name</th>
                                             <th>Beschreibung</th>
+                                            <th>Qualifikation</th>
                                             <th>Anforderungen</th>
                                             <th>Aktionen</th>
                                         </tr>
@@ -325,6 +371,7 @@ $csrf_token = generate_csrf_token();
                                             <tr>
                                                 <td><strong><?php echo htmlspecialchars($course['name']); ?></strong></td>
                                                 <td><?php echo htmlspecialchars($course['description'] ?? ''); ?></td>
+                                                <td><?php echo htmlspecialchars($course['qualification_name'] ?? '-'); ?></td>
                                                 <td>
                                                     <?php if (!empty($course['requirements'])): ?>
                                                         <?php foreach ($course['requirements'] as $req): ?>
@@ -340,6 +387,7 @@ $csrf_token = generate_csrf_token();
                                                             data-course-id="<?php echo $course['id']; ?>"
                                                             data-course-name="<?php echo htmlspecialchars($course['name'], ENT_QUOTES); ?>"
                                                             data-course-description="<?php echo htmlspecialchars($course['description'] ?? '', ENT_QUOTES); ?>"
+                                                            data-course-qualification-id="<?php echo (int)($course['qualification_id'] ?? 0); ?>"
                                                             data-course-requirements="<?php echo htmlspecialchars(json_encode(!empty($course['requirements']) ? array_column($course['requirements'], 'required_course_id') : []), ENT_QUOTES); ?>">
                                                         <i class="fas fa-edit"></i> Bearbeiten
                                                     </button>
@@ -376,9 +424,10 @@ $csrf_token = generate_csrf_token();
                     const courseId = this.dataset.courseId;
                     const courseName = this.dataset.courseName;
                     const courseDescription = this.dataset.courseDescription;
+                    const courseQualificationId = this.dataset.courseQualificationId || '';
                     const courseRequirements = JSON.parse(this.dataset.courseRequirements || '[]');
                     
-                    editCourse(courseId, courseName, courseDescription, courseRequirements);
+                    editCourse(courseId, courseName, courseDescription, courseQualificationId, courseRequirements);
                 });
             });
             
@@ -419,8 +468,8 @@ $csrf_token = generate_csrf_token();
             });
         });
         
-        function editCourse(id, name, description, requirementIds) {
-            console.log('editCourse aufgerufen:', { id, name, description, requirementIds });
+        function editCourse(id, name, description, qualificationId, requirementIds) {
+            console.log('editCourse aufgerufen:', { id, name, description, qualificationId, requirementIds });
             
             if (!id) {
                 console.error('Keine ID übergeben!');
@@ -433,6 +482,7 @@ $csrf_token = generate_csrf_token();
             const courseIdField = document.getElementById('course_id');
             const nameField = document.getElementById('name');
             const descriptionField = document.getElementById('description');
+            const qualificationField = document.getElementById('qualification_id');
             const submitButton = document.getElementById('submitButton');
             
             if (!actionField || !courseIdField || !nameField || !descriptionField || !submitButton) {
@@ -445,6 +495,7 @@ $csrf_token = generate_csrf_token();
             courseIdField.value = id;
             nameField.value = name || '';
             descriptionField.value = description || '';
+            if (qualificationField) qualificationField.value = qualificationId || '';
             submitButton.innerHTML = '<i class="fas fa-save"></i> Aktualisieren';
             submitButton.classList.remove('btn-primary');
             submitButton.classList.add('btn-success');
@@ -499,6 +550,8 @@ $csrf_token = generate_csrf_token();
             document.getElementById('course_id').value = '';
             document.getElementById('name').value = '';
             document.getElementById('description').value = '';
+            const qSel = document.getElementById('qualification_id');
+            if (qSel) qSel.value = '';
             document.getElementById('submitButton').innerHTML = '<i class="fas fa-save"></i> Hinzufügen';
             document.getElementById('submitButton').classList.remove('btn-success');
             document.getElementById('submitButton').classList.add('btn-primary');

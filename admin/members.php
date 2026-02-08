@@ -81,6 +81,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_course_assignmen
                     }
                 }
                 
+                // Qualifikation des Mitglieds aus Lehrgängen ableiten (beste Qualifikation nach Reihenfolge)
+                try {
+                    $stmt_best = $db->prepare("
+                        SELECT c.qualification_id
+                        FROM member_courses mc
+                        JOIN courses c ON c.id = mc.course_id AND c.qualification_id IS NOT NULL
+                        JOIN member_qualifications q ON q.id = c.qualification_id
+                        WHERE mc.member_id = ?
+                        ORDER BY q.sort_order ASC
+                        LIMIT 1
+                    ");
+                    $stmt_best->execute([$member_id]);
+                    $row = $stmt_best->fetch(PDO::FETCH_ASSOC);
+                    $best_qual_id = $row ? (int)$row['qualification_id'] : null;
+                    $stmt_up = $db->prepare("UPDATE members SET qualification_id = ? WHERE id = ?");
+                    $stmt_up->execute([$best_qual_id, $member_id]);
+                } catch (Exception $e) {
+                    // Tabellen/Spalten evtl. nicht vorhanden
+                }
+                
                 if ($db->inTransaction()) {
                     $db->commit();
                 }
@@ -961,6 +981,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     $stmt_course->execute([$new_member_id, $course_id, $completed_date, $completed_date]);
                                 }
                             }
+                        }
+                        // Qualifikation des neuen Mitglieds aus Lehrgängen ableiten (beste nach Reihenfolge)
+                        try {
+                            $stmt_best = $db->prepare("
+                                SELECT c.qualification_id
+                                FROM member_courses mc
+                                JOIN courses c ON c.id = mc.course_id AND c.qualification_id IS NOT NULL
+                                JOIN member_qualifications q ON q.id = c.qualification_id
+                                WHERE mc.member_id = ?
+                                ORDER BY q.sort_order ASC
+                                LIMIT 1
+                            ");
+                            $stmt_best->execute([$new_member_id]);
+                            $row = $stmt_best->fetch(PDO::FETCH_ASSOC);
+                            $best_qual_id = $row ? (int)$row['qualification_id'] : null;
+                            $stmt_up = $db->prepare("UPDATE members SET qualification_id = ? WHERE id = ?");
+                            $stmt_up->execute([$best_qual_id, $new_member_id]);
+                        } catch (Exception $e) {
+                            // Tabellen/Spalten evtl. nicht vorhanden
                         }
                     }
                     

@@ -231,7 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </h5>
                     </div>
                     <div class="card-body">
-                        <p class="text-muted small">Diese Qualifikationen können bei Mitgliedern im Dropdown „Qualifikation“ ausgewählt werden.</p>
+                        <p class="text-muted small">Diese Qualifikationen können bei Mitgliedern im Dropdown „Qualifikation“ ausgewählt werden. Die <strong>Reihenfolge</strong> legt fest, welche Qualifikation bei einem Mitglied mit mehreren Lehrgängen (mit unterschiedlichen Qualifikationen) angezeigt wird: Die Qualifikation mit der kleinsten Reihenfolge-Nummer (1 = höchste Stufe) gilt.</p>
                         <?php if (empty($qualifications)): ?>
                             <p class="text-muted text-center py-4">
                                 <i class="fas fa-info-circle"></i> Noch keine Qualifikationen angelegt.
@@ -296,7 +296,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="mb-3">
                                 <label for="qual_sort_order" class="form-label">Reihenfolge</label>
                                 <input type="number" class="form-control" id="qual_sort_order" name="sort_order" value="0" min="0">
-                                <small class="form-text text-muted">Kleinere Zahl = weiter oben in der Auswahl.</small>
+                                <small class="form-text text-muted">Kleinere Zahl = weiter oben in der Auswahl. Wenn ein Mitglied mehrere Lehrgänge mit unterschiedlichen Qualifikationen hat, wird automatisch die Qualifikation mit der <strong>kleinsten Reihenfolge-Nummer</strong> (1 = höchste Stufe) als Anzeige-Qualifikation des Mitglieds verwendet.</small>
                             </div>
 
                             <div class="d-flex gap-2">
