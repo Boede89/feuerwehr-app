@@ -77,9 +77,33 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'kostenpflichtiger_einsatz' => '',
         'personenschaeden' => '',
         'brandwache' => '',
+        'einsatzleiter_member_id' => null,
+        'einsatzleiter_freitext' => '',
     ];
+    $_SESSION[$draft_key]['uhrzeit_bis'] = date('H:i');
 }
 $draft = &$_SESSION[$draft_key];
+
+// Mitglieder für Einsatzleiter-Dropdown (zuerst die bei Personal ausgewählten)
+$members_list = [];
+try {
+    $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    $members_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $members_list = [];
+}
+$members_selected_ids = array_flip($draft['members']);
+$members_for_einsatzleiter = [];
+foreach ($members_list as $m) {
+    if (isset($members_selected_ids[$m['id']])) {
+        $members_for_einsatzleiter[] = $m;
+    }
+}
+foreach ($members_list as $m) {
+    if (!isset($members_selected_ids[$m['id']])) {
+        $members_for_einsatzleiter[] = $m;
+    }
+}
 
 $message = '';
 $error = '';
@@ -106,6 +130,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
     $draft['kostenpflichtiger_einsatz'] = trim($_POST['kostenpflichtiger_einsatz'] ?? '');
     $draft['personenschaeden'] = trim($_POST['personenschaeden'] ?? '');
     $draft['brandwache'] = trim($_POST['brandwache'] ?? '');
+    $einsatzleiter_val = trim($_POST['einsatzleiter'] ?? '');
+    if ($einsatzleiter_val === '__freitext__') {
+        $draft['einsatzleiter_member_id'] = null;
+        $draft['einsatzleiter_freitext'] = trim($_POST['einsatzleiter_freitext'] ?? '');
+    } elseif ($einsatzleiter_val !== '' && ctype_digit($einsatzleiter_val)) {
+        $mid = (int)$einsatzleiter_val;
+        $draft['einsatzleiter_member_id'] = $mid;
+        $draft['einsatzleiter_freitext'] = '';
+        if (!in_array($mid, $draft['members'])) {
+            $draft['members'][] = $mid;
+        }
+    } else {
+        $draft['einsatzleiter_member_id'] = null;
+        $draft['einsatzleiter_freitext'] = '';
+    }
     if ($draft['typ'] === 'einsatz') {
         if ($typ_sonstige === '__custom__') {
             $draft['bezeichnung_sonstige'] = $typ_sonstige_freitext !== '' ? $typ_sonstige_freitext : 'Sonstiges';
@@ -127,8 +166,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         $stmt = $db->prepare("
             INSERT INTO anwesenheitslisten (datum, dienstplan_id, typ, bezeichnung, user_id, bemerkung,
                 uhrzeit_von, uhrzeit_bis, alarmierung_durch, einsatzstelle, objekt, eigentuemer, geschaedigter,
-                klassifizierung, kostenpflichtiger_einsatz, personenschaeden, brandwache)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                klassifizierung, kostenpflichtiger_einsatz, personenschaeden, brandwache, einsatzleiter_member_id, einsatzleiter_freitext)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             $draft['datum'], $dp_id, $typ_save, $bezeichnung_save, $_SESSION['user_id'], $draft['bemerkung'] !== '' ? $draft['bemerkung'] : null,
@@ -141,7 +180,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             $draft['klassifizierung'] !== '' ? $draft['klassifizierung'] : null,
             $draft['kostenpflichtiger_einsatz'] !== '' ? $draft['kostenpflichtiger_einsatz'] : null,
             $draft['personenschaeden'] !== '' ? $draft['personenschaeden'] : null,
-            $draft['brandwache'] !== '' ? $draft['brandwache'] : null
+            $draft['brandwache'] !== '' ? $draft['brandwache'] : null,
+            $draft['einsatzleiter_member_id'] ?? null,
+            $draft['einsatzleiter_freitext'] !== '' ? $draft['einsatzleiter_freitext'] : null
         ]);
         $list_id = $db->lastInsertId();
         foreach ($draft['members'] as $mid) {
@@ -244,6 +285,23 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
 
                         <form method="post" id="mainForm">
                             <input type="hidden" name="save_final" value="1">
+                            <p class="form-label mb-2">Personal und Fahrzeuge erfassen:</p>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <a href="<?php echo htmlspecialchars($personal_url); ?>" class="btn btn-primary w-100 anwesenheits-option-btn">
+                                        <i class="fas fa-users fa-2x mb-2"></i>
+                                        <span>Personal</span>
+                                        <small class="d-block mt-1 opacity-90">Anwesende auswählen, Fahrzeug zuordnen</small>
+                                    </a>
+                                </div>
+                                <div class="col-md-6">
+                                    <a href="<?php echo htmlspecialchars($fahrzeuge_url); ?>" class="btn btn-outline-primary w-100 anwesenheits-option-btn">
+                                        <i class="fas fa-truck fa-2x mb-2"></i>
+                                        <span>Fahrzeuge</span>
+                                        <small class="d-block mt-1 opacity-90">Eingesetzte Fahrzeuge, Maschinist & Einheitsführer</small>
+                                    </a>
+                                </div>
+                            </div>
                             <div class="row g-3 mb-4">
                                 <div class="col-md-6">
                                     <label for="uhrzeit_von" class="form-label">Uhrzeit von</label>
@@ -251,7 +309,20 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                 </div>
                                 <div class="col-md-6">
                                     <label for="uhrzeit_bis" class="form-label">Uhrzeit bis</label>
-                                    <input type="time" class="form-control" id="uhrzeit_bis" name="uhrzeit_bis" value="<?php echo htmlspecialchars($draft['uhrzeit_bis'] ?? ''); ?>">
+                                    <input type="time" class="form-control" id="uhrzeit_bis" name="uhrzeit_bis" value="<?php echo htmlspecialchars(!empty($draft['uhrzeit_bis']) ? $draft['uhrzeit_bis'] : date('H:i')); ?>">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="einsatzleiter" class="form-label">Einsatzleiter</label>
+                                <select class="form-select" id="einsatzleiter" name="einsatzleiter">
+                                    <option value="">— keine Auswahl —</option>
+                                    <?php foreach ($members_for_einsatzleiter as $m): ?>
+                                        <option value="<?php echo (int)$m['id']; ?>" <?php echo (isset($draft['einsatzleiter_member_id']) && (int)$draft['einsatzleiter_member_id'] === (int)$m['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></option>
+                                    <?php endforeach; ?>
+                                    <option value="__freitext__" <?php echo !empty($draft['einsatzleiter_freitext']) ? 'selected' : ''; ?>>— Freitext (z. B. andere Feuerwehr) —</option>
+                                </select>
+                                <div class="mt-2" id="einsatzleiter_freitext_wrap" style="display: <?php echo !empty($draft['einsatzleiter_freitext']) ? 'block' : 'none'; ?>;">
+                                    <input type="text" class="form-control" id="einsatzleiter_freitext" name="einsatzleiter_freitext" placeholder="Name Einsatzleiter (z. B. andere Feuerwehr)" value="<?php echo htmlspecialchars($draft['einsatzleiter_freitext'] ?? ''); ?>">
                                 </div>
                             </div>
                             <div class="mb-3">
@@ -339,26 +410,8 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                             </div>
                             <?php endif; ?>
                             <div class="mb-4">
-                                <label for="bemerkung" class="form-label">Bemerkung (optional)</label>
-                                <textarea class="form-control" id="bemerkung" name="bemerkung" rows="2" placeholder="z. B. kurze Anmerkung"><?php echo htmlspecialchars($draft['bemerkung'] ?? ''); ?></textarea>
-                            </div>
-
-                            <p class="form-label mb-2">Personal und Fahrzeuge erfassen:</p>
-                            <div class="row g-3 mb-4">
-                                <div class="col-md-6">
-                                    <a href="<?php echo htmlspecialchars($personal_url); ?>" class="btn btn-primary w-100 anwesenheits-option-btn">
-                                        <i class="fas fa-users fa-2x mb-2"></i>
-                                        <span>Personal</span>
-                                        <small class="d-block mt-1 opacity-90">Anwesende auswählen, Fahrzeug zuordnen</small>
-                                    </a>
-                                </div>
-                                <div class="col-md-6">
-                                    <a href="<?php echo htmlspecialchars($fahrzeuge_url); ?>" class="btn btn-outline-primary w-100 anwesenheits-option-btn">
-                                        <i class="fas fa-truck fa-2x mb-2"></i>
-                                        <span>Fahrzeuge</span>
-                                        <small class="d-block mt-1 opacity-90">Eingesetzte Fahrzeuge, Maschinist & Einheitsführer</small>
-                                    </a>
-                                </div>
+                                <label for="bemerkung" class="form-label">Einsatzkurzbericht</label>
+                                <textarea class="form-control" id="bemerkung" name="bemerkung" rows="3" placeholder="Kurzer Bericht zum Einsatz"><?php echo htmlspecialchars($draft['bemerkung'] ?? ''); ?></textarea>
                             </div>
 
                             <div class="d-flex flex-wrap gap-2">
@@ -418,6 +471,11 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                 if (!input.contains(e.target) && !suggestionsEl.contains(e.target)) suggestionsEl.style.display = 'none';
             });
         })();
+    </script>
+    <script>
+        document.getElementById('einsatzleiter').addEventListener('change', function() {
+            document.getElementById('einsatzleiter_freitext_wrap').style.display = this.value === '__freitext__' ? 'block' : 'none';
+        });
     </script>
     <?php if ($is_einsatz): ?>
     <script>

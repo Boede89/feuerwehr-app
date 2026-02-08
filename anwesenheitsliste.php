@@ -75,6 +75,8 @@ try {
         "kostenpflichtiger_einsatz VARCHAR(10) NULL",
         "personenschaeden VARCHAR(50) NULL",
         "brandwache VARCHAR(10) NULL",
+        "einsatzleiter_member_id INT NULL",
+        "einsatzleiter_freitext VARCHAR(255) NULL",
     ];
     foreach ($anwesenheit_extra_columns as $colDef) {
         $colName = preg_replace('/\s.*/', '', $colDef);
