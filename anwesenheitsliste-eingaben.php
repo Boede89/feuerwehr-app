@@ -7,6 +7,10 @@ require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/dienstplan-typen.php';
 
+if (!$db) {
+    header('Content-Type: text/html; charset=utf-8');
+    die('Datenbankverbindung fehlgeschlagen. Bitte Konfiguration prüfen.');
+}
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
@@ -83,6 +87,34 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
     $_SESSION[$draft_key]['uhrzeit_bis'] = date('H:i');
 }
 $draft = &$_SESSION[$draft_key];
+
+// Fehlende Draft-Keys ergänzen (z. B. nach Update oder alter Session)
+$draft_defaults = [
+    'uhrzeit_von' => '', 'uhrzeit_bis' => $draft['uhrzeit_bis'] ?? date('H:i'),
+    'alarmierung_durch' => '', 'einsatzstelle' => '', 'objekt' => '', 'eigentuemer' => '', 'geschaedigter' => '',
+    'klassifizierung' => '', 'kostenpflichtiger_einsatz' => '', 'personenschaeden' => '', 'brandwache' => '',
+    'einsatzleiter_member_id' => null, 'einsatzleiter_freitext' => '',
+];
+foreach ($draft_defaults as $k => $v) {
+    if (!array_key_exists($k, $draft)) {
+        $draft[$k] = $v;
+    }
+}
+
+// Sicherstellen, dass anwesenheitslisten alle Spalten hat (falls Nutzer direkt diese Seite aufruft)
+$extra_columns = [
+    'uhrzeit_von TIME NULL', 'uhrzeit_bis TIME NULL', 'alarmierung_durch VARCHAR(100) NULL',
+    'einsatzstelle VARCHAR(255) NULL', 'objekt TEXT NULL', 'eigentuemer VARCHAR(255) NULL', 'geschaedigter VARCHAR(255) NULL',
+    'klassifizierung VARCHAR(100) NULL', 'kostenpflichtiger_einsatz VARCHAR(10) NULL', 'personenschaeden VARCHAR(50) NULL',
+    'brandwache VARCHAR(10) NULL', 'einsatzleiter_member_id INT NULL', 'einsatzleiter_freitext VARCHAR(255) NULL',
+];
+foreach ($extra_columns as $colDef) {
+    try {
+        $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN {$colDef}");
+    } catch (Exception $e) {
+        // Spalte existiert bereits
+    }
+}
 
 // Mitglieder für Einsatzleiter-Dropdown (zuerst die bei Personal ausgewählten)
 $members_list = [];

@@ -8,6 +8,10 @@ require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/dienstplan-typen.php';
 
+if (!$db) {
+    header('Content-Type: text/html; charset=utf-8');
+    die('Datenbankverbindung fehlgeschlagen. Bitte Konfiguration prüfen.');
+}
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
