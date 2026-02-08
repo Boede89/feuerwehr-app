@@ -3,13 +3,34 @@
  * Anwesenheitsliste – Schritt 2: Personal/Fahrzeuge auswählen, nur hier speichern.
  */
 session_start();
+ob_start();
+register_shutdown_function(function () {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        ob_end_clean();
+        if (!headers_sent()) {
+            header('Content-Type: text/html; charset=utf-8');
+            header('HTTP/1.0 500 Internal Server Error');
+        }
+        echo '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Fehler – Anwesenheitsliste</title></head><body style="font-family:sans-serif;max-width:600px;margin:2rem auto;padding:1rem;">';
+        echo '<h1>Fehler beim Laden der Anwesenheitsliste</h1>';
+        echo '<p>Die Seite konnte nicht geladen werden. Bitte prüfen Sie die Konfiguration (Datenbank, PHP-Version) oder wenden Sie sich an den Administrator.</p>';
+        echo '<p><strong>Technische Details:</strong><br><code>' . htmlspecialchars($err['message']) . '</code></p>';
+        echo '<p><small>Datei: ' . htmlspecialchars($err['file']) . ' · Zeile: ' . (int)$err['line'] . '</small></p>';
+        echo '<p><a href="anwesenheitsliste.php">Zurück zur Anwesenheitsliste</a> · <a href="index.php">Zur Startseite</a></p>';
+        echo '</body></html>';
+    } else {
+        ob_end_flush();
+    }
+});
+
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/dienstplan-typen.php';
 
 if (!$db) {
-    header('Content-Type: text/html; charset=utf-8');
-    die('Datenbankverbindung fehlgeschlagen. Bitte Konfiguration prüfen.');
+    @header('Content-Type: text/html; charset=utf-8');
+    die('Datenbankverbindung fehlgeschlagen. Bitte Konfiguration in config/database.php prüfen.');
 }
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -110,9 +131,9 @@ $extra_columns = [
 ];
 foreach ($extra_columns as $colDef) {
     try {
-        $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN {$colDef}");
-    } catch (Exception $e) {
-        // Spalte existiert bereits
+        $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN " . $colDef);
+    } catch (Throwable $e) {
+        // Spalte existiert bereits oder Tabelle existiert noch nicht (wird in anwesenheitsliste.php angelegt)
     }
 }
 
