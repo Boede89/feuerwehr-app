@@ -20,6 +20,7 @@ $divera_ok = !empty($divera_config['access_key']);
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $divera_ok) {
     $datum = trim($_POST['datum'] ?? '');
     $uhrzeit = trim($_POST['uhrzeit'] ?? '');
+    $uhrzeit_bis = trim($_POST['uhrzeit_bis'] ?? '');
     $titel = trim($_POST['titel'] ?? '');
     $ort = trim($_POST['ort'] ?? '');
 
@@ -28,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $divera_ok) {
         $fehler[] = 'Bitte ein gültiges Datum angeben.';
     }
     if ($uhrzeit === '') {
-        $fehler[] = 'Bitte eine Uhrzeit angeben.';
+        $fehler[] = 'Bitte eine Startzeit angeben.';
     }
     if ($titel === '') {
         $fehler[] = 'Bitte einen Titel angeben.';
@@ -37,7 +38,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $divera_ok) {
     if (empty($fehler)) {
         $start_dt = $datum . ' ' . ($uhrzeit ?: '00:00');
         $start_ts = strtotime($start_dt);
-        $end_ts = $start_ts + 3600; // 1 Stunde Dauer (Divera: Start + Ende)
+        if ($uhrzeit_bis !== '') {
+            $end_dt = $datum . ' ' . $uhrzeit_bis;
+            $end_ts = strtotime($end_dt);
+            if ($end_ts <= $start_ts) {
+                $fehler[] = 'Die Endzeit muss nach der Startzeit liegen.';
+            }
+        } else {
+            $end_ts = $start_ts + 3600; // Standard: 1 Stunde
+        }
+    }
+
+    if (empty($fehler)) {
 
         $url = rtrim($divera_config['api_base_url'], '/') . '/api/v2/events?accesskey=' . urlencode($divera_config['access_key']);
         $body = [
@@ -143,9 +155,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $divera_ok) {
                                     <label for="datum" class="form-label">Datum</label>
                                     <input type="date" class="form-control" id="datum" name="datum" value="<?php echo htmlspecialchars($_POST['datum'] ?? date('Y-m-d')); ?>" required>
                                 </div>
-                                <div class="mb-3">
-                                    <label for="uhrzeit" class="form-label">Uhrzeit</label>
-                                    <input type="time" class="form-control" id="uhrzeit" name="uhrzeit" value="<?php echo htmlspecialchars($_POST['uhrzeit'] ?? '19:00'); ?>" required>
+                                <div class="row g-2">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="uhrzeit" class="form-label">Uhrzeit von</label>
+                                        <input type="time" class="form-control" id="uhrzeit" name="uhrzeit" value="<?php echo htmlspecialchars($_POST['uhrzeit'] ?? '19:00'); ?>" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="uhrzeit_bis" class="form-label">Uhrzeit bis</label>
+                                        <input type="time" class="form-control" id="uhrzeit_bis" name="uhrzeit_bis" value="<?php echo htmlspecialchars($_POST['uhrzeit_bis'] ?? '20:00'); ?>" placeholder="Optional">
+                                    </div>
                                 </div>
                                 <div class="mb-3">
                                     <label for="titel" class="form-label">Titel</label>
@@ -160,7 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $divera_ok) {
                                     <a href="formulare.php" class="btn btn-secondary">Abbrechen</a>
                                 </div>
                             </form>
-                            <p class="text-muted small mt-3 mb-0">Die Termindauer wird standardmäßig mit 1 Stunde angenommen. Bei der kostenlosen Divera-Version gelten Einschränkungen (z. B. ein Termin pro 5 Minuten).</p>
+                            <p class="text-muted small mt-3 mb-0">Ohne Angabe „Uhrzeit bis“ wird 1 Stunde Dauer angenommen. Bei der kostenlosen Divera-Version gelten Einschränkungen (z.&nbsp;B. ein Termin pro 5 Minuten).</p>
                         <?php endif; ?>
                     </div>
                 </div>
