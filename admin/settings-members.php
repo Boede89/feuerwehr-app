@@ -41,6 +41,19 @@ try {
     $error = 'Fehler beim Laden der Qualifikationen: ' . $e->getMessage();
 }
 
+// Standardqualifikation laden
+$default_qualification_id = '';
+try {
+    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = ?");
+    $stmt->execute(['member_default_qualification_id']);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row && $row['setting_value'] !== '') {
+        $default_qualification_id = $row['setting_value'];
+    }
+} catch (Exception $e) {
+    // settings-Tabelle oder Eintrag fehlt
+}
+
 // Qualifikation hinzufügen/bearbeiten
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -71,22 +84,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (isset($_POST['delete_qual'])) {
                 $qual_id = (int)$_POST['qual_id'];
-                $stmt = $db->prepare("SELECT COUNT(*) AS cnt FROM members WHERE qualification_id = ?");
-                $stmt->execute([$qual_id]);
-                $row = $stmt->fetch(PDO::FETCH_ASSOC);
-                if ($row['cnt'] > 0) {
-                    $error = 'Diese Qualifikation ist noch Mitgliedern zugewiesen und kann nicht gelöscht werden.';
+                if ((string)$qual_id === (string)$default_qualification_id) {
+                    $error = 'Die Standardqualifikation kann nicht gelöscht werden. Setzen Sie zuerst eine andere Standardqualifikation oder „Keine“.';
                 } else {
-                    $stmt = $db->prepare("DELETE FROM member_qualifications WHERE id = ?");
+                    $stmt = $db->prepare("SELECT COUNT(*) AS cnt FROM members WHERE qualification_id = ?");
                     $stmt->execute([$qual_id]);
-                    $message = 'Qualifikation wurde erfolgreich gelöscht.';
+                    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if ($row['cnt'] > 0) {
+                        $error = 'Diese Qualifikation ist noch Mitgliedern zugewiesen und kann nicht gelöscht werden.';
+                    } else {
+                        $stmt = $db->prepare("DELETE FROM member_qualifications WHERE id = ?");
+                        $stmt->execute([$qual_id]);
+                        $message = 'Qualifikation wurde erfolgreich gelöscht.';
+                    }
                 }
+            }
+
+            // Standardqualifikation speichern
+            if (isset($_POST['save_default_qual'])) {
+                $new_default = trim($_POST['default_qualification_id'] ?? '');
+                $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+                $stmt->execute(['member_default_qualification_id', $new_default]);
+                $default_qualification_id = $new_default;
+                $message = 'Standardqualifikation wurde gespeichert.';
             }
 
             $db->commit();
 
             $stmt = $db->query("SELECT id, name, sort_order FROM member_qualifications ORDER BY sort_order, name");
             $qualifications = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+            if (isset($_POST['save_default_qual'])) {
+                $default_qualification_id = trim($_POST['default_qualification_id'] ?? '');
+            }
         } catch (Exception $e) {
             if ($db->inTransaction()) {
                 $db->rollBack();
@@ -160,6 +189,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <a href="settings.php" class="btn btn-outline-secondary">
                     <i class="fas fa-arrow-left"></i> Zurück zu Einstellungen
                 </a>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-12 col-lg-6">
+                <div class="card shadow">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-star"></i> Standardqualifikation
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small">Diese Qualifikation wird bei neuen Mitgliedern vorausgewählt und gespeichert, wenn beim Anlegen oder Bearbeiten keine andere gewählt wird.</p>
+                        <form method="POST" action="">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                            <div class="mb-3">
+                                <label for="default_qualification_id" class="form-label">Standardqualifikation</label>
+                                <select class="form-select" name="default_qualification_id" id="default_qualification_id">
+                                    <option value="">— Keine —</option>
+                                    <?php foreach ($qualifications as $q): ?>
+                                    <option value="<?php echo (int)$q['id']; ?>" <?php echo ($default_qualification_id === (string)$q['id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($q['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <button type="submit" name="save_default_qual" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Speichern
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
 

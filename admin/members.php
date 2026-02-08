@@ -379,6 +379,22 @@ try {
     $error = 'Fehler beim Laden der Mitglieder: ' . $e->getMessage();
 }
 
+// Standardqualifikation aus Einstellungen laden
+$default_qualification_id = null;
+try {
+    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = ?");
+    $stmt->execute(['member_default_qualification_id']);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row && $row['setting_value'] !== '') {
+        $default_qualification_id = (int)$row['setting_value'];
+        if ($default_qualification_id <= 0) {
+            $default_qualification_id = null;
+        }
+    }
+} catch (Exception $e) {
+    // Einstellung fehlt
+}
+
 // Prüfe ob aktueller Benutzer Admin ist
 $is_admin = hasAdminPermission();
 
@@ -661,6 +677,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $birthdate = trim($_POST['birthdate'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
         $qualification_id = !empty($_POST['qualification_id']) ? (int)$_POST['qualification_id'] : null;
+        if ($qualification_id === null && $default_qualification_id !== null) {
+            $qualification_id = $default_qualification_id;
+        }
         $create_user = isset($_POST['create_user']) && $_POST['create_user'] == '1';
         $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
         $strecke_am = trim($_POST['strecke_am'] ?? '');
@@ -1007,6 +1026,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $birthdate = trim($_POST['birthdate'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
         $qualification_id = !empty($_POST['qualification_id']) ? (int)$_POST['qualification_id'] : null;
+        if ($qualification_id === null && $default_qualification_id !== null) {
+            $qualification_id = $default_qualification_id;
+        }
         $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
         $create_user = isset($_POST['create_user']) && $_POST['create_user'] == '1';
         $strecke_am = trim($_POST['strecke_am'] ?? '');
@@ -2167,8 +2189,17 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        var defaultQualificationId = <?php echo json_encode($default_qualification_id !== null ? (string)$default_qualification_id : ''); ?>;
         // Event-Listener für klickbare Zeilen
         document.addEventListener('DOMContentLoaded', function() {
+            // Beim Öffnen des Modals im „Hinzufügen“-Modus Standardqualifikation setzen
+            document.getElementById('addMemberModal').addEventListener('show.bs.modal', function() {
+                var actionInput = document.getElementById('memberAction');
+                var qualEl = document.getElementById('memberQualification');
+                if (actionInput && actionInput.value === 'add_member' && qualEl) {
+                    qualEl.value = defaultQualificationId || '';
+                }
+            });
             // Wenn RIC-Zuweisungen gespeichert wurden und member_id vorhanden, Details-Modal öffnen
             <?php if (isset($_GET['success']) && $_GET['success'] === 'ric_saved' && isset($_GET['member_id'])): ?>
             const savedMemberId = <?php echo (int)$_GET['member_id']; ?>;
