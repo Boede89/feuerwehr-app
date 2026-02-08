@@ -102,8 +102,6 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
     <link href="assets/css/style.css" rel="stylesheet">
     <style>
         tr.anw-row { cursor: pointer; }
-        tr.anw-row.selected { background-color: rgba(13, 110, 253, 0.15); }
-        tr.anw-row.selected td.name-cell { font-weight: 600; }
         .anw-row .no-click { cursor: default; }
     </style>
 </head>
@@ -149,7 +147,7 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                 <p class="text-muted">Keine Mitglieder in der Datenbank. Bitte zuerst in der Mitgliederverwaltung anlegen.</p>
                             <?php else: ?>
                                 <div class="table-responsive">
-                                    <table class="table table-hover">
+                                    <table class="table table-hover anwesenheit-tabelle">
                                         <thead>
                                             <tr>
                                                 <th>Name</th>
@@ -167,10 +165,11 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                                     $role_cur = 'einheitsfuehrer';
                                                 }
                                             ?>
-                                            <tr class="anw-row <?php echo isset($selected_ids[$m['id']]) ? 'selected' : ''; ?>" data-member-id="<?php echo (int)$m['id']; ?>">
-                                                <td class="name-cell">
-                                                    <input type="hidden" name="member_id[]" value="<?php echo (int)$m['id']; ?>" class="member-id-input" <?php echo isset($selected_ids[$m['id']]) ? '' : 'disabled'; ?>>
-                                                    <span class="d-block py-1"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></span>
+                                            <?php $row_selected = isset($selected_ids[$m['id']]); ?>
+                                            <tr class="anw-row <?php echo $row_selected ? 'selected' : ''; ?>" data-member-id="<?php echo (int)$m['id']; ?>">
+                                                <td class="name-cell" <?php echo $row_selected ? ' style="background-color: #b6d4fe;"' : ''; ?>>
+                                                    <input type="hidden" name="member_id[]" value="<?php echo (int)$m['id']; ?>" class="member-id-input" <?php echo $row_selected ? '' : 'disabled'; ?>>
+                                                    <span class="d-block py-1 <?php echo $row_selected ? 'fw-bold' : ''; ?>"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></span>
                                                 </td>
                                                 <td class="no-click">
                                                     <select class="form-select form-select-sm" name="vehicle[<?php echo (int)$m['id']; ?>]">
@@ -212,7 +211,6 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.querySelectorAll('.anw-row').forEach(function(row) {
-            var memberId = row.dataset.memberId;
             var nameCell = row.querySelector('.name-cell');
             var hiddenInput = row.querySelector('.member-id-input');
             if (!nameCell || !hiddenInput) return;
@@ -221,9 +219,15 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                 if (hiddenInput.disabled) {
                     hiddenInput.disabled = false;
                     row.classList.add('selected');
+                    nameCell.style.backgroundColor = '#b6d4fe';
+                    var span = nameCell.querySelector('.d-block');
+                    if (span) span.classList.add('fw-bold');
                 } else {
                     hiddenInput.disabled = true;
                     row.classList.remove('selected');
+                    nameCell.style.backgroundColor = '';
+                    var span = nameCell.querySelector('.d-block');
+                    if (span) span.classList.remove('fw-bold');
                 }
             });
         });

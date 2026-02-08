@@ -83,18 +83,20 @@ foreach ($draft['member_vehicle'] as $mid => $vid) {
     }
 }
 
-// Pro Fahrzeug: Mitglieder die diesem Fahrzeug zugeordnet sind zuerst im Dropdown anzeigen (Option-Gruppe)
-function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id, $draft_members) {
+// Pro Fahrzeug: Nur Mitglieder anzeigen, die diesem Fahrzeug zugeordnet sind oder noch keinem Fahrzeug zugeordnet sind.
+// Eine Person, die bereits einem anderen Fahrzeug zugeordnet ist, erscheint nicht in der Liste anderer Fahrzeuge.
+function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
     $on_vehicle = [];
     $others = [];
-    $draft_set = array_flip($draft_members);
+    $vehicle_id = (int)$vehicle_id;
     foreach ($members as $m) {
-        $assigned = isset($member_vehicle[$m['id']]) && (int)$member_vehicle[$m['id']] === (int)$vehicle_id;
-        if ($assigned) {
+        $assigned_vehicle = isset($member_vehicle[$m['id']]) ? (int)$member_vehicle[$m['id']] : 0;
+        if ($assigned_vehicle === $vehicle_id) {
             $on_vehicle[] = $m;
-        } else {
+        } elseif ($assigned_vehicle === 0) {
             $others[] = $m;
         }
+        // Wenn $assigned_vehicle !== 0 und !== $vehicle_id: Person ist anderem Fahrzeug zugeordnet → nicht anzeigen
     }
     return ['on_vehicle' => $on_vehicle, 'others' => $others];
 }
@@ -110,8 +112,6 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id, $d
     <link href="assets/css/style.css" rel="stylesheet">
     <style>
         tr.anw-row { cursor: pointer; }
-        tr.anw-row.selected { background-color: rgba(13, 110, 253, 0.15); }
-        tr.anw-row.selected td.name-cell { font-weight: 600; }
         .anw-row .no-click { cursor: default; }
     </style>
 </head>
@@ -157,7 +157,7 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id, $d
                                 <p class="text-muted">Keine Fahrzeuge in der Datenbank. Bitte in der Fahrzeugverwaltung anlegen.</p>
                             <?php else: ?>
                                 <div class="table-responsive">
-                                    <table class="table table-hover">
+                                    <table class="table table-hover anwesenheit-tabelle">
                                         <thead>
                                             <tr>
                                                 <th>Fahrzeug</th>
@@ -168,13 +168,13 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id, $d
                                         <tbody>
                                             <?php foreach ($vehicles as $v): ?>
                                             <?php
-                                            $groups = members_for_vehicle_dropdown($members, $draft['member_vehicle'], $v['id'], $draft['members']);
+                                            $groups = members_for_vehicle_dropdown($members, $draft['member_vehicle'], $v['id']);
                                             $masch_val = isset($draft['vehicle_maschinist'][$v['id']]) ? $draft['vehicle_maschinist'][$v['id']] : '';
                                             $einh_val = isset($draft['vehicle_einheitsfuehrer'][$v['id']]) ? $draft['vehicle_einheitsfuehrer'][$v['id']] : '';
                                             $is_selected = isset($selected_vehicles[$v['id']]);
                                             ?>
                                             <tr class="anw-row <?php echo $is_selected ? 'selected' : ''; ?>" data-vehicle-id="<?php echo (int)$v['id']; ?>">
-                                                <td class="name-cell">
+                                                <td class="name-cell"<?php echo $is_selected ? ' style="background-color: #b6d4fe;"' : ''; ?>>
                                                     <input type="hidden" name="vehicle_id[]" value="<?php echo (int)$v['id']; ?>" class="vehicle-id-input" <?php echo $is_selected ? '' : 'disabled'; ?>>
                                                     <span class="d-block py-1 fw-bold"><?php echo htmlspecialchars($v['name']); ?></span>
                                                 </td>
@@ -227,9 +227,11 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id, $d
                 if (hiddenInput.disabled) {
                     hiddenInput.disabled = false;
                     row.classList.add('selected');
+                    nameCell.style.backgroundColor = '#b6d4fe';
                 } else {
                     hiddenInput.disabled = true;
                     row.classList.remove('selected');
+                    nameCell.style.backgroundColor = '';
                 }
             });
         });

@@ -133,6 +133,15 @@ body {
     border-color: #f8f9fa;
 }
 
+/* Anwesenheitsliste: farbiger Hintergrund für ausgewählte Namenszelle (Personal/Fahrzeuge) */
+table.anwesenheit-tabelle tbody tr.anw-row.selected td.name-cell,
+table.anwesenheit-tabelle tbody tr.anw-row.selected:hover td.name-cell {
+    background-color: #b6d4fe !important;
+}
+table.anwesenheit-tabelle tbody tr.anw-row.selected td.name-cell * {
+    font-weight: 600;
+}
+
 /* Alerts */
 .alert {
     border-radius: 10px;
