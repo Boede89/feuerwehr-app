@@ -110,18 +110,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $db->commit();
-
-            $stmt = $db->query("SELECT id, name, sort_order FROM member_qualifications ORDER BY sort_order, name");
-            $qualifications = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
-            if (isset($_POST['save_default_qual'])) {
-                $default_qualification_id = trim($_POST['default_qualification_id'] ?? '');
-            }
         } catch (Exception $e) {
             if ($db->inTransaction()) {
                 $db->rollBack();
             }
             $error = 'Fehler: ' . $e->getMessage();
         }
+    }
+}
+
+// Qualifikationen für bestehende Mitglieder ohne Eintrag nachziehen (eigener POST, ohne Transaction-Mix)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_missing_qualifications'])) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        try {
+            try {
+                $db->exec("ALTER TABLE members ADD COLUMN qualification_id INT NULL");
+            } catch (Exception $e) {
+                // Spalte existiert bereits
+            }
+            $default_id = null;
+            $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = ?");
+            $stmt->execute(['member_default_qualification_id']);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row && $row['setting_value'] !== '') {
+                $default_id = (int)$row['setting_value'];
+                if ($default_id <= 0) {
+                    $default_id = null;
+                }
+            }
+            // Alle Mitglieder ohne Qualifikation
+            $stmt = $db->query("SELECT id FROM members WHERE qualification_id IS NULL");
+            $members = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+            $updated_from_courses = 0;
+            $updated_from_default = 0;
+            $stmt_best = $db->prepare("
+                SELECT c.qualification_id
+                FROM member_courses mc
+                JOIN courses c ON c.id = mc.course_id AND c.qualification_id IS NOT NULL
+                JOIN member_qualifications q ON q.id = c.qualification_id
+                WHERE mc.member_id = ?
+                ORDER BY q.sort_order ASC
+                LIMIT 1
+            ");
+            $stmt_up = $db->prepare("UPDATE members SET qualification_id = ? WHERE id = ?");
+            foreach ($members as $m) {
+                $member_id = (int)$m['id'];
+                $qual_id = null;
+                $stmt_best->execute([$member_id]);
+                $row = $stmt_best->fetch(PDO::FETCH_ASSOC);
+                if ($row && !empty($row['qualification_id'])) {
+                    $qual_id = (int)$row['qualification_id'];
+                    $updated_from_courses++;
+                } elseif ($default_id !== null) {
+                    $qual_id = $default_id;
+                    $updated_from_default++;
+                }
+                if ($qual_id !== null) {
+                    $stmt_up->execute([$qual_id, $member_id]);
+                }
+            }
+            $total = $updated_from_courses + $updated_from_default;
+            $params = ['success' => 'sync'];
+            if ($total > 0) {
+                $params['from_courses'] = $updated_from_courses;
+                $params['from_default'] = $updated_from_default;
+            }
+            header("Location: settings-members.php?" . http_build_query($params));
+            exit;
+        } catch (Exception $e) {
+            $error = 'Fehler beim Nachziehen: ' . $e->getMessage();
+        }
+    }
+}
+
+// Erfolgsmeldung nach Redirect (sync)
+if (isset($_GET['success']) && $_GET['success'] === 'sync') {
+    $fc = (int)($_GET['from_courses'] ?? 0);
+    $fd = (int)($_GET['from_default'] ?? 0);
+    if ($fc > 0 || $fd > 0) {
+        $message = "Qualifikation wurde für " . ($fc + $fd) . " Mitglieder gesetzt";
+        $parts = [];
+        if ($fc > 0) $parts[] = "{$fc} aus Lehrgängen";
+        if ($fd > 0) $parts[] = "{$fd} aus Standardeinstellung";
+        $message .= " (" . implode(", ", $parts) . ").";
+    } else {
+        $message = "Keine Mitglieder ohne Qualifikation gefunden – es wurde nichts geändert.";
     }
 }
 ?>
@@ -215,6 +290,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <button type="submit" name="save_default_qual" class="btn btn-primary">
                                 <i class="fas fa-save"></i> Speichern
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-6">
+                <div class="card shadow">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-sync-alt"></i> Qualifikationen nachziehen
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small">Setzt bei allen <strong>bereits vorhandenen</strong> Mitgliedern ohne Qualifikation eine Qualifikation: zuerst aus zugewiesenen Lehrgängen (nach Reihenfolge), sonst die Standardqualifikation aus der Mitgliederverwaltung.</p>
+                        <form method="POST" action="" onsubmit="return confirm('Qualifikation für alle Mitglieder ohne Eintrag jetzt nachziehen?');">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                            <button type="submit" name="sync_missing_qualifications" class="btn btn-warning">
+                                <i class="fas fa-sync-alt"></i> Jetzt nachziehen
                             </button>
                         </form>
                     </div>
