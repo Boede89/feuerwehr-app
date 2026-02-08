@@ -2,8 +2,8 @@
 /**
  * Anwesenheitsliste – Schritt 2: Personal/Fahrzeuge auswählen, nur hier speichern.
  */
-session_start();
 ob_start();
+session_start();
 function anwesenheit_eingaben_show_error($message, $file = '', $line = 0) {
     if (ob_get_level()) ob_end_clean();
     if (!headers_sent()) {

@@ -7,10 +7,10 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 ini_set('log_errors', '1');
 
-echo "<pre style='background:#f5f5f5;padding:1rem;font-size:14px;'>";
-echo "Schritt 1: Session start... ";
 session_start();
-echo "OK\n";
+
+echo "<pre style='background:#f5f5f5;padding:1rem;font-size:14px;'>";
+echo "Schritt 1: Session start... OK\n";
 
 echo "Schritt 2: config/database.php... ";
 try {
