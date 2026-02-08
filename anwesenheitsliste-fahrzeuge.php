@@ -108,6 +108,12 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id, $d
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
+    <style>
+        tr.anw-row { cursor: pointer; }
+        tr.anw-row.selected { background-color: rgba(13, 110, 253, 0.15); }
+        tr.anw-row.selected td.name-cell { font-weight: 600; }
+        .anw-row .no-click { cursor: default; }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -145,7 +151,8 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id, $d
                         <p class="text-muted mb-0 mt-1"><?php echo date('d.m.Y', strtotime($datum)); ?> – Maschinist und Einheitsführer pro Fahrzeug. Personen, die Sie hier auswählen, werden automatisch dem Personal hinzugefügt.</p>
                     </div>
                     <div class="card-body p-4">
-                        <form method="post">
+                        <form method="post" id="fahrzeugeForm">
+                            <p class="text-muted small">Klicken Sie auf einen Fahrzeugnamen, um es als eingesetzt auszuwählen (nochmal klicken zum Abwählen). Pro Fahrzeug können Sie Maschinist und Einheitsführer festlegen.</p>
                             <?php if (empty($vehicles)): ?>
                                 <p class="text-muted">Keine Fahrzeuge in der Datenbank. Bitte in der Fahrzeugverwaltung anlegen.</p>
                             <?php else: ?>
@@ -153,7 +160,6 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id, $d
                                     <table class="table table-hover">
                                         <thead>
                                             <tr>
-                                                <th>Eingesetzt</th>
                                                 <th>Fahrzeug</th>
                                                 <th>Maschinist</th>
                                                 <th>Einheitsführer</th>
@@ -165,17 +171,14 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id, $d
                                             $groups = members_for_vehicle_dropdown($members, $draft['member_vehicle'], $v['id'], $draft['members']);
                                             $masch_val = isset($draft['vehicle_maschinist'][$v['id']]) ? $draft['vehicle_maschinist'][$v['id']] : '';
                                             $einh_val = isset($draft['vehicle_einheitsfuehrer'][$v['id']]) ? $draft['vehicle_einheitsfuehrer'][$v['id']] : '';
+                                            $is_selected = isset($selected_vehicles[$v['id']]);
                                             ?>
-                                            <tr>
-                                                <td>
-                                                    <input type="checkbox" name="vehicle_id[]" value="<?php echo (int)$v['id']; ?>"
-                                                           id="v<?php echo (int)$v['id']; ?>"
-                                                           <?php echo isset($selected_vehicles[$v['id']]) ? 'checked' : ''; ?>>
+                                            <tr class="anw-row <?php echo $is_selected ? 'selected' : ''; ?>" data-vehicle-id="<?php echo (int)$v['id']; ?>">
+                                                <td class="name-cell">
+                                                    <input type="hidden" name="vehicle_id[]" value="<?php echo (int)$v['id']; ?>" class="vehicle-id-input" <?php echo $is_selected ? '' : 'disabled'; ?>>
+                                                    <span class="d-block py-1 fw-bold"><?php echo htmlspecialchars($v['name']); ?></span>
                                                 </td>
-                                                <td>
-                                                    <label for="v<?php echo (int)$v['id']; ?>" class="mb-0 fw-bold"><?php echo htmlspecialchars($v['name']); ?></label>
-                                                </td>
-                                                <td>
+                                                <td class="no-click">
                                                     <select class="form-select form-select-sm" name="maschinist[<?php echo (int)$v['id']; ?>]">
                                                         <option value="">— keine Auswahl —</option>
                                                         <?php foreach (array_merge($groups['on_vehicle'], $groups['others']) as $m): ?>
@@ -183,7 +186,7 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id, $d
                                                         <?php endforeach; ?>
                                                     </select>
                                                 </td>
-                                                <td>
+                                                <td class="no-click">
                                                     <select class="form-select form-select-sm" name="einheitsfuehrer[<?php echo (int)$v['id']; ?>]">
                                                         <option value="">— keine Auswahl —</option>
                                                         <?php foreach (array_merge($groups['on_vehicle'], $groups['others']) as $m): ?>
@@ -214,5 +217,22 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id, $d
         </div>
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.querySelectorAll('.anw-row').forEach(function(row) {
+            var nameCell = row.querySelector('.name-cell');
+            var hiddenInput = row.querySelector('.vehicle-id-input');
+            if (!nameCell || !hiddenInput) return;
+            nameCell.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (hiddenInput.disabled) {
+                    hiddenInput.disabled = false;
+                    row.classList.add('selected');
+                } else {
+                    hiddenInput.disabled = true;
+                    row.classList.remove('selected');
+                }
+            });
+        });
+    </script>
 </body>
 </html>

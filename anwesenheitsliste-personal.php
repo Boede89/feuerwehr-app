@@ -42,7 +42,7 @@ try {
     $vehicles = [];
 }
 
-// POST: Auswahl speichern und zurück
+// POST: Auswahl speichern und zurück (inkl. Rolle Maschinist/Einheitsführer pro Fahrzeug)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $draft['members'] = [];
     $draft['member_vehicle'] = [];
@@ -58,6 +58,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+    // Rollen nur für Fahrzeuge aktualisieren, die in member_vehicle vorkommen (ein Maschinist / ein Einheitsführer pro Fahrzeug)
+    $vehicles_in_personal = array_unique(array_values($draft['member_vehicle']));
+    foreach ($vehicles_in_personal as $vid) {
+        if ($vid <= 0) continue;
+        $draft['vehicle_maschinist'][$vid] = null;
+        $draft['vehicle_einheitsfuehrer'][$vid] = null;
+    }
+    if (!empty($_POST['member_id']) && is_array($_POST['member_id'])) {
+        foreach ($_POST['member_id'] as $mid) {
+            $mid = (int)$mid;
+            $vid = isset($_POST['vehicle'][$mid]) ? (int)$_POST['vehicle'][$mid] : 0;
+            $role = isset($_POST['role'][$mid]) ? trim($_POST['role'][$mid]) : '';
+            if ($vid > 0 && $role === 'maschinist') {
+                $draft['vehicle_maschinist'][$vid] = $mid;
+            }
+            if ($vid > 0 && $role === 'einheitsfuehrer') {
+                $draft['vehicle_einheitsfuehrer'][$vid] = $mid;
+            }
+        }
+    }
+    // Entfernen von null-Einträgen
+    $draft['vehicle_maschinist'] = array_filter($draft['vehicle_maschinist'] ?? []);
+    $draft['vehicle_einheitsfuehrer'] = array_filter($draft['vehicle_einheitsfuehrer'] ?? []);
     header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
     exit;
 }
@@ -65,6 +88,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 $selected_ids = array_flip($draft['members']);
 $member_vehicle = $draft['member_vehicle'];
+$vehicle_maschinist = $draft['vehicle_maschinist'] ?? [];
+$vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -75,6 +100,12 @@ $member_vehicle = $draft['member_vehicle'];
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
+    <style>
+        tr.anw-row { cursor: pointer; }
+        tr.anw-row.selected { background-color: rgba(13, 110, 253, 0.15); }
+        tr.anw-row.selected td.name-cell { font-weight: 600; }
+        .anw-row .no-click { cursor: default; }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -112,8 +143,8 @@ $member_vehicle = $draft['member_vehicle'];
                         <p class="text-muted mb-0 mt-1"><?php echo date('d.m.Y', strtotime($datum)); ?></p>
                     </div>
                     <div class="card-body p-4">
-                        <form method="post">
-                            <p class="text-muted small">Wählen Sie die anwesenden Personen und optional das Fahrzeug, auf dem sie mitgefahren sind.</p>
+                        <form method="post" id="personalForm">
+                            <p class="text-muted small">Klicken Sie auf einen Namen, um die Person als anwesend auszuwählen (nochmal klicken zum Abwählen). Optional: Fahrzeug zuordnen und Rolle (Maschinist/Einheitsführer) – pro Fahrzeug nur je eine Person.</p>
                             <?php if (empty($members)): ?>
                                 <p class="text-muted">Keine Mitglieder in der Datenbank. Bitte zuerst in der Mitgliederverwaltung anlegen.</p>
                             <?php else: ?>
@@ -121,28 +152,39 @@ $member_vehicle = $draft['member_vehicle'];
                                     <table class="table table-hover">
                                         <thead>
                                             <tr>
-                                                <th>Anwesend</th>
                                                 <th>Name</th>
                                                 <th>Fahrzeug (optional)</th>
+                                                <th>Rolle auf Fahrzeug</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <?php foreach ($members as $m): ?>
-                                            <tr>
-                                                <td>
-                                                    <input type="checkbox" name="member_id[]" value="<?php echo (int)$m['id']; ?>"
-                                                           id="m<?php echo (int)$m['id']; ?>"
-                                                           <?php echo isset($selected_ids[$m['id']]) ? 'checked' : ''; ?>>
+                                            <?php foreach ($members as $m):
+                                                $vid_cur = isset($member_vehicle[$m['id']]) ? (int)$member_vehicle[$m['id']] : 0;
+                                                $role_cur = '';
+                                                if ($vid_cur && isset($vehicle_maschinist[$vid_cur]) && (int)$vehicle_maschinist[$vid_cur] === (int)$m['id']) {
+                                                    $role_cur = 'maschinist';
+                                                } elseif ($vid_cur && isset($vehicle_einheitsfuehrer[$vid_cur]) && (int)$vehicle_einheitsfuehrer[$vid_cur] === (int)$m['id']) {
+                                                    $role_cur = 'einheitsfuehrer';
+                                                }
+                                            ?>
+                                            <tr class="anw-row <?php echo isset($selected_ids[$m['id']]) ? 'selected' : ''; ?>" data-member-id="<?php echo (int)$m['id']; ?>">
+                                                <td class="name-cell">
+                                                    <input type="hidden" name="member_id[]" value="<?php echo (int)$m['id']; ?>" class="member-id-input" <?php echo isset($selected_ids[$m['id']]) ? '' : 'disabled'; ?>>
+                                                    <span class="d-block py-1"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></span>
                                                 </td>
-                                                <td>
-                                                    <label for="m<?php echo (int)$m['id']; ?>" class="mb-0"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></label>
-                                                </td>
-                                                <td>
+                                                <td class="no-click">
                                                     <select class="form-select form-select-sm" name="vehicle[<?php echo (int)$m['id']; ?>]">
                                                         <option value="">— kein Fahrzeug —</option>
                                                         <?php foreach ($vehicles as $v): ?>
-                                                        <option value="<?php echo (int)$v['id']; ?>" <?php echo (isset($member_vehicle[$m['id']]) && (int)$member_vehicle[$m['id']] === (int)$v['id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['name']); ?></option>
+                                                        <option value="<?php echo (int)$v['id']; ?>" <?php echo $vid_cur === (int)$v['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['name']); ?></option>
                                                         <?php endforeach; ?>
+                                                    </select>
+                                                </td>
+                                                <td class="no-click">
+                                                    <select class="form-select form-select-sm" name="role[<?php echo (int)$m['id']; ?>]">
+                                                        <option value="">— keine —</option>
+                                                        <option value="maschinist" <?php echo $role_cur === 'maschinist' ? 'selected' : ''; ?>>Maschinist</option>
+                                                        <option value="einheitsfuehrer" <?php echo $role_cur === 'einheitsfuehrer' ? 'selected' : ''; ?>>Einheitsführer</option>
                                                     </select>
                                                 </td>
                                             </tr>
@@ -168,5 +210,23 @@ $member_vehicle = $draft['member_vehicle'];
         </div>
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.querySelectorAll('.anw-row').forEach(function(row) {
+            var memberId = row.dataset.memberId;
+            var nameCell = row.querySelector('.name-cell');
+            var hiddenInput = row.querySelector('.member-id-input');
+            if (!nameCell || !hiddenInput) return;
+            nameCell.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (hiddenInput.disabled) {
+                    hiddenInput.disabled = false;
+                    row.classList.add('selected');
+                } else {
+                    hiddenInput.disabled = true;
+                    row.classList.remove('selected');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
