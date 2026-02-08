@@ -172,13 +172,14 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                                             $masch_val = isset($draft['vehicle_maschinist'][$v['id']]) ? $draft['vehicle_maschinist'][$v['id']] : '';
                                             $einh_val = isset($draft['vehicle_einheitsfuehrer'][$v['id']]) ? $draft['vehicle_einheitsfuehrer'][$v['id']] : '';
                                             $is_selected = isset($selected_vehicles[$v['id']]);
+                                            $row_bg = $is_selected ? ' style="background-color: #b6d4fe;"' : '';
                                             ?>
                                             <tr class="anw-row <?php echo $is_selected ? 'selected' : ''; ?>" data-vehicle-id="<?php echo (int)$v['id']; ?>">
-                                                <td class="name-cell"<?php echo $is_selected ? ' style="background-color: #b6d4fe;"' : ''; ?>>
+                                                <td class="name-cell"<?php echo $row_bg; ?>>
                                                     <input type="hidden" name="vehicle_id[]" value="<?php echo (int)$v['id']; ?>" class="vehicle-id-input" <?php echo $is_selected ? '' : 'disabled'; ?>>
                                                     <span class="d-block py-1 fw-bold"><?php echo htmlspecialchars($v['name']); ?></span>
                                                 </td>
-                                                <td class="no-click">
+                                                <td class="no-click"<?php echo $row_bg; ?>>
                                                     <select class="form-select form-select-sm" name="maschinist[<?php echo (int)$v['id']; ?>]">
                                                         <option value="">— keine Auswahl —</option>
                                                         <?php foreach (array_merge($groups['on_vehicle'], $groups['others']) as $m): ?>
@@ -186,7 +187,7 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                                                         <?php endforeach; ?>
                                                     </select>
                                                 </td>
-                                                <td class="no-click">
+                                                <td class="no-click"<?php echo $row_bg; ?>>
                                                     <select class="form-select form-select-sm" name="einheitsfuehrer[<?php echo (int)$v['id']; ?>]">
                                                         <option value="">— keine Auswahl —</option>
                                                         <?php foreach (array_merge($groups['on_vehicle'], $groups['others']) as $m): ?>
@@ -224,14 +225,15 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
             if (!nameCell || !hiddenInput) return;
             nameCell.addEventListener('click', function(e) {
                 e.preventDefault();
+                var cells = row.querySelectorAll('td');
                 if (hiddenInput.disabled) {
                     hiddenInput.disabled = false;
                     row.classList.add('selected');
-                    nameCell.style.backgroundColor = '#b6d4fe';
+                    cells.forEach(function(td) { td.style.backgroundColor = '#b6d4fe'; });
                 } else {
                     hiddenInput.disabled = true;
                     row.classList.remove('selected');
-                    nameCell.style.backgroundColor = '';
+                    cells.forEach(function(td) { td.style.backgroundColor = ''; });
                 }
             });
         });

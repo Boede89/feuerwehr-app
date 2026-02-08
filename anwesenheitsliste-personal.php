@@ -165,13 +165,13 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                                     $role_cur = 'einheitsfuehrer';
                                                 }
                                             ?>
-                                            <?php $row_selected = isset($selected_ids[$m['id']]); ?>
+                                            <?php $row_selected = isset($selected_ids[$m['id']]); $row_bg = $row_selected ? ' style="background-color: #b6d4fe;"' : ''; ?>
                                             <tr class="anw-row <?php echo $row_selected ? 'selected' : ''; ?>" data-member-id="<?php echo (int)$m['id']; ?>">
-                                                <td class="name-cell" <?php echo $row_selected ? ' style="background-color: #b6d4fe;"' : ''; ?>>
+                                                <td class="name-cell"<?php echo $row_bg; ?>>
                                                     <input type="hidden" name="member_id[]" value="<?php echo (int)$m['id']; ?>" class="member-id-input" <?php echo $row_selected ? '' : 'disabled'; ?>>
                                                     <span class="d-block py-1 <?php echo $row_selected ? 'fw-bold' : ''; ?>"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></span>
                                                 </td>
-                                                <td class="no-click">
+                                                <td class="no-click"<?php echo $row_bg; ?>>
                                                     <select class="form-select form-select-sm" name="vehicle[<?php echo (int)$m['id']; ?>]">
                                                         <option value="">— kein Fahrzeug —</option>
                                                         <?php foreach ($vehicles as $v): ?>
@@ -179,7 +179,7 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                                         <?php endforeach; ?>
                                                     </select>
                                                 </td>
-                                                <td class="no-click">
+                                                <td class="no-click"<?php echo $row_bg; ?>>
                                                     <select class="form-select form-select-sm" name="role[<?php echo (int)$m['id']; ?>]">
                                                         <option value="">— keine —</option>
                                                         <option value="maschinist" <?php echo $role_cur === 'maschinist' ? 'selected' : ''; ?>>Maschinist</option>
@@ -216,16 +216,17 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
             if (!nameCell || !hiddenInput) return;
             nameCell.addEventListener('click', function(e) {
                 e.preventDefault();
+                var cells = row.querySelectorAll('td');
                 if (hiddenInput.disabled) {
                     hiddenInput.disabled = false;
                     row.classList.add('selected');
-                    nameCell.style.backgroundColor = '#b6d4fe';
+                    cells.forEach(function(td) { td.style.backgroundColor = '#b6d4fe'; });
                     var span = nameCell.querySelector('.d-block');
                     if (span) span.classList.add('fw-bold');
                 } else {
                     hiddenInput.disabled = true;
                     row.classList.remove('selected');
-                    nameCell.style.backgroundColor = '';
+                    cells.forEach(function(td) { td.style.backgroundColor = ''; });
                     var span = nameCell.querySelector('.d-block');
                     if (span) span.classList.remove('fw-bold');
                 }
