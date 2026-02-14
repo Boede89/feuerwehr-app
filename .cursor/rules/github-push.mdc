@@ -5,11 +5,11 @@ alwaysApply: true
 
 # GitHub: Änderungen immer pushen
 
-Nach abgeschlossenen Code-Änderungen in diesem Projekt:
+**WICHTIG:** Nach jeder Code-Änderung in diesem Projekt die Änderungen sofort zu GitHub pushen. Der Nutzer möchte nicht jedes Mal daran erinnern müssen.
 
 1. **Git-Status prüfen** (`git status`)
 2. **Alle geänderten/neuen Dateien stagen** (`git add …` oder `git add -A`)
 3. **Committen** mit aussagekräftiger deutscher Commit-Message (kurz beschreiben, was geändert wurde)
 4. **Zu GitHub pushen** (`git push origin main`)
 
-Das soll immer passieren, sobald Änderungen am Projekt vorgenommen wurden – der Nutzer wünscht, dass alle Änderungen direkt auf GitHub landen.
+Das soll am Ende jeder Bearbeitung automatisch erfolgen – ohne dass der Nutzer „github?“ oder „auf GitHub laden“ sagen muss.
