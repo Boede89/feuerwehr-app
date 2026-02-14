@@ -16,11 +16,16 @@ $message = '';
 $error = '';
 
 $settings = [];
+$divera_debug_payloads = [];
 try {
-    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url')");
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url', 'divera_debug_payloads')");
     $stmt->execute();
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $settings[$row['setting_key']] = $row['setting_value'];
+        if ($row['setting_key'] === 'divera_debug_payloads' && $row['setting_value'] !== '') {
+            $dec = json_decode($row['setting_value'], true);
+            $divera_debug_payloads = is_array($dec) ? $dec : [];
+        }
     }
 } catch (Exception $e) {
     $error = 'Fehler beim Laden: ' . $e->getMessage();
@@ -83,6 +88,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if ($message) echo show_success($message); ?>
     <?php if ($error) echo show_error($error); ?>
 
+    <ul class="nav nav-tabs mb-3" id="diveraTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="verbindung-tab" data-bs-toggle="tab" data-bs-target="#verbindung" type="button">Verbindung</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="debug-tab" data-bs-toggle="tab" data-bs-target="#debug" type="button">Debug</button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="diveraTabContent">
+        <div class="tab-pane fade show active" id="verbindung" role="tabpanel">
     <div class="row">
         <div class="col-lg-8">
             <div class="card">
@@ -102,6 +118,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                         <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+        <div class="tab-pane fade" id="debug" role="tabpanel">
+            <div class="card">
+                <div class="card-header"><i class="fas fa-bug"></i> Letzte 5 JSON-Payloads an Divera</div>
+                <div class="card-body">
+                    <p class="text-muted small">Die zuletzt an die Divera-API gesendeten JSON-Bodies (ohne Access Key).</p>
+                    <?php if (empty($divera_debug_payloads)): ?>
+                        <p class="text-muted">Noch keine Übermittlungen protokolliert.</p>
+                    <?php else: ?>
+                        <?php foreach ($divera_debug_payloads as $i => $entry): ?>
+                            <div class="card mb-3">
+                                <div class="card-header py-2">
+                                    <strong>#<?php echo $i + 1; ?></strong>
+                                    <?php echo htmlspecialchars($entry['timestamp'] ?? ''); ?>
+                                    <span class="badge bg-<?php echo ($entry['source'] ?? '') === 'form' ? 'info' : 'primary'; ?>"><?php echo htmlspecialchars($entry['source'] ?? 'unknown'); ?></span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <pre class="mb-0 small" style="max-height: 300px; overflow: auto;"><?php echo htmlspecialchars(json_encode($entry['payload'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

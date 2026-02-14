@@ -65,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $divera_ok) {
                 'text'              => $ort !== '' ? 'Ort: ' . $ort : '',
             ],
         ];
+        log_divera_debug_payload($body, 'form');
 
         $ctx = stream_context_create([
             'http' => [

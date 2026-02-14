@@ -81,6 +81,16 @@ try {
         $needs_divera_key = false;
         $divera_error = null;
         try {
+            $group_ids_raw = '';
+            $stmt_set = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_reservation_group_ids' LIMIT 1");
+            $stmt_set->execute();
+            $row_set = $stmt_set->fetch(PDO::FETCH_ASSOC);
+            if ($row_set) {
+                $group_ids_raw = trim((string) $row_set['setting_value']);
+            }
+            if ($group_ids_raw !== '') {
+                $reservation['_divera_group_ids'] = array_values(array_filter(array_map('intval', preg_split('/[\s,;]+/', $group_ids_raw))));
+            }
             $stmt_key = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
             $stmt_key->execute([$_SESSION['user_id']]);
             $user_key_row = $stmt_key->fetch(PDO::FETCH_ASSOC);
@@ -214,6 +224,16 @@ try {
         $needs_divera_key = false;
         $divera_error = null;
         try {
+            $group_ids_raw = '';
+            $stmt_set = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_reservation_group_ids' LIMIT 1");
+            $stmt_set->execute();
+            $row_set = $stmt_set->fetch(PDO::FETCH_ASSOC);
+            if ($row_set) {
+                $group_ids_raw = trim((string) $row_set['setting_value']);
+            }
+            if ($group_ids_raw !== '') {
+                $reservation['_divera_group_ids'] = array_values(array_filter(array_map('intval', preg_split('/[\s,;]+/', $group_ids_raw))));
+            }
             $stmt_key = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
             $stmt_key->execute([$_SESSION['user_id']]);
             $user_key_row = $stmt_key->fetch(PDO::FETCH_ASSOC);

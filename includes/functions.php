@@ -1585,6 +1585,38 @@ function merge_duplicate_members() {
 }
 
 /**
+ * Speichert den letzten Divera-JSON-Payload im Debug-Log (max. 5 Einträge).
+ * @param array $payload Der an Divera gesendete JSON-Body (ohne Access Key)
+ * @param string $source Quelle: 'reservation' oder 'form'
+ */
+function log_divera_debug_payload($payload, $source = 'reservation') {
+    global $db;
+    if (empty($db)) {
+        return;
+    }
+    try {
+        $entry = [
+            'timestamp' => date('Y-m-d H:i:s'),
+            'source'    => $source,
+            'payload'   => $payload,
+        ];
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_debug_payloads' LIMIT 1");
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $list = $row ? json_decode($row['setting_value'], true) : [];
+        if (!is_array($list)) {
+            $list = [];
+        }
+        array_unshift($list, $entry);
+        $list = array_slice($list, 0, 5);
+        $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('divera_debug_payloads', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+        $stmt->execute([json_encode($list, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)]);
+    } catch (Exception $e) {
+        // Logging-Fehler ignorieren
+    }
+}
+
+/**
  * Sendet eine genehmigte Reservierung als Termin an Divera 24/7 (API v2/events).
  * Nutzt dasselbe JSON-Format und dieselbe Erfolgsprüfung wie das Formular „Termin an Divera 24/7 senden“.
  *
@@ -1610,18 +1642,28 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
     $vehicle_name = $reservation['vehicle_name'] ?? 'Fahrzeug';
     $title = $vehicle_name . ' - ' . ($reservation['reason'] ?? 'Reservierung');
     $address = trim($reservation['location'] ?? '');
-    $text = $address !== '' ? 'Ort: ' . $address : ($reservation['reason'] ?? '');
-    // Identisch zum Formular „Termin an Divera 24/7 senden“ (divera-termin-senden.php)
-    $body = [
-        'Event' => [
-            'notification_type' => 2,
-            'title'             => $title,
-            'ts_start'          => $start_ts,
-            'ts_end'            => $end_ts,
-            'address'           => $address,
-            'text'              => $text,
-        ],
+    // text = Beschreibung (Grund), address = Ort – Ort nicht doppelt in text, da address bereits den Ort enthält
+    $text = trim($reservation['reason'] ?? '');
+    $group_ids = isset($reservation['_divera_group_ids']) && is_array($reservation['_divera_group_ids'])
+        ? array_map('intval', array_filter($reservation['_divera_group_ids']))
+        : [];
+    $use_groups = !empty($group_ids);
+    $event = [
+        'notification_type' => $use_groups ? 3 : 2,
+        'title'             => $title,
+        'ts_start'          => $start_ts,
+        'ts_end'            => $end_ts,
+        'address'           => $address,
+        'text'              => $text,
     ];
+    if ($use_groups) {
+        $event['group'] = $group_ids;
+    }
+    $body = ['Event' => $event];
+    if ($use_groups) {
+        $body['usingGroups'] = $group_ids;
+    }
+    log_divera_debug_payload($body, 'reservation');
     $url = $base . '/api/v2/events?accesskey=' . urlencode($access_key);
     $ctx = stream_context_create([
         'http' => [

@@ -63,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'vehicle_sort_mode' => sanitize_input($_POST['vehicle_sort_mode'] ?? 'manual'),
                 'vehicle_transfer_url' => trim((string)($_POST['vehicle_transfer_url'] ?? '')),
                 'vehicle_transfer_text' => trim((string)($_POST['vehicle_transfer_text'] ?? '')),
+                'divera_reservation_group_ids' => trim((string)($_POST['divera_reservation_group_ids'] ?? '')),
             ];
 
             // Persistieren: Upsert je Einstellung
@@ -151,6 +152,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <div class="form-text">
                     Reihenfolge kann in der <a href="vehicles.php" target="_blank">Fahrzeugverwaltung</a> angepasst werden.
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="fas fa-calendar-plus"></i> Divera 24/7 – Empfänger-Gruppe</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Gruppen-IDs (kommagetrennt)</label>
+                    <input class="form-control" name="divera_reservation_group_ids" placeholder="z.B. 1, 2, 3" value="<?php echo htmlspecialchars($settings['divera_reservation_group_ids'] ?? ''); ?>">
+                    <div class="form-text">Wenn gesetzt, werden genehmigte Reservierungen an diese Divera-Gruppen gesendet (notification_type 3). Leer = alle des Standortes (notification_type 2). Gruppen-IDs in Divera unter Verwaltung → Gruppen einsehen.</div>
                 </div>
             </div>
         </div>
