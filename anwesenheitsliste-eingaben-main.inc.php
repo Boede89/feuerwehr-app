@@ -590,16 +590,20 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                 <?php endif; ?>
                                 <?php if ($is_uebungsdienst || $is_einsatz): ?>
                                 <div id="uebungsleiter_wrap" class="feld-uebungsdienst-toggle" data-einsatzleiter="1" style="<?php echo $is_einsatz && !$is_uebungsdienst ? 'display:none' : ''; ?>">
-                                <label class="form-label">Übungsleiter</label>
-                                <div class="border rounded p-2" style="max-height: 180px; overflow-y: auto;">
+                                <label class="form-label">Übungsleiter <span id="uebungsleiter_count" class="badge bg-secondary ms-1">0 ausgewählt</span></label>
+                                <div class="uebungsleiter-list border rounded p-2" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem;">
                                     <?php $uebungs_ids = $draft['uebungsleiter_member_ids'] ?? []; if (!is_array($uebungs_ids)) $uebungs_ids = []; ?>
                                     <?php foreach ($members_for_einsatzleiter as $m):
                                         $checked = in_array((int)$m['id'], array_map('intval', $uebungs_ids)) ? ' checked' : '';
+                                        $sel_cls = $checked ? 'uebungsleiter-item-selected' : '';
                                     ?>
-                                    <div class="form-check"><input class="form-check-input" type="checkbox" name="uebungsleiter[]" id="uebungsleiter_<?php echo (int)$m['id']; ?>" value="<?php echo (int)$m['id']; ?>"<?php echo $checked; ?>><label class="form-check-label" for="uebungsleiter_<?php echo (int)$m['id']; ?>"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></label></div>
+                                    <div class="uebungsleiter-item <?php echo $sel_cls; ?>" data-member-id="<?php echo (int)$m['id']; ?>" role="button" tabindex="0" style="cursor:pointer;padding:0.5rem 0.75rem;border-radius:6px;border:2px solid #e9ecef;transition:all 0.2s">
+                                        <input type="checkbox" name="uebungsleiter[]" value="<?php echo (int)$m['id']; ?>" style="display:none"<?php echo $checked; ?>>
+                                        <?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?>
+                                    </div>
                                     <?php endforeach; ?>
                                 </div>
-                                <small class="text-muted">Mehrfachauswahl möglich</small>
+                                <small class="text-muted">Klicken zum Auswählen/Abwählen</small>
                                 </div>
                                 <?php endif; ?>
                                 <?php elseif ($type === 'einsatzstelle'): ?>
@@ -662,6 +666,20 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
         (function(){var input=document.getElementById('einsatzstelle');var suggestionsEl=document.getElementById('einsatzstelle_suggestions');if(!input||!suggestionsEl)return;var debounceTimer;input.addEventListener('input',function(){clearTimeout(debounceTimer);var q=input.value.trim();if(q.length<3){suggestionsEl.style.display='none';suggestionsEl.innerHTML='';return;}debounceTimer=setTimeout(function(){fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(q)+'&countrycodes=de,at,ch&limit=5&addressdetails=1',{headers:{'Accept':'application/json'}}).then(function(r){return r.json();}).then(function(data){suggestionsEl.innerHTML='';if(!data||data.length===0){suggestionsEl.style.display='none';return;}data.forEach(function(item){var addr=item.address||{};var strasse=addr.road||'';var hausnummer=addr.house_number||'';var plz=addr.postcode||'';var ort=addr.city||addr.town||addr.village||addr.municipality||'';var zeile1=[strasse,hausnummer].filter(Boolean).join(' ');var zeile2=[plz,ort].filter(Boolean).join(' ');var display=[zeile1,zeile2].filter(Boolean).join(', ');if(!display)display=item.display_name||item.name||'';var a=document.createElement('button');a.type='button';a.className='list-group-item list-group-item-action list-group-item-light text-start';a.textContent=display;a.addEventListener('click',function(){input.value=display;suggestionsEl.style.display='none';suggestionsEl.innerHTML='';});suggestionsEl.appendChild(a);});suggestionsEl.style.display='block';}).catch(function(){suggestionsEl.style.display='none';});},400);});input.addEventListener('blur',function(){setTimeout(function(){suggestionsEl.style.display='none';},200);});document.addEventListener('click',function(e){if(!input.contains(e.target)&&!suggestionsEl.contains(e.target))suggestionsEl.style.display='none';});})();
     </script>
     <script>var el=document.getElementById('einsatzleiter');if(el)el.addEventListener('change',function(){var w=document.getElementById('einsatzleiter_freitext_wrap');if(w)w.style.display=this.value==='__freitext__'?'block':'none';});</script>
+    <style>.uebungsleiter-item:hover{background:#f8f9fa}.uebungsleiter-item-selected{background:#0d6efd!important;color:#fff!important;border-color:#0d6efd!important}</style>
+    <script>
+    document.querySelectorAll('.uebungsleiter-item').forEach(function(el){
+        el.addEventListener('click',function(){
+            var cb=this.querySelector('input[type=checkbox]');
+            cb.checked=!cb.checked;
+            this.classList.toggle('uebungsleiter-item-selected',cb.checked);
+            var cnt=document.querySelectorAll('.uebungsleiter-item-selected').length;
+            var badge=document.getElementById('uebungsleiter_count');
+            if(badge){badge.textContent=cnt+' ausgewählt';badge.className='badge ms-1 '+(cnt>0?'bg-primary':'bg-secondary');}
+        });
+    });
+    (function(){var cnt=document.querySelectorAll('.uebungsleiter-item-selected').length;var badge=document.getElementById('uebungsleiter_count');if(badge){badge.textContent=cnt+' ausgewählt';badge.className='badge ms-1 '+(cnt>0?'bg-primary':'bg-secondary');}})();
+    </script>
     <?php if ($is_einsatz): ?>
     <script>
     document.getElementById('typ_sonstige').addEventListener('change',function(){

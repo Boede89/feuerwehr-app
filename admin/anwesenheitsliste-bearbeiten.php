@@ -310,15 +310,19 @@ function _al_val($liste, $key, $custom_data = []) {
                     <div class="col-md-6">
                         <?php if ($type === 'einsatzleiter'): ?>
                         <?php if ($is_uebungsdienst_edit): ?>
-                        <label class="form-label">Übungsleiter</label>
-                        <div class="border rounded p-2" style="max-height: 180px; overflow-y: auto;">
+                        <label class="form-label">Übungsleiter <span id="uebungsleiter_count_edit" class="badge bg-secondary ms-1">0 ausgewählt</span></label>
+                        <div class="uebungsleiter-list border rounded p-2" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem;">
                             <?php foreach ($members_list as $m):
                                 $checked = in_array((int)$m['id'], array_map('intval', $uebungsleiter_ids)) ? ' checked' : '';
+                                $sel_cls = $checked ? 'uebungsleiter-item-selected' : '';
                             ?>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" name="uebungsleiter[]" id="uebungsleiter_<?php echo (int)$m['id']; ?>" value="<?php echo (int)$m['id']; ?>"<?php echo $checked; ?>><label class="form-check-label" for="uebungsleiter_<?php echo (int)$m['id']; ?>"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></label></div>
+                            <div class="uebungsleiter-item <?php echo $sel_cls; ?>" data-member-id="<?php echo (int)$m['id']; ?>" role="button" tabindex="0" style="cursor:pointer;padding:0.5rem 0.75rem;border-radius:6px;border:2px solid #e9ecef;transition:all 0.2s">
+                                <input type="checkbox" name="uebungsleiter[]" value="<?php echo (int)$m['id']; ?>" style="display:none"<?php echo $checked; ?>>
+                                <?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?>
+                            </div>
                             <?php endforeach; ?>
                         </div>
-                        <small class="text-muted">Mehrfachauswahl möglich</small>
+                        <small class="text-muted">Klicken zum Auswählen/Abwählen</small>
                         <?php else: ?>
                         <label class="form-label"><?php echo htmlspecialchars($label); ?></label>
                         <select class="form-select" name="einsatzleiter">
@@ -456,6 +460,20 @@ function _al_val($liste, $key, $custom_data = []) {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<style>.uebungsleiter-item:hover{background:#f8f9fa}.uebungsleiter-item-selected{background:#0d6efd!important;color:#fff!important;border-color:#0d6efd!important}</style>
+<script>
+document.querySelectorAll('.uebungsleiter-item').forEach(function(el){
+    el.addEventListener('click',function(){
+        var cb=this.querySelector('input[type=checkbox]');
+        cb.checked=!cb.checked;
+        this.classList.toggle('uebungsleiter-item-selected',cb.checked);
+        var cnt=document.querySelectorAll('.uebungsleiter-item-selected').length;
+        var badge=document.getElementById('uebungsleiter_count_edit');
+        if(badge){badge.textContent=cnt+' ausgewählt';badge.className='badge ms-1 '+(cnt>0?'bg-primary':'bg-secondary');}
+    });
+});
+(function(){var cnt=document.querySelectorAll('.uebungsleiter-item-selected').length;var badge=document.getElementById('uebungsleiter_count_edit');if(badge){badge.textContent=cnt+' ausgewählt';badge.className='badge ms-1 '+(cnt>0?'bg-primary':'bg-secondary');}})();
+</script>
 <script>
 (function() {
     var membersList = <?php echo json_encode(array_map(function($m) { return ['id' => $m['id'], 'name' => $m['last_name'] . ', ' . $m['first_name']]; }, $members_list)); ?>;
