@@ -2553,18 +2553,9 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 memberForm.addEventListener('submit', function(e) {
                     const canCourses = <?php echo $can_courses ? 'true' : 'false'; ?>;
                     if (canCourses) {
-                        // course_section_modified setzen wenn Lehrgangs-Bereich sichtbar war (für vollständige Speicherung)
                         const coursesContainer = document.getElementById('addMemberCoursesContainer');
                         const coursesVisible = coursesContainer && coursesContainer.style.display !== 'none';
                         let flagInput = document.getElementById('course_section_modified');
-                        if (coursesVisible && !flagInput) {
-                            flagInput = document.createElement('input');
-                            flagInput.type = 'hidden';
-                            flagInput.name = 'course_section_modified';
-                            flagInput.id = 'course_section_modified';
-                            flagInput.value = '1';
-                            memberForm.appendChild(flagInput);
-                        }
                         // Sammle Lehrgangs-Daten
                         const courseAssignments = [];
                         document.querySelectorAll('.add-member-course-input').forEach(function(input) {
@@ -2579,6 +2570,16 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                 });
                             }
                         });
+                        
+                        // course_section_modified setzen wenn Lehrgänge ausgewählt (auch wenn Bereich nach "Übernehmen" ausgeblendet ist)
+                        if ((coursesVisible || courseAssignments.length > 0) && !flagInput) {
+                            flagInput = document.createElement('input');
+                            flagInput.type = 'hidden';
+                            flagInput.name = 'course_section_modified';
+                            flagInput.id = 'course_section_modified';
+                            flagInput.value = '1';
+                            memberForm.appendChild(flagInput);
+                        }
                         
                         // Erstelle Hidden Input für course_assignments
                         let courseAssignmentsInput = document.getElementById('course_assignments_json');
