@@ -1944,7 +1944,7 @@ function fetch_divera_alarms($access_key, $api_base_url = 'https://app.divera247
         return [];
     }
     $base = rtrim(trim((string) $api_base_url), '/') ?: 'https://app.divera247.com';
-    $url = $base . '/api/v2/alarms/list?accesskey=' . urlencode($access_key) . '&closed=0';
+    $url = $base . '/api/v2/alarms?accesskey=' . urlencode($access_key);
     $ctx = stream_context_create(['http' => ['timeout' => 15]]);
     $raw = @file_get_contents($url, false, $ctx);
     $data = is_string($raw) ? json_decode($raw, true) : null;
@@ -1956,14 +1956,14 @@ function fetch_divera_alarms($access_key, $api_base_url = 'https://app.divera247
         $error = $data['message'] ?? $data['error'] ?? 'Divera-API: Zugriff verweigert oder ungültiger Access Key';
         return [];
     }
-    $items = $data['data'] ?? [];
+    $dataBlock = $data['data'] ?? [];
+    $items = $dataBlock['items'] ?? $dataBlock;
     if (!is_array($items)) return [];
     $alarms = [];
     foreach ($items as $item) {
         if (!is_array($item)) continue;
         $id = (int) ($item['id'] ?? 0);
         if ($id <= 0) continue;
-        if (!empty($item['closed'])) continue;
         $date_ts = (int) ($item['date'] ?? $item['ts_create'] ?? 0);
         if ($date_ts > 10000000000) $date_ts = (int)($date_ts / 1000);
         $alarms[] = [
@@ -1973,6 +1973,7 @@ function fetch_divera_alarms($access_key, $api_base_url = 'https://app.divera247
             'address'   => trim((string) ($item['address'] ?? '')),
             'date'      => $date_ts,
             'ts_create' => (int) ($item['ts_create'] ?? $date_ts),
+            'closed'    => !empty($item['closed']),
         ];
     }
     usort($alarms, fn($a, $b) => ($b['date'] ?? 0) - ($a['date'] ?? 0));

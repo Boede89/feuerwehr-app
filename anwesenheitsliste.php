@@ -374,12 +374,13 @@ if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()),
                                     $alarm_datum = date('Y-m-d', $divera_alarm['date']);
                                     $alarm_uhrzeit = date('H:i', $divera_alarm['date']);
                                     $alarm_stichwort = $divera_alarm['title'] ?: $divera_alarm['text'];
+                                    $alarm_geschlossen = !empty($divera_alarm['closed']);
                                 ?>
                                     <div class="col-12 col-md-4">
                                         <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($alarm_datum); ?>&auswahl=einsatz&divera_id=<?php echo (int)$divera_alarm['id']; ?>" class="btn btn-danger w-100 h-100 anwesenheits-btn text-decoration-none">
                                             <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
                                             <h5 class="card-title mb-1"><?php echo htmlspecialchars($alarm_stichwort ?: 'Aktueller Einsatz'); ?></h5>
-                                            <p class="mb-0 small opacity-90"><?php echo date('d.m.Y H:i', $divera_alarm['date']); ?></p>
+                                            <p class="mb-0 small opacity-90"><?php echo date('d.m.Y H:i', $divera_alarm['date']); ?><?php if ($alarm_geschlossen): ?> <span class="badge bg-secondary">geschlossen</span><?php endif; ?></p>
                                             <?php if (!empty($divera_alarm['address'])): ?>
                                             <small class="d-block mt-1 opacity-75 text-truncate" title="<?php echo htmlspecialchars($divera_alarm['address']); ?>"><?php echo htmlspecialchars($divera_alarm['address']); ?></small>
                                             <?php endif; ?>
