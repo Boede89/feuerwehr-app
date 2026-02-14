@@ -1,5 +1,6 @@
 <?php
 session_start();
+header('Content-Type: application/json; charset=utf-8');
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../config/divera.php';
@@ -143,15 +144,19 @@ try {
             }
         }
         
-        // Termin im Google Kalender anlegen (nur wenn aktiviert)
+        // Termin im Google Kalender anlegen (nur wenn aktiviert und konfiguriert)
         if ($google_calendar_reservation_enabled && function_exists('create_or_update_google_calendar_event')) {
             try {
-                $vehicle_name = $reservation['vehicle_name'] ?? 'Fahrzeug';
-                $reason = $reservation['reason'] ?? 'Reservierung';
-                $location = !empty($reservation['location']) ? $reservation['location'] : null;
-                create_or_update_google_calendar_event($vehicle_name, $reason, $reservation['start_datetime'], $reservation['end_datetime'], $reservation_id, $location);
-                error_log("Reservierung #$reservation_id im Google Kalender angelegt.");
-            } catch (Exception $e) {
+                $stmt_gc = $db->prepare("SELECT setting_value FROM settings WHERE setting_key IN ('google_calendar_service_account_json', 'google_calendar_service_account_file', 'google_calendar_api_key') AND setting_value != '' LIMIT 1");
+                $stmt_gc->execute();
+                if ($stmt_gc->fetch()) {
+                    $vehicle_name = $reservation['vehicle_name'] ?? 'Fahrzeug';
+                    $res_reason = $reservation['reason'] ?? 'Reservierung';
+                    $location = !empty($reservation['location']) ? $reservation['location'] : null;
+                    create_or_update_google_calendar_event($vehicle_name, $res_reason, $reservation['start_datetime'], $reservation['end_datetime'], $reservation_id, $location);
+                    error_log("Reservierung #$reservation_id im Google Kalender angelegt.");
+                }
+            } catch (Throwable $e) {
                 error_log("Google Calendar Übermittlung Fehler: " . $e->getMessage());
             }
         }
@@ -364,15 +369,19 @@ try {
             }
         }
         
-        // Termin im Google Kalender anlegen (nur wenn aktiviert)
+        // Termin im Google Kalender anlegen (nur wenn aktiviert und konfiguriert)
         if ($google_calendar_reservation_enabled && function_exists('create_or_update_google_calendar_event')) {
             try {
-                $vehicle_name = $reservation['vehicle_name'] ?? 'Fahrzeug';
-                $reason = $reservation['reason'] ?? 'Reservierung';
-                $location = !empty($reservation['location']) ? $reservation['location'] : null;
-                create_or_update_google_calendar_event($vehicle_name, $reason, $reservation['start_datetime'], $reservation['end_datetime'], $reservation_id, $location);
-                error_log("Reservierung #$reservation_id im Google Kalender angelegt (mit Konfliktlösung).");
-            } catch (Exception $e) {
+                $stmt_gc = $db->prepare("SELECT setting_value FROM settings WHERE setting_key IN ('google_calendar_service_account_json', 'google_calendar_service_account_file', 'google_calendar_api_key') AND setting_value != '' LIMIT 1");
+                $stmt_gc->execute();
+                if ($stmt_gc->fetch()) {
+                    $vehicle_name = $reservation['vehicle_name'] ?? 'Fahrzeug';
+                    $res_reason = $reservation['reason'] ?? 'Reservierung';
+                    $location = !empty($reservation['location']) ? $reservation['location'] : null;
+                    create_or_update_google_calendar_event($vehicle_name, $res_reason, $reservation['start_datetime'], $reservation['end_datetime'], $reservation_id, $location);
+                    error_log("Reservierung #$reservation_id im Google Kalender angelegt (mit Konfliktlösung).");
+                }
+            } catch (Throwable $e) {
                 error_log("Google Calendar Übermittlung Fehler: " . $e->getMessage());
             }
         }
@@ -401,8 +410,10 @@ try {
         throw new Exception('Ungültige Aktion');
     }
     
-} catch (Exception $e) {
-    $db->rollBack();
+} catch (Throwable $e) {
+    if (isset($db)) {
+        try { $db->rollBack(); } catch (Throwable $rb) {}
+    }
     error_log("Process Reservation Error: " . $e->getMessage());
     error_log("Process Reservation Error Trace: " . $e->getTraceAsString());
     http_response_code(500);
