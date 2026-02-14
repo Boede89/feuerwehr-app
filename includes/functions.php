@@ -1851,7 +1851,7 @@ function find_divera_event_by_foreign_id($reservation_id, $access_key, $api_base
  * @param int|null $from_ts Optional: Nur Termine ab diesem Unix-Timestamp
  * @param int|null $to_ts Optional: Nur Termine bis zu diesem Unix-Timestamp
  * @param string|null $error Ausgabe: Fehlermeldung bei API-Fehler
- * @return array Liste von Events: [['id'=>int,'title'=>string,'ts_start'=>int,'ts_end'=>int,'address'=>string], ...]
+ * @return array Liste von Events: [['id'=>int,'title'=>string,'text'=>string,'ts_start'=>int,'ts_end'=>int,'address'=>string], ...]
  */
 function fetch_divera_events($access_key, $api_base_url = 'https://app.divera247.com', $from_ts = null, $to_ts = null, &$error = null) {
     $access_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string) $access_key));
@@ -1893,6 +1893,7 @@ function fetch_divera_events($access_key, $api_base_url = 'https://app.divera247
         $events[] = [
             'id'        => $id,
             'title'     => trim((string) ($event['title'] ?? '')),
+            'text'      => trim((string) ($event['text'] ?? '')),
             'ts_start'  => $ts_start,
             'ts_end'    => $ts_end,
             'address'   => trim((string) ($event['address'] ?? '')),

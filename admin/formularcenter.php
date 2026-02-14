@@ -768,7 +768,8 @@ try {
                         diveraImportEvents.forEach(function(ev) {
                             var d = new Date(ev.ts_start * 1000);
                             var dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
-                            html += '<div class="form-check"><input class="form-check-input import-event-cb" type="checkbox" value="' + ev.id + '"><label class="form-check-label">' + escapeHtml(dateStr + ' – ' + (ev.title || '')) + '</label></div>';
+                            var thema = (ev.text || ev.title || '').trim();
+                            html += '<div class="form-check"><input class="form-check-input import-event-cb" type="checkbox" value="' + ev.id + '"><label class="form-check-label">' + escapeHtml(dateStr + ' – ' + thema) + '</label></div>';
                         });
                         list.innerHTML = html;
                         document.getElementById('importSelectAll').addEventListener('change', function() {

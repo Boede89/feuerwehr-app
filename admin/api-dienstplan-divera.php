@@ -79,8 +79,12 @@ if ($action === 'import') {
         if (!isset($event_map[$eid])) continue;
         $e = $event_map[$eid];
         $datum = date('Y-m-d', $e['ts_start']);
-        $title = $e['title'];
-        if (preg_match('/^([^:]+):\s*(.+)$/', $title, $m)) {
+        // Thema steht bei Divera im Text-Feld (z.B. "FwDV3 Lösch"); sonst aus title
+        $text = trim((string) ($e['text'] ?? ''));
+        $title = trim((string) ($e['title'] ?? ''));
+        if ($text !== '') {
+            $bezeichnung = $text;
+        } elseif (preg_match('/^([^:]+):\s*(.+)$/', $title, $m)) {
             $bezeichnung = trim($m[2]);
         } else {
             $bezeichnung = $title;
