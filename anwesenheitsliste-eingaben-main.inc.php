@@ -120,6 +120,7 @@ $draft = &$_SESSION[$draft_key];
 // Divera-Einsatz: Daten aus Divera übernehmen (wenn divera_id übergeben)
 $divera_id = isset($_GET['divera_id']) ? (int)$_GET['divera_id'] : 0;
 if ($divera_id > 0 && $is_einsatz) {
+    $draft['divera_id'] = $divera_id;
     $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
     if ($divera_key === '' && isset($_SESSION['user_id'])) {
         $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
@@ -155,7 +156,7 @@ $draft_defaults = [
     'alarmierung_durch' => '', 'einsatzstelle' => '', 'objekt' => '', 'eigentuemer' => '', 'geschaedigter' => '',
     'klassifizierung' => '', 'kostenpflichtiger_einsatz' => '', 'personenschaeden' => '', 'brandwache' => '',
     'einsatzleiter_member_id' => null, 'einsatzleiter_freitext' => '',
-    'einsatzstichwort' => '', 'thema' => '',
+    'einsatzstichwort' => '', 'thema' => '', 'divera_id' => null,
 ];
 foreach ($draft_defaults as $k => $v) {
     if (!array_key_exists($k, $draft)) {
@@ -175,7 +176,7 @@ $extra_columns = [
     'einsatzstelle VARCHAR(255) NULL', 'objekt TEXT NULL', 'eigentuemer VARCHAR(255) NULL', 'geschaedigter VARCHAR(255) NULL',
     'klassifizierung VARCHAR(100) NULL', 'kostenpflichtiger_einsatz VARCHAR(100) NULL', 'personenschaeden VARCHAR(50) NULL',
     'brandwache VARCHAR(100) NULL', 'einsatzleiter_member_id INT NULL', 'einsatzleiter_freitext VARCHAR(255) NULL',
-    'custom_data JSON NULL',
+    'custom_data JSON NULL', 'divera_id INT NULL',
 ];
 foreach ($extra_columns as $colDef) {
     try {
@@ -334,11 +335,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         }
         $custom_data_json = !empty($draft['custom_data']) ? json_encode($draft['custom_data']) : null;
         $einsatzstichwort_save = ($typ_save === 'einsatz' && !empty($draft['einsatzstichwort'])) ? $draft['einsatzstichwort'] : null;
+        $divera_id_save = !empty($draft['divera_id']) ? (int)$draft['divera_id'] : null;
         $stmt = $db->prepare("
             INSERT INTO anwesenheitslisten (datum, dienstplan_id, typ, bezeichnung, user_id, bemerkung, einsatzstichwort,
                 uhrzeit_von, uhrzeit_bis, alarmierung_durch, einsatzstelle, objekt, eigentuemer, geschaedigter,
-                klassifizierung, kostenpflichtiger_einsatz, personenschaeden, brandwache, einsatzleiter_member_id, einsatzleiter_freitext, custom_data)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                klassifizierung, kostenpflichtiger_einsatz, personenschaeden, brandwache, einsatzleiter_member_id, einsatzleiter_freitext, custom_data, divera_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             $draft['datum'], $dp_id, $typ_save, $bezeichnung_save, $_SESSION['user_id'], $draft['bemerkung'] !== '' ? $draft['bemerkung'] : null, $einsatzstichwort_save,
@@ -354,7 +356,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             $draft['brandwache'] !== '' ? $draft['brandwache'] : null,
             $draft['einsatzleiter_member_id'] ?? null,
             $draft['einsatzleiter_freitext'] !== '' ? $draft['einsatzleiter_freitext'] : null,
-            $custom_data_json
+            $custom_data_json,
+            $divera_id_save
         ]);
         $list_id = $db->lastInsertId();
         foreach ($draft['members'] as $mid) {

@@ -90,6 +90,11 @@ try {
     } catch (Exception $e2) {
         // Spalte existiert bereits
     }
+    try {
+        $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN divera_id INT NULL");
+    } catch (Exception $e2) {
+        // Spalte existiert bereits
+    }
     $anwesenheit_extra_columns = [
         "einsatzstichwort VARCHAR(100) NULL",
         "uhrzeit_von TIME NULL",
@@ -217,7 +222,23 @@ if ($divera_key !== '') {
     $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
     $divera_err = '';
     $divera_alarms = fetch_divera_alarms($divera_key, $api_base, $divera_err);
-    $divera_alarm = !empty($divera_alarms) ? $divera_alarms[0] : null;
+    $divera_alarm = null;
+    if (!empty($divera_alarms)) {
+        try {
+            $stmt = $db->prepare("SELECT divera_id FROM anwesenheitslisten WHERE divera_id IS NOT NULL");
+            $stmt->execute();
+            $used_divera_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        } catch (Exception $e) {
+            $used_divera_ids = [];
+        }
+        foreach ($divera_alarms as $alarm) {
+            $aid = (int)($alarm['id'] ?? 0);
+            if ($aid > 0 && !in_array($aid, $used_divera_ids)) {
+                $divera_alarm = $alarm;
+                break;
+            }
+        }
+    }
 }
 
 // Dienste für gewähltes Datum laden (nur solche, für die noch KEINE Anwesenheitsliste existiert)
