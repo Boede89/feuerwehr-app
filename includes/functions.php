@@ -1626,6 +1626,28 @@ function log_divera_debug_response($raw_response, $context = 'create') {
 }
 
 /**
+ * Protokolliert, dass eine Divera-Löschung übersprungen wurde (z.B. fehlende Event-ID oder Access Key).
+ * @param int $reservation_id Reservierungs-ID
+ * @param string $reason Grund (z.B. 'event_id_null', 'key_empty', 'find_by_foreign_id_failed')
+ */
+function log_divera_debug_skip($reservation_id, $reason) {
+    global $db;
+    if (empty($db)) return;
+    try {
+        $entry = [
+            'timestamp' => date('Y-m-d H:i:s'),
+            'source'    => 'reservation',
+            'type'      => 'delete_skip',
+            'payload'   => [
+                'reservation_id' => (int) $reservation_id,
+                'reason'         => $reason,
+            ],
+        ];
+        log_divera_debug_entry($entry);
+    } catch (Exception $e) {}
+}
+
+/**
  * Speichert einen Divera-DELETE-Request im Debug-Log (max. 5 Einträge).
  * @param int $event_id Divera-Event-ID
  * @param string $url_path API-Pfad ohne Access Key (z.B. /api/v2/events/123)

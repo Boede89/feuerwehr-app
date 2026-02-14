@@ -136,8 +136,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $entry_type = $entry['type'] ?? 'post';
                             $is_delete = $entry_type === 'delete';
                             $is_response = $entry_type === 'response';
-                            $badge = $is_delete ? 'DELETE' : ($is_response ? 'RESPONSE' : 'POST');
-                            $badge_class = $is_delete ? 'danger' : ($is_response ? 'warning' : (($entry['source'] ?? '') === 'form' ? 'info' : 'primary'));
+                            $is_skip = $entry_type === 'delete_skip';
+                            $badge = $is_delete ? 'DELETE' : ($is_response ? 'RESPONSE' : ($is_skip ? 'DELETE ÜBERSPRUNGEN' : 'POST'));
+                            $badge_class = $is_delete ? 'danger' : ($is_response ? 'warning' : ($is_skip ? 'secondary' : (($entry['source'] ?? '') === 'form' ? 'info' : 'primary')));
                             ?>
                             <div class="card mb-3">
                                 <div class="card-header py-2 d-flex align-items-center">
@@ -150,7 +151,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <?php endif; ?>
                                 </div>
                                 <div class="card-body p-2">
-                                    <?php if ($is_delete): ?>
+                                    <?php if ($is_skip): ?>
+                                        <p class="mb-1"><strong>Reservierungs-ID:</strong> <?php echo (int)($entry['payload']['reservation_id'] ?? 0); ?></p>
+                                        <p class="mb-1"><strong>Grund:</strong> <?php echo htmlspecialchars($entry['payload']['reason'] ?? ''); ?> (event_id_null = keine Divera-Event-ID gespeichert/gefunden; key_empty = kein Access Key)</p>
+                                        <pre class="mb-0 small" style="max-height: 150px; overflow: auto;"><?php echo htmlspecialchars(json_encode($entry['payload'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
+                                    <?php elseif ($is_delete): ?>
                                         <p class="mb-1"><strong>Event-ID:</strong> <?php echo (int)($entry['payload']['event_id'] ?? 0); ?></p>
                                         <p class="mb-1"><strong>URL-Pfad:</strong> <code><?php echo htmlspecialchars($entry['payload']['url_path'] ?? ''); ?></code></p>
                                         <pre class="mb-0 small" style="max-height: 150px; overflow: auto;"><?php echo htmlspecialchars(json_encode($entry['payload'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>

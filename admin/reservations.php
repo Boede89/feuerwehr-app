@@ -72,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
                     $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
                 }
                 $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+                // Fallback: Event-ID per foreign_id ermitteln, wenn nicht gespeichert
                 if ($divera_event_id <= 0 && $divera_key !== '' && function_exists('find_divera_event_by_foreign_id')) {
                     $divera_event_id = find_divera_event_by_foreign_id($reservation_id, $divera_key, $api_base) ?? 0;
                     if ($divera_event_id > 0) {
@@ -84,6 +85,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
                     } else {
                         error_log("RESERVATIONS DELETE: Divera Event konnte nicht gelöscht werden: " . $divera_event_id);
                     }
+                } else {
+                    $skip_reason = $divera_event_id <= 0 ? 'event_id_null' : 'key_empty';
+                    if (function_exists('log_divera_debug_skip')) {
+                        log_divera_debug_skip($reservation_id, $skip_reason);
+                    }
+                    error_log("RESERVATIONS DELETE: Divera-Löschung übersprungen – event_id=" . $divera_event_id . ", key_leer=" . ($divera_key === '' ? 'ja' : 'nein'));
                 }
             }
             // Hole Google Calendar Event ID vor dem Löschen
@@ -589,15 +596,9 @@ try {
                                                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
                                                                 <i class="fas fa-eye"></i> Details
                                                             </button>
-                                                            
-                                                            <form method="POST" class="d-inline" onsubmit="return confirm('Fahrzeug aus Kalendereintrag entfernen? Der Kalendereintrag bleibt bestehen, nur das Fahrzeug wird aus dem Titel entfernt.');">
-                                                                <input type="hidden" name="action" value="remove_vehicle_from_calendar">
-                                                                <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
-                                                                <button type="submit" class="btn btn-sm btn-danger">
-                                                                    <i class="fas fa-trash-can"></i> Löschen
-                                                                </button>
-                                                            </form>
-                                                            
+                                                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $reservation['id']; ?>">
+                                                                <i class="fas fa-trash"></i> Löschen
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
