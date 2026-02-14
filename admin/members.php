@@ -2621,7 +2621,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             const member = JSON.parse(memberData);
                             console.log('Parsed member:', member);
                             // Direkt Bearbeiten-Modal öffnen (wie bei Klick auf Bearbeiten-Button)
-                            if (member.member_id) {
+                            if (member.member_id || member.id) {
                                 editMember(member);
                             } else {
                                 showMemberDetails(member);
@@ -3339,7 +3339,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             
             // Modal für Bearbeitung konfigurieren
             actionInput.value = 'edit_member';
-            memberIdInput.value = member.member_id || '';
+            memberIdInput.value = member.member_id || member.id || '';
             title.innerHTML = '<i class="fas fa-user-edit me-2"></i> Mitglied bearbeiten';
             header.className = 'modal-header bg-primary text-white';
             submitBtn.innerHTML = '<i class="fas fa-save me-1"></i>Änderungen speichern';
@@ -3435,8 +3435,18 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 }
             }
             
+            // Lehrgangs-Bereich zurücksetzen, damit keine veralteten Daten von vorherigem Mitglied angezeigt werden
+            const addMemberCoursesContainer = document.getElementById('addMemberCoursesContainer');
+            const courseSectionModifiedInput = document.getElementById('course_section_modified');
+            if (courseSectionModifiedInput) courseSectionModifiedInput.remove();
+            if (addMemberCoursesContainer) {
+                addMemberCoursesContainer.style.display = 'none';
+                addMemberCoursesContainer.innerHTML = '<p class="text-muted">Lade verfügbare Lehrgänge...</p>';
+            }
+            document.querySelectorAll('.add-member-course-input').forEach(function(input) { input.remove(); });
+            
             // RICs und Lehrgänge für Bearbeitung vorbereiten (werden geladen wenn Buttons geklickt werden)
-            const memberId = member.member_id || '';
+            const memberId = member.member_id || member.id || '';
             if (memberId) {
                 // Speichere memberId für späteres Laden
                 window.currentEditMemberId = memberId;
