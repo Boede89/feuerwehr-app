@@ -146,41 +146,88 @@ foreach ($members_list as $m) {
 $message = '';
 $error = '';
 
-$alarmierung_optionen = ['Telefon', 'DME Löschzug', 'DME Kleinhilfe', 'Sirene'];
-$klassifizierung_optionen = ['Grossbrand', 'Mittelbrand', 'Kleinbrand', 'Gelöschtes Feuer', 'Gefahrenmeldeanlage', 'Menschen in Notlage', 'Tiere in Notlage', 'Verkehrsunfall', 'Techn. Hilfeleistung', 'Wasserrettung', 'CBRN-Einsatz', 'Unterstützung RD', 'Sonstiger Einsatz', 'Fehlalarm', 'Böswill. Alarm'];
-$personenschaeden_optionen = ['Ja', 'Nein', 'Person gerettet', 'Person verstorben'];
+// Anwesenheitsliste-Einstellungen laden (Felder, Optionen, Sichtbarkeit)
+$anwesenheitsliste_settings = [];
+try {
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'anwesenheitsliste_%'");
+    $stmt->execute();
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $anwesenheitsliste_settings[$row['setting_key']] = $row['setting_value'];
+    }
+} catch (Exception $e) {
+    $anwesenheitsliste_settings = [];
+}
+$default_opts = [
+    'alarmierung' => ['Telefon', 'DME Löschzug', 'DME Kleinhilfe', 'Sirene'],
+    'klassifizierung' => ['Grossbrand', 'Mittelbrand', 'Kleinbrand', 'Gelöschtes Feuer', 'Gefahrenmeldeanlage', 'Menschen in Notlage', 'Tiere in Notlage', 'Verkehrsunfall', 'Techn. Hilfeleistung', 'Wasserrettung', 'CBRN-Einsatz', 'Unterstützung RD', 'Sonstiger Einsatz', 'Fehlalarm', 'Böswill. Alarm'],
+    'personenschaeden' => ['Ja', 'Nein', 'Person gerettet', 'Person verstorben'],
+    'kostenpflichtiger' => ['Ja', 'Nein'],
+    'brandwache' => ['Ja', 'Nein'],
+];
+$alarmierung_optionen = _anwesenheitsliste_optionen($anwesenheitsliste_settings, 'alarmierung_optionen', $default_opts['alarmierung']);
+$klassifizierung_optionen = _anwesenheitsliste_optionen($anwesenheitsliste_settings, 'klassifizierung_optionen', $default_opts['klassifizierung']);
+$personenschaeden_optionen = _anwesenheitsliste_optionen($anwesenheitsliste_settings, 'personenschaeden_optionen', $default_opts['personenschaeden']);
+$kostenpflichtiger_optionen = _anwesenheitsliste_optionen($anwesenheitsliste_settings, 'kostenpflichtiger_optionen', $default_opts['kostenpflichtiger']);
+$brandwache_optionen = _anwesenheitsliste_optionen($anwesenheitsliste_settings, 'brandwache_optionen', $default_opts['brandwache']);
+$anwesenheitsliste_labels = _anwesenheitsliste_labels($anwesenheitsliste_settings);
+$anwesenheitsliste_sichtbar = _anwesenheitsliste_sichtbar($anwesenheitsliste_settings);
+function _anwesenheitsliste_optionen($s, $key, $def) {
+    $raw = $s['anwesenheitsliste_' . $key] ?? '';
+    if ($raw === '') return $def;
+    $arr = json_decode($raw, true);
+    return is_array($arr) && !empty($arr) ? $arr : $def;
+}
+function _anwesenheitsliste_labels($s) {
+    $raw = $s['anwesenheitsliste_feld_labels'] ?? '';
+    if ($raw === '') return [];
+    $arr = json_decode($raw, true);
+    return is_array($arr) ? $arr : [];
+}
+function _anwesenheitsliste_sichtbar($s) {
+    $raw = $s['anwesenheitsliste_felder_sichtbar'] ?? '';
+    if ($raw === '') return [];
+    $arr = json_decode($raw, true);
+    return is_array($arr) ? $arr : [];
+}
+function _anwesenheitsliste_label($fk, $def, $labels) {
+    return isset($labels[$fk]) && $labels[$fk] !== '' ? $labels[$fk] : $def;
+}
+function _anwesenheitsliste_visible($fk, $sichtbar) {
+    return empty($sichtbar) || ($sichtbar[$fk] ?? '1') === '1';
+}
 
 // Speichern (nur auf dieser Seite): Liste anlegen + Personal/Fahrzeuge aus Session
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
-    $bemerkung = trim($_POST['bemerkung'] ?? '');
     $typ_sonstige = trim($_POST['typ_sonstige'] ?? '');
     $typ_sonstige_freitext = trim($_POST['typ_sonstige_freitext'] ?? '');
-    $draft['bemerkung'] = $bemerkung;
-    $draft['uhrzeit_von'] = trim($_POST['uhrzeit_von'] ?? '');
-    $draft['uhrzeit_bis'] = trim($_POST['uhrzeit_bis'] ?? '');
-    $draft['alarmierung_durch'] = trim($_POST['alarmierung_durch'] ?? '');
-    $draft['einsatzstelle'] = trim($_POST['einsatzstelle'] ?? '');
-    $draft['objekt'] = trim($_POST['objekt'] ?? '');
-    $draft['eigentuemer'] = trim($_POST['eigentuemer'] ?? '');
-    $draft['geschaedigter'] = trim($_POST['geschaedigter'] ?? '');
-    $draft['klassifizierung'] = trim($_POST['klassifizierung'] ?? '');
-    $draft['kostenpflichtiger_einsatz'] = trim($_POST['kostenpflichtiger_einsatz'] ?? '');
-    $draft['personenschaeden'] = trim($_POST['personenschaeden'] ?? '');
-    $draft['brandwache'] = trim($_POST['brandwache'] ?? '');
-    $einsatzleiter_val = trim($_POST['einsatzleiter'] ?? '');
-    if ($einsatzleiter_val === '__freitext__') {
-        $draft['einsatzleiter_member_id'] = null;
-        $draft['einsatzleiter_freitext'] = trim($_POST['einsatzleiter_freitext'] ?? '');
-    } elseif ($einsatzleiter_val !== '' && ctype_digit($einsatzleiter_val)) {
-        $mid = (int)$einsatzleiter_val;
-        $draft['einsatzleiter_member_id'] = $mid;
-        $draft['einsatzleiter_freitext'] = '';
-        if (!in_array($mid, $draft['members'])) {
-            $draft['members'][] = $mid;
+    if (_anwesenheitsliste_visible('bemerkung', $anwesenheitsliste_sichtbar)) $draft['bemerkung'] = trim($_POST['bemerkung'] ?? '');
+    if (_anwesenheitsliste_visible('uhrzeit_von', $anwesenheitsliste_sichtbar)) $draft['uhrzeit_von'] = trim($_POST['uhrzeit_von'] ?? '');
+    if (_anwesenheitsliste_visible('uhrzeit_bis', $anwesenheitsliste_sichtbar)) $draft['uhrzeit_bis'] = trim($_POST['uhrzeit_bis'] ?? '');
+    if (_anwesenheitsliste_visible('alarmierung_durch', $anwesenheitsliste_sichtbar)) $draft['alarmierung_durch'] = trim($_POST['alarmierung_durch'] ?? '');
+    if (_anwesenheitsliste_visible('einsatzstelle', $anwesenheitsliste_sichtbar)) $draft['einsatzstelle'] = trim($_POST['einsatzstelle'] ?? '');
+    if (_anwesenheitsliste_visible('objekt', $anwesenheitsliste_sichtbar)) $draft['objekt'] = trim($_POST['objekt'] ?? '');
+    if (_anwesenheitsliste_visible('eigentuemer', $anwesenheitsliste_sichtbar)) $draft['eigentuemer'] = trim($_POST['eigentuemer'] ?? '');
+    if (_anwesenheitsliste_visible('geschaedigter', $anwesenheitsliste_sichtbar)) $draft['geschaedigter'] = trim($_POST['geschaedigter'] ?? '');
+    if (_anwesenheitsliste_visible('klassifizierung', $anwesenheitsliste_sichtbar)) $draft['klassifizierung'] = trim($_POST['klassifizierung'] ?? '');
+    if (_anwesenheitsliste_visible('kostenpflichtiger_einsatz', $anwesenheitsliste_sichtbar)) $draft['kostenpflichtiger_einsatz'] = trim($_POST['kostenpflichtiger_einsatz'] ?? '');
+    if (_anwesenheitsliste_visible('personenschaeden', $anwesenheitsliste_sichtbar)) $draft['personenschaeden'] = trim($_POST['personenschaeden'] ?? '');
+    if (_anwesenheitsliste_visible('brandwache', $anwesenheitsliste_sichtbar)) $draft['brandwache'] = trim($_POST['brandwache'] ?? '');
+    if (_anwesenheitsliste_visible('einsatzleiter', $anwesenheitsliste_sichtbar)) {
+        $einsatzleiter_val = trim($_POST['einsatzleiter'] ?? '');
+        if ($einsatzleiter_val === '__freitext__') {
+            $draft['einsatzleiter_member_id'] = null;
+            $draft['einsatzleiter_freitext'] = trim($_POST['einsatzleiter_freitext'] ?? '');
+        } elseif ($einsatzleiter_val !== '' && ctype_digit($einsatzleiter_val)) {
+            $mid = (int)$einsatzleiter_val;
+            $draft['einsatzleiter_member_id'] = $mid;
+            $draft['einsatzleiter_freitext'] = '';
+            if (!in_array($mid, $draft['members'])) {
+                $draft['members'][] = $mid;
+            }
+        } else {
+            $draft['einsatzleiter_member_id'] = null;
+            $draft['einsatzleiter_freitext'] = '';
         }
-    } else {
-        $draft['einsatzleiter_member_id'] = null;
-        $draft['einsatzleiter_freitext'] = '';
     }
     if ($draft['typ'] === 'einsatz') {
         if ($typ_sonstige === '__custom__') {
@@ -317,18 +364,25 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                     </a>
                                 </div>
                             </div>
+                            <?php if (_anwesenheitsliste_visible('uhrzeit_von', $anwesenheitsliste_sichtbar) || _anwesenheitsliste_visible('uhrzeit_bis', $anwesenheitsliste_sichtbar)): ?>
                             <div class="row g-3 mb-4">
+                                <?php if (_anwesenheitsliste_visible('uhrzeit_von', $anwesenheitsliste_sichtbar)): ?>
                                 <div class="col-md-6">
-                                    <label for="uhrzeit_von" class="form-label">Uhrzeit von</label>
+                                    <label for="uhrzeit_von" class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('uhrzeit_von', 'Uhrzeit von', $anwesenheitsliste_labels)); ?></label>
                                     <input type="time" class="form-control" id="uhrzeit_von" name="uhrzeit_von" value="<?php echo htmlspecialchars($draft['uhrzeit_von'] ?? ''); ?>">
                                 </div>
+                                <?php endif; ?>
+                                <?php if (_anwesenheitsliste_visible('uhrzeit_bis', $anwesenheitsliste_sichtbar)): ?>
                                 <div class="col-md-6">
-                                    <label for="uhrzeit_bis" class="form-label">Uhrzeit bis</label>
+                                    <label for="uhrzeit_bis" class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('uhrzeit_bis', 'Uhrzeit bis', $anwesenheitsliste_labels)); ?></label>
                                     <input type="time" class="form-control" id="uhrzeit_bis" name="uhrzeit_bis" value="<?php echo htmlspecialchars(!empty($draft['uhrzeit_bis']) ? $draft['uhrzeit_bis'] : date('H:i')); ?>">
                                 </div>
+                                <?php endif; ?>
                             </div>
+                            <?php endif; ?>
+                            <?php if (_anwesenheitsliste_visible('einsatzleiter', $anwesenheitsliste_sichtbar)): ?>
                             <div class="mb-3">
-                                <label for="einsatzleiter" class="form-label">Einsatzleiter</label>
+                                <label for="einsatzleiter" class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('einsatzleiter', 'Einsatzleiter', $anwesenheitsliste_labels)); ?></label>
                                 <select class="form-select" id="einsatzleiter" name="einsatzleiter">
                                     <option value="">— keine Auswahl —</option>
                                     <?php foreach ($members_for_einsatzleiter as $m):
@@ -343,8 +397,10 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                     <input type="text" class="form-control" id="einsatzleiter_freitext" name="einsatzleiter_freitext" placeholder="Name Einsatzleiter (z. B. andere Feuerwehr)" value="<?php echo htmlspecialchars($draft['einsatzleiter_freitext'] ?? ''); ?>">
                                 </div>
                             </div>
+                            <?php endif; ?>
+                            <?php if (_anwesenheitsliste_visible('alarmierung_durch', $anwesenheitsliste_sichtbar)): ?>
                             <div class="mb-3">
-                                <label for="alarmierung_durch" class="form-label">Alarmierung durch</label>
+                                <label for="alarmierung_durch" class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('alarmierung_durch', 'Alarmierung durch', $anwesenheitsliste_labels)); ?></label>
                                 <select class="form-select" id="alarmierung_durch" name="alarmierung_durch">
                                     <option value="">— keine Auswahl —</option>
                                     <?php foreach ($alarmierung_optionen as $opt): ?>
@@ -352,19 +408,29 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                     <?php endforeach; ?>
                                 </select>
                             </div>
+                            <?php endif; ?>
+                            <?php if (_anwesenheitsliste_visible('einsatzstelle', $anwesenheitsliste_sichtbar)): ?>
                             <div class="mb-3 position-relative">
-                                <label for="einsatzstelle" class="form-label">Einsatzstelle</label>
+                                <label for="einsatzstelle" class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('einsatzstelle', 'Einsatzstelle', $anwesenheitsliste_labels)); ?></label>
                                 <input type="text" class="form-control" id="einsatzstelle" name="einsatzstelle" placeholder="Adresse eingeben (Autovervollständigung)" value="<?php echo htmlspecialchars($draft['einsatzstelle'] ?? ''); ?>" autocomplete="off">
                                 <div id="einsatzstelle_suggestions" class="list-group position-absolute w-100 mt-1 shadow" style="z-index: 1050; max-height: 200px; overflow-y: auto; display: none;"></div>
                             </div>
-                            <div class="mb-3"><label for="objekt" class="form-label">Objekt</label>
+                            <?php endif; ?>
+                            <?php if (_anwesenheitsliste_visible('objekt', $anwesenheitsliste_sichtbar)): ?>
+                            <div class="mb-3"><label for="objekt" class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('objekt', 'Objekt', $anwesenheitsliste_labels)); ?></label>
                                 <input type="text" class="form-control" id="objekt" name="objekt" placeholder="Freitext" value="<?php echo htmlspecialchars($draft['objekt'] ?? ''); ?>"></div>
-                            <div class="mb-3"><label for="eigentuemer" class="form-label">Eigentümer</label>
+                            <?php endif; ?>
+                            <?php if (_anwesenheitsliste_visible('eigentuemer', $anwesenheitsliste_sichtbar)): ?>
+                            <div class="mb-3"><label for="eigentuemer" class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('eigentuemer', 'Eigentümer', $anwesenheitsliste_labels)); ?></label>
                                 <input type="text" class="form-control" id="eigentuemer" name="eigentuemer" placeholder="Freitext" value="<?php echo htmlspecialchars($draft['eigentuemer'] ?? ''); ?>"></div>
-                            <div class="mb-3"><label for="geschaedigter" class="form-label">Geschädigter</label>
+                            <?php endif; ?>
+                            <?php if (_anwesenheitsliste_visible('geschaedigter', $anwesenheitsliste_sichtbar)): ?>
+                            <div class="mb-3"><label for="geschaedigter" class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('geschaedigter', 'Geschädigter', $anwesenheitsliste_labels)); ?></label>
                                 <input type="text" class="form-control" id="geschaedigter" name="geschaedigter" placeholder="Freitext" value="<?php echo htmlspecialchars($draft['geschaedigter'] ?? ''); ?>"></div>
+                            <?php endif; ?>
+                            <?php if (_anwesenheitsliste_visible('klassifizierung', $anwesenheitsliste_sichtbar)): ?>
                             <div class="mb-3">
-                                <label for="klassifizierung" class="form-label">Klassifizierung / Stichwörter</label>
+                                <label for="klassifizierung" class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('klassifizierung', 'Klassifizierung / Stichwörter', $anwesenheitsliste_labels)); ?></label>
                                 <select class="form-select" id="klassifizierung" name="klassifizierung">
                                     <option value="">— keine Auswahl —</option>
                                     <?php foreach ($klassifizierung_optionen as $opt): ?>
@@ -372,15 +438,23 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                     <?php endforeach; ?>
                                 </select>
                             </div>
+                            <?php endif; ?>
+                            <?php if (_anwesenheitsliste_visible('kostenpflichtiger_einsatz', $anwesenheitsliste_sichtbar)): ?>
                             <div class="mb-3">
-                                <label class="form-label">Kostenpflichtiger Einsatz</label>
+                                <label class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('kostenpflichtiger_einsatz', 'Kostenpflichtiger Einsatz', $anwesenheitsliste_labels)); ?></label>
                                 <div class="d-flex gap-3">
-                                    <div class="form-check"><input class="form-check-input" type="radio" name="kostenpflichtiger_einsatz" id="kosten_ja" value="ja" <?php echo ($draft['kostenpflichtiger_einsatz'] ?? '') === 'ja' ? 'checked' : ''; ?>><label class="form-check-label" for="kosten_ja">Ja</label></div>
-                                    <div class="form-check"><input class="form-check-input" type="radio" name="kostenpflichtiger_einsatz" id="kosten_nein" value="nein" <?php echo ($draft['kostenpflichtiger_einsatz'] ?? '') === 'nein' ? 'checked' : ''; ?>><label class="form-check-label" for="kosten_nein">Nein</label></div>
+                                    <?php foreach ($kostenpflichtiger_optionen as $opt):
+                                        $val = htmlspecialchars($opt);
+                                        $draftVal = $draft['kostenpflichtiger_einsatz'] ?? '';
+                                        $sel = ($draftVal === $opt || strtolower($draftVal) === strtolower($opt)) ? ' checked' : '';
+                                    ?>
+                                    <div class="form-check"><input class="form-check-input" type="radio" name="kostenpflichtiger_einsatz" id="kosten_<?php echo preg_replace('/[^a-z0-9]/', '_', strtolower($opt)); ?>" value="<?php echo $val; ?>"<?php echo $sel; ?>><label class="form-check-label" for="kosten_<?php echo preg_replace('/[^a-z0-9]/', '_', strtolower($opt)); ?>"><?php echo htmlspecialchars($opt); ?></label></div>
+                                    <?php endforeach; ?>
                                 </div>
                             </div>
-                            <div class="mb-3">
-                                <label for="personenschaeden" class="form-label">Personenschäden</label>
+                            <?php endif; ?>
+                            <?php if (_anwesenheitsliste_visible('personenschaeden', $anwesenheitsliste_sichtbar)): ?>
+                                <label for="personenschaeden" class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('personenschaeden', 'Personenschäden', $anwesenheitsliste_labels)); ?></label>
                                 <select class="form-select" id="personenschaeden" name="personenschaeden">
                                     <option value="">— keine Auswahl —</option>
                                     <?php foreach ($personenschaeden_optionen as $opt): ?>
@@ -388,13 +462,21 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                     <?php endforeach; ?>
                                 </select>
                             </div>
+                            <?php endif; ?>
+                            <?php if (_anwesenheitsliste_visible('brandwache', $anwesenheitsliste_sichtbar)): ?>
                             <div class="mb-4">
-                                <label class="form-label">Brandwache</label>
+                                <label class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('brandwache', 'Brandwache', $anwesenheitsliste_labels)); ?></label>
                                 <div class="d-flex gap-3">
-                                    <div class="form-check"><input class="form-check-input" type="radio" name="brandwache" id="brandwache_ja" value="ja" <?php echo ($draft['brandwache'] ?? '') === 'ja' ? 'checked' : ''; ?>><label class="form-check-label" for="brandwache_ja">Ja</label></div>
-                                    <div class="form-check"><input class="form-check-input" type="radio" name="brandwache" id="brandwache_nein" value="nein" <?php echo ($draft['brandwache'] ?? '') === 'nein' ? 'checked' : ''; ?>><label class="form-check-label" for="brandwache_nein">Nein</label></div>
+                                    <?php foreach ($brandwache_optionen as $opt):
+                                        $val = htmlspecialchars($opt);
+                                        $draftVal = $draft['brandwache'] ?? '';
+                                        $sel = ($draftVal === $opt || strtolower($draftVal) === strtolower($opt)) ? ' checked' : '';
+                                    ?>
+                                    <div class="form-check"><input class="form-check-input" type="radio" name="brandwache" id="brandwache_<?php echo preg_replace('/[^a-z0-9]/', '_', strtolower($opt)); ?>" value="<?php echo $val; ?>"<?php echo $sel; ?>><label class="form-check-label" for="brandwache_<?php echo preg_replace('/[^a-z0-9]/', '_', strtolower($opt)); ?>"><?php echo htmlspecialchars($opt); ?></label></div>
+                                    <?php endforeach; ?>
                                 </div>
                             </div>
+                            <?php endif; ?>
                             <?php if ($is_einsatz): ?>
                             <div class="mb-4">
                                 <label for="typ_sonstige" class="form-label">Typ</label>
@@ -409,10 +491,12 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                 </div>
                             </div>
                             <?php endif; ?>
+                            <?php if (_anwesenheitsliste_visible('bemerkung', $anwesenheitsliste_sichtbar)): ?>
                             <div class="mb-4">
-                                <label for="bemerkung" class="form-label">Einsatzkurzbericht</label>
+                                <label for="bemerkung" class="form-label"><?php echo htmlspecialchars(_anwesenheitsliste_label('bemerkung', 'Einsatzkurzbericht', $anwesenheitsliste_labels)); ?></label>
                                 <textarea class="form-control" id="bemerkung" name="bemerkung" rows="3" placeholder="Kurzer Bericht zum Einsatz"><?php echo htmlspecialchars($draft['bemerkung'] ?? ''); ?></textarea>
                             </div>
+                            <?php endif; ?>
                             <div class="d-flex flex-wrap gap-2">
                                 <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Anwesenheitsliste speichern</button>
                                 <a href="anwesenheitsliste.php" class="btn btn-secondary">Zurück zur Auswahl</a>

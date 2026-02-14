@@ -245,6 +245,9 @@ if (isset($_POST['test_email_btn'])) {
                                 <a class="btn btn-outline-primary" href="settings-dienstplan.php">
                                     <i class="fas fa-calendar-alt"></i> Dienstplan
                                 </a>
+                                <a class="btn btn-outline-primary" href="settings-anwesenheitsliste.php">
+                                    <i class="fas fa-clipboard-list"></i> Anwesenheitsliste
+                                </a>
                             </div>
                         </div>
                     </div>
