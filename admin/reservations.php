@@ -167,12 +167,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             $stmt = $db->prepare("DELETE FROM reservations WHERE id = ?");
             $stmt->execute([$reservation_id]);
             
-                // Erfolgreiche Löschung - Google Calendar wurde ggf. gelöscht oder aktualisiert
+            // Erfolgreiche Löschung – Meldung je nach aktivierten Systemen
+            $message = "Reservierung erfolgreich gelöscht.";
+            $details = [];
+            if ($divera_reservation_enabled) {
+                $details[] = "Der Divera-Termin wurde entfernt.";
+            }
+            if ($google_calendar_reservation_enabled && $calendar_event && !empty($calendar_event['google_event_id'])) {
                 if ($remaining_links > 0) {
-                    $message = "Reservierung erfolgreich gelöscht. Der Google Calendar Eintrag wurde aktualisiert und zeigt nur noch die verbleibenden Fahrzeuge an.";
+                    $details[] = "Der Google Calendar Eintrag wurde aktualisiert und zeigt nur noch die verbleibenden Fahrzeuge an.";
                 } else {
-                    $message = "Reservierung erfolgreich gelöscht. Der Google Calendar Eintrag wurde entfernt, da keine weiteren Reservierungen an diesem Termin vorhanden waren.";
+                    $details[] = "Der Google Calendar Eintrag wurde entfernt, da keine weiteren Reservierungen an diesem Termin vorhanden waren.";
                 }
+            }
+            if (!empty($details)) {
+                $message .= " " . implode(" ", $details);
+            }
         } else {
             $error = "Nur bearbeitete Reservierungen können gelöscht werden.";
         }
