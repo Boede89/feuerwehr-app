@@ -192,14 +192,16 @@ table.anwesenheit-tabelle tbody tr.anw-row.selected td.name-cell * {
     color: white;
 }
 
-/* Lehrgangsverwaltung-Badge (Berechtigungen) – farbiger Hintergrund wie andere Badges */
+/* Lehrgangsverwaltung-Badge (Berechtigungen) – farbiger Hintergrund, keine weiße Umrandung */
 .badge.bg-purple,
 .table .badge.bg-purple,
 .card .badge.bg-purple {
     background: linear-gradient(135deg, #6f42c1, #5a32a3) !important;
     background-color: #6f42c1 !important;
     color: #fff !important;
-    border: 1px solid #5a32a3 !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: 0 0 0 2px #5a32a3 !important;
 }
 
 /* Mobile Responsiveness */

@@ -38,10 +38,7 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (is_system_user()) {
-    header('Location: formulare.php');
-    exit;
-}
+// Systembenutzer mit can_forms dürfen Anwesenheitsliste ausfüllen
 
 // Tabellen anlegen
 try {
