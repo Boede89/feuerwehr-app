@@ -2579,7 +2579,12 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         try {
                             const member = JSON.parse(memberData);
                             console.log('Parsed member:', member);
-                            showMemberDetails(member);
+                            // Direkt Bearbeiten-Modal öffnen (wie bei Klick auf Bearbeiten-Button)
+                            if (member.member_id) {
+                                editMember(member);
+                            } else {
+                                showMemberDetails(member);
+                            }
                         } catch (error) {
                             console.error('Fehler beim Parsen der Mitgliederdaten:', error);
                             alert('Fehler beim Laden der Mitgliederdaten: ' + error.message);
@@ -2794,6 +2799,38 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             const container = document.getElementById('modalCoursesContainer');
             if (!container) return;
             
+            // Event-Delegation für Lehrgangs-Buttons (einmalig), damit Klicks zuverlässig die Markierung aktualisieren
+            if (!container.dataset.delegationAdded) {
+                container.dataset.delegationAdded = '1';
+                container.addEventListener('click', function(e) {
+                    const btn = e.target.closest('.modal-course-btn');
+                    if (!btn) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const courseId = btn.dataset.courseId;
+                    const input = document.getElementById('modal_course_' + courseId);
+                    const yearInput = document.getElementById('modal_course_year_' + courseId);
+                    const isActive = btn.classList.contains('btn-info');
+                    if (isActive) {
+                        if (input) input.remove();
+                        if (yearInput) { yearInput.style.display = 'none'; yearInput.value = ''; }
+                        btn.classList.remove('btn-info');
+                        btn.classList.add('btn-outline-info');
+                    } else {
+                        const hiddenInput = document.createElement('input');
+                        hiddenInput.type = 'hidden';
+                        hiddenInput.className = 'modal-course-input';
+                        hiddenInput.id = 'modal_course_' + courseId;
+                        hiddenInput.dataset.courseId = courseId;
+                        const form = document.getElementById('assignCoursesForm');
+                        if (form) form.appendChild(hiddenInput);
+                        if (yearInput) yearInput.style.display = 'block';
+                        btn.classList.remove('btn-outline-info');
+                        btn.classList.add('btn-info');
+                    }
+                });
+            }
+            
             container.innerHTML = '<p class="text-muted">Lade verfügbare Lehrgänge...</p>';
             
             // Lade alle Lehrgänge und aktuelle Zuweisungen parallel
@@ -2826,51 +2863,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 html += '</div>';
                 container.innerHTML = html;
                 
-                // Event-Listener für Lehrgangs-Buttons
+                // Vorauswahl: Hidden Inputs für bereits zugewiesene Lehrgänge erstellen (Klick-Handler via Event-Delegation)
                 document.querySelectorAll('.modal-course-btn').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const courseId = this.dataset.courseId;
-                        const input = document.getElementById('modal_course_' + courseId);
-                        const yearInput = document.getElementById('modal_course_year_' + courseId);
-                        
-                        // Prüfen ob Button bereits aktiviert ist (hat btn-info Klasse)
-                        const isActive = this.classList.contains('btn-info');
-                        
-                        if (isActive) {
-                            // Entfernen - Button ist aktiviert, also deaktivieren
-                            if (input) {
-                                input.remove();
-                            }
-                            if (yearInput) {
-                                yearInput.style.display = 'none';
-                                yearInput.value = '';
-                            }
-                            this.classList.remove('btn-info');
-                            this.classList.add('btn-outline-info');
-                        } else {
-                            // Hinzufügen - Button ist nicht aktiviert, also aktivieren
-                            const hiddenInput = document.createElement('input');
-                            hiddenInput.type = 'hidden';
-                            hiddenInput.className = 'modal-course-input';
-                            hiddenInput.id = 'modal_course_' + courseId;
-                            hiddenInput.dataset.courseId = courseId;
-                            
-                            // Formular finden und Input hinzufügen
-                            const form = document.getElementById('assignCoursesForm');
-                            if (form) {
-                                form.appendChild(hiddenInput);
-                            }
-                            
-                            // Jahr-Input anzeigen
-                            if (yearInput) {
-                                yearInput.style.display = 'block';
-                            }
-                            
-                            this.classList.remove('btn-outline-info');
-                            this.classList.add('btn-info');
-                        }
-                    });
-                    
                     // Vorauswahl: Prüfe ob dieser Lehrgang bereits zugewiesen ist
                     const courseId = btn.dataset.courseId;
                     const existingCourse = currentCourses.find(c => c.id == courseId);
@@ -3005,6 +2999,38 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             const container = document.getElementById('addMemberCoursesContainer');
             if (!container) return;
             
+            // Event-Delegation für Lehrgangs-Buttons (einmalig), damit Klicks zuverlässig die Markierung aktualisieren
+            if (!container.dataset.delegationAdded) {
+                container.dataset.delegationAdded = '1';
+                container.addEventListener('click', function(e) {
+                    const btn = e.target.closest('.add-member-course-btn');
+                    if (!btn) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const courseId = btn.dataset.courseId;
+                    const input = document.getElementById('add_course_' + courseId);
+                    const yearInput = document.getElementById('add_course_year_' + courseId);
+                    const isActive = btn.classList.contains('btn-info');
+                    if (isActive) {
+                        if (input) input.remove();
+                        if (yearInput) { yearInput.style.display = 'none'; yearInput.value = ''; }
+                        btn.classList.remove('btn-info');
+                        btn.classList.add('btn-outline-info');
+                    } else {
+                        const hiddenInput = document.createElement('input');
+                        hiddenInput.type = 'hidden';
+                        hiddenInput.className = 'add-member-course-input';
+                        hiddenInput.id = 'add_course_' + courseId;
+                        hiddenInput.dataset.courseId = courseId;
+                        const form = document.getElementById('memberForm');
+                        if (form) form.appendChild(hiddenInput);
+                        if (yearInput) yearInput.style.display = 'block';
+                        btn.classList.remove('btn-outline-info');
+                        btn.classList.add('btn-info');
+                    }
+                });
+            }
+            
             container.innerHTML = '<p class="text-muted">Lade verfügbare Lehrgänge...</p>';
             
             // Lade aktuelle Lehrgänge des Mitglieds wenn im Bearbeiten-Modus
@@ -3057,52 +3083,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         html += '</div>';
                         container.innerHTML = html;
                         
-                        // Event-Listener für Lehrgangs-Buttons
+                        // Vorauswahl: Hidden Inputs für bereits zugewiesene Lehrgänge (Klick-Handler via Event-Delegation)
                         document.querySelectorAll('.add-member-course-btn').forEach(btn => {
-                            btn.addEventListener('click', function() {
-                                const courseId = this.dataset.courseId;
-                                const input = document.getElementById('add_course_' + courseId);
-                                const yearInput = document.getElementById('add_course_year_' + courseId);
-                                const item = this.closest('.add-member-course-item');
-                                
-                                // Prüfen ob Button bereits aktiviert ist (hat btn-info Klasse)
-                                const isActive = this.classList.contains('btn-info');
-                                
-                                if (isActive) {
-                                    // Entfernen - Button ist aktiviert, also deaktivieren
-                                    if (input) {
-                                        input.remove();
-                                    }
-                                    if (yearInput) {
-                                        yearInput.style.display = 'none';
-                                        yearInput.value = '';
-                                    }
-                                    this.classList.remove('btn-info');
-                                    this.classList.add('btn-outline-info');
-                                } else {
-                                    // Hinzufügen - Button ist nicht aktiviert, also aktivieren
-                                    const hiddenInput = document.createElement('input');
-                                    hiddenInput.type = 'hidden';
-                                    hiddenInput.className = 'add-member-course-input';
-                                    hiddenInput.id = 'add_course_' + courseId;
-                                    hiddenInput.dataset.courseId = courseId;
-                                    
-                                    // Formular finden und Input hinzufügen (nicht in den Button-Container)
-                                    const form = document.getElementById('memberForm');
-                                    if (form) {
-                                        form.appendChild(hiddenInput);
-                                    }
-                                    
-                                    // Jahr-Input anzeigen
-                                    if (yearInput) {
-                                        yearInput.style.display = 'block';
-                                    }
-                                    
-                                    this.classList.remove('btn-outline-info');
-                                    this.classList.add('btn-info');
-                                }
-                            });
-                            
                             // Vorauswahl: Prüfe ob dieser Lehrgang bereits zugewiesen ist
                             const courseId = btn.dataset.courseId;
                             const existingCourse = currentCourses.find(c => c.id == courseId);

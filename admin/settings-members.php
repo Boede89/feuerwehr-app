@@ -119,6 +119,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Qualifikationen nach Änderung neu laden (für Aktualisierung der Liste ohne Reload)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add_qual']) || isset($_POST['edit_qual']) || isset($_POST['delete_qual']))) {
+    $qualifications = [];
+    try {
+        $stmt = $db->query("SELECT id, name, sort_order FROM member_qualifications ORDER BY sort_order, name");
+        if ($stmt) {
+            $qualifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+    } catch (Exception $e) {
+        // ignore
+    }
+}
+
 // Qualifikationen für bestehende Mitglieder ohne Eintrag nachziehen (eigener POST, ohne Transaction-Mix)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_missing_qualifications'])) {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
