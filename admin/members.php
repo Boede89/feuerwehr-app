@@ -1848,6 +1848,11 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 </a>
             </div>
             <?php endif; ?>
+            <div class="col-12 col-md-4 mb-2">
+                <a href="members-auswertung.php" class="btn btn-info w-100 text-white">
+                    <i class="fas fa-chart-pie"></i> Auswertung
+                </a>
+            </div>
         </div>
         
         </div>
