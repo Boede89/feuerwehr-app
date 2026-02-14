@@ -26,6 +26,7 @@ register_shutdown_function(function () {
 });
 
 require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/config/divera.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/dienstplan-typen.php';
 
@@ -89,6 +90,7 @@ try {
         // Spalte existiert bereits
     }
     $anwesenheit_extra_columns = [
+        "einsatzstichwort VARCHAR(100) NULL",
         "uhrzeit_von TIME NULL",
         "uhrzeit_bis TIME NULL",
         "alarmierung_durch VARCHAR(100) NULL",
@@ -179,6 +181,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['datum'])) {
     }
 } else {
     $datum = date('Y-m-d');
+}
+
+// Divera: Aktiven Einsatz abfragen (für Vorschlag)
+$divera_alarm = null;
+$divera_key = trim((string) ($divera_config['access_key'] ?? ''));
+if ($divera_key === '' && isset($_SESSION['user_id'])) {
+    try {
+        $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+        $stmt->execute([(int)$_SESSION['user_id']]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $divera_key = trim((string) ($row['divera_access_key'] ?? ''));
+    } catch (Exception $e) { /* ignore */ }
+}
+if ($divera_key !== '') {
+    $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+    $divera_err = '';
+    $divera_alarms = fetch_divera_alarms($divera_key, $api_base, $divera_err);
+    $divera_alarm = !empty($divera_alarms) ? $divera_alarms[0] : null;
 }
 
 // Dienste für gewähltes Datum laden (nur solche, für die noch KEINE Anwesenheitsliste existiert)
@@ -350,6 +370,23 @@ if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()),
                         <div class="mb-4">
                             <label class="form-label">Anwesenheitsliste für heute</label>
                             <div class="row g-3">
+                                <?php if ($divera_alarm): 
+                                    $alarm_datum = date('Y-m-d', $divera_alarm['date']);
+                                    $alarm_uhrzeit = date('H:i', $divera_alarm['date']);
+                                    $alarm_stichwort = $divera_alarm['title'] ?: $divera_alarm['text'];
+                                ?>
+                                    <div class="col-12 col-md-4">
+                                        <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($alarm_datum); ?>&auswahl=einsatz&divera_id=<?php echo (int)$divera_alarm['id']; ?>" class="btn btn-danger w-100 h-100 anwesenheits-btn text-decoration-none">
+                                            <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
+                                            <h5 class="card-title mb-1"><?php echo htmlspecialchars($alarm_stichwort ?: 'Aktueller Einsatz'); ?></h5>
+                                            <p class="mb-0 small opacity-90"><?php echo date('d.m.Y H:i', $divera_alarm['date']); ?></p>
+                                            <?php if (!empty($divera_alarm['address'])): ?>
+                                            <small class="d-block mt-1 opacity-75 text-truncate" title="<?php echo htmlspecialchars($divera_alarm['address']); ?>"><?php echo htmlspecialchars($divera_alarm['address']); ?></small>
+                                            <?php endif; ?>
+                                            <small class="d-block mt-1 opacity-75">(Vorschlag aus Divera)</small>
+                                        </a>
+                                    </div>
+                                <?php endif; ?>
                                 <?php if ($vorschlag): ?>
                                     <div class="col-12 col-md-4">
                                         <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=<?php echo (int)$vorschlag['id']; ?>" class="btn btn-primary w-100 h-100 anwesenheits-btn text-decoration-none">

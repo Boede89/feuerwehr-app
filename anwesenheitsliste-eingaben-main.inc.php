@@ -5,6 +5,7 @@
 ob_start();
 session_start();
 require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/config/divera.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/dienstplan-typen.php';
 
@@ -88,6 +89,8 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'dienstplan_id' => $is_einsatz ? null : $dienstplan_id,
         'typ' => $typ,
         'bezeichnung_sonstige' => null,
+        'einsatzstichwort' => '',
+        'thema' => '',
         'bemerkung' => '',
         'members' => [],
         'member_vehicle' => [],
@@ -114,12 +117,45 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
 }
 $draft = &$_SESSION[$draft_key];
 
+// Divera-Einsatz: Daten aus Divera übernehmen (wenn divera_id übergeben)
+$divera_id = isset($_GET['divera_id']) ? (int)$_GET['divera_id'] : 0;
+if ($divera_id > 0 && $is_einsatz) {
+    $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
+    if ($divera_key === '' && isset($_SESSION['user_id'])) {
+        $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+        $stmt->execute([(int)$_SESSION['user_id']]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $divera_key = trim((string) ($row['divera_access_key'] ?? ''));
+    }
+    if ($divera_key !== '') {
+        $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+        $url = $api_base . '/api/v2/alarms/' . $divera_id . '?accesskey=' . urlencode($divera_key);
+        $ctx = stream_context_create(['http' => ['timeout' => 10]]);
+        $raw = @file_get_contents($url, false, $ctx);
+        $data = is_string($raw) ? json_decode($raw, true) : null;
+        if (is_array($data) && !empty($data['data'])) {
+            $a = $data['data'];
+            $date_ts = (int)($a['date'] ?? $a['ts_create'] ?? 0);
+            if ($date_ts > 10000000000) $date_ts = (int)($date_ts / 1000);
+            $draft['datum'] = date('Y-m-d', $date_ts);
+            $draft['uhrzeit_von'] = date('H:i', $date_ts);
+            $draft['uhrzeit_bis'] = date('H:i');
+            $draft['einsatzstelle'] = trim((string)($a['address'] ?? ''));
+            $draft['einsatzstichwort'] = trim((string)($a['title'] ?? ''));
+            $draft['bezeichnung_sonstige'] = trim((string)($a['title'] ?? ''));
+            if (!empty($a['text'])) $draft['bemerkung'] = trim((string)$a['text']);
+            $datum = $draft['datum'];
+        }
+    }
+}
+
 // Fehlende Draft-Keys ergänzen (z. B. nach Update oder alter Session)
 $draft_defaults = [
     'uhrzeit_von' => '', 'uhrzeit_bis' => $draft['uhrzeit_bis'] ?? date('H:i'),
     'alarmierung_durch' => '', 'einsatzstelle' => '', 'objekt' => '', 'eigentuemer' => '', 'geschaedigter' => '',
     'klassifizierung' => '', 'kostenpflichtiger_einsatz' => '', 'personenschaeden' => '', 'brandwache' => '',
     'einsatzleiter_member_id' => null, 'einsatzleiter_freitext' => '',
+    'einsatzstichwort' => '', 'thema' => '',
 ];
 foreach ($draft_defaults as $k => $v) {
     if (!array_key_exists($k, $draft)) {
@@ -224,7 +260,7 @@ function _anwesenheitsliste_felder_laden($s) {
     return $std;
 }
 function _anwesenheitsliste_draft_value($id, $draft) {
-    $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
+    $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung','einsatzstichwort','thema'];
     if (in_array($id, $builtin)) return $draft[$id] ?? '';
     return $draft['custom_data'][$id] ?? '';
 }
@@ -254,7 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             continue;
         }
         $val = trim($_POST[$id] ?? '');
-        $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
+        $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung','einsatzstichwort','thema'];
         if (in_array($id, $builtin)) {
             $draft[$id] = $val;
         } else {
@@ -268,13 +304,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         } else {
             $draft['bezeichnung_sonstige'] = get_dienstplan_typen_auswahl()[$typ_sonstige] ?? 'Einsatz';
         }
+        $draft['einsatzstichwort'] = trim($_POST['einsatzstichwort'] ?? '');
+        $thema_val = trim($_POST['thema'] ?? '');
+        $thema_neu = trim($_POST['thema_neu'] ?? '');
+        $draft['thema'] = ($thema_val === '__neu__' ? $thema_neu : $thema_val);
     }
     $dp_id = $draft['dienstplan_id'];
     $typ_save = $draft['typ'];
-    $bezeichnung_save = $draft['typ'] === 'einsatz' ? $draft['bezeichnung_sonstige'] : null;
+    if ($draft['typ'] === 'einsatz') {
+        $typ_save = ($typ_sonstige ?? 'einsatz') === 'einsatz' ? 'einsatz' : 'manuell';
+        $draft['typ'] = $typ_save;
+    }
+    $bezeichnung_save = $typ_save === 'einsatz' ? $draft['bezeichnung_sonstige'] : ($typ_save === 'manuell' ? ($draft['thema'] ?? $draft['bezeichnung_sonstige']) : null);
     $uhrzeit_von_save = $draft['uhrzeit_von'] !== '' ? $draft['uhrzeit_von'] : null;
     $uhrzeit_bis_save = $draft['uhrzeit_bis'] !== '' ? $draft['uhrzeit_bis'] : null;
     try {
+        try {
+            $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN einsatzstichwort VARCHAR(100) NULL");
+        } catch (Exception $e) { /* ignore */ }
         try {
             $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN bemerkung TEXT NULL");
         } catch (Exception $e) {
@@ -286,14 +333,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             // ignore
         }
         $custom_data_json = !empty($draft['custom_data']) ? json_encode($draft['custom_data']) : null;
+        $einsatzstichwort_save = ($typ_save === 'einsatz' && !empty($draft['einsatzstichwort'])) ? $draft['einsatzstichwort'] : null;
         $stmt = $db->prepare("
-            INSERT INTO anwesenheitslisten (datum, dienstplan_id, typ, bezeichnung, user_id, bemerkung,
+            INSERT INTO anwesenheitslisten (datum, dienstplan_id, typ, bezeichnung, user_id, bemerkung, einsatzstichwort,
                 uhrzeit_von, uhrzeit_bis, alarmierung_durch, einsatzstelle, objekt, eigentuemer, geschaedigter,
                 klassifizierung, kostenpflichtiger_einsatz, personenschaeden, brandwache, einsatzleiter_member_id, einsatzleiter_freitext, custom_data)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
-            $draft['datum'], $dp_id, $typ_save, $bezeichnung_save, $_SESSION['user_id'], $draft['bemerkung'] !== '' ? $draft['bemerkung'] : null,
+            $draft['datum'], $dp_id, $typ_save, $bezeichnung_save, $_SESSION['user_id'], $draft['bemerkung'] !== '' ? $draft['bemerkung'] : null, $einsatzstichwort_save,
             $uhrzeit_von_save, $uhrzeit_bis_save,
             $draft['alarmierung_durch'] !== '' ? $draft['alarmierung_durch'] : null,
             $draft['einsatzstelle'] !== '' ? $draft['einsatzstelle'] : null,
@@ -398,17 +446,47 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                         </div>
                         <form method="post" id="mainForm">
                             <input type="hidden" name="save_final" value="1">
-                            <?php if ($is_einsatz): ?>
+                            <?php if ($is_einsatz): 
+                                $dienstplan_themen = [];
+                                try {
+                                    $stmt = $db->query("SELECT DISTINCT bezeichnung FROM dienstplan ORDER BY bezeichnung");
+                                    $dienstplan_themen = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                                } catch (Exception $e) { /* ignore */ }
+                            ?>
                             <div class="mb-4">
                                 <label for="typ_sonstige" class="form-label">Typ</label>
+                                <?php 
+                                    $typen_map = get_dienstplan_typen_auswahl();
+                                    $bez_cur = $draft['bezeichnung_sonstige'] ?? 'Einsatz';
+                                    $typ_cur = array_search($bez_cur, $typen_map);
+                                    if ($typ_cur === false) $typ_cur = 'einsatz';
+                                ?>
                                 <select class="form-select" id="typ_sonstige" name="typ_sonstige">
-                                    <?php foreach (get_dienstplan_typen_auswahl() as $key => $label): ?>
-                                        <option value="<?php echo htmlspecialchars($key); ?>" <?php echo $key === 'einsatz' ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
+                                    <?php foreach ($typen_map as $key => $label): ?>
+                                        <option value="<?php echo htmlspecialchars($key); ?>" <?php echo $key === $typ_cur ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
                                     <?php endforeach; ?>
                                     <option value="__custom__">— Anderer Typ (Freitext) —</option>
                                 </select>
                                 <div class="mt-2" id="typ_sonstige_freitext_wrap" style="display: none;">
                                     <input type="text" class="form-control" id="typ_sonstige_freitext" name="typ_sonstige_freitext" placeholder="Typ eingeben">
+                                </div>
+                                <?php $bez = $draft['bezeichnung_sonstige'] ?? ''; $show_einsatzstichwort = $bez !== 'Übungsdienst'; $show_thema = $bez === 'Übungsdienst'; ?>
+                                <div class="mt-3" id="einsatzstichwort_wrap" style="display: <?php echo $show_einsatzstichwort ? 'block' : 'none'; ?>;">
+                                    <label for="einsatzstichwort" class="form-label">Einsatzstichwort</label>
+                                    <input type="text" class="form-control" id="einsatzstichwort" name="einsatzstichwort" placeholder="z.B. FEUER3, THL" value="<?php echo htmlspecialchars($draft['einsatzstichwort'] ?? ''); ?>">
+                                </div>
+                                <div class="mt-3" id="thema_wrap" style="display: <?php echo $show_thema ? 'block' : 'none'; ?>;">
+                                    <label for="thema" class="form-label">Thema</label>
+                                    <select class="form-select" id="thema" name="thema">
+                                        <option value="">— Bitte wählen oder neues Thema eingeben —</option>
+                                        <?php foreach ($dienstplan_themen as $t): ?>
+                                            <option value="<?php echo htmlspecialchars($t); ?>" <?php echo ($draft['thema'] ?? '') === $t ? 'selected' : ''; ?>><?php echo htmlspecialchars($t); ?></option>
+                                        <?php endforeach; ?>
+                                        <option value="__neu__">— Neues Thema eingeben —</option>
+                                    </select>
+                                    <div class="mt-2" id="thema_neu_wrap" style="display: none;">
+                                        <input type="text" class="form-control" id="thema_neu" name="thema_neu" placeholder="Neues Thema" value="">
+                                    </div>
                                 </div>
                             </div>
                             <?php endif; ?>
@@ -529,6 +607,18 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
         (function(){var input=document.getElementById('einsatzstelle');var suggestionsEl=document.getElementById('einsatzstelle_suggestions');if(!input||!suggestionsEl)return;var debounceTimer;input.addEventListener('input',function(){clearTimeout(debounceTimer);var q=input.value.trim();if(q.length<3){suggestionsEl.style.display='none';suggestionsEl.innerHTML='';return;}debounceTimer=setTimeout(function(){fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(q)+'&countrycodes=de,at,ch&limit=5&addressdetails=1',{headers:{'Accept':'application/json'}}).then(function(r){return r.json();}).then(function(data){suggestionsEl.innerHTML='';if(!data||data.length===0){suggestionsEl.style.display='none';return;}data.forEach(function(item){var addr=item.address||{};var strasse=addr.road||'';var hausnummer=addr.house_number||'';var plz=addr.postcode||'';var ort=addr.city||addr.town||addr.village||addr.municipality||'';var zeile1=[strasse,hausnummer].filter(Boolean).join(' ');var zeile2=[plz,ort].filter(Boolean).join(' ');var display=[zeile1,zeile2].filter(Boolean).join(', ');if(!display)display=item.display_name||item.name||'';var a=document.createElement('button');a.type='button';a.className='list-group-item list-group-item-action list-group-item-light text-start';a.textContent=display;a.addEventListener('click',function(){input.value=display;suggestionsEl.style.display='none';suggestionsEl.innerHTML='';});suggestionsEl.appendChild(a);});suggestionsEl.style.display='block';}).catch(function(){suggestionsEl.style.display='none';});},400);});input.addEventListener('blur',function(){setTimeout(function(){suggestionsEl.style.display='none';},200);});document.addEventListener('click',function(e){if(!input.contains(e.target)&&!suggestionsEl.contains(e.target))suggestionsEl.style.display='none';});})();
     </script>
     <script>var el=document.getElementById('einsatzleiter');if(el)el.addEventListener('change',function(){var w=document.getElementById('einsatzleiter_freitext_wrap');if(w)w.style.display=this.value==='__freitext__'?'block':'none';});</script>
-    <?php if ($is_einsatz): ?><script>document.getElementById('typ_sonstige').addEventListener('change',function(){document.getElementById('typ_sonstige_freitext_wrap').style.display=this.value==='__custom__'?'block':'none';});</script><?php endif; ?>
+    <?php if ($is_einsatz): ?>
+    <script>
+    document.getElementById('typ_sonstige').addEventListener('change',function(){
+        var v=this.value;
+        document.getElementById('typ_sonstige_freitext_wrap').style.display=v==='__custom__'?'block':'none';
+        document.getElementById('einsatzstichwort_wrap').style.display=v==='einsatz'?'block':'none';
+        document.getElementById('thema_wrap').style.display=v==='uebungsdienst'?'block':'none';
+    });
+    document.getElementById('thema').addEventListener('change',function(){
+        document.getElementById('thema_neu_wrap').style.display=this.value==='__neu__'?'block':'none';
+    });
+    </script>
+    <?php endif; ?>
 </body>
 </html>

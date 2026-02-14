@@ -1931,6 +1931,55 @@ function fetch_divera_events($access_key, $api_base_url = 'https://app.divera247
 }
 
 /**
+ * Holt aktive (nicht geschlossene) Einsätze von Divera 24/7 (API GET /api/v2/alarms oder /api/v2/alarms/list?closed=0).
+ * @param string $access_key Divera-Accesskey
+ * @param string $api_base_url Basis-URL der Divera-API
+ * @param string|null $error Ausgabe: Fehlermeldung bei API-Fehler
+ * @return array Liste von Alarms: [['id'=>int,'title'=>string,'text'=>string,'address'=>string,'date'=>int,'ts_create'=>int], ...]
+ */
+function fetch_divera_alarms($access_key, $api_base_url = 'https://app.divera247.com', &$error = null) {
+    $access_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string) $access_key));
+    if ($access_key === '') {
+        $error = 'Divera Access Key fehlt';
+        return [];
+    }
+    $base = rtrim(trim((string) $api_base_url), '/') ?: 'https://app.divera247.com';
+    $url = $base . '/api/v2/alarms/list?accesskey=' . urlencode($access_key) . '&closed=0';
+    $ctx = stream_context_create(['http' => ['timeout' => 15]]);
+    $raw = @file_get_contents($url, false, $ctx);
+    $data = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($data)) {
+        $error = 'Divera-API: Keine gültige JSON-Antwort';
+        return [];
+    }
+    if (isset($data['success']) && $data['success'] === false) {
+        $error = $data['message'] ?? $data['error'] ?? 'Divera-API: Zugriff verweigert oder ungültiger Access Key';
+        return [];
+    }
+    $items = $data['data'] ?? [];
+    if (!is_array($items)) return [];
+    $alarms = [];
+    foreach ($items as $item) {
+        if (!is_array($item)) continue;
+        $id = (int) ($item['id'] ?? 0);
+        if ($id <= 0) continue;
+        if (!empty($item['closed'])) continue;
+        $date_ts = (int) ($item['date'] ?? $item['ts_create'] ?? 0);
+        if ($date_ts > 10000000000) $date_ts = (int)($date_ts / 1000);
+        $alarms[] = [
+            'id'        => $id,
+            'title'     => trim((string) ($item['title'] ?? '')),
+            'text'      => trim((string) ($item['text'] ?? '')),
+            'address'   => trim((string) ($item['address'] ?? '')),
+            'date'      => $date_ts,
+            'ts_create' => (int) ($item['ts_create'] ?? $date_ts),
+        ];
+    }
+    usort($alarms, fn($a, $b) => ($b['date'] ?? 0) - ($a['date'] ?? 0));
+    return $alarms;
+}
+
+/**
  * Sendet einen Dienstplan-Eintrag als Termin an Divera 24/7.
  * @param array $entry ['datum'=>Y-m-d, 'bezeichnung'=>string, 'typ'=>string]
  * @param string $access_key Divera-Accesskey

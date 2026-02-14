@@ -72,9 +72,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
             }
         }
     } else {
-    $builtin = ['uhrzeit_von', 'uhrzeit_bis', 'alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung'];
+    $builtin = ['uhrzeit_von', 'uhrzeit_bis', 'alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzstichwort', 'thema'];
     foreach ($builtin as $k) {
         if (isset($_POST[$k])) $draft[$k] = trim((string)$_POST[$k]);
+    }
+    if (isset($_POST['thema']) && trim((string)$_POST['thema']) === '__neu__' && isset($_POST['thema_neu'])) {
+        $draft['thema'] = trim((string)$_POST['thema_neu']);
     }
     if (isset($_POST['einsatzleiter'])) {
         $ev = trim((string)$_POST['einsatzleiter']);
@@ -99,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
     // Custom-Felder
     if (!isset($draft['custom_data'])) $draft['custom_data'] = [];
     foreach ($_POST as $k => $v) {
-        if (!in_array($k, array_merge($builtin, ['einsatzleiter', 'einsatzleiter_freitext', 'typ_sonstige', 'typ_sonstige_freitext', 'save_final', 'form_type']), true) && !preg_match('/^(member_id|vehicle|role|vehicle_id|maschinist|einheitsfuehrer)\b/', $k)) {
+        if (!in_array($k, array_merge($builtin, ['einsatzleiter', 'einsatzleiter_freitext', 'typ_sonstige', 'typ_sonstige_freitext', 'thema_neu', 'save_final', 'form_type']), true) && !preg_match('/^(member_id|vehicle|role|vehicle_id|maschinist|einheitsfuehrer)\b/', $k)) {
             $draft['custom_data'][$k] = trim((string)$v);
         }
     }
