@@ -1361,8 +1361,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             }
                         }
                         
-                        // Lehrgänge aus Bearbeiten-Formular speichern (falls course_assignments_json übergeben)
-                        if ($can_courses && isset($_POST['course_assignments_json'])) {
+                        // Lehrgänge aus Bearbeiten-Formular speichern (nur wenn Nutzer den Lehrgangs-Bereich geöffnet hat)
+                        // Sonst würden bestehende Lehrgänge durch leeres Array überschrieben
+                        if ($can_courses && isset($_POST['course_section_modified']) && isset($_POST['course_assignments_json'])) {
                             $course_assignments_json = $_POST['course_assignments_json'];
                             $course_assignments = json_decode($course_assignments_json, true);
                             if (is_array($course_assignments)) {
@@ -2525,9 +2526,19 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         addMemberCoursesContainer.style.display = 'none';
                     } else {
                         addMemberCoursesContainer.style.display = 'block';
+                        // Markieren: Nutzer hat Lehrgangs-Bereich geöffnet (damit beim Speichern alle Lehrgänge berücksichtigt werden)
+                        let flagInput = document.getElementById('course_section_modified');
+                        if (!flagInput) {
+                            flagInput = document.createElement('input');
+                            flagInput.type = 'hidden';
+                            flagInput.name = 'course_section_modified';
+                            flagInput.id = 'course_section_modified';
+                            flagInput.value = '1';
+                            document.getElementById('memberForm').appendChild(flagInput);
+                        }
+                        flagInput.value = '1';
                         const canCourses = <?php echo $can_courses ? 'true' : 'false'; ?>;
                         if (canCourses) {
-                            // Prüfe ob im Bearbeiten-Modus
                             const memberIdInput = document.getElementById('memberId');
                             const memberId = memberIdInput && memberIdInput.value ? memberIdInput.value : null;
                             loadCoursesForAddMember(memberId);
@@ -2542,6 +2553,18 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 memberForm.addEventListener('submit', function(e) {
                     const canCourses = <?php echo $can_courses ? 'true' : 'false'; ?>;
                     if (canCourses) {
+                        // course_section_modified setzen wenn Lehrgangs-Bereich sichtbar war (für vollständige Speicherung)
+                        const coursesContainer = document.getElementById('addMemberCoursesContainer');
+                        const coursesVisible = coursesContainer && coursesContainer.style.display !== 'none';
+                        let flagInput = document.getElementById('course_section_modified');
+                        if (coursesVisible && !flagInput) {
+                            flagInput = document.createElement('input');
+                            flagInput.type = 'hidden';
+                            flagInput.name = 'course_section_modified';
+                            flagInput.id = 'course_section_modified';
+                            flagInput.value = '1';
+                            memberForm.appendChild(flagInput);
+                        }
                         // Sammle Lehrgangs-Daten
                         const courseAssignments = [];
                         document.querySelectorAll('.add-member-course-input').forEach(function(input) {
@@ -3545,9 +3568,11 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 input.remove();
             });
             
-            // Lehrgänge-Container und Status zurücksetzen
+            // Lehrgangs-Container und Status zurücksetzen
             const addMemberCoursesContainer = document.getElementById('addMemberCoursesContainer');
             const addMemberCoursesStatus = document.getElementById('addMemberCoursesStatus');
+            const courseSectionModifiedInput = document.getElementById('course_section_modified');
+            if (courseSectionModifiedInput) courseSectionModifiedInput.remove();
             if (addMemberCoursesContainer) {
                 addMemberCoursesContainer.style.display = 'none';
                 addMemberCoursesContainer.innerHTML = '<p class="text-muted">Lade verfügbare Lehrgänge...</p>';
