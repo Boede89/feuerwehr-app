@@ -1628,7 +1628,9 @@ function log_divera_debug_payload($payload, $source = 'reservation') {
  */
 function send_reservation_to_divera($reservation, $access_key, $api_base_url = 'https://app.divera247.com', &$divera_error = null) {
     $divera_error = null;
+    // Key bereinigen: Trim + unsichtbare Zeichen (z. B. beim Kopieren) entfernen
     $access_key = trim((string) $access_key);
+    $access_key = preg_replace('/[\r\n\t\v]+/', '', $access_key);
     if ($access_key === '') {
         return false;
     }

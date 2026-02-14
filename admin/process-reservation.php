@@ -91,12 +91,21 @@ try {
             if ($group_ids_raw !== '') {
                 $reservation['_divera_group_ids'] = array_values(array_filter(array_map('intval', preg_split('/[\s,;]+/', $group_ids_raw))));
             }
-            $stmt_key = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-            $stmt_key->execute([$_SESSION['user_id']]);
-            $user_key_row = $stmt_key->fetch(PDO::FETCH_ASSOC);
-            $divera_key = trim((string) ($user_key_row['divera_access_key'] ?? ''));
+            $divera_key = '';
+            try {
+                $stmt_key = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                $stmt_key->execute([$_SESSION['user_id']]);
+                $user_key_row = $stmt_key->fetch(PDO::FETCH_ASSOC);
+                $divera_key = trim((string) ($user_key_row['divera_access_key'] ?? ''));
+                $divera_key = preg_replace('/[\r\n\t\v]+/', '', $divera_key);
+            } catch (Exception $e) {
+                if (strpos($e->getMessage(), 'divera_access_key') !== false || strpos($e->getMessage(), 'Unknown column') !== false) {
+                    error_log("Divera: Spalte divera_access_key fehlt, nutze Einheits-Key.");
+                }
+            }
             if ($divera_key === '') {
                 $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
+                $divera_key = preg_replace('/[\r\n\t\v]+/', '', $divera_key);
             }
             $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
             if ($divera_key !== '') {
@@ -234,12 +243,21 @@ try {
             if ($group_ids_raw !== '') {
                 $reservation['_divera_group_ids'] = array_values(array_filter(array_map('intval', preg_split('/[\s,;]+/', $group_ids_raw))));
             }
-            $stmt_key = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-            $stmt_key->execute([$_SESSION['user_id']]);
-            $user_key_row = $stmt_key->fetch(PDO::FETCH_ASSOC);
-            $divera_key = trim((string) ($user_key_row['divera_access_key'] ?? ''));
+            $divera_key = '';
+            try {
+                $stmt_key = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                $stmt_key->execute([$_SESSION['user_id']]);
+                $user_key_row = $stmt_key->fetch(PDO::FETCH_ASSOC);
+                $divera_key = trim((string) ($user_key_row['divera_access_key'] ?? ''));
+                $divera_key = preg_replace('/[\r\n\t\v]+/', '', $divera_key);
+            } catch (Exception $e) {
+                if (strpos($e->getMessage(), 'divera_access_key') !== false || strpos($e->getMessage(), 'Unknown column') !== false) {
+                    error_log("Divera: Spalte divera_access_key fehlt, nutze Einheits-Key.");
+                }
+            }
             if ($divera_key === '') {
                 $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
+                $divera_key = preg_replace('/[\r\n\t\v]+/', '', $divera_key);
             }
             $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
             if ($divera_key !== '') {

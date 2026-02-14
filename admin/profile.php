@@ -73,13 +73,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                     $message = 'Passwort wurde aktualisiert.';
                 }
             } elseif ($action === 'update_divera_key') {
+                // Key bereinigen: Trim + unsichtbare Zeichen (z. B. beim Kopieren) entfernen
                 $new_key = trim((string) ($_POST['divera_access_key'] ?? ''));
+                $new_key = preg_replace('/[\r\n\t\v]+/', '', $new_key);
                 // Leer = nicht ändern (Key beibehalten oder bewusst leer lassen)
                 if ($new_key !== '') {
                     $stmt = $db->prepare('UPDATE users SET divera_access_key = ? WHERE id = ?');
                     $stmt->execute([$new_key, $user['id']]);
                     $user['divera_access_key'] = $new_key;
-                    $message = 'Divera Access Key wurde gespeichert.';
+                    $message = 'Divera Access Key wurde gespeichert (' . strlen($new_key) . ' Zeichen).';
                 } else {
                     $message = 'Kein neuer Key eingegeben – bisheriger Key unverändert.';
                 }
@@ -174,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                         <div class="mb-3">
                             <label class="form-label">Divera Access Key (persönlich)</label>
                             <input class="form-control" type="password" name="divera_access_key" value="" placeholder="<?php echo !empty($user['divera_access_key'] ?? '') ? 'Leer lassen zum Beibehalten' : 'Key eintragen'; ?>" autocomplete="off">
-                            <small class="text-muted">In Divera 24/7: Einstellungen → Debug-Tab → Benutzer-Accesskey. Leer lassen = bisherigen Key beibehalten.</small>
+                            <small class="text-muted">In Divera 24/7: Einstellungen → Debug-Tab → Benutzer-Accesskey. Key ohne Leerzeichen/Zeilenumbrüche eintragen. Leer lassen = bisherigen Key beibehalten. Ohne Key wird der Einheits-Key aus den Divera-Einstellungen verwendet.</small>
                         </div>
                         <input type="hidden" name="action" value="update_divera_key">
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
