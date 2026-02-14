@@ -361,10 +361,30 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                         <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
                         <div class="alert alert-light border mb-4">
                             <strong>Gewählt:</strong><br>
-                            <span class="text-muted"><?php echo date('d.m.Y', strtotime($datum)); ?></span> — <?php echo htmlspecialchars($titel_anzeige); ?>
+                            <form method="get" class="d-inline-flex align-items-center gap-2 mt-2">
+                                <input type="hidden" name="auswahl" value="<?php echo htmlspecialchars($auswahl); ?>">
+                                <label for="datum_aendern" class="form-label mb-0 small">Datum:</label>
+                                <input type="date" id="datum_aendern" name="datum" class="form-control form-control-sm" value="<?php echo htmlspecialchars($datum); ?>" style="width: auto;">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="fas fa-sync-alt"></i> Übernehmen</button>
+                            </form>
+                            <span class="d-block mt-1 text-muted"><?php echo htmlspecialchars($titel_anzeige); ?></span>
                         </div>
                         <form method="post" id="mainForm">
                             <input type="hidden" name="save_final" value="1">
+                            <?php if ($is_einsatz): ?>
+                            <div class="mb-4">
+                                <label for="typ_sonstige" class="form-label">Typ</label>
+                                <select class="form-select" id="typ_sonstige" name="typ_sonstige">
+                                    <?php foreach (get_dienstplan_typen_auswahl() as $key => $label): ?>
+                                        <option value="<?php echo htmlspecialchars($key); ?>" <?php echo $key === 'einsatz' ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
+                                    <?php endforeach; ?>
+                                    <option value="__custom__">— Anderer Typ (Freitext) —</option>
+                                </select>
+                                <div class="mt-2" id="typ_sonstige_freitext_wrap" style="display: none;">
+                                    <input type="text" class="form-control" id="typ_sonstige_freitext" name="typ_sonstige_freitext" placeholder="Typ eingeben">
+                                </div>
+                            </div>
+                            <?php endif; ?>
                             <p class="form-label mb-2">Personal und Fahrzeuge erfassen:</p>
                             <div class="row g-3 mb-4">
                                 <div class="col-md-6">
@@ -455,20 +475,6 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                 <?php endif; ?>
                             </div>
                             <?php endforeach; ?>
-                            <?php if ($is_einsatz): ?>
-                            <div class="mb-4">
-                                <label for="typ_sonstige" class="form-label">Typ</label>
-                                <select class="form-select" id="typ_sonstige" name="typ_sonstige">
-                                    <?php foreach (get_dienstplan_typen_auswahl() as $key => $label): ?>
-                                        <option value="<?php echo htmlspecialchars($key); ?>" <?php echo $key === 'einsatz' ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
-                                    <?php endforeach; ?>
-                                    <option value="__custom__">— Anderer Typ (Freitext) —</option>
-                                </select>
-                                <div class="mt-2" id="typ_sonstige_freitext_wrap" style="display: none;">
-                                    <input type="text" class="form-control" id="typ_sonstige_freitext" name="typ_sonstige_freitext" placeholder="Typ eingeben">
-                                </div>
-                            </div>
-                            <?php endif; ?>
                             <div class="d-flex flex-wrap gap-2">
                                 <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Anwesenheitsliste speichern</button>
                                 <a href="anwesenheitsliste.php" class="btn btn-secondary">Zurück zur Auswahl</a>
