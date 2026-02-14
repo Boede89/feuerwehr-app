@@ -235,12 +235,17 @@ if (isset($_POST['test_email_btn'])) {
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-file-alt"></i> Formulare</h5>
-                        <p class="text-muted">Einstellungen für die verschiedenen Formulare verwalten.</p>
+                        <h5 class="card-title"><i class="fas fa-file-alt"></i> Formularcenter</h5>
+                        <p class="text-muted">Formulare verwalten und Dienstplan-Einstellungen.</p>
                         <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-forms.php">
-                                <i class="fas fa-file-alt"></i> Formulare verwalten
-                            </a>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a class="btn btn-primary" href="settings-forms.php">
+                                    <i class="fas fa-file-alt"></i> Formulare
+                                </a>
+                                <a class="btn btn-outline-primary" href="settings-dienstplan.php">
+                                    <i class="fas fa-calendar-alt"></i> Dienstplan
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>

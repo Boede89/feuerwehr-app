@@ -227,6 +227,24 @@ if (isset($_GET['edit_submission'])) {
         if ((int)$s['id'] === $id) { $edit_submission = $s; break; }
     }
 }
+
+// Divera-Gruppen und Standard-Gruppe für Export
+$divera_groups = [];
+$divera_default_group_id = '';
+try {
+    $stmt = $db->prepare('SELECT setting_key, setting_value FROM settings WHERE setting_key IN (?, ?)');
+    $stmt->execute(['divera_reservation_groups', 'divera_dienstplan_default_group_id']);
+    foreach ($stmt->fetchAll() as $row) {
+        if ($row['setting_key'] === 'divera_reservation_groups') {
+            $dec = json_decode($row['setting_value'], true);
+            $divera_groups = is_array($dec) ? $dec : [];
+        } else {
+            $divera_default_group_id = trim((string)$row['setting_value']);
+        }
+    }
+} catch (Exception $e) {
+    // ignore
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -388,6 +406,12 @@ if (isset($_GET['edit_submission'])) {
                         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#dienstplanModal" onclick="openDienstplanModal()">
                             <i class="fas fa-plus"></i> Neuer Eintrag
                         </button>
+                        <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#diveraImportModal">
+                            <i class="fas fa-download"></i> Aus Divera importieren
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#diveraExportModal">
+                            <i class="fas fa-upload"></i> Nach Divera exportieren
+                        </button>
                     </div>
                 </div>
                 <div class="card-body">
@@ -474,6 +498,100 @@ if (isset($_GET['edit_submission'])) {
                         <button type="submit" class="btn btn-primary">Speichern</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Divera Import -->
+    <div class="modal fade" id="diveraImportModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-download"></i> Termine aus Divera importieren</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Zeitraum</label>
+                        <div class="row g-2">
+                            <div class="col-md-5">
+                                <input type="date" class="form-control" id="importFrom" value="<?php echo $dienstplan_jahr; ?>-01-01">
+                            </div>
+                            <div class="col-md-5">
+                                <input type="date" class="form-control" id="importTo" value="<?php echo $dienstplan_jahr + 1; ?>-12-31">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-outline-primary w-100" id="btnLoadDiveraEvents">
+                                    <i class="fas fa-sync"></i> Laden
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="importEventsList" class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
+                        <p class="text-muted small mb-0">Klicken Sie auf „Laden“, um Termine von Divera abzurufen.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                    <button type="button" class="btn btn-success" id="btnImportDivera" disabled>
+                        <i class="fas fa-download"></i> Ausgewählte importieren
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Divera Export -->
+    <div class="modal fade" id="diveraExportModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-upload"></i> Termine nach Divera exportieren</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Empfänger-Gruppe (Divera)</label>
+                        <select class="form-select" id="exportGroupId">
+                            <option value="">– Keine Gruppe –</option>
+                            <?php foreach ($divera_groups as $g):
+                                $gid = (int)($g['id'] ?? 0);
+                                $gval = $gid > 0 ? (string)$gid : '0';
+                                $gname = htmlspecialchars($g['name'] ?? ($gid > 0 ? 'Gruppe ' . $gid : 'Alle des Standortes'));
+                                $glabel = $gid > 0 ? $gname . ' (ID: ' . $gid . ')' : $gname;
+                            ?>
+                            <option value="<?php echo $gval; ?>" <?php echo $divera_default_group_id === $gval ? 'selected' : ''; ?>>
+                                <?php echo $glabel; ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div id="exportEntriesList" class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
+                        <?php if (empty($dienstplan_eintraege)): ?>
+                        <p class="text-muted small mb-0">Keine Dienstplan-Einträge im aktuellen Jahr vorhanden.</p>
+                        <?php else: ?>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input" type="checkbox" id="exportSelectAll">
+                            <label class="form-check-label" for="exportSelectAll">Alle auswählen</label>
+                        </div>
+                        <hr class="my-2">
+                        <?php foreach ($dienstplan_eintraege as $e): ?>
+                        <div class="form-check">
+                            <input class="form-check-input export-entry-cb" type="checkbox" value="<?php echo (int)$e['id']; ?>">
+                            <label class="form-check-label">
+                                <?php echo htmlspecialchars($e['datum'] . ' – ' . $e['bezeichnung']); ?>
+                            </label>
+                        </div>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                    <button type="button" class="btn btn-info" id="btnExportDivera" <?php echo empty($dienstplan_eintraege) ? 'disabled' : ''; ?>>
+                        <i class="fas fa-upload"></i> Ausgewählte exportieren
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -627,6 +745,124 @@ if (isset($_GET['edit_submission'])) {
             if (m) new bootstrap.Modal(m).show();
         });
         <?php endif; ?>
+
+        // Divera Import
+        var diveraImportEvents = [];
+        document.getElementById('btnLoadDiveraEvents').addEventListener('click', function() {
+            var from = document.getElementById('importFrom').value;
+            var to = document.getElementById('importTo').value;
+            if (!from || !to) { alert('Bitte Zeitraum angeben.'); return; }
+            var btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Laden...';
+            fetch('api-dienstplan-divera.php?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    diveraImportEvents = data.events || [];
+                    var list = document.getElementById('importEventsList');
+                    if (!data.success || diveraImportEvents.length === 0) {
+                        list.innerHTML = '<p class="text-muted small mb-0">' + (data.message || 'Keine Termine gefunden.') + '</p>';
+                    } else {
+                        var html = '<div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="importSelectAll"><label class="form-check-label" for="importSelectAll">Alle auswählen</label></div><hr class="my-2">';
+                        diveraImportEvents.forEach(function(ev) {
+                            var d = new Date(ev.ts_start * 1000);
+                            var dateStr = d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
+                            html += '<div class="form-check"><input class="form-check-input import-event-cb" type="checkbox" value="' + ev.id + '"><label class="form-check-label">' + escapeHtml(dateStr + ' – ' + (ev.title || '')) + '</label></div>';
+                        });
+                        list.innerHTML = html;
+                        document.getElementById('importSelectAll').addEventListener('change', function() {
+                            document.querySelectorAll('.import-event-cb').forEach(function(cb) { cb.checked = this.checked; }, this);
+                        });
+                        document.querySelectorAll('.import-event-cb').forEach(function(cb) {
+                            cb.addEventListener('change', updateImportBtn);
+                        });
+                        updateImportBtn();
+                    }
+                    document.getElementById('btnImportDivera').disabled = diveraImportEvents.length === 0;
+                })
+                .catch(function() {
+                    document.getElementById('importEventsList').innerHTML = '<p class="text-danger small mb-0">Fehler beim Laden.</p>';
+                })
+                .finally(function() {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-sync"></i> Laden';
+                });
+        });
+        function updateImportBtn() {
+            var any = document.querySelector('.import-event-cb:checked');
+            document.getElementById('btnImportDivera').disabled = !any;
+        }
+        document.getElementById('btnImportDivera').addEventListener('click', function() {
+            var ids = [];
+            document.querySelectorAll('.import-event-cb:checked').forEach(function(cb) { ids.push(parseInt(cb.value, 10)); });
+            if (ids.length === 0) { alert('Bitte mindestens einen Termin auswählen.'); return; }
+            var btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Importiere...';
+            fetch('api-dienstplan-divera.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'import', event_ids: ids })
+            })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        alert(data.message || 'Import erfolgreich.');
+                        location.reload();
+                    } else {
+                        alert(data.message || 'Import fehlgeschlagen.');
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-download"></i> Ausgewählte importieren';
+                    }
+                })
+                .catch(function() {
+                    alert('Fehler beim Import.');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-download"></i> Ausgewählte importieren';
+                });
+        });
+
+        // Divera Export
+        var exportSelectAll = document.getElementById('exportSelectAll');
+        if (exportSelectAll) {
+            exportSelectAll.addEventListener('change', function() {
+                var checked = this.checked;
+                document.querySelectorAll('.export-entry-cb').forEach(function(cb) { cb.checked = checked; });
+            });
+        }
+        document.getElementById('btnExportDivera').addEventListener('click', function() {
+            var ids = [];
+            document.querySelectorAll('.export-entry-cb:checked').forEach(function(cb) { ids.push(parseInt(cb.value, 10)); });
+            if (ids.length === 0) { alert('Bitte mindestens einen Eintrag auswählen.'); return; }
+            var groupVal = document.getElementById('exportGroupId').value;
+            var groupIds = groupVal !== '' ? [parseInt(groupVal, 10) || 0] : [];
+            var btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Exportiere...';
+            fetch('api-dienstplan-divera.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'export', entry_ids: ids, group_ids: groupIds })
+            })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        var msg = data.message || 'Export erfolgreich.';
+                        if (data.errors && data.errors.length) msg += '\n\nHinweise: ' + data.errors.join('; ');
+                        alert(msg);
+                        location.reload();
+                    } else {
+                        alert(data.message || 'Export fehlgeschlagen.');
+                    }
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-upload"></i> Ausgewählte exportieren';
+                })
+                .catch(function() {
+                    alert('Fehler beim Export.');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-upload"></i> Ausgewählte exportieren';
+                });
+        });
     </script>
 </body>
 </html>

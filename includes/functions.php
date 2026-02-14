@@ -1844,6 +1844,103 @@ function find_divera_event_by_foreign_id($reservation_id, $access_key, $api_base
 }
 
 /**
+ * Holt alle Termine von Divera 24/7 (API GET /api/v2/events).
+ * @param string $access_key Divera-Accesskey
+ * @param string $api_base_url Basis-URL der Divera-API
+ * @param int|null $from_ts Optional: Nur Termine ab diesem Unix-Timestamp
+ * @param int|null $to_ts Optional: Nur Termine bis zu diesem Unix-Timestamp
+ * @return array Liste von Events: [['id'=>int,'title'=>string,'ts_start'=>int,'ts_end'=>int,'address'=>string], ...]
+ */
+function fetch_divera_events($access_key, $api_base_url = 'https://app.divera247.com', $from_ts = null, $to_ts = null) {
+    $access_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string) $access_key));
+    if ($access_key === '') return [];
+    $base = rtrim(trim((string) $api_base_url), '/') ?: 'https://app.divera247.com';
+    $url = $base . '/api/v2/events?accesskey=' . urlencode($access_key);
+    $ctx = stream_context_create(['http' => ['timeout' => 20]]);
+    $raw = @file_get_contents($url, false, $ctx);
+    $data = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($data) || empty($data['data'])) return [];
+    $items = $data['data']['items'] ?? $data['data'];
+    if (!is_array($items)) return [];
+    $events = [];
+    foreach ($items as $event_id => $event) {
+        if (!is_array($event)) continue;
+        $id = (int) (isset($event['id']) ? $event['id'] : $event_id);
+        $ts_start = (int) ($event['ts_start'] ?? 0);
+        $ts_end = (int) ($event['ts_end'] ?? 0);
+        if ($from_ts !== null && $ts_end < $from_ts) continue;
+        if ($to_ts !== null && $ts_start > $to_ts) continue;
+        $events[] = [
+            'id'        => $id,
+            'title'     => trim((string) ($event['title'] ?? '')),
+            'ts_start'  => $ts_start,
+            'ts_end'    => $ts_end,
+            'address'   => trim((string) ($event['address'] ?? '')),
+        ];
+    }
+    usort($events, fn($a, $b) => $a['ts_start'] - $b['ts_start']);
+    return $events;
+}
+
+/**
+ * Sendet einen Dienstplan-Eintrag als Termin an Divera 24/7.
+ * @param array $entry ['datum'=>Y-m-d, 'bezeichnung'=>string, 'typ'=>string]
+ * @param string $access_key Divera-Accesskey
+ * @param string $api_base_url Basis-URL
+ * @param array $group_ids Optional: Divera-Gruppen-IDs
+ * @return array ['success'=>bool, 'event_id'=>int|null, 'error'=>string|null]
+ */
+function send_dienstplan_to_divera($entry, $access_key, $api_base_url = 'https://app.divera247.com', $group_ids = []) {
+    $access_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string) $access_key));
+    if ($access_key === '') return ['success' => false, 'event_id' => null, 'error' => 'Accesskey fehlt'];
+    $datum = $entry['datum'] ?? '';
+    $bezeichnung = trim((string) ($entry['bezeichnung'] ?? ''));
+    if ($datum === '' || $bezeichnung === '') return ['success' => false, 'event_id' => null, 'error' => 'Datum oder Bezeichnung fehlt'];
+    $start_ts = strtotime($datum . ' 09:00:00');
+    $end_ts = strtotime($datum . ' 12:00:00');
+    if ($start_ts <= 0) return ['success' => false, 'event_id' => null, 'error' => 'Ungültiges Datum'];
+    $typ_label = function_exists('get_dienstplan_typ_label') ? get_dienstplan_typ_label($entry['typ'] ?? 'uebungsdienst') : 'Dienst';
+    $title = $typ_label . ': ' . $bezeichnung;
+    $group_ids = array_values(array_filter(array_map('intval', $group_ids)));
+    $use_groups = !empty($group_ids);
+    $event = [
+        'notification_type' => $use_groups ? 3 : 2,
+        'title'             => $title,
+        'ts_start'          => $start_ts,
+        'ts_end'            => $end_ts,
+        'address'           => '',
+    ];
+    if ($use_groups) {
+        $event['group'] = $group_ids;
+    }
+    $body = ['Event' => $event];
+    if ($use_groups) $body['usingGroups'] = $group_ids;
+    $base = rtrim(trim((string) $api_base_url), '/') ?: 'https://app.divera247.com';
+    $url = $base . '/api/v2/events?accesskey=' . urlencode($access_key);
+    $ctx = stream_context_create([
+        'http' => [
+            'method'  => 'POST',
+            'header'  => "Content-Type: application/json\r\n",
+            'content' => json_encode($body),
+            'timeout' => 15,
+        ],
+    ]);
+    $raw = @file_get_contents($url, false, $ctx);
+    $code = 0;
+    if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) $code = (int) $m[1];
+    $data = is_string($raw) ? json_decode($raw, true) : null;
+    $event_id = null;
+    if ($code >= 200 && $code < 300 && is_array($data)) {
+        $event_id = (int) ($data['data']['id'] ?? $data['data']['data']['id'] ?? $data['id'] ?? 0);
+    }
+    if ($code >= 200 && $code < 300) {
+        return ['success' => true, 'event_id' => $event_id, 'error' => null];
+    }
+    $msg = is_array($data) ? ($data['data']['message'] ?? $data['message'] ?? 'HTTP ' . $code) : 'HTTP ' . $code;
+    return ['success' => false, 'event_id' => null, 'error' => $msg];
+}
+
+/**
  * Löscht einen Termin in Divera 24/7 (API DELETE /api/v2/events/{id}).
  * Accesskey muss als Query-Parameter übergeben werden (wie bei POST).
  * @param int $event_id Divera-Event-ID (Pfad-Parameter)
