@@ -90,7 +90,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $error = "Dieser Benutzername existiert bereits.";
                     } else {
                         $autologin_token = bin2hex(random_bytes(32));
-                        $autologin_expires = date('Y-m-d H:i:s', strtotime('+90 days'));
+                        $validity = $_POST['autologin_validity'] ?? '90';
+                        $autologin_expires = null;
+                        if ($validity !== 'unlimited') {
+                            $days = (int)$validity;
+                            $autologin_expires = $days > 0 ? date('Y-m-d H:i:s', strtotime("+{$days} days")) : null;
+                        }
                         $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, ?, ?)");
                         $stmt->execute([$username, $first_name ?: $username, $last_name, $autologin_token, $autologin_expires]);
                         log_activity($_SESSION['user_id'], 'user_added', "Systembenutzer '$username' hinzugefügt");
@@ -305,15 +310,23 @@ if (isset($_GET['reset_password'])) {
 }
 
 // Autologin-Link neu generieren (Systembenutzer)
-if (isset($_GET['regenerate_token'])) {
-    $user_id = (int)$_GET['regenerate_token'];
+if (isset($_POST['regenerate_token']) || isset($_GET['regenerate_token'])) {
+    $user_id = (int)($_POST['regenerate_token'] ?? $_GET['regenerate_token'] ?? 0);
+    $validity = $_POST['autologin_validity'] ?? $_GET['autologin_validity'] ?? '90';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = "Ungültiger Sicherheitstoken.";
+    } else {
     try {
         $stmt = $db->prepare("SELECT id, username FROM users WHERE id = ? AND is_system_user = 1");
         $stmt->execute([$user_id]);
         $u = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($u) {
             $autologin_token = bin2hex(random_bytes(32));
-            $autologin_expires = date('Y-m-d H:i:s', strtotime('+90 days'));
+            $autologin_expires = null;
+            if ($validity !== 'unlimited') {
+                $days = (int)$validity;
+                $autologin_expires = $days > 0 ? date('Y-m-d H:i:s', strtotime("+{$days} days")) : null;
+            }
             $stmt_up = $db->prepare("UPDATE users SET autologin_token = ?, autologin_expires = ? WHERE id = ?");
             $stmt_up->execute([$autologin_token, $autologin_expires, $user_id]);
             log_activity($_SESSION['user_id'], 'user_updated', "Autologin-Link für Systembenutzer '{$u['username']}' neu generiert");
@@ -322,6 +335,7 @@ if (isset($_GET['regenerate_token'])) {
         }
     } catch (Exception $e) {
         $error = "Fehler: " . $e->getMessage();
+    }
     }
 }
 
@@ -591,11 +605,9 @@ try {
                                                 <button type="button" class="btn btn-outline-info btn-sm btn-show-autologin" data-user-id="<?php echo (int)$user['id']; ?>" data-username="<?php echo htmlspecialchars($user['username'], ENT_QUOTES); ?>" title="Autologin-Link anzeigen">
                                                     <i class="fas fa-link"></i> Link anzeigen
                                                 </button>
-                                                <a href="?regenerate_token=<?php echo $user['id']; ?>&tab=system" class="btn btn-outline-warning btn-sm" 
-                                                   onclick="return confirm('Neuen Autologin-Link generieren? Der alte Link funktioniert danach nicht mehr.')"
-                                                   title="Neuen Link generieren">
+                                                <button type="button" class="btn btn-outline-warning btn-sm btn-regenerate-link" data-user-id="<?php echo (int)$user['id']; ?>" title="Neuen Link generieren">
                                                     <i class="fas fa-sync-alt"></i>
-                                                </a>
+                                                </button>
                                                 <?php if ($user['id'] != $_SESSION['user_id']): ?>
                                                     <a href="?delete=<?php echo $user['id']; ?>&tab=system" class="btn btn-outline-danger btn-sm" 
                                                        onclick="return confirm('Sind Sie sicher, dass Sie diesen Systembenutzer löschen möchten?')">
@@ -749,7 +761,7 @@ try {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <p class="text-muted small">Systembenutzer haben keinen Mitglieder-Eintrag, keine E-Mail und kein Passwort. Sie erhalten einen Autologin-Link (90 Tage gültig) und können nur die zugewiesenen Bereiche nutzen.</p>
+                        <p class="text-muted small">Systembenutzer haben keinen Mitglieder-Eintrag, keine E-Mail und kein Passwort. Sie erhalten einen Autologin-Link und können nur die zugewiesenen Bereiche nutzen.</p>
                         <div class="mb-3">
                             <label for="sys_username" class="form-label">Benutzername *</label>
                             <input type="text" class="form-control" id="sys_username" name="username" required placeholder="z.B. tablet-eingang">
@@ -791,10 +803,53 @@ try {
                                 <label class="form-check-label" for="sys_can_courses">Lehrgangsverwaltung</label>
                             </div>
                         </div>
+                        <div class="mb-3">
+                            <label for="sys_autologin_validity" class="form-label">Gültigkeit des Autologin-Links</label>
+                            <select class="form-select" id="sys_autologin_validity" name="autologin_validity">
+                                <option value="7">7 Tage</option>
+                                <option value="30">30 Tage</option>
+                                <option value="90" selected>90 Tage</option>
+                                <option value="365">1 Jahr</option>
+                                <option value="unlimited">Unbegrenzt</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
                         <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Systembenutzer anlegen</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Neuer Autologin-Link (Regenerieren) -->
+    <div class="modal fade" id="regenerateLinkModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="regenerate_token" id="regenerate_user_id" value="">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-sync-alt"></i> Neuen Autologin-Link generieren</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3">Der alte Link funktioniert danach nicht mehr.</p>
+                        <div class="mb-0">
+                            <label for="regenerate_autologin_validity" class="form-label">Gültigkeit</label>
+                            <select class="form-select" id="regenerate_autologin_validity" name="autologin_validity">
+                                <option value="7">7 Tage</option>
+                                <option value="30">30 Tage</option>
+                                <option value="90" selected>90 Tage</option>
+                                <option value="365">1 Jahr</option>
+                                <option value="unlimited">Unbegrenzt</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-sync-alt"></i> Neuen Link generieren</button>
                     </div>
                 </form>
             </div>
@@ -817,7 +872,7 @@ try {
                             <i class="fas fa-copy"></i> Kopieren
                         </button>
                     </div>
-                    <p class="text-muted small mt-2 mb-0">Der Link ist 90 Tage gültig. Bei „Neuer Link“ wird ein neuer Link erzeugt und der alte funktioniert nicht mehr.</p>
+                    <p class="text-muted small mt-2 mb-0" id="autologin-validity-hint">Bei „Neuer Link“ wird ein neuer Link erzeugt und der alte funktioniert nicht mehr.</p>
                 </div>
             </div>
         </div>
@@ -996,6 +1051,18 @@ try {
                 });
             }
 
+            // Neuer Link (Regenerieren) – Modal öffnen
+            document.querySelectorAll('.btn-regenerate-link').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    const userId = this.dataset.userId;
+                    const hid = document.getElementById('regenerate_user_id');
+                    if (hid && userId) {
+                        hid.value = userId;
+                        new bootstrap.Modal(document.getElementById('regenerateLinkModal')).show();
+                    }
+                });
+            });
+
             // Link anzeigen (Systembenutzer)
             document.querySelectorAll('.btn-show-autologin').forEach(function(btn) {
                 btn.addEventListener('click', function() {
@@ -1016,6 +1083,8 @@ try {
                                 urlEl.value = data.url;
                                 copyBtn.disabled = false;
                                 copyBtn.innerHTML = '<i class="fas fa-copy"></i> Kopieren';
+                                const hintEl = document.getElementById('autologin-validity-hint');
+                                if (hintEl && data.validity_hint) hintEl.textContent = data.validity_hint + ' Bei „Neuer Link“ wird ein neuer Link erzeugt und der alte funktioniert nicht mehr.';
                                 new bootstrap.Modal(document.getElementById('autologinLinkModal')).show();
                             } else {
                                 alert(data.error || 'Fehler beim Laden des Links.');

@@ -56,10 +56,13 @@ try {
     $app_base = rtrim(dirname($script_dir), '/');
     $autologin_url = $protocol . '://' . $host . $app_base . '/autologin.php?token=' . urlencode($user['autologin_token']);
 
+    $validity_hint = empty($user['autologin_expires']) ? 'Unbegrenzt gültig.' : 'Gültig bis ' . date('d.m.Y', strtotime($user['autologin_expires'])) . '.';
+
     echo json_encode([
         'success' => true,
         'url' => $autologin_url,
-        'username' => $user['username']
+        'username' => $user['username'],
+        'validity_hint' => $validity_hint
     ]);
 } catch (Exception $e) {
     error_log('get-autologin-url: ' . $e->getMessage());
