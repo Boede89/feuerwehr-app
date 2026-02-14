@@ -188,10 +188,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="mb-3 mt-3">
                     <label class="form-label">Standard-Empfänger-Gruppe (Divera)</label>
                     <select class="form-select" name="divera_reservation_default_group_id">
-                        <option value="">– Keine (alle des Standortes) –</option>
-                        <?php foreach ($divera_groups as $g): if ((int)($g['id'] ?? 0) <= 0) continue; ?>
-                        <option value="<?php echo (int)$g['id']; ?>" <?php echo $default_group_id === (string)(int)$g['id'] ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($g['name'] ?? 'Gruppe ' . $g['id']); ?> (ID: <?php echo (int)$g['id']; ?>)
+                        <option value="">– Keine Vorauswahl –</option>
+                        <?php foreach ($divera_groups as $g): 
+                            $gid = (int)($g['id'] ?? 0);
+                            $gval = $gid > 0 ? (string)$gid : '0';
+                            $gname = htmlspecialchars($g['name'] ?? ($gid > 0 ? 'Gruppe ' . $gid : 'Alle des Standortes'));
+                            $glabel = $gid > 0 ? $gname . ' (ID: ' . $gid . ')' : $gname . ' (keine Gruppen-ID)';
+                        ?>
+                        <option value="<?php echo $gval; ?>" <?php echo $default_group_id === $gval ? 'selected' : ''; ?>>
+                            <?php echo $glabel; ?>
                         </option>
                         <?php endforeach; ?>
                     </select>

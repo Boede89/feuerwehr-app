@@ -541,25 +541,27 @@ if ($can_atemschutz) {
                             <p id="modalStatus" class="mb-3"></p>
                         </div>
                     </div>
-                    <?php if ($divera_reservation_enabled && !empty($divera_reservation_groups)): 
-                        $valid_groups = array_filter($divera_reservation_groups, fn($g) => (int)($g['id'] ?? 0) > 0);
-                        if (!empty($valid_groups)): ?>
+                    <?php if ($divera_reservation_enabled && !empty($divera_reservation_groups)): ?>
                     <hr>
                     <div class="mb-3">
                         <label for="diveraGroupSelect" class="form-label">
                             <i class="fas fa-users me-1"></i>Empfänger-Gruppe (Divera 24/7)
                         </label>
                         <select class="form-select" id="diveraGroupSelect">
-                            <option value="">– Alle des Standortes –</option>
-                            <?php foreach ($valid_groups as $g): ?>
-                            <option value="<?php echo (int)$g['id']; ?>" <?php echo $divera_reservation_default_group_id === (string)(int)$g['id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($g['name'] ?? 'Gruppe ' . $g['id']); ?>
+                            <option value="">– Keine Vorauswahl –</option>
+                            <?php foreach ($divera_reservation_groups as $g): 
+                                $gid = (int)($g['id'] ?? 0);
+                                $gval = $gid > 0 ? (string)$gid : '0';
+                                $gname = htmlspecialchars($g['name'] ?? ($gid > 0 ? 'Gruppe ' . $gid : 'Alle des Standortes'));
+                            ?>
+                            <option value="<?php echo $gval; ?>" <?php echo $divera_reservation_default_group_id === $gval ? 'selected' : ''; ?>>
+                                <?php echo $gname; ?><?php echo $gid > 0 ? ' (ID: ' . $gid . ')' : ' (keine Gruppen-ID)'; ?>
                             </option>
                             <?php endforeach; ?>
                         </select>
                         <div class="form-text">An welche Divera-Gruppe(n) der Termin gesendet werden soll.</div>
                     </div>
-                    <?php endif; endif; ?>
+                    <?php endif; ?>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -1662,7 +1664,8 @@ if ($can_atemschutz) {
             approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Genehmige...';
             
             const diveraGroupEl = document.getElementById('diveraGroupSelect');
-            const diveraGroupIds = (diveraGroupEl && diveraGroupEl.value !== '') ? [parseInt(diveraGroupEl.value, 10)] : [];
+            const dvVal = diveraGroupEl ? diveraGroupEl.value : '';
+            const diveraGroupIds = (dvVal !== '' && dvVal !== '0') ? [parseInt(dvVal, 10)] : [];
             fetch('process-reservation.php', {
                 method: 'POST',
                 headers: {
@@ -1801,7 +1804,8 @@ if ($can_atemschutz) {
             confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Verarbeite...';
             
             const diveraGroupEl = document.getElementById('diveraGroupSelect');
-            const diveraGroupIds = (diveraGroupEl && diveraGroupEl.value !== '') ? [parseInt(diveraGroupEl.value, 10)] : [];
+            const dvVal = diveraGroupEl ? diveraGroupEl.value : '';
+            const diveraGroupIds = (dvVal !== '' && dvVal !== '0') ? [parseInt(dvVal, 10)] : [];
             fetch('process-reservation.php', {
                 method: 'POST',
                 headers: {

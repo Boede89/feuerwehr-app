@@ -62,10 +62,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $group_names = $_POST['divera_group_name'] ?? [];
             $groups = [];
             foreach ($group_ids as $i => $gid) {
-                $gid = (int) trim($gid);
+                $gid = trim((string) $gid);
+                $gidInt = $gid === '' ? 0 : (int) $gid;
                 $gname = trim((string) ($group_names[$i] ?? ''));
-                if ($gid > 0) {
-                    $groups[] = ['id' => $gid, 'name' => $gname !== '' ? $gname : 'Gruppe ' . $gid];
+                if ($gname !== '') {
+                    $groups[] = ['id' => $gidInt, 'name' => $gname];
+                } elseif ($gidInt > 0) {
+                    $groups[] = ['id' => $gidInt, 'name' => 'Gruppe ' . $gidInt];
                 }
             }
             $divera_reservation_groups_json = json_encode($groups);
@@ -146,11 +149,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Empfänger-Gruppen (Fahrzeugreservierungen)</label>
-                            <p class="text-muted small">Definieren Sie Divera-Gruppen mit ID und Namen. Beim Genehmigen kann die Empfänger-Gruppe ausgewählt werden. Gruppen-IDs in Divera unter Verwaltung → Gruppen einsehen.</p>
+                            <p class="text-muted small">Definieren Sie Divera-Gruppen mit ID und Namen. ID leer = keine Gruppen-ID an Divera (alle des Standortes). Beim Genehmigen kann die Empfänger-Gruppe ausgewählt werden.</p>
                             <div id="diveraGroupsContainer">
                                 <?php foreach ($divera_reservation_groups as $idx => $g): ?>
                                 <div class="input-group mb-2 divera-group-row">
-                                    <input type="number" class="form-control" name="divera_group_id[]" placeholder="ID" value="<?php echo (int)$g['id']; ?>" min="1">
+                                    <input type="number" class="form-control" name="divera_group_id[]" placeholder="ID (leer = keine)" value="<?php echo (int)($g['id'] ?? 0) > 0 ? (int)$g['id'] : ''; ?>" min="0">
                                     <input type="text" class="form-control" name="divera_group_name[]" placeholder="Name der Gruppe" value="<?php echo htmlspecialchars($g['name'] ?? ''); ?>">
                                     <button type="button" class="btn btn-outline-danger btn-remove-group" title="Gruppe entfernen"><i class="fas fa-trash"></i></button>
                                 </div>
@@ -226,7 +229,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const rowTpl = () => {
         const div = document.createElement('div');
         div.className = 'input-group mb-2 divera-group-row';
-        div.innerHTML = '<input type="number" class="form-control" name="divera_group_id[]" placeholder="ID" min="1">' +
+        div.innerHTML = '<input type="number" class="form-control" name="divera_group_id[]" placeholder="ID (leer = keine)" min="0">' +
             '<input type="text" class="form-control" name="divera_group_name[]" placeholder="Name der Gruppe">' +
             '<button type="button" class="btn btn-outline-danger btn-remove-group" title="Gruppe entfernen"><i class="fas fa-trash"></i></button>';
         return div;
