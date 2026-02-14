@@ -1882,10 +1882,12 @@ function fetch_divera_events($access_key, $api_base_url = 'https://app.divera247
         $id = (int) (isset($ev['id']) ? $ev['id'] : $event['id'] ?? $event_id);
         if ($id <= 0 && is_numeric($event_id)) $id = (int) $event_id;
         if ($id <= 0) continue;
-        // Terminszeit: date, ts_start, ts_end (NICHT ts_create – das ist Erstellungsdatum!)
+        // Terminszeit: Divera nutzt "start"/"end"; Fallbacks: date, ts_start, ts_end (NICHT ts_create!)
+        $start_ts = (int) ($ev['start'] ?? $event['start'] ?? 0);
+        $end_ts = (int) ($ev['end'] ?? $event['end'] ?? 0);
         $date_ts = (int) ($ev['date'] ?? $event['date'] ?? 0);
-        $ts_start = (int) ($ev['ts_start'] ?? $event['ts_start'] ?? $date_ts);
-        $ts_end = (int) ($ev['ts_end'] ?? $event['ts_end'] ?? $date_ts);
+        $ts_start = $start_ts ?: (int) ($ev['ts_start'] ?? $event['ts_start'] ?? $date_ts);
+        $ts_end = $end_ts ?: (int) ($ev['ts_end'] ?? $event['ts_end'] ?? $ts_start);
         if ($ts_start <= 0) $ts_start = $date_ts;
         if ($ts_end <= 0) $ts_end = $ts_start;
         // date/ts als String (z.B. "2026-02-15 19:00:00")
