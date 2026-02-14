@@ -149,9 +149,11 @@ $html = '<!DOCTYPE html>
         .section { margin-bottom: 10px; }
         .section-title { font-weight: bold; font-size: 10pt; margin-bottom: 4px; padding-bottom: 2px; border-bottom: 1px solid #dee2e6; }
         .two-cols-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        .two-cols-table td { width: 50%; vertical-align: top; padding: 0 8px 0 0; }
-        .two-cols-table td:last-child { padding: 0 0 0 8px; }
-        .col-fahrzeug { width: 45px; max-width: 45px; }
+        .two-cols-table td { vertical-align: top; padding: 0 8px 0 0; }
+        .two-cols-table td:first-child { width: 45%; }
+        .two-cols-table td:last-child { width: 55%; padding: 0 0 0 8px; }
+        .two-cols-table table { font-size: 9pt; }
+        .col-fahrzeug { width: 32px; max-width: 32px; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 8pt; table-layout: fixed; }
         th, td { border: 1px solid #dee2e6; padding: 4px 6px; text-align: left; }
         th { background: #f8f9fa; font-weight: bold; }
@@ -201,14 +203,14 @@ foreach ($anwesenheitsliste_felder as $f) {
 }
 $html .= '</table></div>';
 
-$html .= '<div class="section"><table class="two-cols-table" width="100%"><tr><td width="50%"><div class="section-title">Personal</div><table><thead><tr><th>Name</th><th class="col-fahrzeug">Fzg</th></tr></thead><tbody>';
+$html .= '<div class="section"><table class="two-cols-table" width="100%"><tr><td><div class="section-title">Personal</div><table><thead><tr><th>Name</th><th class="col-fahrzeug">Fzg</th></tr></thead><tbody>';
 foreach ($liste_members as $lm) {
     $name = trim($lm['last_name'] . ', ' . $lm['first_name']);
     $vehicle = $lm['vehicle_name'] ?? '-';
     $html .= '<tr><td>' . htmlspecialchars($name) . '</td><td class="col-fahrzeug">' . htmlspecialchars($vehicle) . '</td></tr>';
 }
 if (empty($liste_members)) $html .= '<tr><td colspan="2">Keine Einträge</td></tr>';
-$html .= '</tbody></table></td><td width="50%"><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
+$html .= '</tbody></table></td><td><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
 foreach ($vehicle_ids as $vid) {
     if ($vid <= 0) continue;
     $vname = '';

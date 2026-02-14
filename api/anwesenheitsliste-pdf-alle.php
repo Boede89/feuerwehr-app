@@ -167,12 +167,12 @@ foreach ($listen as $idx => $liste) {
     }
     $part .= '</table></div>';
 
-    $part .= '<div class="section"><table class="two-cols-table" width="100%"><tr><td width="50%"><div class="section-title">Personal</div><table><thead><tr><th>Name</th><th class="col-fahrzeug">Fzg</th></tr></thead><tbody>';
+    $part .= '<div class="section"><table class="two-cols-table" width="100%"><tr><td><div class="section-title">Personal</div><table><thead><tr><th>Name</th><th class="col-fahrzeug">Fzg</th></tr></thead><tbody>';
     foreach ($liste_members as $lm) {
         $part .= '<tr><td>' . htmlspecialchars(trim($lm['last_name'] . ', ' . $lm['first_name'])) . '</td><td class="col-fahrzeug">' . htmlspecialchars($lm['vehicle_name'] ?? '-') . '</td></tr>';
     }
     if (empty($liste_members)) $part .= '<tr><td colspan="2">Keine Einträge</td></tr>';
-    $part .= '</tbody></table></td><td width="50%"><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
+    $part .= '</tbody></table></td><td><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
     foreach ($vehicle_ids as $vid) {
         if ($vid <= 0) continue;
         $vname = '';
@@ -197,8 +197,8 @@ $html = '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Anwes
 @page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:9pt;line-height:1.25;color:#333;margin:0;padding:10px}
 .header{text-align:center;border-bottom:2px solid #0d6efd;padding-bottom:8px;margin-bottom:10px}.header h1{margin:0 0 2px 0;font-size:14pt;color:#0d6efd}.header .sub{color:#666;font-size:8pt}
 .section{margin-bottom:10px}.section-title{font-weight:bold;font-size:10pt;margin-bottom:4px;padding-bottom:2px;border-bottom:1px solid #dee2e6}
-.two-cols-table{width:100%;border-collapse:collapse;margin-bottom:10px}.two-cols-table td{width:50%;vertical-align:top;padding:0 8px 0 0}.two-cols-table td:last-child{padding:0 0 0 8px}
-.col-fahrzeug{width:45px;max-width:45px}
+.two-cols-table{width:100%;border-collapse:collapse;margin-bottom:10px}.two-cols-table td{vertical-align:top;padding:0 8px 0 0}.two-cols-table td:first-child{width:45%}.two-cols-table td:last-child{width:55%;padding:0 0 0 8px}.two-cols-table table{font-size:9pt}
+.col-fahrzeug{width:32px;max-width:32px}
 table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:8pt;table-layout:fixed}th,td{border:1px solid #dee2e6;padding:4px 6px;text-align:left}th{background:#f8f9fa;font-weight:bold}
 .label-cell{width:100px;background:#f8f9fa;font-weight:bold}.stamm-inline .label-cell{width:90px}
 .col-staerke{width:32px;max-width:32px}
