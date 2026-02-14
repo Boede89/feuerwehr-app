@@ -11,11 +11,18 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 $message = '';
 $error = '';
 
-// Lade aktuellen Benutzer
+// Spalte divera_access_key ggf. anlegen (für Divera-Übermittlung bei Fahrzeugreservierung)
 try {
-    $stmt = $db->prepare('SELECT id, username, email, first_name, last_name, password_hash FROM users WHERE id = ?');
+    $db->exec("ALTER TABLE users ADD COLUMN divera_access_key VARCHAR(512) NULL DEFAULT NULL");
+} catch (Exception $e) {
+    // Spalte existiert bereits
+}
+
+// Lade aktuellen Benutzer (inkl. can_vehicles und divera_access_key für Profil-Anzeige)
+try {
+    $stmt = $db->prepare('SELECT id, username, email, first_name, last_name, password_hash, can_vehicles, divera_access_key FROM users WHERE id = ?');
     $stmt->execute([$_SESSION['user_id']]);
-    $user = $stmt->fetch();
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$user) {
         $error = 'Benutzer nicht gefunden.';
     }
@@ -40,6 +47,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                     $message = 'E-Mail-Adresse wurde aktualisiert.';
                     $user['email'] = $new_email;
                 }
+            } elseif ($action === 'update_divera_access_key') {
+                $new_key = trim($_POST['divera_access_key'] ?? '');
+                $stmt = $db->prepare('UPDATE users SET divera_access_key = ? WHERE id = ?');
+                $stmt->execute([$new_key, $user['id']]);
+                $message = $new_key !== '' ? 'Divera Access Key wurde gespeichert.' : 'Divera Access Key wurde entfernt.';
+                $user['divera_access_key'] = $new_key;
             } elseif ($action === 'update_password') {
                 $current_password = $_POST['current_password'] ?? '';
                 $new_password = $_POST['new_password'] ?? '';
@@ -117,6 +130,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                 </div>
             </div>
         </div>
+        <?php if (!empty($user['can_vehicles'])): ?>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header"><i class="fas fa-calendar-plus"></i> Divera 24/7 (Fahrzeugreservierung)</div>
+                <div class="card-body">
+                    <p class="text-muted small">Wenn Sie Reservierungen genehmigen, wird der Termin an Divera 24/7 gesendet. Dafür wird Ihr hier hinterlegter Einheits-Accesskey verwendet.</p>
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Divera Access Key (Einheits-Key)</label>
+                            <input class="form-control" type="password" name="divera_access_key" value="" placeholder="Leer lassen zum Beibehalten" autocomplete="off">
+                            <small class="text-muted"><?php echo !empty($user['divera_access_key']) ? 'Key ist hinterlegt. Neuen Key eintragen zum Überschreiben.' : 'Leer lassen zum Beibehalten.'; ?></small>
+                        </div>
+                        <input type="hidden" name="action" value="update_divera_access_key">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Speichern</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
         <div class="col-lg-6">
             <div class="card h-100">
                 <div class="card-header"><i class="fas fa-lock"></i> Passwort ändern</div>

@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once '../config/divera.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!is_logged_in()) {
@@ -75,69 +76,20 @@ try {
         $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
         
-        // Google Calendar Event erstellen oder aktualisieren
+        // Termin an Divera 24/7 senden (Access Key des Genehmigers)
         try {
-            $vehicle_name = $reservation['vehicle_name'] ?? 'Unbekanntes Fahrzeug';
-            $location = $reservation['location'] ?? '';
-            
-            // Prüfe ob bereits ein Event zum selben Zeitpunkt mit demselben Grund existiert
-            $stmt = $db->prepare("
-                SELECT ce.google_event_id, ce.title, GROUP_CONCAT(v.name ORDER BY v.name SEPARATOR ', ') as vehicles
-                FROM calendar_events ce
-                JOIN reservations r ON ce.reservation_id = r.id
-                JOIN vehicles v ON r.vehicle_id = v.id
-                WHERE ce.start_datetime = ? AND ce.end_datetime = ? AND r.reason = ? AND r.status = 'approved'
-                GROUP BY ce.google_event_id, ce.title
-                LIMIT 1
-            ");
-            $stmt->execute([$reservation['start_datetime'], $reservation['end_datetime'], $reservation['reason']]);
-            $existing_event = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($existing_event) {
-                // Event existiert bereits - Fahrzeug hinzufügen
-                $existing_vehicles = $existing_event['vehicles'];
-                $all_vehicles = $existing_vehicles . ', ' . $vehicle_name;
-                $title = $all_vehicles . ' - ' . $reservation['reason'];
-                
-                // Bestehendes Event aktualisieren
-                $google_event_id = update_google_calendar_event_title(
-                    $existing_event['google_event_id'],
-                    $title
-                );
-                
-                if ($google_event_id) {
-                    // Titel in der Datenbank aktualisieren
-                    $stmt = $db->prepare("UPDATE calendar_events SET title = ? WHERE google_event_id = ?");
-                    $stmt->execute([$title, $existing_event['google_event_id']]);
-                    
-                    // Neue Reservierung mit bestehendem Event verknüpfen
-                    $stmt = $db->prepare("INSERT INTO calendar_events (reservation_id, google_event_id, title, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?)");
-                    $stmt->execute([$reservation_id, $existing_event['google_event_id'], $title, $reservation['start_datetime'], $reservation['end_datetime']]);
-                    
-                    error_log("Google Calendar Event aktualisiert: " . $google_event_id . " - Titel: " . $title);
-                }
-            } else {
-                // Neues Event erstellen
-                $title = $vehicle_name . ' - ' . $reservation['reason'];
-                
-                $google_event_id = create_google_calendar_event(
-                    $title,
-                    $reservation['reason'],
-                    $reservation['start_datetime'],
-                    $reservation['end_datetime'],
-                    $reservation_id,
-                    $location
-                );
-                
-                if ($google_event_id) {
-                    error_log("Google Calendar Event erstellt: " . $google_event_id . " - Titel: " . $title);
-                } else {
-                    error_log("Google Calendar Event konnte nicht erstellt werden");
-                }
+            $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+            $stmt->execute([$_SESSION['user_id']]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            $divera_key = trim((string) ($row['divera_access_key'] ?? ''));
+            $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+            if ($divera_key !== '' && send_reservation_to_divera($reservation, $divera_key, $api_base)) {
+                error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt.");
+            } elseif ($divera_key === '') {
+                error_log("Reservierung #$reservation_id: Kein Divera Access Key beim Genehmiger hinterlegt – Termin nicht an Divera gesendet.");
             }
         } catch (Exception $e) {
-            error_log("Google Calendar Fehler: " . $e->getMessage());
-            // Fehler ignorieren, da Reservierung trotzdem genehmigt werden soll
+            error_log("Divera-Übermittlung Fehler: " . $e->getMessage());
         }
         
         // E-Mail an Antragsteller senden
@@ -238,25 +190,18 @@ try {
         $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
         
-        // Google Calendar Event erstellen
+        // Termin an Divera 24/7 senden (Access Key des Genehmigers)
         try {
-            $vehicle_name = $reservation['vehicle_name'] ?? 'Unbekanntes Fahrzeug';
-            $location = $reservation['location'] ?? '';
-            
-            $google_event_id = create_google_calendar_event(
-                $vehicle_name . ' - ' . $reservation['reason'],
-                $reservation['reason'],
-                $reservation['start_datetime'],
-                $reservation['end_datetime'],
-                $reservation_id,
-                $location
-            );
-            
-            if ($google_event_id) {
-                error_log("Google Calendar Event erstellt: " . $google_event_id);
+            $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+            $stmt->execute([$_SESSION['user_id']]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            $divera_key = trim((string) ($row['divera_access_key'] ?? ''));
+            $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+            if ($divera_key !== '' && send_reservation_to_divera($reservation, $divera_key, $api_base)) {
+                error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (mit Konfliktlösung).");
             }
         } catch (Exception $e) {
-            error_log("Google Calendar Fehler: " . $e->getMessage());
+            error_log("Divera-Übermittlung Fehler: " . $e->getMessage());
         }
         
         // E-Mail an Antragsteller senden

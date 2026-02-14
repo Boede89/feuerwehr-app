@@ -330,6 +330,11 @@ function has_permission($permission) {
         } catch (Exception $e) {
             // Spalte existiert bereits, ignoriere Fehler
         }
+        try {
+            $db->exec("ALTER TABLE users ADD COLUMN divera_access_key VARCHAR(512) NULL DEFAULT NULL");
+        } catch (Exception $e) {
+            // Spalte existiert bereits, ignoriere Fehler
+        }
         
         $stmt = $db->prepare("SELECT is_admin, user_role, can_reservations, can_users, can_settings, can_vehicles, can_atemschutz, can_members, can_ric, can_courses, can_forms FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
@@ -1577,5 +1582,53 @@ function merge_duplicate_members() {
             'error' => $e->getMessage()
         ];
     }
+}
+
+/**
+ * Sendet eine genehmigte Reservierung als Termin an Divera 24/7 (API v2/events).
+ * @param array $reservation Reservierungs-Datensatz (start_datetime, end_datetime, reason, location, vehicle_name, …)
+ * @param string $access_key Divera-Einheits-Accesskey (z. B. vom genehmigenden User)
+ * @param string $api_base_url Basis-URL der Divera-API (z. B. https://app.divera247.com)
+ * @return bool true bei Erfolg (HTTP 2xx), false sonst
+ */
+function send_reservation_to_divera($reservation, $access_key, $api_base_url = 'https://app.divera247.com') {
+    $access_key = trim((string) $access_key);
+    if ($access_key === '') {
+        return false;
+    }
+    $base = rtrim(trim((string) $api_base_url), '/') ?: 'https://app.divera247.com';
+    $start_ts = strtotime($reservation['start_datetime'] ?? '');
+    $end_ts = strtotime($reservation['end_datetime'] ?? '');
+    if ($start_ts <= 0 || $end_ts <= 0) {
+        return false;
+    }
+    $vehicle_name = $reservation['vehicle_name'] ?? 'Fahrzeug';
+    $title = $vehicle_name . ' - ' . ($reservation['reason'] ?? 'Reservierung');
+    $address = trim($reservation['location'] ?? '');
+    $body = [
+        'Event' => [
+            'notification_type' => 2,
+            'title' => $title,
+            'ts_start' => $start_ts,
+            'ts_end' => $end_ts,
+            'address' => $address,
+            'text' => $address !== '' ? 'Ort: ' . $address : ($reservation['reason'] ?? ''),
+        ],
+    ];
+    $url = $base . '/api/v2/events?accesskey=' . urlencode($access_key);
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => "Content-Type: application/json\r\n",
+            'content' => json_encode($body),
+            'timeout' => 15,
+        ],
+    ]);
+    $raw = @file_get_contents($url, false, $ctx);
+    $code = 0;
+    if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) {
+        $code = (int) $m[1];
+    }
+    return $code >= 200 && $code < 300;
 }
 ?>
