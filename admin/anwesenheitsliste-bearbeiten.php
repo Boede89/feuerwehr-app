@@ -156,9 +156,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             $params[] = $einsatzleiter_member_id;
             $updates[] = 'einsatzleiter_freitext = ?';
             $params[] = $einsatzleiter_freitext !== '' ? $einsatzleiter_freitext : null;
-            $einsatzbericht_nummer = trim($_POST['einsatzbericht_nummer'] ?? '');
+            $einsatzbericht_nummer = $is_uebungsdienst_edit ? null : (trim($_POST['einsatzbericht_nummer'] ?? '') !== '' ? trim($_POST['einsatzbericht_nummer']) : null);
             $updates[] = 'einsatzbericht_nummer = ?';
-            $params[] = $einsatzbericht_nummer !== '' ? $einsatzbericht_nummer : null;
+            $params[] = $einsatzbericht_nummer;
             $custom_post = [];
             foreach ($anwesenheitsliste_felder as $f) {
                 if (empty($f['visible'])) continue;
@@ -282,6 +282,7 @@ function _al_val($liste, $key, $custom_data = []) {
             <div class="card-body">
                 <p class="text-muted small">Erstellt von <?php echo htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt'); ?> am <?php echo format_datetime_berlin($liste['created_at']); ?></p>
                 <div class="row g-3">
+                    <?php if (!$is_uebungsdienst_edit): ?>
                     <div class="col-md-6">
                         <label for="einsatzbericht_nummer" class="form-label">Einsatzbericht Nummer</label>
                         <div class="input-group">
@@ -289,6 +290,7 @@ function _al_val($liste, $key, $custom_data = []) {
                             <input type="text" class="form-control" id="einsatzbericht_nummer" name="einsatzbericht_nummer" placeholder="Nummer eingeben" value="<?php echo htmlspecialchars($liste['einsatzbericht_nummer'] ?? ''); ?>">
                         </div>
                     </div>
+                    <?php endif; ?>
                     <?php foreach ($anwesenheitsliste_felder as $f):
                         if (empty($f['visible'])) continue;
                         $fid = $f['id'] ?? '';

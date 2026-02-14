@@ -203,9 +203,7 @@ if ($uhrzeit_bis !== '' && strlen($uhrzeit_bis) >= 5) $uhrzeit_bis = substr($uhr
 
 $uebungsdienst_hide_pdf = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
 $html .= '<div class="section"><div class="section-title">Stammdaten</div><table class="stamm-inline">';
-if ($is_uebungsdienst_pdf) {
-    $html .= '<tr><td class="label-cell">Einsatzbericht Nr.</td><td colspan="5">' . htmlspecialchars($einsatzbericht_display) . '</td></tr>';
-} else {
+if (!$is_uebungsdienst_pdf) {
     $html .= '<tr><td class="label-cell">Einsatzbericht Nr.</td><td>' . htmlspecialchars($einsatzbericht_display) . '</td><td class="label-cell">Alarmierung durch</td><td>' . htmlspecialchars($alarmierung ?: '-') . '</td></tr>';
 }
 $html .= '<tr><td class="label-cell">Uhrzeit von</td><td>' . htmlspecialchars($uhrzeit_von ?: '-') . '</td><td class="label-cell">Uhrzeit bis</td><td>' . htmlspecialchars($uhrzeit_bis ?: '-') . '</td><td class="label-cell">Einsatzdauer</td><td>' . htmlspecialchars($einsatzdauer ?: '-') . '</td></tr>';
