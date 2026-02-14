@@ -1,6 +1,7 @@
 <?php
 /**
- * Löscht den Anwesenheitsliste-Entwurf des aktuellen Benutzers.
+ * Löscht einen Anwesenheitsliste-Entwurf (per datum+auswahl).
+ * Entwürfe sind für alle Benutzer sichtbar.
  */
 session_start();
 require_once __DIR__ . '/../config/database.php';
@@ -12,13 +13,21 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-$user_id = (int)$_SESSION['user_id'];
+$datum = trim($_REQUEST['datum'] ?? '');
+$auswahl = trim($_REQUEST['auswahl'] ?? '');
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum) || $auswahl === '') {
+    echo json_encode(['success' => false, 'message' => 'datum und auswahl erforderlich']);
+    exit;
+}
+
 $draft_key = 'anwesenheit_draft';
-unset($_SESSION[$draft_key]);
+if (isset($_SESSION[$draft_key]) && $_SESSION[$draft_key]['datum'] === $datum && $_SESSION[$draft_key]['auswahl'] === $auswahl) {
+    unset($_SESSION[$draft_key]);
+}
 
 try {
-    $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE user_id = ?");
-    $stmt->execute([$user_id]);
+    $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?");
+    $stmt->execute([$datum, $auswahl]);
     echo json_encode(['success' => true, 'message' => 'Entwurf gelöscht']);
 } catch (Exception $e) {
     error_log('delete-anwesenheit-draft: ' . $e->getMessage());

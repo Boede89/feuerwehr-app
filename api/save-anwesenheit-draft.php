@@ -114,7 +114,7 @@ try {
     $db->exec("
         CREATE TABLE IF NOT EXISTS anwesenheitsliste_drafts (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
+            user_id INT NULL,
             datum DATE NOT NULL,
             auswahl VARCHAR(50) NOT NULL,
             dienstplan_id INT NULL,
@@ -122,8 +122,7 @@ try {
             bezeichnung VARCHAR(255) NULL,
             draft_data JSON NOT NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_user_draft (user_id),
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            UNIQUE KEY unique_datum_auswahl (datum, auswahl)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
 } catch (Exception $e) {
@@ -153,15 +152,6 @@ if (!empty($draft['custom_data']) && is_array($draft['custom_data'])) {
 }
 $draft_has_content = $has_members || $has_vehicles || $has_text || $has_einsatzleiter || $has_custom;
 
-if (!$draft_has_content) {
-    try {
-        $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE user_id = ?");
-        $stmt->execute([$user_id]);
-    } catch (Exception $e) { /* ignore */ }
-    echo json_encode(['success' => true, 'message' => 'Leerer Entwurf nicht gespeichert']);
-    exit;
-}
-
 $draft_data = json_encode($draft);
 $datum = $draft['datum'] ?? date('Y-m-d');
 $auswahl = $draft['auswahl'] ?? '';
@@ -169,13 +159,21 @@ $dienstplan_id = isset($draft['dienstplan_id']) ? ($draft['dienstplan_id'] ?: nu
 $typ = $draft['typ'] ?? 'dienst';
 $bezeichnung = $draft['bezeichnung_sonstige'] ?? null;
 
+if (!$draft_has_content) {
+    try {
+        $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?");
+        $stmt->execute([$datum, $auswahl]);
+    } catch (Exception $e) { /* ignore */ }
+    echo json_encode(['success' => true, 'message' => 'Leerer Entwurf nicht gespeichert']);
+    exit;
+}
+
 try {
     $stmt = $db->prepare("
         INSERT INTO anwesenheitsliste_drafts (user_id, datum, auswahl, dienstplan_id, typ, bezeichnung, draft_data)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
-            datum = VALUES(datum),
-            auswahl = VALUES(auswahl),
+            user_id = VALUES(user_id),
             dienstplan_id = VALUES(dienstplan_id),
             typ = VALUES(typ),
             bezeichnung = VALUES(bezeichnung),

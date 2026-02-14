@@ -134,7 +134,7 @@ try {
         $db->exec("
             CREATE TABLE IF NOT EXISTS anwesenheitsliste_drafts (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT NOT NULL,
+                user_id INT NULL,
                 datum DATE NOT NULL,
                 auswahl VARCHAR(50) NOT NULL,
                 dienstplan_id INT NULL,
@@ -142,25 +142,43 @@ try {
                 bezeichnung VARCHAR(255) NULL,
                 draft_data JSON NOT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY unique_user_draft (user_id),
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                UNIQUE KEY unique_datum_auswahl (datum, auswahl)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
     } catch (Exception $e2) {
         error_log('anwesenheitsliste_drafts Tabelle: ' . $e2->getMessage());
     }
+    // Migration: alte unique_user_draft auf unique_datum_auswahl umstellen (Entwürfe für alle Benutzer)
+    try {
+        $db->exec("ALTER TABLE anwesenheitsliste_drafts MODIFY COLUMN user_id INT NULL");
+    } catch (Exception $e) { /* Spalte evtl. schon NULL */ }
+    try {
+        $db->exec("ALTER TABLE anwesenheitsliste_drafts DROP INDEX unique_user_draft");
+    } catch (Exception $e) { /* Index existiert evtl. nicht */ }
+    try {
+        $db->exec("DELETE d1 FROM anwesenheitsliste_drafts d1 INNER JOIN anwesenheitsliste_drafts d2 ON d1.datum = d2.datum AND d1.auswahl = d2.auswahl AND d1.updated_at < d2.updated_at");
+    } catch (Exception $e) { /* ignore */ }
+    try {
+        $db->exec("ALTER TABLE anwesenheitsliste_drafts ADD UNIQUE KEY unique_datum_auswahl (datum, auswahl)");
+    } catch (Exception $e) { /* Unique evtl. schon vorhanden */ }
 } catch (Exception $e) {
     error_log('Anwesenheitsliste Tabellen: ' . $e->getMessage());
 }
 
-// Entwurf löschen (wenn angefragt)
+// Entwurf löschen (wenn angefragt, per datum+auswahl)
 if (isset($_GET['action']) && $_GET['action'] === 'delete_draft' && isset($_SESSION['user_id'])) {
-    try {
-        $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE user_id = ?");
-        $stmt->execute([(int)$_SESSION['user_id']]);
-        unset($_SESSION['anwesenheit_draft']);
-    } catch (Exception $e) {
-        // ignore
+    $del_datum = isset($_GET['datum']) ? trim($_GET['datum']) : '';
+    $del_auswahl = isset($_GET['auswahl']) ? trim($_GET['auswahl']) : '';
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $del_datum) && $del_auswahl !== '') {
+        try {
+            $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?");
+            $stmt->execute([$del_datum, $del_auswahl]);
+            if ($del_datum === ($_SESSION['anwesenheit_draft']['datum'] ?? '') && $del_auswahl === ($_SESSION['anwesenheit_draft']['auswahl'] ?? '')) {
+                unset($_SESSION['anwesenheit_draft']);
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
     }
     header('Location: anwesenheitsliste.php');
     exit;
@@ -253,32 +271,30 @@ try {
     // ignore
 }
 
-// Aktueller Entwurf (nur für eingeloggten User, nur wenn Daten vorhanden)
-$aktueller_entwurf = null;
+// Alle Entwürfe laden (für alle Benutzer sichtbar, damit jeder weitermachen kann)
+$alle_entwuerfe = [];
 if (isset($_SESSION['user_id'])) {
     try {
-        $stmt = $db->prepare("SELECT * FROM anwesenheitsliste_drafts WHERE user_id = ?");
-        $stmt->execute([(int)$_SESSION['user_id']]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($row && !empty($row['draft_data'])) {
+        $stmt = $db->query("SELECT * FROM anwesenheitsliste_drafts ORDER BY updated_at DESC");
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if (empty($row['draft_data'])) continue;
             $d = json_decode($row['draft_data'], true);
+            if (!is_array($d)) continue;
             $has_content = !empty($d['members']) || !empty($d['vehicles']) || !empty($d['einsatzleiter_member_id']);
-// uhrzeit_von/uhrzeit_bis ausgenommen – Standardwerte zählen nicht als Nutzereingabe
-$tf = ['alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzleiter_freitext'];
-foreach ($tf as $f) {
-    if (!empty(trim((string)($d[$f] ?? '')))) { $has_content = true; break; }
-}
-// bezeichnung_sonstige nur zählen wenn nicht Standardwert (z.B. "Einsatz")
-$bez = trim((string)($d['bezeichnung_sonstige'] ?? ''));
-if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()), true)) {
-    $has_content = true;
-}
+            $tf = ['alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzleiter_freitext'];
+            foreach ($tf as $f) {
+                if (!empty(trim((string)($d[$f] ?? '')))) { $has_content = true; break; }
+            }
+            $bez = trim((string)($d['bezeichnung_sonstige'] ?? ''));
+            if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()), true)) {
+                $has_content = true;
+            }
             if (!$has_content && !empty($d['custom_data'])) {
                 foreach ($d['custom_data'] as $v) {
                     if (!empty(trim((string)$v))) { $has_content = true; break; }
                 }
             }
-            if ($has_content) $aktueller_entwurf = $row;
+            if ($has_content) $alle_entwuerfe[] = $row;
         }
     } catch (Exception $e) {
         // ignore
@@ -444,12 +460,11 @@ if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()),
                             </div>
                         </div>
 
-                        <?php if ($letzte_abgeschlossen || $aktueller_entwurf): ?>
+                        <?php if ($letzte_abgeschlossen || !empty($alle_entwuerfe)): ?>
                         <hr class="my-4">
                         <h5 class="h6 text-muted">Zuletzt angelegte Anwesenheitslisten</h5>
                         <ul class="list-group list-group-flush">
-                            <?php if ($aktueller_entwurf): 
-                                $e = $aktueller_entwurf;
+                            <?php foreach ($alle_entwuerfe as $e): 
                                 $label = '';
                                 if (($e['typ'] ?? '') === 'einsatz') $label = htmlspecialchars($e['bezeichnung'] ?? 'Einsatz');
                                 elseif (($e['typ'] ?? '') === 'manuell') $label = htmlspecialchars($e['bezeichnung'] ?? 'Manuelle Anwesenheit');
@@ -472,10 +487,10 @@ if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()),
                                 </span>
                                 <span class="d-flex align-items-center gap-2">
                                     <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($e['datum']); ?>&auswahl=<?php echo urlencode($e['auswahl']); ?>" class="btn btn-sm btn-outline-primary">Fortsetzen</a>
-                                    <a href="anwesenheitsliste.php?action=delete_draft" class="btn btn-sm btn-outline-danger" title="Entwurf löschen" onclick="return confirm('Entwurf wirklich löschen?');"><i class="fas fa-trash"></i></a>
+                                    <a href="anwesenheitsliste.php?action=delete_draft&amp;datum=<?php echo urlencode($e['datum']); ?>&amp;auswahl=<?php echo urlencode($e['auswahl']); ?>" class="btn btn-sm btn-outline-danger" title="Entwurf löschen" onclick="return confirm('Entwurf wirklich löschen?');"><i class="fas fa-trash"></i></a>
                                 </span>
                             </li>
-                            <?php endif; ?>
+                            <?php endforeach; ?>
                             <?php if ($letzte_abgeschlossen): 
                                 $l = $letzte_abgeschlossen;
                             ?>

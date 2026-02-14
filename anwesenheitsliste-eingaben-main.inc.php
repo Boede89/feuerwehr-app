@@ -65,13 +65,13 @@ if ($neu) {
 }
 $draft_loaded = false;
 if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum || $_SESSION[$draft_key]['auswahl'] !== $auswahl) {
-    // Versuche Entwurf aus DB zu laden (nur wenn nicht explizit neu angefordert)
+    // Versuche Entwurf aus DB zu laden (für alle Benutzer – Entwürfe sind gemeinsam nutzbar)
     if (!$neu && isset($_SESSION['user_id'])) {
         try {
-            $stmt = $db->prepare("SELECT datum, auswahl, draft_data FROM anwesenheitsliste_drafts WHERE user_id = ?");
-            $stmt->execute([(int)$_SESSION['user_id']]);
+            $stmt = $db->prepare("SELECT datum, auswahl, draft_data FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?");
+            $stmt->execute([$datum, $auswahl]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row && $row['datum'] === $datum && $row['auswahl'] === $auswahl && !empty($row['draft_data'])) {
+            if ($row && !empty($row['draft_data'])) {
                 $loaded = json_decode($row['draft_data'], true);
                 if (is_array($loaded)) {
                     $_SESSION[$draft_key] = $loaded;
@@ -376,7 +376,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         }
         unset($_SESSION[$draft_key]);
         try {
-            $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE user_id = ?")->execute([(int)$_SESSION['user_id']]);
+            $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?")->execute([$draft['datum'], $draft['auswahl']]);
         } catch (Exception $e) { /* ignore */ }
         header('Location: anwesenheitsliste.php?message=erfolg');
         exit;
