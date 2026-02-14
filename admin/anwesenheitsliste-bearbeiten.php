@@ -231,7 +231,7 @@ function _al_val($liste, $key, $custom_data = []) {
         <div class="card mb-4">
             <div class="card-header">Stammdaten</div>
             <div class="card-body">
-                <p class="text-muted small">Erstellt von <?php echo htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt'); ?> am <?php echo date('d.m.Y H:i', strtotime($liste['created_at'])); ?></p>
+                <p class="text-muted small">Erstellt von <?php echo htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt'); ?> am <?php echo format_datetime_berlin($liste['created_at']); ?></p>
                 <div class="row g-3">
                     <?php foreach ($anwesenheitsliste_felder as $f):
                         if (empty($f['visible'])) continue;
@@ -378,6 +378,7 @@ function _al_val($liste, $key, $custom_data = []) {
 
         <div class="mb-4">
             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
+            <a href="../api/anwesenheitsliste-pdf.php?id=<?php echo (int)$id; ?>" class="btn btn-outline-success" target="_blank"><i class="fas fa-file-pdf"></i> PDF herunterladen</a>
             <a href="formularcenter.php?tab=submissions" class="btn btn-secondary">Abbrechen</a>
         </div>
     </form>

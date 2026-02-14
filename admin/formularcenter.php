@@ -321,7 +321,11 @@ if (isset($_GET['edit_dienstplan'])) {
 if (isset($_GET['edit_submission'])) {
     $id = (int)$_GET['edit_submission'];
     foreach ($submissions as $s) {
-        if ((int)$s['id'] === $id) { $edit_submission = $s; break; }
+        if ((int)$s['id'] === $id) {
+            $edit_submission = $s;
+            $edit_submission['created_at_display'] = format_datetime_berlin($s['created_at']);
+            break;
+        }
     }
 }
 
@@ -490,12 +494,14 @@ try {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($submissions as $s): ?>
+                                    <?php foreach ($submissions as $s):
+                                        $s['created_at_display'] = format_datetime_berlin($s['created_at']);
+                                    ?>
                                     <tr>
                                         <td><i class="fas fa-file-alt text-muted me-1"></i> <?php echo htmlspecialchars($s['form_title']); ?></td>
                                         <td><span class="badge bg-secondary">Formular</span></td>
                                         <td><?php echo htmlspecialchars(trim($s['user_first_name'] . ' ' . $s['user_last_name']) ?: 'Unbekannt'); ?></td>
-                                        <td><?php echo date('d.m.Y H:i', strtotime($s['created_at'])); ?></td>
+                                        <td><?php echo $s['created_at_display']; ?></td>
                                         <td>
                                             <a href="?tab=submissions&edit_submission=<?php echo (int)$s['id']; ?>#submissionModal" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#submissionModal" onclick='openSubmissionModal(<?php echo json_encode($s); ?>)'><i class="fas fa-edit"></i> Bearbeiten</a>
                                             <form method="post" class="d-inline" onsubmit="return confirm('Formulareingabe wirklich löschen?');">
@@ -519,9 +525,10 @@ try {
                                         <td><i class="fas fa-clipboard-list text-muted me-1"></i> <?php echo htmlspecialchars($titel); ?></td>
                                         <td><span class="badge bg-info"><?php echo $typ_label; ?></span></td>
                                         <td><?php echo htmlspecialchars(trim($a['user_first_name'] . ' ' . $a['user_last_name']) ?: 'Unbekannt'); ?></td>
-                                        <td><?php echo date('d.m.Y H:i', strtotime($a['created_at'])); ?></td>
+                                        <td><?php echo format_datetime_berlin($a['created_at']); ?></td>
                                         <td>
                                             <a href="anwesenheitsliste-bearbeiten.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
+                                            <a href="../api/anwesenheitsliste-pdf.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" target="_blank"><i class="fas fa-file-pdf"></i> PDF</a>
                                             <form method="post" class="d-inline" onsubmit="return confirm('Anwesenheitsliste wirklich löschen?');">
                                                 <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
                                                 <input type="hidden" name="action" value="delete_anwesenheitsliste">
@@ -830,7 +837,7 @@ try {
             var data = {};
             try { data = JSON.parse(sub.form_data || '{}'); } catch(e) {}
             var formTitle = sub.form_title || 'Formular';
-            var html = '<p><strong>' + escapeHtml(formTitle) + '</strong></p><p class="text-muted small">Von: ' + escapeHtml((sub.user_first_name || '') + ' ' + (sub.user_last_name || '')) + ', ' + (sub.created_at || '') + '</p><div class="mb-3"><label class="form-label">Daten (JSON)</label><textarea class="form-control font-monospace" id="submission_data_edit" rows="12">' + escapeHtml(JSON.stringify(data, null, 2)) + '</textarea></div>';
+            var html = '<p><strong>' + escapeHtml(formTitle) + '</strong></p><p class="text-muted small">Von: ' + escapeHtml((sub.user_first_name || '') + ' ' + (sub.user_last_name || '')) + ', ' + (sub.created_at_display || sub.created_at || '') + '</p><div class="mb-3"><label class="form-label">Daten (JSON)</label><textarea class="form-control font-monospace" id="submission_data_edit" rows="12">' + escapeHtml(JSON.stringify(data, null, 2)) + '</textarea></div>';
             document.getElementById('submissionModalBody').innerHTML = html;
             document.getElementById('submissionForm').onsubmit = function() {
                 try {

@@ -525,7 +525,7 @@ if (isset($_SESSION['user_id'])) {
                                     else echo htmlspecialchars($l['dienst_bezeichnung'] ?? 'Dienst');
                                     ?>
                                 </span>
-                                <small class="text-muted"><?php echo date('d.m. H:i', strtotime($l['created_at'])); ?></small>
+                                <small class="text-muted"><?php echo format_datetime_berlin($l['created_at'], 'd.m. H:i'); ?></small>
                             </li>
                             <?php endif; ?>
                         </ul>

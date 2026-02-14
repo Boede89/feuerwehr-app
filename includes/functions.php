@@ -492,6 +492,21 @@ function format_datetime($datetime, $format = 'd.m.Y H:i') {
 }
 
 /**
+ * Datum/Uhrzeit aus DB (UTC) in Europe/Berlin für Anzeige formatieren.
+ * Behebt 1-Stunden-Versatz bei created_at/updated_at aus MySQL TIMESTAMP.
+ */
+function format_datetime_berlin($datetime, $format = 'd.m.Y H:i') {
+    if (empty($datetime)) return '';
+    try {
+        $dt = new DateTime($datetime, new DateTimeZone('UTC'));
+        $dt->setTimezone(new DateTimeZone('Europe/Berlin'));
+        return $dt->format($format);
+    } catch (Exception $e) {
+        return date($format, strtotime($datetime));
+    }
+}
+
+/**
  * Status Badge generieren
  */
 function get_status_badge($status) {
