@@ -242,7 +242,7 @@ try {
 $anwesenheitslisten = [];
 try {
     $sql = "
-        SELECT a.id, a.datum, a.bezeichnung, a.typ, a.created_at,
+        SELECT a.id, a.datum, a.bezeichnung, a.typ, a.einsatzstichwort, a.created_at,
                d.bezeichnung AS dienst_bezeichnung, d.typ AS dienst_typ,
                COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name
         FROM anwesenheitslisten a
@@ -522,8 +522,11 @@ try {
                                     </tr>
                                     <?php endforeach; ?>
                                     <?php foreach ($anwesenheitslisten as $a):
-                                        $titel = $a['bezeichnung'] ?? $a['dienst_bezeichnung'] ?? 'Anwesenheit';
-                                        $titel = date('d.m.Y', strtotime($a['datum'])) . ' – ' . $titel;
+                                        $bez = $a['bezeichnung'] ?? $a['dienst_bezeichnung'] ?? 'Anwesenheit';
+                                        $titel = date('d.m.Y', strtotime($a['datum'])) . ' – ' . $bez;
+                                        if (!empty($a['einsatzstichwort']) && ($a['typ'] ?? '') === 'einsatz') {
+                                            $titel .= ' – ' . $a['einsatzstichwort'];
+                                        }
                                         $typ_label = ($a['typ'] ?? '') === 'einsatz' ? 'Einsatz' : (($a['typ'] ?? '') === 'manuell' ? 'Manuell' : htmlspecialchars(get_dienstplan_typ_label($a['dienst_typ'] ?? 'uebungsdienst')));
                                     ?>
                                     <tr>

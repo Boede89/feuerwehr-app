@@ -128,26 +128,26 @@ foreach ($listen as $idx => $liste) {
 
     $einsatzbericht_display = 'A' . (trim($liste['einsatzbericht_nummer'] ?? '') !== '' ? $liste['einsatzbericht_nummer'] : '');
     $part .= '<div class="section"><div class="section-title">Stammdaten</div><table>';
-    $part .= '<tr><td class="label-cell">Einsatzbericht Nummer</td><td>' . htmlspecialchars($einsatzbericht_display) . '</td></tr>';
+    $part .= '<tr><td class="label-cell">Einsatzbericht Nr.</td><td>' . htmlspecialchars($einsatzbericht_display) . '</td></tr>';
     foreach ($anwesenheitsliste_felder as $f) {
         if (empty($f['visible'])) continue;
         $fid = $f['id'] ?? '';
         $type = $f['type'] ?? 'text';
-        if ($fid === 'einsatzleiter') $val = $einsatzleiter_name ?: '-';
-        else $val = _al_val_formatted($liste, $fid, $custom_data, $type);
+        if ($fid === 'einsatzleiter') $val = $einsatzleiter_name;
+        else $val = _al_val($liste, $fid, $custom_data);
+        if ($val === '' || $val === null) continue;
+        if (($type === 'time' || in_array($fid, ['uhrzeit_von','uhrzeit_bis'])) && strlen($val) >= 5) $val = substr($val, 0, 5);
         $label = $f['label'] ?? $fid;
         $part .= '<tr><td class="label-cell">' . htmlspecialchars($label) . '</td><td>' . htmlspecialchars($val) . '</td></tr>';
     }
     $part .= '</table></div>';
 
-    $part .= '<div class="section"><div class="section-title">Personal</div><table><thead><tr><th>Name</th><th>Fahrzeug</th></tr></thead><tbody>';
+    $part .= '<div class="section two-cols"><div class="col"><div class="section-title">Personal</div><table><thead><tr><th>Name</th><th>Fahrzeug</th></tr></thead><tbody>';
     foreach ($liste_members as $lm) {
         $part .= '<tr><td>' . htmlspecialchars(trim($lm['last_name'] . ', ' . $lm['first_name'])) . '</td><td>' . htmlspecialchars($lm['vehicle_name'] ?? '-') . '</td></tr>';
     }
     if (empty($liste_members)) $part .= '<tr><td colspan="2">Keine Einträge</td></tr>';
-    $part .= '</tbody></table></div>';
-
-    $part .= '<div class="section"><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer / Besatzung)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th>Besatzung</th><th>Besatzungsstärke</th></tr></thead><tbody>';
+    $part .= '</tbody></table></div><div class="col"><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th>Besatzungsstärke</th></tr></thead><tbody>';
     foreach ($vehicle_ids as $vid) {
         if ($vid <= 0) continue;
         $vname = '';
@@ -157,28 +157,26 @@ foreach ($listen as $idx => $liste) {
         foreach ($liste_vehicles as $lv) { if ((int)$lv['vehicle_id'] === $vid && !empty($lv['vehicle_name'])) { $vname = $lv['vehicle_name']; break; } }
         if ($vname === '') $vname = 'Fahrzeug ' . $vid;
         $roles = $vehicle_roles[$vid] ?? ['maschinist' => '-', 'einheitsfuehrer' => '-'];
-        $crew_names = [];
-        foreach ($liste_members as $lm) { if ((int)$lm['vehicle_id'] === $vid) $crew_names[] = trim($lm['last_name'] . ', ' . $lm['first_name']); }
         $crew_ids = array_column(array_filter($liste_members, fn($m) => (int)$m['vehicle_id'] === $vid), 'member_id');
         $besatzungsstaerke = get_besatzungsstaerke($crew_ids, $db);
-        $crew_str = implode(', ', $crew_names) ?: '-';
-        $part .= '<tr><td>' . htmlspecialchars($vname) . '</td><td>' . htmlspecialchars(trim($roles['maschinist']) ?: '-') . '</td><td>' . htmlspecialchars(trim($roles['einheitsfuehrer']) ?: '-') . '</td><td>' . htmlspecialchars($crew_str) . '</td><td>' . htmlspecialchars($besatzungsstaerke) . '</td></tr>';
+        $part .= '<tr><td>' . htmlspecialchars($vname) . '</td><td>' . htmlspecialchars(trim($roles['maschinist']) ?: '-') . '</td><td>' . htmlspecialchars(trim($roles['einheitsfuehrer']) ?: '-') . '</td><td>' . htmlspecialchars($besatzungsstaerke) . '</td></tr>';
     }
-    if (empty($vehicle_ids) || (count($vehicle_ids) === 1 && in_array(0, $vehicle_ids))) $part .= '<tr><td colspan="5">Keine Fahrzeuge zugeordnet</td></tr>';
-    $part .= '</tbody></table></div>';
+    if (empty($vehicle_ids) || (count($vehicle_ids) === 1 && in_array(0, $vehicle_ids))) $part .= '<tr><td colspan="4">Keine Fahrzeuge zugeordnet</td></tr>';
+    $part .= '</tbody></table></div></div>';
 
     $part .= '<div class="signature-block"><div class="signature-line"></div><div class="signature-label">Unterschrift Einsatzleiter</div></div></div>';
     $html_parts[] = $part;
 }
 
 $html = '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Anwesenheitslisten</title><style>
-@page{size:A4;margin:15mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:10pt;line-height:1.35;color:#333;margin:0;padding:15px}
-.header{text-align:center;border-bottom:2px solid #0d6efd;padding-bottom:12px;margin-bottom:18px}.header h1{margin:0 0 4px 0;font-size:18pt;color:#0d6efd}.header .sub{color:#666;font-size:9pt}
-.section{margin-bottom:16px}.section-title{font-weight:bold;font-size:11pt;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #dee2e6}
-table{width:100%;border-collapse:collapse;margin-bottom:12px}th,td{border:1px solid #dee2e6;padding:6px 8px;text-align:left}th{background:#f8f9fa;font-weight:bold}
-.label-cell{width:140px;background:#f8f9fa;font-weight:bold}
-.signature-block{margin-top:40px;padding-top:20px;border-top:1px solid #333}.signature-line{margin-top:50px;border-bottom:1px solid #333;width:200px;height:24px}.signature-label{font-size:9pt;color:#666;margin-top:4px}
-@media print{body{padding:0}.report-page{page-break-after:always}.report-page:last-child{page-break-after:auto}}
+@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:9pt;line-height:1.25;color:#333;margin:0;padding:10px}
+.header{text-align:center;border-bottom:2px solid #0d6efd;padding-bottom:8px;margin-bottom:10px}.header h1{margin:0 0 2px 0;font-size:14pt;color:#0d6efd}.header .sub{color:#666;font-size:8pt}
+.section{margin-bottom:10px}.section-title{font-weight:bold;font-size:10pt;margin-bottom:4px;padding-bottom:2px;border-bottom:1px solid #dee2e6}
+.two-cols{display:flex;gap:16px;margin-bottom:10px}.two-cols .col{flex:1;min-width:0}
+table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:8pt}th,td{border:1px solid #dee2e6;padding:4px 6px;text-align:left}th{background:#f8f9fa;font-weight:bold}
+.label-cell{width:120px;background:#f8f9fa;font-weight:bold}
+.signature-block{margin-top:20px;padding-top:12px;border-top:1px solid #333}.signature-line{margin-top:30px;border-bottom:1px solid #333;width:180px;height:20px}.signature-label{font-size:8pt;color:#666;margin-top:2px}
+@media print{body{padding:0}.report-page{page-break-after:always}.report-page:last-child{page-break-after:auto}.section,.two-cols{page-break-inside:avoid}}
 </style></head><body>' . implode('', $html_parts) . '</body></html>';
 
 $filename = 'Anwesenheitslisten_alle_' . date('Y-m-d') . '.pdf';
