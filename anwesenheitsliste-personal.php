@@ -239,11 +239,12 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
         document.querySelectorAll('.anw-row').forEach(function(row) {
             var nameCell = row.querySelector('.name-cell');
             var hiddenInput = row.querySelector('.member-id-input');
+            var vehicleSelect = row.querySelector('select[name^="vehicle"]');
+            var roleSelect = row.querySelector('select[name^="role"]');
             if (!nameCell || !hiddenInput) return;
-            nameCell.addEventListener('click', function(e) {
-                e.preventDefault();
+            function markRowSelected(selected) {
                 var cells = row.querySelectorAll('td');
-                if (hiddenInput.disabled) {
+                if (selected) {
                     hiddenInput.disabled = false;
                     row.classList.add('selected');
                     cells.forEach(function(td) { td.style.backgroundColor = '#b6d4fe'; });
@@ -256,6 +257,16 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                     var span = nameCell.querySelector('.d-block');
                     if (span) span.classList.remove('fw-bold');
                 }
+            }
+            nameCell.addEventListener('click', function(e) {
+                e.preventDefault();
+                markRowSelected(hiddenInput.disabled);
+            });
+            if (vehicleSelect) vehicleSelect.addEventListener('change', function() {
+                if (vehicleSelect.value && vehicleSelect.value !== '') markRowSelected(true);
+            });
+            if (roleSelect) roleSelect.addEventListener('change', function() {
+                if (roleSelect.value && roleSelect.value !== '') markRowSelected(true);
             });
         });
     </script>
