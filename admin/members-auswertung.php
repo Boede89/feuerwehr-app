@@ -19,13 +19,13 @@ if (!has_permission('members')) {
 
 $jahr = isset($_GET['jahr']) ? (int)$_GET['jahr'] : (int)date('Y');
 $von = isset($_GET['von']) ? trim($_GET['von']) : $jahr . '-01-01';
-$bis = isset($_GET['bis']) ? trim($_GET['bis']) : $jahr . '-12-31';
+$bis = isset($_GET['bis']) ? trim($_GET['bis']) : date('Y-m-d');
 $member_id = isset($_GET['member_id']) ? (int)$_GET['member_id'] : 0;
 $typ_filter = isset($_GET['typ']) ? trim($_GET['typ']) : '';
 $darstellung = isset($_GET['darstellung']) ? trim($_GET['darstellung']) : 'tabelle';
 
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $von)) $von = $jahr . '-01-01';
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bis)) $bis = $jahr . '-12-31';
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bis)) $bis = date('Y-m-d');
 
 $members = [];
 try {
