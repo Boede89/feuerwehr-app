@@ -155,9 +155,10 @@ $html = '<!DOCTYPE html>
         th { background: #f8f9fa; font-weight: bold; }
         .label-cell { width: 100px; background: #f8f9fa; font-weight: bold; }
         .stamm-inline .label-cell { width: 90px; }
+        .col-staerke { width: 32px; max-width: 32px; }
         .bottom-row { display: flex; gap: 24px; align-items: flex-end; margin-top: 20px; padding-top: 12px; border-top: 1px solid #333; }
         .bottom-row .einsatzleiter-cell { flex: 1; }
-        .bottom-row .signature-cell { flex-shrink: 0; }
+        .bottom-row .signature-cell { flex-shrink: 0; padding-top: 24px; }
         .signature-line { border-bottom: 1px solid #333; width: 160px; height: 22px; }
         .signature-label { font-size: 8pt; color: #666; margin-top: 2px; }
         @media print { body { padding: 0; } .section, .two-cols { page-break-inside: avoid; } }
@@ -205,7 +206,7 @@ foreach ($liste_members as $lm) {
     $html .= '<tr><td>' . htmlspecialchars($name) . '</td><td>' . htmlspecialchars($vehicle) . '</td></tr>';
 }
 if (empty($liste_members)) $html .= '<tr><td colspan="2">Keine Einträge</td></tr>';
-$html .= '</tbody></table></div><div class="col"><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th>Besatzungsstärke</th></tr></thead><tbody>';
+$html .= '</tbody></table></div><div class="col"><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
 foreach ($vehicle_ids as $vid) {
     if ($vid <= 0) continue;
     $vname = '';
@@ -217,7 +218,7 @@ foreach ($vehicle_ids as $vid) {
     $roles = $vehicle_roles[$vid] ?? ['maschinist' => '-', 'einheitsfuehrer' => '-'];
     $crew_ids = array_column(array_filter($liste_members, fn($m) => (int)$m['vehicle_id'] === $vid), 'member_id');
     $besatzungsstaerke = get_besatzungsstaerke($crew_ids, $db);
-    $html .= '<tr><td>' . htmlspecialchars($vname) . '</td><td>' . htmlspecialchars(trim($roles['maschinist']) ?: '-') . '</td><td>' . htmlspecialchars(trim($roles['einheitsfuehrer']) ?: '-') . '</td><td>' . htmlspecialchars($besatzungsstaerke) . '</td></tr>';
+    $html .= '<tr><td>' . htmlspecialchars($vname) . '</td><td>' . htmlspecialchars(trim($roles['maschinist']) ?: '-') . '</td><td>' . htmlspecialchars(trim($roles['einheitsfuehrer']) ?: '-') . '</td><td class="col-staerke">' . htmlspecialchars($besatzungsstaerke) . '</td></tr>';
 }
 if (empty($vehicle_ids) || (count($vehicle_ids) === 1 && in_array(0, $vehicle_ids))) {
     $html .= '<tr><td colspan="4">Keine Fahrzeuge zugeordnet</td></tr>';

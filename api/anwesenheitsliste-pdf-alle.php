@@ -172,7 +172,7 @@ foreach ($listen as $idx => $liste) {
         $part .= '<tr><td>' . htmlspecialchars(trim($lm['last_name'] . ', ' . $lm['first_name'])) . '</td><td>' . htmlspecialchars($lm['vehicle_name'] ?? '-') . '</td></tr>';
     }
     if (empty($liste_members)) $part .= '<tr><td colspan="2">Keine Einträge</td></tr>';
-    $part .= '</tbody></table></div><div class="col"><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th>Besatzungsstärke</th></tr></thead><tbody>';
+    $part .= '</tbody></table></div><div class="col"><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
     foreach ($vehicle_ids as $vid) {
         if ($vid <= 0) continue;
         $vname = '';
@@ -184,7 +184,7 @@ foreach ($listen as $idx => $liste) {
         $roles = $vehicle_roles[$vid] ?? ['maschinist' => '-', 'einheitsfuehrer' => '-'];
         $crew_ids = array_column(array_filter($liste_members, fn($m) => (int)$m['vehicle_id'] === $vid), 'member_id');
         $besatzungsstaerke = get_besatzungsstaerke($crew_ids, $db);
-        $part .= '<tr><td>' . htmlspecialchars($vname) . '</td><td>' . htmlspecialchars(trim($roles['maschinist']) ?: '-') . '</td><td>' . htmlspecialchars(trim($roles['einheitsfuehrer']) ?: '-') . '</td><td>' . htmlspecialchars($besatzungsstaerke) . '</td></tr>';
+        $part .= '<tr><td>' . htmlspecialchars($vname) . '</td><td>' . htmlspecialchars(trim($roles['maschinist']) ?: '-') . '</td><td>' . htmlspecialchars(trim($roles['einheitsfuehrer']) ?: '-') . '</td><td class="col-staerke">' . htmlspecialchars($besatzungsstaerke) . '</td></tr>';
     }
     if (empty($vehicle_ids) || (count($vehicle_ids) === 1 && in_array(0, $vehicle_ids))) $part .= '<tr><td colspan="4">Keine Fahrzeuge zugeordnet</td></tr>';
     $part .= '</tbody></table></div></div>';
@@ -200,7 +200,8 @@ $html = '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Anwes
 .two-cols{display:flex;gap:16px;margin-bottom:10px}.two-cols .col{flex:1;min-width:0;width:50%}
 table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:8pt}th,td{border:1px solid #dee2e6;padding:4px 6px;text-align:left}th{background:#f8f9fa;font-weight:bold}
 .label-cell{width:100px;background:#f8f9fa;font-weight:bold}.stamm-inline .label-cell{width:90px}
-.bottom-row{display:flex;gap:24px;align-items:flex-end;margin-top:20px;padding-top:12px;border-top:1px solid #333}.bottom-row .einsatzleiter-cell{flex:1}.bottom-row .signature-cell{flex-shrink:0}
+.col-staerke{width:32px;max-width:32px}
+.bottom-row{display:flex;gap:24px;align-items:flex-end;margin-top:20px;padding-top:12px;border-top:1px solid #333}.bottom-row .einsatzleiter-cell{flex:1}.bottom-row .signature-cell{flex-shrink:0;padding-top:24px}
 .signature-line{border-bottom:1px solid #333;width:160px;height:22px}.signature-label{font-size:8pt;color:#666;margin-top:2px}
 @media print{body{padding:0}.report-page{page-break-after:always}.report-page:last-child{page-break-after:auto}.section,.two-cols{page-break-inside:avoid}}
 </style></head><body>' . implode('', $html_parts) . '</body></html>';
