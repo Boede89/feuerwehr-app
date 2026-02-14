@@ -8,6 +8,7 @@ require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/config/divera.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/dienstplan-typen.php';
+require_once __DIR__ . '/includes/anwesenheitsliste-helper.php';
 
 if (!$db) {
     @header('Content-Type: text/html; charset=utf-8');
@@ -187,26 +188,8 @@ foreach ($extra_columns as $colDef) {
     }
 }
 
-// Mitglieder für Einsatzleiter-Dropdown (zuerst die bei Personal ausgewählten)
-$members_list = [];
-try {
-    $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
-    $members_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    $members_list = [];
-}
-$members_selected_ids = array_flip($draft['members']);
-$members_for_einsatzleiter = [];
-foreach ($members_list as $m) {
-    if (isset($members_selected_ids[$m['id']])) {
-        $members_for_einsatzleiter[] = $m;
-    }
-}
-foreach ($members_list as $m) {
-    if (!isset($members_selected_ids[$m['id']])) {
-        $members_for_einsatzleiter[] = $m;
-    }
-}
+// Mitglieder für Einsatzleiter/Übungsleiter (Personal zuerst, dann nach Qualifikation: Zugführer > Gruppenführer > Truppführer > Mannschaft)
+$members_for_einsatzleiter = anwesenheitsliste_members_for_leiter($db, $draft['members'] ?? []);
 
 $message = '';
 $error = '';

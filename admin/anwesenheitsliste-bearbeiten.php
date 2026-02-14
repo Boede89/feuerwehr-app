@@ -50,12 +50,7 @@ if (!$liste) {
     exit;
 }
 
-$members_list = [];
 $vehicles_list = [];
-try {
-    $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
-    $members_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {}
 try {
     $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name ASC");
     $vehicles_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -75,6 +70,8 @@ try {
     $stmt->execute([$id]);
     $liste_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
+
+$members_list = anwesenheitsliste_members_for_leiter($db, array_column($liste_members, 'member_id'));
 try {
     $stmt = $db->prepare("
         SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id,

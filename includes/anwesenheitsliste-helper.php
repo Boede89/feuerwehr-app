@@ -2,6 +2,63 @@
 /**
  * Gemeinsame Hilfsfunktionen für Anwesenheitslisten (Feld-Konfiguration etc.)
  */
+
+/**
+ * Lädt Mitglieder sortiert für Einsatzleiter/Übungsleiter-Auswahl.
+ * Reihenfolge: 1) Personal-Auswahl zuerst, 2) nach Qualifikation (Zugführer > Gruppenführer > Truppführer > Mannschaft),
+ * 3) nach Name. Verwendet sort_order aus member_qualifications (kleiner = höhere Stufe).
+ *
+ * @param PDO $db Datenbankverbindung
+ * @param int[] $members_selected_ids IDs der im Personal ausgewählten Mitglieder (leeres Array = alle gleich)
+ * @return array Mitglieder mit id, first_name, last_name
+ */
+function anwesenheitsliste_members_for_leiter($db, $members_selected_ids = []) {
+    $selected_map = array_flip(array_map('intval', $members_selected_ids));
+    try {
+        $stmt = $db->query("
+            SELECT m.id, m.first_name, m.last_name, COALESCE(q.sort_order, 999) AS qual_sort_order
+            FROM members m
+            LEFT JOIN member_qualifications q ON q.id = m.qualification_id
+            ORDER BY m.last_name, m.first_name
+        ");
+        $all = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        try {
+            $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+            $all = array_map(function ($r) { $r['qual_sort_order'] = 999; return $r; }, $stmt->fetchAll(PDO::FETCH_ASSOC));
+        } catch (Exception $e2) {
+            return [];
+        }
+    }
+    $in_personal = [];
+    $rest = [];
+    foreach ($all as $m) {
+        $m['id'] = (int)$m['id'];
+        $m['qual_sort_order'] = (int)($m['qual_sort_order'] ?? 999);
+        if (isset($selected_map[$m['id']])) {
+            $in_personal[] = $m;
+        } else {
+            $rest[] = $m;
+        }
+    }
+    usort($in_personal, function ($a, $b) {
+        $c = $a['qual_sort_order'] - $b['qual_sort_order'];
+        if ($c !== 0) return $c;
+        $c = strcasecmp($a['last_name'], $b['last_name']);
+        return $c !== 0 ? $c : strcasecmp($a['first_name'], $b['first_name']);
+    });
+    usort($rest, function ($a, $b) {
+        $c = $a['qual_sort_order'] - $b['qual_sort_order'];
+        if ($c !== 0) return $c;
+        $c = strcasecmp($a['last_name'], $b['last_name']);
+        return $c !== 0 ? $c : strcasecmp($a['first_name'], $b['first_name']);
+    });
+    $result = array_merge($in_personal, $rest);
+    return array_map(function ($m) {
+        return ['id' => $m['id'], 'first_name' => $m['first_name'], 'last_name' => $m['last_name']];
+    }, $result);
+}
+
 function anwesenheitsliste_felder_laden($settings = null) {
     if ($settings === null) {
         global $db;
