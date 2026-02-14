@@ -1598,22 +1598,62 @@ function log_divera_debug_payload($payload, $source = 'reservation') {
         $entry = [
             'timestamp' => date('Y-m-d H:i:s'),
             'source'    => $source,
+            'type'      => 'post',
             'payload'   => $payload,
         ];
-        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_debug_payloads' LIMIT 1");
-        $stmt->execute();
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        $list = $row ? json_decode($row['setting_value'], true) : [];
-        if (!is_array($list)) {
-            $list = [];
-        }
-        array_unshift($list, $entry);
-        $list = array_slice($list, 0, 5);
-        $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('divera_debug_payloads', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-        $stmt->execute([json_encode($list, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)]);
+        log_divera_debug_entry($entry);
     } catch (Exception $e) {
         // Logging-Fehler ignorieren
     }
+}
+
+/**
+ * Speichert einen Divera-DELETE-Request im Debug-Log (max. 5 Einträge).
+ * @param int $event_id Divera-Event-ID
+ * @param string $url_path API-Pfad ohne Access Key (z.B. /api/v2/events/123)
+ */
+function log_divera_debug_delete($event_id, $url_path) {
+    global $db;
+    if (empty($db)) {
+        return;
+    }
+    try {
+        $entry = [
+            'timestamp' => date('Y-m-d H:i:s'),
+            'source'    => 'reservation',
+            'type'      => 'delete',
+            'payload'   => [
+                'method'    => 'DELETE',
+                'event_id'  => (int) $event_id,
+                'url_path'  => $url_path,
+            ],
+        ];
+        log_divera_debug_entry($entry);
+    } catch (Exception $e) {
+        // Logging-Fehler ignorieren
+    }
+}
+
+/**
+ * Fügt einen Debug-Eintrag zur Liste hinzu (max. 5 Einträge).
+ * @param array $entry Eintrag mit timestamp, source, type, payload
+ */
+function log_divera_debug_entry($entry) {
+    global $db;
+    if (empty($db)) {
+        return;
+    }
+    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_debug_payloads' LIMIT 1");
+    $stmt->execute();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $list = $row ? json_decode($row['setting_value'], true) : [];
+    if (!is_array($list)) {
+        $list = [];
+    }
+    array_unshift($list, $entry);
+    $list = array_slice($list, 0, 5);
+    $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('divera_debug_payloads', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+    $stmt->execute([json_encode($list, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)]);
 }
 
 /**
@@ -1650,6 +1690,7 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         ? array_map('intval', array_filter($reservation['_divera_group_ids']))
         : [];
     $use_groups = !empty($group_ids);
+    $reservation_id = (int) ($reservation['id'] ?? 0);
     $event = [
         'notification_type' => $use_groups ? 3 : 2,
         'title'             => $title,
@@ -1657,6 +1698,9 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         'ts_end'            => $end_ts,
         'address'           => $address,
     ];
+    if ($reservation_id > 0) {
+        $event['foreign_id'] = 'feuerwehr-app-reservation-' . $reservation_id;
+    }
     if ($use_groups) {
         $event['group'] = $group_ids;
     }
@@ -1699,8 +1743,15 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         $divera_error = ['code' => $code, 'message' => $msg];
         $rid = (int) ($reservation['id'] ?? 0);
         error_log('Divera Termin fehlgeschlagen. HTTP ' . $code . '. Reservierung-ID: ' . $rid . '. Response: ' . (is_string($raw) ? substr($raw, 0, 500) : '') . ' Message: ' . $msg);
-    } elseif ($success && is_array($data) && isset($data['data']['id'])) {
-        $divera_event_id = (int) $data['data']['id'];
+    } elseif ($success && is_array($data)) {
+        // Event-ID aus Response extrahieren (verschiedene mögliche Strukturen)
+        $divera_event_id = (int) ($data['data']['id'] ?? $data['data']['data']['id'] ?? $data['id'] ?? 0);
+        if ($divera_event_id <= 0 && !empty($data['data'])) {
+            $divera_event_id = (int) (is_array($data['data']) ? ($data['data']['id'] ?? 0) : 0);
+        }
+        if ($divera_event_id <= 0 && is_string($raw)) {
+            error_log('Divera: Erfolg, aber Event-ID nicht gefunden. Response-Struktur: ' . substr($raw, 0, 500));
+        }
     }
     return $success;
 }
@@ -1722,7 +1773,9 @@ function delete_divera_event($event_id, $access_key, $api_base_url = 'https://ap
         return false;
     }
     $base = rtrim(trim((string) $api_base_url), '/') ?: 'https://app.divera247.com';
-    $url = $base . '/api/v2/events/' . $event_id . '?accesskey=' . urlencode($access_key);
+    $url_path = '/api/v2/events/' . $event_id;
+    log_divera_debug_delete($event_id, $url_path);
+    $url = $base . $url_path . '?accesskey=' . urlencode($access_key);
     $ctx = stream_context_create([
         'http' => [
             'method'  => 'DELETE',

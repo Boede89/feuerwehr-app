@@ -76,59 +76,84 @@ try {
         $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
         
-        // Termin an Divera 24/7 senden: zuerst Benutzer-Key (Profil), sonst Einheits-Key (wie Formular „Termin an Divera 24/7“)
+        // Terminübergabe-Einstellungen laden
+        $divera_reservation_enabled = true;
+        $google_calendar_reservation_enabled = true;
+        $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled')");
+        $stmt_set->execute();
+        while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+            if ($row['setting_key'] === 'divera_reservation_enabled') $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+            if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+        }
+        
+        // Termin an Divera 24/7 senden (nur wenn aktiviert)
         $divera_sent = false;
         $needs_divera_key = false;
         $divera_error = null;
-        try {
-            $group_ids_raw = '';
-            $stmt_set = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_reservation_group_ids' LIMIT 1");
-            $stmt_set->execute();
-            $row_set = $stmt_set->fetch(PDO::FETCH_ASSOC);
-            if ($row_set) {
-                $group_ids_raw = trim((string) $row_set['setting_value']);
-            }
-            if ($group_ids_raw !== '') {
-                $reservation['_divera_group_ids'] = array_values(array_filter(array_map('intval', preg_split('/[\s,;]+/', $group_ids_raw))));
-            }
-            $divera_key = '';
+        if ($divera_reservation_enabled) {
             try {
-                $stmt_key = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-                $stmt_key->execute([$_SESSION['user_id']]);
-                $user_key_row = $stmt_key->fetch(PDO::FETCH_ASSOC);
-                $divera_key = trim((string) ($user_key_row['divera_access_key'] ?? ''));
-                $divera_key = preg_replace('/[\r\n\t\v]+/', '', $divera_key);
-            } catch (Exception $e) {
-                if (strpos($e->getMessage(), 'divera_access_key') !== false || strpos($e->getMessage(), 'Unknown column') !== false) {
-                    error_log("Divera: Spalte divera_access_key fehlt, nutze Einheits-Key.");
+                $group_ids_raw = '';
+                $stmt_set = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_reservation_group_ids' LIMIT 1");
+                $stmt_set->execute();
+                $row_set = $stmt_set->fetch(PDO::FETCH_ASSOC);
+                if ($row_set) {
+                    $group_ids_raw = trim((string) $row_set['setting_value']);
                 }
-            }
-            if ($divera_key === '') {
-                $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
-                $divera_key = preg_replace('/[\r\n\t\v]+/', '', $divera_key);
-            }
-            $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
-            if ($divera_key !== '') {
-                $divera_event_id = null;
-                $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error, $divera_event_id);
-                if ($divera_sent && $divera_event_id > 0) {
-                    try {
-                        $db->exec("ALTER TABLE reservations ADD COLUMN divera_event_id INT NULL DEFAULT NULL");
-                    } catch (Exception $e) {
-                        // Spalte existiert bereits
+                if ($group_ids_raw !== '') {
+                    $reservation['_divera_group_ids'] = array_values(array_filter(array_map('intval', preg_split('/[\s,;]+/', $group_ids_raw))));
+                }
+                $divera_key = '';
+                try {
+                    $stmt_key = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                    $stmt_key->execute([$_SESSION['user_id']]);
+                    $user_key_row = $stmt_key->fetch(PDO::FETCH_ASSOC);
+                    $divera_key = trim((string) ($user_key_row['divera_access_key'] ?? ''));
+                    $divera_key = preg_replace('/[\r\n\t\v]+/', '', $divera_key);
+                } catch (Exception $e) {
+                    if (strpos($e->getMessage(), 'divera_access_key') !== false || strpos($e->getMessage(), 'Unknown column') !== false) {
+                        error_log("Divera: Spalte divera_access_key fehlt, nutze Einheits-Key.");
                     }
-                    $stmt_upd = $db->prepare("UPDATE reservations SET divera_event_id = ? WHERE id = ?");
-                    $stmt_upd->execute([$divera_event_id, $reservation_id]);
-                    error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (Event-ID: $divera_event_id).");
-                } elseif ($divera_sent) {
-                    error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt.");
                 }
-            } else {
-                $needs_divera_key = true;
-                error_log("Reservierung #$reservation_id: Weder im Profil noch in den Divera-Einstellungen ein Access Key hinterlegt.");
+                if ($divera_key === '') {
+                    $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
+                    $divera_key = preg_replace('/[\r\n\t\v]+/', '', $divera_key);
+                }
+                $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+                if ($divera_key !== '') {
+                    $divera_event_id = null;
+                    $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error, $divera_event_id);
+                    if ($divera_sent && $divera_event_id > 0) {
+                        try {
+                            $db->exec("ALTER TABLE reservations ADD COLUMN divera_event_id INT NULL DEFAULT NULL");
+                        } catch (Exception $e) {
+                            // Spalte existiert bereits
+                        }
+                        $stmt_upd = $db->prepare("UPDATE reservations SET divera_event_id = ? WHERE id = ?");
+                        $stmt_upd->execute([$divera_event_id, $reservation_id]);
+                        error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (Event-ID: $divera_event_id).");
+                    } elseif ($divera_sent) {
+                        error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt.");
+                    }
+                } else {
+                    $needs_divera_key = true;
+                    error_log("Reservierung #$reservation_id: Weder im Profil noch in den Divera-Einstellungen ein Access Key hinterlegt.");
+                }
+            } catch (Exception $e) {
+                error_log("Divera-Übermittlung Fehler: " . $e->getMessage());
             }
-        } catch (Exception $e) {
-            error_log("Divera-Übermittlung Fehler: " . $e->getMessage());
+        }
+        
+        // Termin im Google Kalender anlegen (nur wenn aktiviert)
+        if ($google_calendar_reservation_enabled && function_exists('create_or_update_google_calendar_event')) {
+            try {
+                $vehicle_name = $reservation['vehicle_name'] ?? 'Fahrzeug';
+                $reason = $reservation['reason'] ?? 'Reservierung';
+                $location = !empty($reservation['location']) ? $reservation['location'] : null;
+                create_or_update_google_calendar_event($vehicle_name, $reason, $reservation['start_datetime'], $reservation['end_datetime'], $reservation_id, $location);
+                error_log("Reservierung #$reservation_id im Google Kalender angelegt.");
+            } catch (Exception $e) {
+                error_log("Google Calendar Übermittlung Fehler: " . $e->getMessage());
+            }
         }
         
         // E-Mail an Antragsteller senden
@@ -207,25 +232,60 @@ try {
                     $message = createCancellationEmailHTML($cancelled_reservation);
                     send_email($cancelled_reservation['requester_email'], $subject, $message, '', true);
                     
-                    // Lösche Google Calendar Event
+                    // Terminübergabe-Einstellungen für Löschung
+                    $divera_reservation_enabled = true;
+                    $google_calendar_reservation_enabled = true;
+                    $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled')");
+                    $stmt_set->execute();
+                    while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+                        if ($row['setting_key'] === 'divera_reservation_enabled') $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+                        if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+                    }
+                    
+                    // Divera-Termin löschen (wenn aktiviert)
+                    if ($divera_reservation_enabled) {
+                        try {
+                            $stmt = $db->prepare("SELECT divera_event_id FROM reservations WHERE id = ?");
+                            $stmt->execute([$conflict_id]);
+                            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                            $divera_event_id = (int) ($row['divera_event_id'] ?? 0);
+                            if ($divera_event_id > 0) {
+                                require_once __DIR__ . '/../config/divera.php';
+                                $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
+                                if ($divera_key === '') {
+                                    $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                                    $stmt_u->execute([$_SESSION['user_id'] ?? 0]);
+                                    $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
+                                    $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
+                                }
+                                $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+                                if ($divera_key !== '' && delete_divera_event($divera_event_id, $divera_key, $api_base)) {
+                                    error_log("Konflikt-Reservierung #$conflict_id: Divera Event gelöscht: " . $divera_event_id);
+                                }
+                            }
+                        } catch (Exception $e) {
+                            error_log("Divera Löschung bei Konflikt: " . $e->getMessage());
+                        }
+                    }
+                    
+                    // Google Calendar Event löschen (wenn aktiviert) und lokale Verknüpfung entfernen
                     try {
                         $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
                         $stmt->execute([$conflict_id]);
                         $calendar_event = $stmt->fetch(PDO::FETCH_ASSOC);
                         
-                        if ($calendar_event && !empty($calendar_event['google_event_id'])) {
+                        if ($google_calendar_reservation_enabled && $calendar_event && !empty($calendar_event['google_event_id'])) {
                             error_log("Lösche Google Calendar Event: " . $calendar_event['google_event_id']);
                             $delete_result = delete_google_calendar_event($calendar_event['google_event_id']);
                             error_log("Google Calendar Löschung Ergebnis: " . ($delete_result ? 'Erfolg' : 'Fehler'));
                         }
                         
-                        // Lösche Calendar Event Eintrag
+                        // Lokale Verknüpfung immer entfernen
                         $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
                         $stmt->execute([$conflict_id]);
                         error_log("Calendar Event Eintrag gelöscht für Reservierung: " . $conflict_id);
                     } catch (Exception $e) {
                         error_log("Google Calendar Löschung Fehler: " . $e->getMessage());
-                        // Fehler ignorieren, da Stornierung trotzdem fortgesetzt werden soll
                     }
                     
                     // Logge Aktivität
@@ -238,58 +298,83 @@ try {
         $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
         
-        // Termin an Divera 24/7 senden: Benutzer-Key oder Einheits-Key
+        // Terminübergabe-Einstellungen laden
+        $divera_reservation_enabled = true;
+        $google_calendar_reservation_enabled = true;
+        $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled')");
+        $stmt_set->execute();
+        while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+            if ($row['setting_key'] === 'divera_reservation_enabled') $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+            if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+        }
+        
+        // Termin an Divera 24/7 senden (nur wenn aktiviert)
         $divera_sent = false;
         $needs_divera_key = false;
         $divera_error = null;
-        try {
-            $group_ids_raw = '';
-            $stmt_set = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_reservation_group_ids' LIMIT 1");
-            $stmt_set->execute();
-            $row_set = $stmt_set->fetch(PDO::FETCH_ASSOC);
-            if ($row_set) {
-                $group_ids_raw = trim((string) $row_set['setting_value']);
-            }
-            if ($group_ids_raw !== '') {
-                $reservation['_divera_group_ids'] = array_values(array_filter(array_map('intval', preg_split('/[\s,;]+/', $group_ids_raw))));
-            }
-            $divera_key = '';
+        if ($divera_reservation_enabled) {
             try {
-                $stmt_key = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-                $stmt_key->execute([$_SESSION['user_id']]);
-                $user_key_row = $stmt_key->fetch(PDO::FETCH_ASSOC);
-                $divera_key = trim((string) ($user_key_row['divera_access_key'] ?? ''));
-                $divera_key = preg_replace('/[\r\n\t\v]+/', '', $divera_key);
-            } catch (Exception $e) {
-                if (strpos($e->getMessage(), 'divera_access_key') !== false || strpos($e->getMessage(), 'Unknown column') !== false) {
-                    error_log("Divera: Spalte divera_access_key fehlt, nutze Einheits-Key.");
+                $group_ids_raw = '';
+                $stmt_set = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_reservation_group_ids' LIMIT 1");
+                $stmt_set->execute();
+                $row_set = $stmt_set->fetch(PDO::FETCH_ASSOC);
+                if ($row_set) {
+                    $group_ids_raw = trim((string) $row_set['setting_value']);
                 }
-            }
-            if ($divera_key === '') {
-                $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
-                $divera_key = preg_replace('/[\r\n\t\v]+/', '', $divera_key);
-            }
-            $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
-            if ($divera_key !== '') {
-                $divera_event_id = null;
-                $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error, $divera_event_id);
-                if ($divera_sent && $divera_event_id > 0) {
-                    try {
-                        $db->exec("ALTER TABLE reservations ADD COLUMN divera_event_id INT NULL DEFAULT NULL");
-                    } catch (Exception $e) {
-                        // Spalte existiert bereits
+                if ($group_ids_raw !== '') {
+                    $reservation['_divera_group_ids'] = array_values(array_filter(array_map('intval', preg_split('/[\s,;]+/', $group_ids_raw))));
+                }
+                $divera_key = '';
+                try {
+                    $stmt_key = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                    $stmt_key->execute([$_SESSION['user_id']]);
+                    $user_key_row = $stmt_key->fetch(PDO::FETCH_ASSOC);
+                    $divera_key = trim((string) ($user_key_row['divera_access_key'] ?? ''));
+                    $divera_key = preg_replace('/[\r\n\t\v]+/', '', $divera_key);
+                } catch (Exception $e) {
+                    if (strpos($e->getMessage(), 'divera_access_key') !== false || strpos($e->getMessage(), 'Unknown column') !== false) {
+                        error_log("Divera: Spalte divera_access_key fehlt, nutze Einheits-Key.");
                     }
-                    $stmt_upd = $db->prepare("UPDATE reservations SET divera_event_id = ? WHERE id = ?");
-                    $stmt_upd->execute([$divera_event_id, $reservation_id]);
-                    error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (mit Konfliktlösung, Event-ID: $divera_event_id).");
-                } elseif ($divera_sent) {
-                    error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (mit Konfliktlösung).");
                 }
-            } else {
-                $needs_divera_key = true;
+                if ($divera_key === '') {
+                    $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
+                    $divera_key = preg_replace('/[\r\n\t\v]+/', '', $divera_key);
+                }
+                $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+                if ($divera_key !== '') {
+                    $divera_event_id = null;
+                    $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error, $divera_event_id);
+                    if ($divera_sent && $divera_event_id > 0) {
+                        try {
+                            $db->exec("ALTER TABLE reservations ADD COLUMN divera_event_id INT NULL DEFAULT NULL");
+                        } catch (Exception $e) {
+                            // Spalte existiert bereits
+                        }
+                        $stmt_upd = $db->prepare("UPDATE reservations SET divera_event_id = ? WHERE id = ?");
+                        $stmt_upd->execute([$divera_event_id, $reservation_id]);
+                        error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (mit Konfliktlösung, Event-ID: $divera_event_id).");
+                    } elseif ($divera_sent) {
+                        error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (mit Konfliktlösung).");
+                    }
+                } else {
+                    $needs_divera_key = true;
+                }
+            } catch (Exception $e) {
+                error_log("Divera-Übermittlung Fehler: " . $e->getMessage());
             }
-        } catch (Exception $e) {
-            error_log("Divera-Übermittlung Fehler: " . $e->getMessage());
+        }
+        
+        // Termin im Google Kalender anlegen (nur wenn aktiviert)
+        if ($google_calendar_reservation_enabled && function_exists('create_or_update_google_calendar_event')) {
+            try {
+                $vehicle_name = $reservation['vehicle_name'] ?? 'Fahrzeug';
+                $reason = $reservation['reason'] ?? 'Reservierung';
+                $location = !empty($reservation['location']) ? $reservation['location'] : null;
+                create_or_update_google_calendar_event($vehicle_name, $reason, $reservation['start_datetime'], $reservation['end_datetime'], $reservation_id, $location);
+                error_log("Reservierung #$reservation_id im Google Kalender angelegt (mit Konfliktlösung).");
+            } catch (Exception $e) {
+                error_log("Google Calendar Übermittlung Fehler: " . $e->getMessage());
+            }
         }
         
         // E-Mail an Antragsteller senden

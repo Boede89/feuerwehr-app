@@ -40,22 +40,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         $reservation = $stmt->fetch();
         
         if ($reservation && in_array($reservation['status'], ['approved', 'rejected', 'cancelled'])) {
+            // Terminübergabe-Einstellungen laden
+            $divera_reservation_enabled = true;
+            $google_calendar_reservation_enabled = true;
+            $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled')");
+            $stmt_set->execute();
+            while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+                if ($row['setting_key'] === 'divera_reservation_enabled') $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+                if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+            }
+            
             $remaining_links = 0;
-            // Divera-Termin löschen, falls vorhanden
-            $divera_event_id = (int) ($reservation['divera_event_id'] ?? 0);
-            if ($divera_event_id > 0) {
-                $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
-                if ($divera_key === '') {
-                    $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-                    $stmt_u->execute([$_SESSION['user_id'] ?? 0]);
-                    $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
-                    $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
-                }
-                $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
-                if ($divera_key !== '' && delete_divera_event($divera_event_id, $divera_key, $api_base)) {
-                    error_log("RESERVATIONS DELETE: Divera Event gelöscht: " . $divera_event_id);
-                } elseif ($divera_event_id > 0) {
-                    error_log("RESERVATIONS DELETE: Divera Event konnte nicht gelöscht werden: " . $divera_event_id);
+            // Divera-Termin löschen (nur wenn aktiviert)
+            if ($divera_reservation_enabled) {
+                $divera_event_id = (int) ($reservation['divera_event_id'] ?? 0);
+                if ($divera_event_id > 0) {
+                    $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
+                    if ($divera_key === '') {
+                        $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                        $stmt_u->execute([$_SESSION['user_id'] ?? 0]);
+                        $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
+                        $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
+                    }
+                    $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+                    if ($divera_key !== '' && delete_divera_event($divera_event_id, $divera_key, $api_base)) {
+                        error_log("RESERVATIONS DELETE: Divera Event gelöscht: " . $divera_event_id);
+                    } elseif ($divera_event_id > 0) {
+                        error_log("RESERVATIONS DELETE: Divera Event konnte nicht gelöscht werden: " . $divera_event_id);
+                    }
                 }
             }
             // Hole Google Calendar Event ID vor dem Löschen
@@ -67,8 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             $stmt = $db->prepare("DELETE FROM calendar_events WHERE reservation_id = ?");
             $stmt->execute([$reservation_id]);
 
-            // Wenn es eine Google Event ID gibt, prüfen ob noch weitere Verknüpfungen existieren
-            if ($calendar_event && !empty($calendar_event['google_event_id'])) {
+            // Google Kalender: löschen oder Titel aktualisieren (nur wenn aktiviert)
+            if ($google_calendar_reservation_enabled && $calendar_event && !empty($calendar_event['google_event_id'])) {
                 $google_event_id = $calendar_event['google_event_id'];
                 $stmt = $db->prepare("SELECT COUNT(*) FROM calendar_events WHERE google_event_id = ?");
                 $stmt->execute([$google_event_id]);
@@ -241,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     }
 }
 
-// Komplett löschen: erst Google-Kalender-Eintrag(e) löschen, danach Reservierung + Verknüpfungen entfernen
+// Komplett löschen: erst Kalender-Einträge löschen (Divera/Google je nach Einstellung), danach Reservierung + Verknüpfungen entfernen
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'delete_complete') {
     try {
         $reservation_id = (int)($_POST['reservation_id'] ?? 0);
@@ -249,32 +261,65 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             throw new Exception('Ungültige Reservierungs-ID');
         }
 
-        // 1) Verknüpfte Google-Event-IDs laden und löschen (hart, unabhängig von weiteren Verknüpfungen)
-        $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
-        $stmt->execute([$reservation_id]);
-        $eventIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        // Terminübergabe-Einstellungen laden
+        $divera_reservation_enabled = true;
+        $google_calendar_reservation_enabled = true;
+        $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled')");
+        $stmt_set->execute();
+        while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+            if ($row['setting_key'] === 'divera_reservation_enabled') $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+            if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+        }
 
-        if (!empty($eventIds)) {
-            foreach ($eventIds as $geid) {
-                if (!empty($geid) && function_exists('delete_google_calendar_event')) {
-                    $ok = delete_google_calendar_event($geid);
-                    if (!$ok) {
-                        error_log('DELETE-COMPLETE: Kalender-Event konnte nicht via API gelöscht werden: ' . $geid);
-                    }
+        // 1a) Divera-Termin löschen (wenn aktiviert)
+        if ($divera_reservation_enabled) {
+            $stmt = $db->prepare("SELECT divera_event_id FROM reservations WHERE id = ?");
+            $stmt->execute([$reservation_id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            $divera_event_id = (int) ($row['divera_event_id'] ?? 0);
+            if ($divera_event_id > 0) {
+                $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
+                if ($divera_key === '') {
+                    $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                    $stmt_u->execute([$_SESSION['user_id'] ?? 0]);
+                    $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
+                    $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
+                }
+                $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+                if ($divera_key !== '' && delete_divera_event($divera_event_id, $divera_key, $api_base)) {
+                    error_log('DELETE-COMPLETE: Divera Event gelöscht: ' . $divera_event_id);
                 }
             }
-        } else {
-            // Fallback: Versuch per Titel/Zeitraum
-            try {
-                $stmt = $db->prepare('SELECT v.name as vehicle_name, r.reason, r.start_datetime, r.end_datetime FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?');
-                $stmt->execute([$reservation_id]);
-                $res = $stmt->fetch();
-                if ($res && function_exists('delete_google_calendar_event_by_hint')) {
-                    $title = ($res['vehicle_name'] ?? '') . ' - ' . ($res['reason'] ?? '');
-                    delete_google_calendar_event_by_hint($title, $res['start_datetime'], $res['end_datetime']);
+        }
+
+        // 1b) Google-Kalender-Einträge löschen (wenn aktiviert)
+        if ($google_calendar_reservation_enabled) {
+            $stmt = $db->prepare("SELECT google_event_id FROM calendar_events WHERE reservation_id = ?");
+            $stmt->execute([$reservation_id]);
+            $eventIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+            if (!empty($eventIds)) {
+                foreach ($eventIds as $geid) {
+                    if (!empty($geid) && function_exists('delete_google_calendar_event')) {
+                        $ok = delete_google_calendar_event($geid);
+                        if (!$ok) {
+                            error_log('DELETE-COMPLETE: Kalender-Event konnte nicht via API gelöscht werden: ' . $geid);
+                        }
+                    }
                 }
-            } catch (Exception $ie) {
-                error_log('DELETE-COMPLETE: Fallback-Query Fehler: ' . $ie->getMessage());
+            } else {
+                // Fallback: Versuch per Titel/Zeitraum
+                try {
+                    $stmt = $db->prepare('SELECT v.name as vehicle_name, r.reason, r.start_datetime, r.end_datetime FROM reservations r JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?');
+                    $stmt->execute([$reservation_id]);
+                    $res = $stmt->fetch();
+                    if ($res && function_exists('delete_google_calendar_event_by_hint')) {
+                        $title = ($res['vehicle_name'] ?? '') . ' - ' . ($res['reason'] ?? '');
+                        delete_google_calendar_event_by_hint($title, $res['start_datetime'], $res['end_datetime']);
+                    }
+                } catch (Exception $ie) {
+                    error_log('DELETE-COMPLETE: Fallback-Query Fehler: ' . $ie->getMessage());
+                }
             }
         }
 

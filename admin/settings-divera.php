@@ -125,21 +125,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <div class="tab-pane fade" id="debug" role="tabpanel">
             <div class="card">
-                <div class="card-header"><i class="fas fa-bug"></i> Letzte 5 JSON-Payloads an Divera</div>
+                <div class="card-header"><i class="fas fa-bug"></i> Letzte 5 API-Anfragen an Divera</div>
                 <div class="card-body">
-                    <p class="text-muted small">Die zuletzt an die Divera-API gesendeten JSON-Bodies (ohne Access Key).</p>
+                    <p class="text-muted small">POST (Erstellen) und DELETE (Löschen) – JSON-Bodies und Lösch-Requests (ohne Access Key).</p>
                     <?php if (empty($divera_debug_payloads)): ?>
                         <p class="text-muted">Noch keine Übermittlungen protokolliert.</p>
                     <?php else: ?>
                         <?php foreach ($divera_debug_payloads as $i => $entry): ?>
+                            <?php $is_delete = ($entry['type'] ?? 'post') === 'delete'; ?>
                             <div class="card mb-3">
-                                <div class="card-header py-2">
+                                <div class="card-header py-2 d-flex align-items-center">
                                     <strong>#<?php echo $i + 1; ?></strong>
-                                    <?php echo htmlspecialchars($entry['timestamp'] ?? ''); ?>
-                                    <span class="badge bg-<?php echo ($entry['source'] ?? '') === 'form' ? 'info' : 'primary'; ?>"><?php echo htmlspecialchars($entry['source'] ?? 'unknown'); ?></span>
+                                    <span class="ms-2"><?php echo htmlspecialchars($entry['timestamp'] ?? ''); ?></span>
+                                    <span class="badge ms-2 bg-<?php echo $is_delete ? 'danger' : (($entry['source'] ?? '') === 'form' ? 'info' : 'primary'); ?>">
+                                        <?php echo $is_delete ? 'DELETE' : 'POST'; ?>
+                                    </span>
+                                    <span class="badge bg-secondary ms-1"><?php echo htmlspecialchars($entry['source'] ?? 'unknown'); ?></span>
                                 </div>
                                 <div class="card-body p-2">
-                                    <pre class="mb-0 small" style="max-height: 300px; overflow: auto;"><?php echo htmlspecialchars(json_encode($entry['payload'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
+                                    <?php if ($is_delete): ?>
+                                        <p class="mb-1"><strong>Event-ID:</strong> <?php echo (int)($entry['payload']['event_id'] ?? 0); ?></p>
+                                        <p class="mb-1"><strong>URL-Pfad:</strong> <code><?php echo htmlspecialchars($entry['payload']['url_path'] ?? ''); ?></code></p>
+                                        <pre class="mb-0 small" style="max-height: 150px; overflow: auto;"><?php echo htmlspecialchars(json_encode($entry['payload'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
+                                    <?php else: ?>
+                                        <pre class="mb-0 small" style="max-height: 300px; overflow: auto;"><?php echo htmlspecialchars(json_encode($entry['payload'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>

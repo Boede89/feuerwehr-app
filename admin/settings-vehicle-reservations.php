@@ -64,6 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'vehicle_transfer_url' => trim((string)($_POST['vehicle_transfer_url'] ?? '')),
                 'vehicle_transfer_text' => trim((string)($_POST['vehicle_transfer_text'] ?? '')),
                 'divera_reservation_group_ids' => trim((string)($_POST['divera_reservation_group_ids'] ?? '')),
+                'divera_reservation_enabled' => isset($_POST['divera_reservation_enabled']) ? '1' : '0',
+                'google_calendar_reservation_enabled' => isset($_POST['google_calendar_reservation_enabled']) ? '1' : '0',
             ];
 
             // Persistieren: Upsert je Einstellung
@@ -157,7 +159,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <div class="card mb-4">
-            <div class="card-header"><i class="fas fa-calendar-plus"></i> Divera 24/7 – Empfänger-Gruppe</div>
+            <div class="card-header"><i class="fas fa-calendar-plus"></i> Terminübergabe bei Genehmigung und Löschung</div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">Wählen Sie, welche Kalender-Systeme bei Genehmigung und Löschung von Reservierungen verwendet werden sollen.</p>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="divera_reservation_enabled" id="divera_reservation_enabled" value="1" <?php echo (($settings['divera_reservation_enabled'] ?? '1') === '1') ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="divera_reservation_enabled">
+                            <strong>Divera 24/7</strong> – Termine an Divera senden und beim Löschen dort entfernen
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="google_calendar_reservation_enabled" id="google_calendar_reservation_enabled" value="1" <?php echo (($settings['google_calendar_reservation_enabled'] ?? '1') === '1') ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="google_calendar_reservation_enabled">
+                            <strong>Google Kalender</strong> – Termine im Google Kalender anlegen und beim Löschen dort entfernen
+                        </label>
+                    </div>
+                </div>
+                <div class="form-text">Beide Optionen können aktiviert sein. Bei Genehmigung werden Termine an die aktivierten Systeme gesendet; beim Löschen werden sie dort entfernt.</div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="fas fa-users"></i> Divera 24/7 – Empfänger-Gruppe</div>
             <div class="card-body">
                 <div class="mb-3">
                     <label class="form-label">Gruppen-IDs (kommagetrennt)</label>
