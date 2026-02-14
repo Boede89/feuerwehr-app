@@ -150,16 +150,17 @@ $html = '<!DOCTYPE html>
         .section-title { font-weight: bold; font-size: 10pt; margin-bottom: 4px; padding-bottom: 2px; border-bottom: 1px solid #dee2e6; }
         .two-cols-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
         .two-cols-table td { vertical-align: top; padding: 0 8px 0 0; }
-        .two-cols-table td:first-child { width: 45%; }
-        .two-cols-table td:last-child { width: 55%; padding: 0 0 0 8px; }
-        .two-cols-table table { font-size: 9pt; }
-        .col-fahrzeug { width: 32px; max-width: 32px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 8pt; table-layout: fixed; }
+        .two-cols-table td:first-child { width: 40%; }
+        .two-cols-table td:last-child { width: 60%; padding: 0 0 0 8px; }
+        .two-cols-table table { font-size: 9pt; table-layout: auto; width: 100%; }
+        .col-fahrzeug { width: 28px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 8pt; }
+        .stamm-inline { table-layout: fixed; }
         th, td { border: 1px solid #dee2e6; padding: 4px 6px; text-align: left; }
         th { background: #f8f9fa; font-weight: bold; }
         .label-cell { width: 100px; background: #f8f9fa; font-weight: bold; }
         .stamm-inline .label-cell { width: 90px; }
-        .col-staerke { width: 32px; max-width: 32px; }
+        .col-staerke { width: 28px; }
         .bottom-row { display: flex; gap: 24px; align-items: flex-end; margin-top: 20px; padding-top: 12px; border-top: 1px solid #333; }
         .bottom-row .einsatzleiter-cell { flex: 1; }
         .bottom-row .signature-cell { flex-shrink: 0; padding-top: 24px; }
@@ -203,14 +204,14 @@ foreach ($anwesenheitsliste_felder as $f) {
 }
 $html .= '</table></div>';
 
-$html .= '<div class="section"><table class="two-cols-table" width="100%"><tr><td><div class="section-title">Personal</div><table><thead><tr><th>Name</th><th class="col-fahrzeug">Fzg</th></tr></thead><tbody>';
+$html .= '<div class="section"><table class="two-cols-table" width="100%"><tr><td><div class="section-title">Personal</div><table width="100%"><thead><tr><th>Name</th><th class="col-fahrzeug">Fzg</th></tr></thead><tbody>';
 foreach ($liste_members as $lm) {
     $name = trim($lm['last_name'] . ', ' . $lm['first_name']);
     $vehicle = $lm['vehicle_name'] ?? '-';
     $html .= '<tr><td>' . htmlspecialchars($name) . '</td><td class="col-fahrzeug">' . htmlspecialchars($vehicle) . '</td></tr>';
 }
 if (empty($liste_members)) $html .= '<tr><td colspan="2">Keine Einträge</td></tr>';
-$html .= '</tbody></table></td><td><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
+$html .= '</tbody></table></td><td><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table width="100%"><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
 foreach ($vehicle_ids as $vid) {
     if ($vid <= 0) continue;
     $vname = '';
