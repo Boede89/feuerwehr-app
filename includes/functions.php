@@ -1800,14 +1800,24 @@ function find_divera_event_by_foreign_id($reservation_id, $access_key, $api_base
     $ctx = stream_context_create(['http' => ['timeout' => 15]]);
     $raw = @file_get_contents($url, false, $ctx);
     $data = is_string($raw) ? json_decode($raw, true) : null;
-    if (!is_array($data) || empty($data['data']['items'])) return null;
+    if (!is_array($data) || empty($data['data'])) {
+        error_log('Divera find_by_foreign_id: Keine Daten oder ungültige Response für Reservierung ' . $reservation_id);
+        return null;
+    }
     $foreign_id_needle = (string) $reservation_id;
-    foreach ($data['data']['items'] as $event_id => $event) {
+    $items = $data['data']['items'] ?? $data['data'];
+    if (!is_array($items)) {
+        error_log('Divera find_by_foreign_id: items ist kein Array. Struktur: ' . substr(json_encode(array_keys($data['data'])), 0, 200));
+        return null;
+    }
+    foreach ($items as $event_id => $event) {
         if (!is_array($event)) continue;
-        if (isset($event['foreign_id']) && (string) $event['foreign_id'] === $foreign_id_needle) {
+        $fid = isset($event['foreign_id']) ? (string) $event['foreign_id'] : '';
+        if ($fid === $foreign_id_needle) {
             return (int) (isset($event['id']) ? $event['id'] : $event_id);
         }
     }
+    error_log('Divera find_by_foreign_id: Kein Event mit foreign_id=' . $foreign_id_needle . ' gefunden (Reservierung ' . $reservation_id . ')');
     return null;
 }
 

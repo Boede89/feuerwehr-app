@@ -1631,8 +1631,25 @@ if ($can_atemschutz) {
                     reservation_id: window.currentReservationId
                 })
             })
-            .then(response => response.json())
-            .then(data => {
+            .then(response => response.text().then(text => ({ status: response.status, ok: response.ok, text })))
+            .then(({ status, ok, text }) => {
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    console.error('Ungültige JSON-Antwort (HTTP ' + status + '):', text.substring(0, 500));
+                    alert('Server-Antwort war kein gültiges JSON (HTTP ' + status + '). Bitte Konsole (F12) prüfen. Erste Zeichen: ' + (text.substring(0, 150) || '(leer)'));
+                    approveBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
+                    approveBtn.classList.remove('btn-success');
+                    approveBtn.classList.add('btn-danger');
+                    approveBtn.disabled = false;
+                    setTimeout(() => {
+                        approveBtn.innerHTML = originalText;
+                        approveBtn.classList.remove('btn-danger');
+                        approveBtn.classList.add('btn-success');
+                    }, 3000);
+                    return;
+                }
                 if (data.success) {
                     approveBtn.innerHTML = '<i class="fas fa-check me-1"></i>Genehmigt!';
                     approveBtn.classList.remove('btn-success');

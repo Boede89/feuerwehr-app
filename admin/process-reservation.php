@@ -2,12 +2,13 @@
 ob_start();
 session_start();
 header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../config/divera.php';
 
 function output_json($data) {
-    if (ob_get_level()) ob_end_clean();
+    while (ob_get_level()) ob_end_clean();
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -47,6 +48,10 @@ if (!$input || !isset($input['action']) || !isset($input['reservation_id'])) {
 $action = $input['action'];
 $reservation_id = (int)$input['reservation_id'];
 $reason = $input['reason'] ?? '';
+
+if ($action === 'test') {
+    output_json(['success' => true, 'message' => 'Verbindung OK', 'timestamp' => date('c')]);
+}
 
 try {
     $db->beginTransaction();
