@@ -96,6 +96,12 @@ if (!empty($liste['custom_data'])) {
     $dec = json_decode($liste['custom_data'], true);
     $custom_data = is_array($dec) ? $dec : [];
 }
+$uebungsleiter_ids = $custom_data['uebungsleiter_member_ids'] ?? [];
+if (!is_array($uebungsleiter_ids)) $uebungsleiter_ids = [];
+$is_uebungsdienst_edit = !empty($uebungsleiter_ids)
+    || (($liste['typ'] ?? '') === 'dienst' && ($liste['dienst_typ'] ?? '') === 'uebungsdienst')
+    || (($liste['typ'] ?? '') === 'manuell' && ($liste['bezeichnung'] ?? '') === 'Übungsdienst');
+$uebungsdienst_hide_ids = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
 
 $message = '';
 $error = '';
@@ -136,10 +142,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             $einsatzleiter_val = trim($_POST['einsatzleiter'] ?? '');
             $einsatzleiter_freitext = trim($_POST['einsatzleiter_freitext'] ?? '');
             $einsatzleiter_member_id = null;
-            if ($einsatzleiter_val === '__freitext__') {
+            if ($is_uebungsdienst_edit && !empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
                 $einsatzleiter_member_id = null;
-            } elseif ($einsatzleiter_val !== '' && ctype_digit($einsatzleiter_val)) {
-                $einsatzleiter_member_id = (int)$einsatzleiter_val;
+                $einsatzleiter_freitext = '';
+            } elseif (!$is_uebungsdienst_edit) {
+                if ($einsatzleiter_val === '__freitext__') {
+                    $einsatzleiter_member_id = null;
+                } elseif ($einsatzleiter_val !== '' && ctype_digit($einsatzleiter_val)) {
+                    $einsatzleiter_member_id = (int)$einsatzleiter_val;
+                }
             }
             $updates[] = 'einsatzleiter_member_id = ?';
             $params[] = $einsatzleiter_member_id;
@@ -152,9 +163,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             foreach ($anwesenheitsliste_felder as $f) {
                 if (empty($f['visible'])) continue;
                 $fid = $f['id'] ?? '';
+                if (in_array($fid, $uebungsdienst_hide_ids)) continue;
                 if (!in_array($fid, $builtin) && $fid !== 'einsatzleiter') {
                     $custom_post[$fid] = trim($_POST[$fid] ?? '');
                 }
+            }
+            if ($is_uebungsdienst_edit && !empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
+                $custom_post['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_POST['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
+            } else {
+                $custom_post['uebungsleiter_member_ids'] = [];
             }
             $updates[] = 'custom_data = ?';
             $params[] = !empty($custom_post) ? json_encode($custom_post) : null;
@@ -275,6 +292,7 @@ function _al_val($liste, $key, $custom_data = []) {
                     <?php foreach ($anwesenheitsliste_felder as $f):
                         if (empty($f['visible'])) continue;
                         $fid = $f['id'] ?? '';
+                        if ($is_uebungsdienst_edit && in_array($fid, $uebungsdienst_hide_ids)) continue;
                         $label = $f['label'] ?? $fid;
                         $type = $f['type'] ?? 'text';
                         $opts = $f['options'] ?? [];
@@ -289,6 +307,17 @@ function _al_val($liste, $key, $custom_data = []) {
                     ?>
                     <div class="col-md-6">
                         <?php if ($type === 'einsatzleiter'): ?>
+                        <?php if ($is_uebungsdienst_edit): ?>
+                        <label class="form-label">Übungsleiter</label>
+                        <div class="border rounded p-2" style="max-height: 180px; overflow-y: auto;">
+                            <?php foreach ($members_list as $m):
+                                $checked = in_array((int)$m['id'], array_map('intval', $uebungsleiter_ids)) ? ' checked' : '';
+                            ?>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" name="uebungsleiter[]" id="uebungsleiter_<?php echo (int)$m['id']; ?>" value="<?php echo (int)$m['id']; ?>"<?php echo $checked; ?>><label class="form-check-label" for="uebungsleiter_<?php echo (int)$m['id']; ?>"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></label></div>
+                            <?php endforeach; ?>
+                        </div>
+                        <small class="text-muted">Mehrfachauswahl möglich</small>
+                        <?php else: ?>
                         <label class="form-label"><?php echo htmlspecialchars($label); ?></label>
                         <select class="form-select" name="einsatzleiter">
                             <option value="">— keine Auswahl —</option>
@@ -298,6 +327,7 @@ function _al_val($liste, $key, $custom_data = []) {
                             <option value="__freitext__" <?php echo $val === '__freitext__' ? 'selected' : ''; ?>>— Freitext —</option>
                         </select>
                         <input type="text" class="form-control mt-2" name="einsatzleiter_freitext" placeholder="Name (wenn Freitext)" value="<?php echo htmlspecialchars($liste['einsatzleiter_freitext'] ?? ''); ?>">
+                        <?php endif; ?>
                         <?php elseif ($type === 'select'): ?>
                         <label class="form-label"><?php echo htmlspecialchars($label); ?></label>
                         <select class="form-select" name="<?php echo htmlspecialchars($fid); ?>">

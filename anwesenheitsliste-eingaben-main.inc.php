@@ -110,6 +110,7 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'brandwache' => '',
         'einsatzleiter_member_id' => null,
         'einsatzleiter_freitext' => '',
+        'uebungsleiter_member_ids' => [],
         'custom_data' => [],
     ];
     $_SESSION[$draft_key]['uhrzeit_bis'] = date('H:i');
@@ -275,18 +276,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         $id = $f['id'] ?? '';
         if ($id === '') continue;
         if ($id === 'einsatzleiter') {
-            $ev = trim($_POST['einsatzleiter'] ?? '');
-            if ($ev === '__freitext__') {
+            $is_ueb = ($draft['typ'] === 'einsatz' && trim($_POST['typ_sonstige'] ?? '') === 'uebungsdienst') || ($draft['typ'] === 'dienst' && isset($dienst) && ($dienst['typ'] ?? '') === 'uebungsdienst');
+            if ($is_ueb && !empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
+                $draft['uebungsleiter_member_ids'] = array_map('intval', array_filter($_POST['uebungsleiter'], 'ctype_digit'));
                 $draft['einsatzleiter_member_id'] = null;
-                $draft['einsatzleiter_freitext'] = trim($_POST['einsatzleiter_freitext'] ?? '');
-            } elseif ($ev !== '' && ctype_digit($ev)) {
-                $mid = (int)$ev;
-                $draft['einsatzleiter_member_id'] = $mid;
                 $draft['einsatzleiter_freitext'] = '';
-                if (!in_array($mid, $draft['members'])) $draft['members'][] = $mid;
             } else {
-                $draft['einsatzleiter_member_id'] = null;
-                $draft['einsatzleiter_freitext'] = '';
+                $draft['uebungsleiter_member_ids'] = [];
+                $ev = trim($_POST['einsatzleiter'] ?? '');
+                if ($ev === '__freitext__') {
+                    $draft['einsatzleiter_member_id'] = null;
+                    $draft['einsatzleiter_freitext'] = trim($_POST['einsatzleiter_freitext'] ?? '');
+                } elseif ($ev !== '' && ctype_digit($ev)) {
+                    $mid = (int)$ev;
+                    $draft['einsatzleiter_member_id'] = $mid;
+                    $draft['einsatzleiter_freitext'] = '';
+                    if (!in_array($mid, $draft['members'])) $draft['members'][] = $mid;
+                } else {
+                    $draft['einsatzleiter_member_id'] = null;
+                    $draft['einsatzleiter_freitext'] = '';
+                }
             }
             continue;
         }
@@ -333,7 +342,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         } catch (Exception $e) {
             // ignore
         }
-        $custom_data_json = !empty($draft['custom_data']) ? json_encode($draft['custom_data']) : null;
+        $custom_data_for_save = $draft['custom_data'] ?? [];
+        if (!empty($draft['uebungsleiter_member_ids'])) {
+            $custom_data_for_save['uebungsleiter_member_ids'] = $draft['uebungsleiter_member_ids'];
+        }
+        $custom_data_json = !empty($custom_data_for_save) ? json_encode($custom_data_for_save) : null;
         $einsatzstichwort_save = ($typ_save === 'einsatz' && !empty($draft['einsatzstichwort'])) ? $draft['einsatzstichwort'] : null;
         $divera_id_save = !empty($draft['divera_id']) ? (int)$draft['divera_id'] : null;
         $stmt = $db->prepare("
@@ -497,6 +510,10 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                 </div>
                             </div>
                             <?php endif; ?>
+                            <?php
+                            $is_uebungsdienst = ($is_einsatz && ($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst') || (!$is_einsatz && isset($dienst) && ($dienst['typ'] ?? '') === 'uebungsdienst');
+                            $uebungsdienst_hide_ids = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
+                            ?>
                             <p class="form-label mb-2">Personal und Fahrzeuge erfassen:</p>
                             <?php
                             $gesamt_staerke = get_besatzungsstaerke($draft['members'] ?? [], $db);
@@ -538,15 +555,23 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                             <?php foreach ($anwesenheitsliste_felder as $f):
                                 if (empty($f['visible']) || ($f['type'] ?? '') === 'time') continue;
                                 $id = $f['id'] ?? '';
+                                if ($is_uebungsdienst && in_array($id, $uebungsdienst_hide_ids)) continue;
                                 $label = $f['label'] ?? $id;
                                 $type = $f['type'] ?? 'text';
                                 $opts = $f['options'] ?? [];
                                 $val = _anwesenheitsliste_draft_value($id, $draft);
                                 if ($id === 'uhrzeit_von' || $id === 'uhrzeit_bis') continue;
                                 if ($id === 'einsatzstichwort' && $is_einsatz) continue;
+                                $feld_uebungsdienst_hide = in_array($id, $uebungsdienst_hide_ids);
+                                $feld_einsatzleiter = ($type === 'einsatzleiter');
+                                $div_style = '';
+                                if ($is_einsatz && $feld_uebungsdienst_hide) $div_style = 'display:none';
+                                if ($is_einsatz && $feld_einsatzleiter) $div_style = $is_uebungsdienst ? 'display:none' : '';
                             ?>
-                            <div class="mb-3<?php echo $type === 'textarea' ? ' mb-4' : ''; ?>">
+                            <div class="mb-3<?php echo $type === 'textarea' ? ' mb-4' : ''; ?> feld-uebungsdienst-toggle" data-feld="<?php echo htmlspecialchars($id); ?>" data-hide-uebungsdienst="<?php echo $feld_uebungsdienst_hide ? '1' : '0'; ?>" data-einsatzleiter="<?php echo $feld_einsatzleiter ? '1' : '0'; ?>"<?php echo $div_style !== '' ? ' style="' . $div_style . '"' : ''; ?>>
                                 <?php if ($type === 'einsatzleiter'): ?>
+                                <?php if (!$is_uebungsdienst || $is_einsatz): ?>
+                                <div id="einsatzleiter_wrap" style="<?php echo $is_einsatz && $is_uebungsdienst ? 'display:none' : ''; ?>">
                                 <label for="einsatzleiter" class="form-label"><?php echo htmlspecialchars($label); ?></label>
                                 <select class="form-select" id="einsatzleiter" name="einsatzleiter">
                                     <option value="">— keine Auswahl —</option>
@@ -561,6 +586,22 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                 <div class="mt-2" id="einsatzleiter_freitext_wrap" style="display: <?php echo !empty($draft['einsatzleiter_freitext']) ? 'block' : 'none'; ?>;">
                                     <input type="text" class="form-control" id="einsatzleiter_freitext" name="einsatzleiter_freitext" placeholder="Name Einsatzleiter" value="<?php echo htmlspecialchars($draft['einsatzleiter_freitext'] ?? ''); ?>">
                                 </div>
+                                </div>
+                                <?php endif; ?>
+                                <?php if ($is_uebungsdienst || $is_einsatz): ?>
+                                <div id="uebungsleiter_wrap" class="feld-uebungsdienst-toggle" data-einsatzleiter="1" style="<?php echo $is_einsatz && !$is_uebungsdienst ? 'display:none' : ''; ?>">
+                                <label class="form-label">Übungsleiter</label>
+                                <div class="border rounded p-2" style="max-height: 180px; overflow-y: auto;">
+                                    <?php $uebungs_ids = $draft['uebungsleiter_member_ids'] ?? []; if (!is_array($uebungs_ids)) $uebungs_ids = []; ?>
+                                    <?php foreach ($members_for_einsatzleiter as $m):
+                                        $checked = in_array((int)$m['id'], array_map('intval', $uebungs_ids)) ? ' checked' : '';
+                                    ?>
+                                    <div class="form-check"><input class="form-check-input" type="checkbox" name="uebungsleiter[]" id="uebungsleiter_<?php echo (int)$m['id']; ?>" value="<?php echo (int)$m['id']; ?>"<?php echo $checked; ?>><label class="form-check-label" for="uebungsleiter_<?php echo (int)$m['id']; ?>"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></label></div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <small class="text-muted">Mehrfachauswahl möglich</small>
+                                </div>
+                                <?php endif; ?>
                                 <?php elseif ($type === 'einsatzstelle'): ?>
                                 <label for="einsatzstelle" class="form-label"><?php echo htmlspecialchars($label); ?></label>
                                 <div class="position-relative">
@@ -628,6 +669,12 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
         document.getElementById('typ_sonstige_freitext_wrap').style.display=v==='__custom__'?'block':'none';
         document.getElementById('einsatzstichwort_wrap').style.display=v==='einsatz'?'block':'none';
         document.getElementById('thema_wrap').style.display=v==='uebungsdienst'?'block':'none';
+        var isUeb= v==='uebungsdienst';
+        document.querySelectorAll('.feld-uebungsdienst-toggle[data-hide-uebungsdienst="1"]').forEach(function(el){el.style.display=isUeb?'none':'block';});
+        var elWrap=document.getElementById('einsatzleiter_wrap');
+        var uebWrap=document.getElementById('uebungsleiter_wrap');
+        if(elWrap)elWrap.style.display=isUeb?'none':'block';
+        if(uebWrap)uebWrap.style.display=isUeb?'block':'none';
     });
     document.getElementById('thema').addEventListener('change',function(){
         document.getElementById('thema_neu_wrap').style.display=this.value==='__neu__'?'block':'none';

@@ -79,7 +79,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
     if (isset($_POST['thema']) && trim((string)$_POST['thema']) === '__neu__' && isset($_POST['thema_neu'])) {
         $draft['thema'] = trim((string)$_POST['thema_neu']);
     }
-    if (isset($_POST['einsatzleiter'])) {
+    if (!empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
+        $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_POST['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
+        $draft['einsatzleiter_member_id'] = null;
+        $draft['einsatzleiter_freitext'] = '';
+    } elseif (isset($_POST['einsatzleiter'])) {
+        $draft['uebungsleiter_member_ids'] = [];
         $ev = trim((string)$_POST['einsatzleiter']);
         if ($ev === '__freitext__') {
             $draft['einsatzleiter_member_id'] = null;
@@ -102,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
     // Custom-Felder
     if (!isset($draft['custom_data'])) $draft['custom_data'] = [];
     foreach ($_POST as $k => $v) {
-        if (!in_array($k, array_merge($builtin, ['einsatzleiter', 'einsatzleiter_freitext', 'typ_sonstige', 'typ_sonstige_freitext', 'thema_neu', 'save_final', 'form_type']), true) && !preg_match('/^(member_id|vehicle|role|vehicle_id|maschinist|einheitsfuehrer)\b/', $k)) {
+        if (!in_array($k, array_merge($builtin, ['einsatzleiter', 'einsatzleiter_freitext', 'uebungsleiter', 'typ_sonstige', 'typ_sonstige_freitext', 'thema_neu', 'save_final', 'form_type']), true) && !preg_match('/^(member_id|vehicle|role|vehicle_id|maschinist|einheitsfuehrer)\b/', $k)) {
             $draft['custom_data'][$k] = trim((string)$v);
         }
     }
@@ -143,7 +148,7 @@ $bez = trim((string)($draft['bezeichnung_sonstige'] ?? ''));
 if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()), true)) {
     $has_text = true;
 }
-$has_einsatzleiter = !empty($draft['einsatzleiter_member_id']);
+$has_einsatzleiter = !empty($draft['einsatzleiter_member_id']) || !empty($draft['uebungsleiter_member_ids']);
 $has_custom = false;
 if (!empty($draft['custom_data']) && is_array($draft['custom_data'])) {
     foreach ($draft['custom_data'] as $v) {

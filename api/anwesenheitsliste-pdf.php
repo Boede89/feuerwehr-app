@@ -112,8 +112,23 @@ function _calc_einsatzdauer($von, $bis) {
     return $m . ' Min';
 }
 
+$custom_data_pdf = !empty($liste['custom_data']) ? (json_decode($liste['custom_data'], true) ?: []) : [];
+$uebungsleiter_ids = $custom_data_pdf['uebungsleiter_member_ids'] ?? [];
+$is_uebungsdienst_pdf = !empty($uebungsleiter_ids) || (($liste['typ'] ?? '') === 'dienst' && ($liste['dienst_typ'] ?? '') === 'uebungsdienst') || (($liste['typ'] ?? '') === 'manuell' && ($liste['bezeichnung'] ?? '') === 'Übungsdienst');
 $einsatzleiter_name = '';
-if (!empty($liste['einsatzleiter_freitext'])) {
+if ($is_uebungsdienst_pdf && !empty($uebungsleiter_ids) && is_array($uebungsleiter_ids)) {
+    $names = [];
+    foreach (array_map('intval', $uebungsleiter_ids) as $mid) {
+        if ($mid <= 0) continue;
+        try {
+            $stmt = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
+            $stmt->execute([$mid]);
+            $m = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($m) $names[] = trim($m['last_name'] . ', ' . $m['first_name']);
+        } catch (Exception $e) {}
+    }
+    $einsatzleiter_name = implode('; ', $names);
+} elseif (!empty($liste['einsatzleiter_freitext'])) {
     $einsatzleiter_name = $liste['einsatzleiter_freitext'];
 } elseif (!empty($liste['einsatzleiter_member_id'])) {
     try {
@@ -186,8 +201,13 @@ $einsatzdauer = _calc_einsatzdauer($uhrzeit_von, $uhrzeit_bis);
 if ($uhrzeit_von !== '' && strlen($uhrzeit_von) >= 5) $uhrzeit_von = substr($uhrzeit_von, 0, 5);
 if ($uhrzeit_bis !== '' && strlen($uhrzeit_bis) >= 5) $uhrzeit_bis = substr($uhrzeit_bis, 0, 5);
 
+$uebungsdienst_hide_pdf = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
 $html .= '<div class="section"><div class="section-title">Stammdaten</div><table class="stamm-inline">';
-$html .= '<tr><td class="label-cell">Einsatzbericht Nr.</td><td>' . htmlspecialchars($einsatzbericht_display) . '</td><td class="label-cell">Alarmierung durch</td><td>' . htmlspecialchars($alarmierung ?: '-') . '</td></tr>';
+if ($is_uebungsdienst_pdf) {
+    $html .= '<tr><td class="label-cell">Einsatzbericht Nr.</td><td colspan="5">' . htmlspecialchars($einsatzbericht_display) . '</td></tr>';
+} else {
+    $html .= '<tr><td class="label-cell">Einsatzbericht Nr.</td><td>' . htmlspecialchars($einsatzbericht_display) . '</td><td class="label-cell">Alarmierung durch</td><td>' . htmlspecialchars($alarmierung ?: '-') . '</td></tr>';
+}
 $html .= '<tr><td class="label-cell">Uhrzeit von</td><td>' . htmlspecialchars($uhrzeit_von ?: '-') . '</td><td class="label-cell">Uhrzeit bis</td><td>' . htmlspecialchars($uhrzeit_bis ?: '-') . '</td><td class="label-cell">Einsatzdauer</td><td>' . htmlspecialchars($einsatzdauer ?: '-') . '</td></tr>';
 $html .= '<tr><td class="label-cell">Stichwort</td><td>' . htmlspecialchars($einsatzstichwort ?: '-') . '</td><td class="label-cell">Klassifizierung</td><td>' . htmlspecialchars($klassifizierung ?: '-') . '</td></tr>';
 $skip_ids = ['einsatzbericht_nummer','alarmierung_durch','uhrzeit_von','uhrzeit_bis','einsatzstichwort','klassifizierung','einsatzleiter'];
@@ -195,6 +215,7 @@ foreach ($anwesenheitsliste_felder as $f) {
     if (empty($f['visible'])) continue;
     $fid = $f['id'] ?? '';
     if (in_array($fid, $skip_ids)) continue;
+    if ($is_uebungsdienst_pdf && in_array($fid, $uebungsdienst_hide_pdf)) continue;
     $val = _al_val($liste, $fid, $custom_data);
     if ($val === '' || $val === null) continue;
     $type = $f['type'] ?? 'text';
@@ -230,14 +251,16 @@ if (empty($vehicle_ids) || (count($vehicle_ids) === 1 && in_array(0, $vehicle_id
 }
 $html .= '</tbody></table></td></tr></table></div>';
 
+$leiter_label = $is_uebungsdienst_pdf ? 'Übungsleiter' : 'Einsatzleiter';
+$unterschrift_label = $is_uebungsdienst_pdf ? 'Unterschrift Übungsleiter' : 'Unterschrift Einsatzleiter';
 $html .= '
     <div class="bottom-row">
         <div class="einsatzleiter-cell">
-            <strong>Einsatzleiter:</strong> ' . htmlspecialchars($einsatzleiter_name ?: '-') . '
+            <strong>' . htmlspecialchars($leiter_label) . ':</strong> ' . htmlspecialchars($einsatzleiter_name ?: '-') . '
         </div>
         <div class="signature-cell">
             <div class="signature-line"></div>
-            <div class="signature-label">Unterschrift Einsatzleiter</div>
+            <div class="signature-label">' . htmlspecialchars($unterschrift_label) . '</div>
         </div>
     </div>
 </body>
