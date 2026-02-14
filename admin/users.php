@@ -25,16 +25,15 @@ $message = '';
 $error = '';
 
 // Erfolgsmeldungen von GET-Parameter
-$show_autologin_url = '';
+$active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
+if (!in_array($active_tab, ['users', 'system'])) $active_tab = 'users';
 if (isset($_GET['success'])) {
     if ($_GET['success'] == 'added') {
         $message = "Benutzer wurde erfolgreich hinzugefügt.";
     } elseif ($_GET['success'] == 'updated') {
         $message = "Benutzer wurde erfolgreich aktualisiert.";
-    } elseif ($_GET['success'] == 'system_added' && !empty($_SESSION['flash_autologin_url'])) {
-        $message = "Systembenutzer wurde erfolgreich angelegt.";
-        $show_autologin_url = $_SESSION['flash_autologin_url'];
-        unset($_SESSION['flash_autologin_url']);
+    } elseif ($_GET['success'] == 'system_added') {
+        $message = "Systembenutzer wurde erfolgreich angelegt. Klicken Sie auf „Link anzeigen“ beim Benutzer, um den Autologin-Link zu sehen.";
     }
 }
 
@@ -70,15 +69,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         if ($action == 'add_system_user') {
             // Systembenutzer: nur Benutzername, keine E-Mail, kein Passwort
+            // Berechtigung: nur Formulare ausfüllen (wie nicht eingeloggter User + Formulare)
             $username = sanitize_input($_POST['username'] ?? '');
             $first_name = sanitize_input($_POST['first_name'] ?? '');
             $last_name = sanitize_input($_POST['last_name'] ?? '');
-            $can_forms = isset($_POST['can_forms']) ? 1 : 0;
-            $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
-            $can_atemschutz = isset($_POST['can_atemschutz']) ? 1 : 0;
-            $can_members = isset($_POST['can_members']) ? 1 : 0;
-            $can_ric = isset($_POST['can_ric']) ? 1 : 0;
-            $can_courses = isset($_POST['can_courses']) ? 1 : 0;
             if (empty($username)) {
                 $error = "Benutzername ist erforderlich.";
             } else {
@@ -97,14 +91,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     } else {
                         $autologin_token = bin2hex(random_bytes(32));
                         $autologin_expires = date('Y-m-d H:i:s', strtotime('+90 days'));
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?)");
-                        $stmt->execute([$username, $first_name ?: $username, $last_name, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $autologin_token, $autologin_expires]);
-                        $base = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-                        $app_base = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'])), '/');
-                        $autologin_url = $base . $app_base . '/autologin.php?token=' . $autologin_token;
-                        $_SESSION['flash_autologin_url'] = $autologin_url;
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, ?, ?)");
+                        $stmt->execute([$username, $first_name ?: $username, $last_name, $autologin_token, $autologin_expires]);
                         log_activity($_SESSION['user_id'], 'user_added', "Systembenutzer '$username' hinzugefügt");
-                        header("Location: users.php?success=system_added");
+                        header("Location: users.php?tab=system&success=system_added");
                         exit;
                     }
                 } catch (Exception $e) {
@@ -326,11 +316,8 @@ if (isset($_GET['regenerate_token'])) {
             $autologin_expires = date('Y-m-d H:i:s', strtotime('+90 days'));
             $stmt_up = $db->prepare("UPDATE users SET autologin_token = ?, autologin_expires = ? WHERE id = ?");
             $stmt_up->execute([$autologin_token, $autologin_expires, $user_id]);
-            $base = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-            $app_base = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'])), '/');
-            $_SESSION['flash_autologin_url'] = $base . $app_base . '/autologin.php?token=' . $autologin_token;
             log_activity($_SESSION['user_id'], 'user_updated', "Autologin-Link für Systembenutzer '{$u['username']}' neu generiert");
-            header("Location: users.php?success=system_added");
+            header("Location: users.php?tab=system&success=system_added");
             exit;
         }
     } catch (Exception $e) {
@@ -389,7 +376,9 @@ try {
     try { $db->exec("ALTER TABLE users ADD COLUMN is_system_user TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
     $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, is_active, created_at, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
     $stmt->execute();
-    $users = $stmt->fetchAll();
+    $all_users = $stmt->fetchAll();
+    $users = array_filter($all_users, fn($u) => empty($u['is_system_user']));
+    $system_users = array_filter($all_users, fn($u) => !empty($u['is_system_user']));
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Benutzer: " . $e->getMessage();
     $users = [];
@@ -442,29 +431,33 @@ try {
                         <i class="fas fa-users"></i> Benutzerverwaltung
                     </h1>
                     <div class="d-flex gap-2">
+                        <?php if ($active_tab === 'users'): ?>
                         <button type="button" class="btn btn-primary" onclick="openUserModal()">
                             <i class="fas fa-plus"></i> Neuer Benutzer
                         </button>
-                        <button type="button" class="btn btn-outline-secondary" onclick="openSystemUserModal()">
+                        <?php else: ?>
+                        <button type="button" class="btn btn-primary" onclick="openSystemUserModal()">
                             <i class="fas fa-robot"></i> Systembenutzer anlegen
                         </button>
+                        <?php endif; ?>
                     </div>
                 </div>
                 
+                <ul class="nav nav-tabs mb-3">
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo $active_tab === 'users' ? 'active' : ''; ?>" href="?tab=users">
+                            <i class="fas fa-user"></i> Benutzer (<?php echo count($users); ?>)
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo $active_tab === 'system' ? 'active' : ''; ?>" href="?tab=system">
+                            <i class="fas fa-robot"></i> Systembenutzer (<?php echo count($system_users); ?>)
+                        </a>
+                    </li>
+                </ul>
+                
                 <?php if ($message): ?>
                     <?php echo show_success($message); ?>
-                    <?php if ($show_autologin_url): ?>
-                        <div class="alert alert-info">
-                            <strong>Autologin-Link (90 Tage gültig):</strong><br>
-                            <div class="input-group mt-2">
-                                <input type="text" class="form-control font-monospace small" id="autologinUrl" value="<?php echo htmlspecialchars($show_autologin_url); ?>" readonly>
-                                <button type="button" class="btn btn-outline-primary" onclick="navigator.clipboard.writeText(document.getElementById('autologinUrl').value); this.textContent='Kopiert!'; setTimeout(()=>this.textContent='Kopieren', 2000)">
-                                    <i class="fas fa-copy"></i> Kopieren
-                                </button>
-                            </div>
-                            <small class="text-muted d-block mt-2">Teilen Sie diesen Link mit dem Systembenutzer. Der Link loggt automatisch ein – kein Passwort nötig.</small>
-                        </div>
-                    <?php endif; ?>
                 <?php endif; ?>
                 
                 <?php if ($error): ?>
@@ -478,6 +471,7 @@ try {
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
+                        <?php if ($active_tab === 'users'): ?>
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
@@ -485,7 +479,6 @@ try {
                                         <th>Benutzername</th>
                                         <th>E-Mail</th>
                                         <th>Name</th>
-                                        <!-- Rolle entfernt -->
                                         <th>Berechtigungen</th>
                                         <th>Status</th>
                                         <th>Erstellt</th>
@@ -495,13 +488,8 @@ try {
                                 <tbody>
                                     <?php foreach ($users as $user): ?>
                                         <tr>
-                                            <td>
-                                                <strong><?php echo htmlspecialchars($user['username']); ?></strong>
-                                                <?php if (!empty($user['is_system_user'])): ?>
-                                                    <span class="badge bg-secondary ms-1">System</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td><?php echo !empty($user['is_system_user']) ? '<em class="text-muted">—</em>' : htmlspecialchars($user['email'] ?? ''); ?></td>
+                                            <td><strong><?php echo htmlspecialchars($user['username']); ?></strong></td>
+                                            <td><?php echo htmlspecialchars($user['email'] ?? ''); ?></td>
                                             <td><?php echo htmlspecialchars(trim($user['first_name'] . ' ' . $user['last_name']) ?: $user['username']); ?></td>
                                             <!-- Rolle-Spalte entfernt -->
                                             <td>
@@ -538,7 +526,6 @@ try {
                                             </td>
                                             <td><?php echo format_date($user['created_at']); ?></td>
                                             <td>
-                                                <?php if (empty($user['is_system_user'])): ?>
                                                 <button type="button" class="btn btn-outline-primary btn-sm" id="editBtn<?php echo (int)$user['id']; ?>" data-bs-toggle="modal" data-bs-target="#userModal"
                                                     data-user-id="<?php echo (int)$user['id']; ?>"
                                                     data-username="<?php echo htmlspecialchars($user['username'], ENT_QUOTES); ?>"
@@ -556,14 +543,7 @@ try {
                                                     data-can-vehicles="<?php echo (int)($user['can_vehicles'] ?? 0); ?>">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
-                                                <?php endif; ?>
-                                                <?php if (!empty($user['is_system_user'])): ?>
-                                                    <a href="?regenerate_token=<?php echo $user['id']; ?>" class="btn btn-outline-info btn-sm" 
-                                                       onclick="return confirm('Neuen Autologin-Link generieren? Der alte Link funktioniert danach nicht mehr.')"
-                                                       title="Neuen Autologin-Link generieren">
-                                                        <i class="fas fa-link"></i>
-                                                    </a>
-                                                <?php elseif (!empty($user['email'])): ?>
+                                                <?php if (!empty($user['email'])): ?>
                                                     <a href="?reset_password=<?php echo $user['id']; ?>" class="btn btn-outline-warning btn-sm" 
                                                        onclick="return confirm('Möchten Sie das Passwort für <?php echo htmlspecialchars($user['username']); ?> zurücksetzen? Eine E-Mail mit dem neuen Passwort wird gesendet.')"
                                                        title="Passwort zurücksetzen">
@@ -582,6 +562,56 @@ try {
                                 </tbody>
                             </table>
                         </div>
+                        <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Benutzername</th>
+                                        <th>Name</th>
+                                        <th>Status</th>
+                                        <th>Erstellt</th>
+                                        <th>Aktionen</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($system_users as $user): ?>
+                                        <tr>
+                                            <td><strong><?php echo htmlspecialchars($user['username']); ?></strong></td>
+                                            <td><?php echo htmlspecialchars(trim($user['first_name'] . ' ' . $user['last_name']) ?: $user['username']); ?></td>
+                                            <td>
+                                                <?php if ($user['is_active']): ?>
+                                                    <span class="badge bg-success">Aktiv</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-secondary">Inaktiv</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td><?php echo format_date($user['created_at']); ?></td>
+                                            <td>
+                                                <button type="button" class="btn btn-outline-info btn-sm btn-show-autologin" data-user-id="<?php echo (int)$user['id']; ?>" data-username="<?php echo htmlspecialchars($user['username'], ENT_QUOTES); ?>" title="Autologin-Link anzeigen">
+                                                    <i class="fas fa-link"></i> Link anzeigen
+                                                </button>
+                                                <a href="?regenerate_token=<?php echo $user['id']; ?>&tab=system" class="btn btn-outline-warning btn-sm" 
+                                                   onclick="return confirm('Neuen Autologin-Link generieren? Der alte Link funktioniert danach nicht mehr.')"
+                                                   title="Neuen Link generieren">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                </a>
+                                                <?php if ($user['id'] != $_SESSION['user_id']): ?>
+                                                    <a href="?delete=<?php echo $user['id']; ?>&tab=system" class="btn btn-outline-danger btn-sm" 
+                                                       onclick="return confirm('Sind Sie sicher, dass Sie diesen Systembenutzer löschen möchten?')">
+                                                        <i class="fas fa-trash"></i>
+                                                    </a>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                        <?php if (empty($system_users)): ?>
+                        <p class="text-muted mb-0">Noch keine Systembenutzer. Klicken Sie auf „Systembenutzer anlegen“.</p>
+                        <?php endif; ?>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>

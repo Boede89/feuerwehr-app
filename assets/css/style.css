@@ -192,6 +192,12 @@ table.anwesenheit-tabelle tbody tr.anw-row.selected td.name-cell * {
     color: white;
 }
 
+/* Lehrgangsverwaltung-Badge (Berechtigungen) */
+.badge.bg-purple {
+    background-color: #6f42c1 !important;
+    color: #fff !important;
+}
+
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
     .display-4 {
