@@ -11,16 +11,29 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 $message = '';
 $error = '';
 
-// Lade aktuellen Benutzer
+// Lade aktuellen Benutzer (inkl. Divera Access Key für Termin-Übergabe bei Reservierungs-Genehmigung)
 try {
-    $stmt = $db->prepare('SELECT id, username, email, first_name, last_name, password_hash FROM users WHERE id = ?');
+    $stmt = $db->prepare('SELECT id, username, email, first_name, last_name, password_hash, divera_access_key FROM users WHERE id = ?');
     $stmt->execute([$_SESSION['user_id']]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$user) {
         $error = 'Benutzer nicht gefunden.';
     }
 } catch (Exception $e) {
-    $error = 'Fehler beim Laden des Profils: ' . $e->getMessage();
+    $user = [];
+    if (strpos($e->getMessage(), 'divera_access_key') !== false || strpos($e->getMessage(), 'Unknown column') !== false) {
+        try {
+            $db->exec('ALTER TABLE users ADD COLUMN divera_access_key VARCHAR(512) NULL DEFAULT NULL');
+            $stmt = $db->prepare('SELECT id, username, email, first_name, last_name, password_hash, divera_access_key FROM users WHERE id = ?');
+            $stmt->execute([$_SESSION['user_id']]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            if (empty($user)) $error = 'Benutzer nicht gefunden.';
+        } catch (Exception $e2) {
+            $error = 'Fehler beim Laden des Profils: ' . $e2->getMessage();
+        }
+    } else {
+        $error = 'Fehler beim Laden des Profils: ' . $e->getMessage();
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
@@ -58,6 +71,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                     $stmt = $db->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
                     $stmt->execute([$new_hash, $user['id']]);
                     $message = 'Passwort wurde aktualisiert.';
+                }
+            } elseif ($action === 'update_divera_key') {
+                $new_key = trim((string) ($_POST['divera_access_key'] ?? ''));
+                // Leer = nicht ändern (Key beibehalten oder bewusst leer lassen)
+                if ($new_key !== '') {
+                    $stmt = $db->prepare('UPDATE users SET divera_access_key = ? WHERE id = ?');
+                    $stmt->execute([$new_key, $user['id']]);
+                    $user['divera_access_key'] = $new_key;
+                    $message = 'Divera Access Key wurde gespeichert.';
+                } else {
+                    $message = 'Kein neuer Key eingegeben – bisheriger Key unverändert.';
                 }
             }
         } catch (Exception $e) {
@@ -137,6 +161,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                         <input type="hidden" name="action" value="update_password">
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                         <button class="btn btn-primary" type="submit"><i class="fas fa-key"></i> Passwort aktualisieren</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header"><i class="fas fa-calendar-check"></i> Divera 24/7 Access Key</div>
+                <div class="card-body">
+                    <p class="text-muted small">Wenn Sie Fahrzeugreservierungen genehmigen, wird der Termin mit Ihrem persönlichen Access Key an Divera 24/7 übermittelt. Ohne Key erscheint beim Genehmigen ein Hinweis.</p>
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Divera Access Key (persönlich)</label>
+                            <input class="form-control" type="password" name="divera_access_key" value="" placeholder="<?php echo !empty($user['divera_access_key'] ?? '') ? 'Leer lassen zum Beibehalten' : 'Key eintragen'; ?>" autocomplete="off">
+                            <small class="text-muted">In Divera 24/7: Einstellungen → Debug-Tab → Benutzer-Accesskey. Leer lassen = bisherigen Key beibehalten.</small>
+                        </div>
+                        <input type="hidden" name="action" value="update_divera_key">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Speichern</button>
                     </form>
                 </div>
             </div>

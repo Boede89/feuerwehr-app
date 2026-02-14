@@ -1638,6 +1638,14 @@ if ($can_atemschutz) {
                     approveBtn.classList.remove('btn-success');
                     approveBtn.classList.add('btn-success');
                     
+                    let msg = data.message || 'Reservierung wurde genehmigt.';
+                    if (data.divera_sent) {
+                        msg += '\n\nDer Termin wurde an Divera 24/7 übermittelt.';
+                    } else if (data.needs_divera_key) {
+                        msg += '\n\nHinweis: Damit der Termin an Divera 24/7 übermittelt wird, bitte in Ihrem Profil einen Divera Access Key hinterlegen (Profil → Divera 24/7 Access Key).';
+                    }
+                    alert(msg);
+                    
                     // Modal nach 2 Sekunden schließen und Seite neu laden
                     setTimeout(() => {
                         location.reload();
@@ -1746,6 +1754,14 @@ if ($can_atemschutz) {
                     confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>Erfolgreich!';
                     confirmBtn.classList.remove('btn-warning');
                     confirmBtn.classList.add('btn-success');
+                    
+                    let msg = data.message || 'Reservierung wurde genehmigt und Konflikte gelöst.';
+                    if (data.divera_sent) {
+                        msg += '\n\nDer Termin wurde an Divera 24/7 übermittelt.';
+                    } else if (data.needs_divera_key) {
+                        msg += '\n\nHinweis: Damit der Termin an Divera 24/7 übermittelt wird, bitte in Ihrem Profil einen Divera Access Key hinterlegen (Profil → Divera 24/7 Access Key).';
+                    }
+                    alert(msg);
                     
                     // Alle Modals schließen und Seite neu laden
                     setTimeout(() => {

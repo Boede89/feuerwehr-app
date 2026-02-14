@@ -1586,10 +1586,10 @@ function merge_duplicate_members() {
 
 /**
  * Sendet eine genehmigte Reservierung als Termin an Divera 24/7 (API v2/events).
- * Nutzt das offizielle Event-JSON-Format (foreign_id, title, text, address, ts_start, ts_end, fullday, notification_type, …).
+ * Nutzt dasselbe JSON-Format wie das Formular „Termin an Divera 24/7 senden“ (notification_type, title, ts_start, ts_end, address, text).
  *
- * @param array $reservation Reservierungs-Datensatz (id, start_datetime, end_datetime, reason, location, vehicle_name, …)
- * @param string $access_key Divera-Einheits-Accesskey (Admin → Einstellungen → Divera 24/7)
+ * @param array $reservation Reservierungs-Datensatz (start_datetime, end_datetime, reason, location, vehicle_name, …)
+ * @param string $access_key Divera-Accesskey des Benutzers (aus Profil)
  * @param string $api_base_url Basis-URL der Divera-API (z. B. https://app.divera247.com)
  * @return bool true bei Erfolg (HTTP 2xx und success im JSON-Body), false sonst
  */
@@ -1605,23 +1605,19 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         error_log('Divera: Ungültige Zeiten für Reservierung (start/end).');
         return false;
     }
-    $reservation_id = (int) ($reservation['id'] ?? 0);
-    $foreign_id = $reservation_id > 0 ? 'feuerwehr-app-reservation-' . $reservation_id : 'feuerwehr-app-' . uniqid('', true);
     $vehicle_name = $reservation['vehicle_name'] ?? 'Fahrzeug';
     $title = $vehicle_name . ' - ' . ($reservation['reason'] ?? 'Reservierung');
     $address = trim($reservation['location'] ?? '');
     $text = $address !== '' ? 'Ort: ' . $address : ($reservation['reason'] ?? '');
-    // API v2/events: Event-Objekt mit notification_type + title Pflicht; foreign_id empfohlen; fullday=false bei konkreten Zeiten
+    // Identisch zum Formular „Termin an Divera 24/7 senden“ (divera-termin-senden.php)
     $body = [
         'Event' => [
-            'foreign_id'        => $foreign_id,
+            'notification_type' => 2,
             'title'             => $title,
-            'text'              => $text,
-            'address'           => $address,
             'ts_start'          => $start_ts,
             'ts_end'            => $end_ts,
-            'fullday'           => false,
-            'notification_type' => 2,
+            'address'           => $address,
+            'text'              => $text,
         ],
     ];
     $url = $base . '/api/v2/events?accesskey=' . urlencode($access_key);
@@ -1651,7 +1647,8 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
                 $msg = is_array($data['errors']) ? implode(' ', $data['errors']) : (string) $data['errors'];
             }
         }
-        error_log('Divera Termin fehlgeschlagen. HTTP ' . $code . '. Reservierung-ID: ' . $reservation_id . '. Response: ' . (is_string($raw) ? substr($raw, 0, 500) : '') . ($msg ? ' Message: ' . $msg : ''));
+        $rid = (int) ($reservation['id'] ?? 0);
+        error_log('Divera Termin fehlgeschlagen. HTTP ' . $code . '. Reservierung-ID: ' . $rid . '. Response: ' . (is_string($raw) ? substr($raw, 0, 500) : '') . ($msg ? ' Message: ' . $msg : ''));
     }
     return $success;
 }
