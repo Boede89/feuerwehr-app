@@ -96,8 +96,8 @@ if (!empty($liste['custom_data'])) {
 $uebungsleiter_ids = $custom_data['uebungsleiter_member_ids'] ?? [];
 if (!is_array($uebungsleiter_ids)) $uebungsleiter_ids = [];
 $is_uebungsdienst_edit = !empty($uebungsleiter_ids)
-    || (($liste['typ'] ?? '') === 'dienst' && ($liste['dienst_typ'] ?? '') === 'uebungsdienst')
-    || (($liste['typ'] ?? '') === 'manuell' && ($liste['bezeichnung'] ?? '') === 'Übungsdienst');
+    || (($liste['typ'] ?? '') === 'dienst' && in_array($liste['dienst_typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung']))
+    || (($liste['typ'] ?? '') === 'manuell' && in_array($liste['bezeichnung'] ?? '', ['Übungsdienst', 'Jahreshauptversammlung']));
 $uebungsdienst_hide_ids = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
 
 $message = '';
@@ -130,6 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
                 if (empty($f['visible'])) continue;
                 $fid = $f['id'] ?? '';
                 if ($fid === 'einsatzleiter') continue;
+                if ($fid === 'einsatzstichwort' && $is_uebungsdienst_edit) continue;
                 $val = trim($_POST[$fid] ?? '');
                 if (in_array($fid, $builtin)) {
                     $updates[] = $fid . ' = ?';
@@ -156,6 +157,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             $einsatzbericht_nummer = $is_uebungsdienst_edit ? null : (trim($_POST['einsatzbericht_nummer'] ?? '') !== '' ? trim($_POST['einsatzbericht_nummer']) : null);
             $updates[] = 'einsatzbericht_nummer = ?';
             $params[] = $einsatzbericht_nummer;
+            if ($is_uebungsdienst_edit) {
+                $updates[] = 'bezeichnung = ?';
+                $params[] = trim($_POST['thema'] ?? '') !== '' ? trim($_POST['thema']) : null;
+            }
             $custom_post = [];
             foreach ($anwesenheitsliste_felder as $f) {
                 if (empty($f['visible'])) continue;
@@ -292,17 +297,23 @@ function _al_val($liste, $key, $custom_data = []) {
                         if (empty($f['visible'])) continue;
                         $fid = $f['id'] ?? '';
                         if ($is_uebungsdienst_edit && in_array($fid, $uebungsdienst_hide_ids)) continue;
-                        $label = $f['label'] ?? $fid;
+                        if ($fid === 'einsatzstichwort' && $is_uebungsdienst_edit) {
+                            $fid = 'thema';
+                            $label = 'Thema';
+                            $val = trim((string)($liste['bezeichnung'] ?? ''));
+                        } else {
+                            $label = $f['label'] ?? $fid;
+                            $val = '';
+                            if ($fid === 'einsatzleiter') {
+                                if (!empty($liste['einsatzleiter_freitext'])) $val = '__freitext__';
+                                elseif (!empty($liste['einsatzleiter_member_id'])) $val = (string)$liste['einsatzleiter_member_id'];
+                            } else {
+                                $val = _al_val($liste, $f['id'] ?? '', $custom_data);
+                            }
+                        }
                         $type = $f['type'] ?? 'text';
                         $opts = $f['options'] ?? [];
-                        $val = '';
-                        if ($fid === 'einsatzleiter') {
-                            if (!empty($liste['einsatzleiter_freitext'])) $val = '__freitext__';
-                            elseif (!empty($liste['einsatzleiter_member_id'])) $val = (string)$liste['einsatzleiter_member_id'];
-                        } else {
-                            $val = _al_val($liste, $fid, $custom_data);
-                        }
-                        if ($type === 'time' && $fid === 'uhrzeit_bis' && $val === '') $val = date('H:i');
+                        if ($type === 'time' && ($f['id'] ?? '') === 'uhrzeit_bis' && $val === '') $val = date('H:i');
                     ?>
                     <div class="col-md-6">
                         <?php if ($type === 'einsatzleiter'): ?>
