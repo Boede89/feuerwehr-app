@@ -76,17 +76,14 @@ try {
         $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
         
-        // Termin an Divera 24/7 senden (Access Key des Genehmigers)
+        // Termin an Divera 24/7 senden (gleiche Logik wie Formular „Termin an Divera 24/7“ – globaler Key)
         try {
-            $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-            $stmt->execute([$_SESSION['user_id']]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            $divera_key = trim((string) ($row['divera_access_key'] ?? ''));
+            $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
             $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
             if ($divera_key !== '' && send_reservation_to_divera($reservation, $divera_key, $api_base)) {
                 error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt.");
             } elseif ($divera_key === '') {
-                error_log("Reservierung #$reservation_id: Kein Divera Access Key beim Genehmiger hinterlegt – Termin nicht an Divera gesendet.");
+                error_log("Reservierung #$reservation_id: Kein Divera Access Key in den Divera-Einstellungen hinterlegt.");
             }
         } catch (Exception $e) {
             error_log("Divera-Übermittlung Fehler: " . $e->getMessage());
@@ -190,12 +187,9 @@ try {
         $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
         
-        // Termin an Divera 24/7 senden (Access Key des Genehmigers)
+        // Termin an Divera 24/7 senden (globaler Key, wie Formular „Termin an Divera 24/7“)
         try {
-            $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-            $stmt->execute([$_SESSION['user_id']]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            $divera_key = trim((string) ($row['divera_access_key'] ?? ''));
+            $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
             $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
             if ($divera_key !== '' && send_reservation_to_divera($reservation, $divera_key, $api_base)) {
                 error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (mit Konfliktlösung).");

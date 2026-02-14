@@ -1,0 +1,113 @@
+<?php
+session_start();
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
+    header('Location: ../login.php');
+    exit;
+}
+if (!hasAdminPermission()) {
+    header('Location: ../login.php?error=access_denied');
+    exit;
+}
+
+$message = '';
+$error = '';
+
+$settings = [];
+try {
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url')");
+    $stmt->execute();
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $settings[$row['setting_key']] = $row['setting_value'];
+    }
+} catch (Exception $e) {
+    $error = 'Fehler beim Laden: ' . $e->getMessage();
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        try {
+            $divera_access_key = trim($_POST['divera_access_key'] ?? '');
+            if ($divera_access_key === '') {
+                $divera_access_key = trim((string) ($settings['divera_access_key'] ?? ''));
+            }
+            $divera_api_base_url = trim($_POST['divera_api_base_url'] ?? '') ?: 'https://app.divera247.com';
+
+            foreach (['divera_access_key' => $divera_access_key, 'divera_api_base_url' => $divera_api_base_url] as $k => $v) {
+                $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+                $stmt->execute([$k, $v]);
+            }
+            $message = 'Divera-Einstellungen gespeichert.';
+            $settings['divera_access_key'] = $divera_access_key;
+            $settings['divera_api_base_url'] = $divera_api_base_url;
+        } catch (Exception $e) {
+            $error = 'Fehler beim Speichern: ' . $e->getMessage();
+        }
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Divera 24/7 Einstellungen</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="../assets/css/style.css" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="../index.php"><i class="fas fa-fire"></i> Feuerwehr App</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <?php echo get_admin_navigation(); ?>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0"><i class="fas fa-calendar-plus"></i> Divera 24/7 Einstellungen</h1>
+        <a href="settings.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück zu Einstellungen</a>
+    </div>
+    <?php if ($message) echo show_success($message); ?>
+    <?php if ($error) echo show_error($error); ?>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header"><i class="fas fa-cog"></i> Verbindung</div>
+                <div class="card-body">
+                    <p class="text-muted small">Diese Einstellungen werden für „Termin an Divera 24/7“ (Formulare) und für die automatische Übermittlung genehmigter Fahrzeugreservierungen an Divera verwendet. Weitere Optionen können später hier ergänzt werden.</p>
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Access Key (Einheits-Key)</label>
+                            <input class="form-control" type="password" name="divera_access_key" value="" placeholder="Leer lassen zum Beibehalten" autocomplete="off">
+                            <small class="text-muted"><?php echo !empty($settings['divera_access_key']) ? 'Key ist hinterlegt. Neuen Key eintragen zum Überschreiben.' : 'In Divera 24/7: Verwaltung → Konto (Kontakt- und Vertragsdaten).'; ?></small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">API-Basis-URL</label>
+                            <input class="form-control" type="url" name="divera_api_base_url" value="<?php echo htmlspecialchars($settings['divera_api_base_url'] ?? 'https://app.divera247.com'); ?>" placeholder="https://app.divera247.com">
+                        </div>
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

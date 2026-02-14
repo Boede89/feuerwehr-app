@@ -92,8 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             // Spalte existiert bereits, ignoriere Fehler
                         }
                         
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, divera_access_key, email_notifications) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, trim((string) ($_POST['divera_access_key'] ?? '')), $email_notifications]);
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $email_notifications]);
                         $new_user_id = $db->lastInsertId();
                         
                         // Mitglied automatisch erstellen/verknüpfen
@@ -141,19 +141,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         // Spalte existiert bereits, ignoriere Fehler
                     }
                     
-                    $divera_access_key = trim((string) ($_POST['divera_access_key'] ?? ''));
-                    if ($divera_access_key === '' && $user_id > 0) {
-                        $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-                        $stmt->execute([$user_id]);
-                        $divera_access_key = (string) ($stmt->fetchColumn() ?: '');
-                    }
                     if (!empty($password)) {
                         $password_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ?, divera_access_key = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $divera_access_key, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ?, divera_access_key = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $divera_access_key, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $user_id]);
                     }
                     
                     // Mitglied aktualisieren falls vorhanden
@@ -314,7 +308,7 @@ try {
         // Spalte existiert bereits, ignoriere Fehler
     }
     
-    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, is_active, created_at, is_admin, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, divera_access_key FROM users ORDER BY created_at DESC");
+    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, is_active, created_at, is_admin, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
     $stmt->execute();
     $users = $stmt->fetchAll();
 } catch(PDOException $e) {
@@ -580,11 +574,6 @@ try {
                                 Leer lassen, um das aktuelle Passwort beizubehalten.
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="divera_access_key" class="form-label">Divera 24/7 Access Key <span class="text-muted">(optional)</span></label>
-                            <input type="password" class="form-control" id="divera_access_key" name="divera_access_key" placeholder="Leer lassen zum Beibehalten" autocomplete="off">
-                            <div class="form-text">Für Benutzer mit Fahrzeugverwaltung: wird bei Genehmigung von Reservierungen für die Termin-Übermittlung an Divera 24/7 verwendet.</div>
-                        </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <div class="form-check">
@@ -629,7 +618,6 @@ try {
                 document.getElementById('submitButton').textContent = 'Hinzufügen';
                 document.getElementById('password-required').textContent = '*';
                 document.getElementById('password-help').style.display = 'none';
-                const diveraEl = document.getElementById('divera_access_key'); if (diveraEl) diveraEl.value = '';
                 
                 // Modal zuverlässig über Bootstrap-API öffnen
                 if (window.bootstrap && window.bootstrap.Modal) {

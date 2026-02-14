@@ -245,6 +245,20 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
+            <!-- Divera 24/7 -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-calendar-plus"></i> Divera 24/7</h5>
+                        <p class="text-muted">Einstellungen für Termin-Übermittlung an Divera (Formular „Termin an Divera 24/7“ und genehmigte Fahrzeugreservierungen).</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-divera.php">
+                                <i class="fas fa-cog"></i> Divera Einstellungen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <!-- Rechte Spalte -->
             <div class="col-md-6">
                 <div class="card h-100">

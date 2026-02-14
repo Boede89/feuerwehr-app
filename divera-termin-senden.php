@@ -155,8 +155,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $divera_ok) {
                         <?php if (!$divera_ok): ?>
                             <div class="alert alert-warning">
                                 <strong>Divera ist noch nicht eingerichtet.</strong><br>
-                                Bitte hinterlegen Sie den Access Key in den <strong>globalen Einstellungen</strong>:<br>
-                                <a href="admin/settings-global.php">Einstellungen → Globale Einstellungen</a> → Karte „Divera 24/7“.<br>
+                                Bitte hinterlegen Sie den Access Key in den <strong>Divera-Einstellungen</strong>:<br>
+                                <a href="admin/settings-divera.php">Einstellungen → Divera 24/7</a>.<br>
                                 Den Access Key erhalten Sie in Divera 24/7 unter Verwaltung → API-Verwaltung.
                             </div>
                             <a href="formulare.php" class="btn btn-secondary">Zurück zu Formulare</a>

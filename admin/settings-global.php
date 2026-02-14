@@ -74,17 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'app_url' => sanitize_input($_POST['app_url'] ?? ''),
             ];
 
-            // Divera 24/7 (Termin-API); Access Key nur überschreiben wenn etwas eingegeben
-            $divera_access_key = trim($_POST['divera_access_key'] ?? '');
-            if ($divera_access_key === '') {
-                $divera_access_key = trim((string) ($settings['divera_access_key'] ?? ''));
-            }
-            $divera = [
-                'divera_access_key' => $divera_access_key,
-                'divera_api_base_url' => trim($_POST['divera_api_base_url'] ?? '') ?: 'https://app.divera247.com',
-            ];
-
-            $all = array_merge($smtp, $google, $app, $divera);
+            $all = array_merge($smtp, $google, $app);
             foreach ($all as $k => $v) {
                 $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
                 $stmt->execute([$k, $v]);
@@ -214,24 +204,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="card-body">
                         <div class="mb-3"><label class="form-label">App Name</label><input class="form-control" name="app_name" value="<?php echo htmlspecialchars($settings['app_name'] ?? ''); ?>"></div>
                         <div class="mb-3"><label class="form-label">App URL</label><input class="form-control" name="app_url" value="<?php echo htmlspecialchars($settings['app_url'] ?? ''); ?>"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-6">
-                <div class="card h-100">
-                    <div class="card-header"><i class="fas fa-calendar-plus"></i> Divera 24/7</div>
-                    <div class="card-body">
-                        <p class="text-muted small mb-2">Für das Formular „Termin an Divera 24/7 senden“.</p>
-                        <p class="text-muted small mb-3"><strong>Wichtig:</strong> Verwenden Sie den <strong>Einheits-Accesskey</strong> (nicht den Benutzer-Key aus dem Debug-Tab). In Divera 24/7: <strong>Verwaltung → Konto</strong> (Kontakt- und Vertragsdaten) oder bei Ansteuerungen. Key ohne Leerzeichen am Anfang/Ende eintragen.</p>
-                        <div class="mb-3">
-                            <label class="form-label">Access Key (Einheits-Key)</label>
-                            <input class="form-control" type="password" name="divera_access_key" value="" placeholder="Leer lassen zum Beibehalten" autocomplete="off">
-                            <small class="text-muted"><?php echo !empty($settings['divera_access_key']) ? 'Key ist hinterlegt. Neuen Key eintragen zum Überschreiben.' : 'Leer lassen zum Beibehalten.'; ?></small>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">API-Basis-URL</label>
-                            <input class="form-control" type="url" name="divera_api_base_url" value="<?php echo htmlspecialchars($settings['divera_api_base_url'] ?? 'https://app.divera247.com'); ?>" placeholder="https://app.divera247.com">
-                        </div>
                     </div>
                 </div>
             </div>
