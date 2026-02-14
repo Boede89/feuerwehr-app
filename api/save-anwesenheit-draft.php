@@ -130,10 +130,16 @@ try {
 // Leeren Entwurf nicht speichern (keine Daten eingegeben)
 $has_members = !empty($draft['members']);
 $has_vehicles = !empty($draft['vehicles']);
-$text_fields = ['uhrzeit_von', 'uhrzeit_bis', 'alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzleiter_freitext', 'bezeichnung_sonstige'];
+// uhrzeit_von/uhrzeit_bis ausgenommen – uhrzeit_bis hat Standardwert (aktuelle Uhrzeit)
+$text_fields = ['alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzleiter_freitext'];
 $has_text = false;
 foreach ($text_fields as $f) {
     if (!empty(trim((string)($draft[$f] ?? '')))) { $has_text = true; break; }
+}
+// bezeichnung_sonstige nur zählen wenn nicht Standardwert (z.B. "Einsatz" bei Einsatz-Typ)
+$bez = trim((string)($draft['bezeichnung_sonstige'] ?? ''));
+if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()), true)) {
+    $has_text = true;
 }
 $has_einsatzleiter = !empty($draft['einsatzleiter_member_id']);
 $has_custom = false;

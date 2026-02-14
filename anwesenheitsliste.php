@@ -242,10 +242,16 @@ if (isset($_SESSION['user_id'])) {
         if ($row && !empty($row['draft_data'])) {
             $d = json_decode($row['draft_data'], true);
             $has_content = !empty($d['members']) || !empty($d['vehicles']) || !empty($d['einsatzleiter_member_id']);
-            $tf = ['uhrzeit_von', 'uhrzeit_bis', 'alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzleiter_freitext', 'bezeichnung_sonstige'];
-            foreach ($tf as $f) {
-                if (!empty(trim((string)($d[$f] ?? '')))) { $has_content = true; break; }
-            }
+// uhrzeit_von/uhrzeit_bis ausgenommen – Standardwerte zählen nicht als Nutzereingabe
+$tf = ['alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzleiter_freitext'];
+foreach ($tf as $f) {
+    if (!empty(trim((string)($d[$f] ?? '')))) { $has_content = true; break; }
+}
+// bezeichnung_sonstige nur zählen wenn nicht Standardwert (z.B. "Einsatz")
+$bez = trim((string)($d['bezeichnung_sonstige'] ?? ''));
+if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()), true)) {
+    $has_content = true;
+}
             if (!$has_content && !empty($d['custom_data'])) {
                 foreach ($d['custom_data'] as $v) {
                     if (!empty(trim((string)$v))) { $has_content = true; break; }
