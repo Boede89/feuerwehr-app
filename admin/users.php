@@ -801,6 +801,28 @@ try {
         </div>
     </div>
 
+    <!-- Modal: Autologin-Link anzeigen -->
+    <div class="modal fade" id="autologinLinkModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-link"></i> Autologin-Link</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2" id="autologin-username"></p>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="autologin-url" readonly>
+                        <button type="button" class="btn btn-outline-primary" id="autologin-copy-btn" title="In Zwischenablage kopieren">
+                            <i class="fas fa-copy"></i> Kopieren
+                        </button>
+                    </div>
+                    <p class="text-muted small mt-2 mb-0">Der Link ist 90 Tage gültig. Bei „Neuer Link“ wird ein neuer Link erzeugt und der alte funktioniert nicht mehr.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Einfache Funktionen ohne Bootstrap-Event-Listener
@@ -970,6 +992,56 @@ try {
                 modal.addEventListener('click', function(e) {
                     if (e.target === modal) {
                         closeUserModal();
+                    }
+                });
+            }
+
+            // Link anzeigen (Systembenutzer)
+            document.querySelectorAll('.btn-show-autologin').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    const userId = this.dataset.userId;
+                    const username = this.dataset.username || '';
+                    const urlEl = document.getElementById('autologin-url');
+                    const usernameEl = document.getElementById('autologin-username');
+                    const copyBtn = document.getElementById('autologin-copy-btn');
+                    if (!urlEl || !userId) return;
+                    usernameEl.textContent = 'Autologin-Link für: ' + (username ? username : 'Systembenutzer');
+                    urlEl.value = '';
+                    copyBtn.disabled = true;
+                    copyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Laden…';
+                    fetch('get-autologin-url.php?user_id=' + encodeURIComponent(userId))
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data.success) {
+                                urlEl.value = data.url;
+                                copyBtn.disabled = false;
+                                copyBtn.innerHTML = '<i class="fas fa-copy"></i> Kopieren';
+                                new bootstrap.Modal(document.getElementById('autologinLinkModal')).show();
+                            } else {
+                                alert(data.error || 'Fehler beim Laden des Links.');
+                                copyBtn.disabled = false;
+                                copyBtn.innerHTML = '<i class="fas fa-copy"></i> Kopieren';
+                            }
+                        })
+                        .catch(function() {
+                            alert('Fehler beim Laden des Links.');
+                            copyBtn.disabled = false;
+                            copyBtn.innerHTML = '<i class="fas fa-copy"></i> Kopieren';
+                        });
+                });
+            });
+
+            // Kopieren-Button
+            const autologinCopyBtn = document.getElementById('autologin-copy-btn');
+            if (autologinCopyBtn) {
+                autologinCopyBtn.addEventListener('click', function() {
+                    const urlEl = document.getElementById('autologin-url');
+                    if (urlEl && urlEl.value) {
+                        navigator.clipboard.writeText(urlEl.value).then(function() {
+                            const orig = autologinCopyBtn.innerHTML;
+                            autologinCopyBtn.innerHTML = '<i class="fas fa-check"></i> Kopiert!';
+                            setTimeout(function() { autologinCopyBtn.innerHTML = orig; }, 1500);
+                        });
                     }
                 });
             }

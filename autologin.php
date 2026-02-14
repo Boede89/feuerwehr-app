@@ -69,7 +69,7 @@ try {
 
     log_activity($user['id'], 'autologin', 'Systembenutzer per Autologin angemeldet');
 
-    header('Location: formulare.php');
+    header('Location: index.php');
     exit;
 } catch (Exception $e) {
     error_log('Autologin Fehler: ' . $e->getMessage());
