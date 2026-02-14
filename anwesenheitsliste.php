@@ -381,9 +381,6 @@ if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()),
                                             <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
                                             <h5 class="card-title mb-1"><?php echo htmlspecialchars($alarm_stichwort ?: 'Aktueller Einsatz'); ?></h5>
                                             <p class="mb-0 small opacity-90"><?php echo date('d.m.Y H:i', $divera_alarm['date']); ?><?php if ($alarm_geschlossen): ?> <span class="badge bg-secondary">geschlossen</span><?php endif; ?></p>
-                                            <?php if (!empty($divera_alarm['address'])): ?>
-                                            <small class="d-block mt-1 opacity-75 text-truncate" title="<?php echo htmlspecialchars($divera_alarm['address']); ?>"><?php echo htmlspecialchars($divera_alarm['address']); ?></small>
-                                            <?php endif; ?>
                                             <small class="d-block mt-1 opacity-75">(Vorschlag aus Divera)</small>
                                         </a>
                                     </div>
