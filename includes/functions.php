@@ -1845,13 +1845,15 @@ function find_divera_event_by_foreign_id($reservation_id, $access_key, $api_base
 
 /**
  * Holt alle Termine von Divera 24/7 (API GET /api/v2/events).
- * @param string $access_key Divera-Accesskey
+ * Nutzt das Feld "date" (event-result) bzw. ts_start/ts_end (falls vorhanden).
+ * @param string $access_key Divera-Accesskey (z.B. Personal-API-Accesskey des Benutzers)
  * @param string $api_base_url Basis-URL der Divera-API
  * @param int|null $from_ts Optional: Nur Termine ab diesem Unix-Timestamp
  * @param int|null $to_ts Optional: Nur Termine bis zu diesem Unix-Timestamp
+ * @param string|null $error Ausgabe: Fehlermeldung bei API-Fehler
  * @return array Liste von Events: [['id'=>int,'title'=>string,'ts_start'=>int,'ts_end'=>int,'address'=>string], ...]
  */
-function fetch_divera_events($access_key, $api_base_url = 'https://app.divera247.com', $from_ts = null, $to_ts = null) {
+function fetch_divera_events($access_key, $api_base_url = 'https://app.divera247.com', $from_ts = null, $to_ts = null, &$error = null) {
     $access_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string) $access_key));
     if ($access_key === '') return [];
     $base = rtrim(trim((string) $api_base_url), '/') ?: 'https://app.divera247.com';
@@ -1859,15 +1861,26 @@ function fetch_divera_events($access_key, $api_base_url = 'https://app.divera247
     $ctx = stream_context_create(['http' => ['timeout' => 20]]);
     $raw = @file_get_contents($url, false, $ctx);
     $data = is_string($raw) ? json_decode($raw, true) : null;
-    if (!is_array($data) || empty($data['data'])) return [];
+    if (!is_array($data)) {
+        $error = 'Divera-API: Keine gültige JSON-Antwort';
+        return [];
+    }
+    if (isset($data['success']) && $data['success'] === false) {
+        $error = $data['message'] ?? $data['error'] ?? 'Divera-API: Zugriff verweigert oder ungültiger Access Key';
+        return [];
+    }
+    if (empty($data['data'])) return [];
     $items = $data['data']['items'] ?? $data['data'];
     if (!is_array($items)) return [];
     $events = [];
     foreach ($items as $event_id => $event) {
         if (!is_array($event)) continue;
         $id = (int) (isset($event['id']) ? $event['id'] : $event_id);
-        $ts_start = (int) ($event['ts_start'] ?? 0);
-        $ts_end = (int) ($event['ts_end'] ?? 0);
+        // Divera event-result nutzt "date" als Terminszeit; ts_start/ts_end nur bei event-input
+        $date_ts = (int) ($event['date'] ?? 0);
+        $ts_start = (int) ($event['ts_start'] ?? $date_ts);
+        $ts_end = (int) ($event['ts_end'] ?? $date_ts);
+        if ($ts_start <= 0 && $ts_end <= 0) continue;
         if ($from_ts !== null && $ts_end < $from_ts) continue;
         if ($to_ts !== null && $ts_start > $to_ts) continue;
         $events[] = [

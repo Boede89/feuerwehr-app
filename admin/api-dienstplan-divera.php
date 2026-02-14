@@ -32,7 +32,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
     $from = isset($_GET['from']) ? strtotime($_GET['from']) : strtotime('first day of this year');
     $to = isset($_GET['to']) ? strtotime($_GET['to']) : strtotime('last day of next year');
-    $events = fetch_divera_events($divera_key, $api_base, $from, $to);
+    $divera_error = '';
+    $events = fetch_divera_events($divera_key, $api_base, $from, $to, $divera_error);
+    if ($divera_error !== '') {
+        echo json_encode(['success' => false, 'message' => $divera_error, 'events' => []]);
+        exit;
+    }
     echo json_encode(['success' => true, 'events' => $events]);
     exit;
 }
