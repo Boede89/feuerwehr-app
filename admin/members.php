@@ -281,12 +281,14 @@ try {
     
     // Bestehende Benutzer synchronisieren (erstelle Mitglieder für Benutzer die noch kein Mitglied haben)
     try {
+        try { $db->exec("ALTER TABLE users ADD COLUMN is_system_user TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
         $stmt = $db->query("
             INSERT INTO members (user_id, first_name, last_name, email)
-            SELECT u.id, u.first_name, u.last_name, u.email
+            SELECT u.id, u.first_name, u.last_name, COALESCE(u.email, '')
             FROM users u
             WHERE u.is_active = 1
             AND NOT EXISTS (SELECT 1 FROM members m WHERE m.user_id = u.id)
+            AND (COALESCE(u.is_system_user, 0) = 0)
         ");
     } catch (Exception $e) {
         // Fehler ignorieren
@@ -351,14 +353,16 @@ try {
         error_log("Fehler bei PA-Träger Synchronisation: " . $e->getMessage());
     }
     
-    // Stelle sicher, dass alle Benutzer ein Mitglied haben
+    // Stelle sicher, dass alle Benutzer ein Mitglied haben (außer Systembenutzer)
     try {
+        try { $db->exec("ALTER TABLE users ADD COLUMN is_system_user TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
         $stmt = $db->query("
             INSERT INTO members (user_id, first_name, last_name, email, is_pa_traeger)
-            SELECT u.id, u.first_name, u.last_name, u.email, 0
+            SELECT u.id, u.first_name, u.last_name, COALESCE(u.email, ''), 0
             FROM users u
             WHERE u.is_active = 1
             AND NOT EXISTS (SELECT 1 FROM members m WHERE m.user_id = u.id)
+            AND (COALESCE(u.is_system_user, 0) = 0)
         ");
     } catch (Exception $e) {
         // Fehler ignorieren

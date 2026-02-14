@@ -3,17 +3,27 @@ session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
 
-// Bereits eingeloggt? Weiterleitung zum Dashboard
+// Bereits eingeloggt? Weiterleitung
 if (is_logged_in()) {
-    redirect('admin/dashboard.php');
+    if (is_system_user()) {
+        redirect('formulare.php');
+    } else {
+        redirect('admin/dashboard.php');
+    }
 }
 
 $error = '';
 $success_message = '';
 
 // Prüfe ob Zugriff verweigert wurde
-if (isset($_GET['error']) && $_GET['error'] === 'access_denied') {
-    $error = "Zugriff verweigert. Sie müssen als Administrator angemeldet sein, um das Dashboard zu verwenden.";
+if (isset($_GET['error'])) {
+    if ($_GET['error'] === 'access_denied') {
+        $error = "Zugriff verweigert. Sie müssen als Administrator angemeldet sein, um das Dashboard zu verwenden.";
+    } elseif ($_GET['error'] === 'invalid_token') {
+        $error = "Ungültiger oder abgelaufener Autologin-Link. Bitte fordern Sie einen neuen Link an.";
+    } elseif ($_GET['error'] === 'token_expired') {
+        $error = "Der Autologin-Link ist abgelaufen. Bitte fordern Sie einen neuen Link an.";
+    }
 }
 
 // Passwort vergessen

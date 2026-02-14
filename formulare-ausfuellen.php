@@ -11,6 +11,10 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
+if (!has_permission('forms')) {
+    header('Location: formulare.php?error=no_access');
+    exit;
+}
 
 $form_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if (!$form_id) {
@@ -87,14 +91,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="index.php"><i class="fas fa-home"></i> Startseite</a></li>
                     <li class="nav-item"><a class="nav-link" href="formulare.php"><i class="fas fa-file-alt"></i> Formulare</a></li>
+                    <?php if (!is_system_user()): ?>
                     <li class="nav-item"><a class="nav-link" href="admin/dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                    <?php endif; ?>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
                             <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>
                         </a>
                         <ul class="dropdown-menu">
+                            <?php if (!is_system_user()): ?>
                             <li><a class="dropdown-item" href="admin/profile.php"><i class="fas fa-user-edit"></i> Profil</a></li>
                             <li><hr class="dropdown-divider"></li>
+                            <?php endif; ?>
                             <li><a class="dropdown-item" href="logout.php"><i class="fas fa-sign-out-alt"></i> Abmelden</a></li>
                         </ul>
                     </li>

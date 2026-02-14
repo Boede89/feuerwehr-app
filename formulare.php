@@ -11,6 +11,10 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode('formulare.php'));
     exit;
 }
+if (!has_permission('forms')) {
+    header('Location: index.php?error=no_forms_access');
+    exit;
+}
 
 // Tabellen existieren ggf. noch nicht (werden im Formularcenter angelegt)
 $forms = [];
@@ -52,14 +56,18 @@ try {
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="index.php"><i class="fas fa-home"></i> Startseite</a></li>
                     <?php if (is_logged_in()): ?>
+                    <?php if (!is_system_user()): ?>
                     <li class="nav-item"><a class="nav-link" href="admin/dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                    <?php endif; ?>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>
                         </a>
                         <ul class="dropdown-menu">
+                            <?php if (!is_system_user()): ?>
                             <li><a class="dropdown-item" href="admin/profile.php"><i class="fas fa-user-edit"></i> Profil</a></li>
                             <li><hr class="dropdown-divider"></li>
+                            <?php endif; ?>
                             <li><a class="dropdown-item" href="logout.php"><i class="fas fa-sign-out-alt"></i> Abmelden</a></li>
                         </ul>
                     </li>

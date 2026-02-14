@@ -210,6 +210,13 @@ function is_logged_in() {
 }
 
 /**
+ * Benutzer ist ein Systembenutzer (nur Autologin, kein Mitglied, kein Dashboard-Zugriff)
+ */
+function is_system_user() {
+    return !empty($_SESSION['is_system_user']);
+}
+
+/**
  * Benutzer ist Admin
  */
 function is_admin() {
@@ -335,8 +342,23 @@ function has_permission($permission) {
         } catch (Exception $e) {
             // Spalte existiert bereits, ignoriere Fehler
         }
+        try {
+            $db->exec("ALTER TABLE users ADD COLUMN is_system_user TINYINT(1) DEFAULT 0");
+        } catch (Exception $e) {
+            // Spalte existiert bereits, ignoriere Fehler
+        }
+        try {
+            $db->exec("ALTER TABLE users ADD COLUMN autologin_token VARCHAR(64) NULL DEFAULT NULL");
+        } catch (Exception $e) {
+            // Spalte existiert bereits, ignoriere Fehler
+        }
+        try {
+            $db->exec("ALTER TABLE users ADD COLUMN autologin_expires DATETIME NULL DEFAULT NULL");
+        } catch (Exception $e) {
+            // Spalte existiert bereits, ignoriere Fehler
+        }
         
-        $stmt = $db->prepare("SELECT is_admin, user_role, can_reservations, can_users, can_settings, can_vehicles, can_atemschutz, can_members, can_ric, can_courses, can_forms FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT is_admin, user_role, is_system_user, can_reservations, can_users, can_settings, can_vehicles, can_atemschutz, can_members, can_ric, can_courses, can_forms FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         

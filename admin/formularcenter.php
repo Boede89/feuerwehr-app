@@ -13,6 +13,10 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
     exit;
 }
+if (is_system_user()) {
+    header('Location: ../formulare.php');
+    exit;
+}
 if (!has_permission('forms')) {
     header('Location: dashboard.php?error=access_denied');
     exit;

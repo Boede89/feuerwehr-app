@@ -77,6 +77,13 @@ if (!$user) {
     exit();
 }
 
+// Systembenutzer haben keinen Dashboard-Zugriff
+if (!empty($user['is_system_user'])) {
+    $_SESSION['is_system_user'] = 1;
+    echo '<script>window.location.href = "../formulare.php";</script>';
+    exit();
+}
+
 // Sicherstellen, dass Berechtigungsspalten existieren (vor Berechtigungsprüfungen)
 try {
     $db->exec("ALTER TABLE users ADD COLUMN can_reservations TINYINT(1) DEFAULT 1");

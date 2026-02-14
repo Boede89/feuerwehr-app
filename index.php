@@ -147,18 +147,22 @@ require_once 'includes/functions.php';
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <?php if (isset($_SESSION['user_id'])): ?>
+                        <?php if (!is_system_user()): ?>
                         <li class="nav-item">
                             <a class="nav-link" href="admin/dashboard.php">
                                 <i class="fas fa-tachometer-alt"></i> Dashboard
                             </a>
                         </li>
+                        <?php endif; ?>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>
+                                <i class="fas fa-user"></i> <?php echo htmlspecialchars(trim($_SESSION['first_name'] . ' ' . $_SESSION['last_name']) ?: $_SESSION['username']); ?>
                             </a>
                             <ul class="dropdown-menu">
+                                <?php if (!is_system_user()): ?>
                                 <li><a class="dropdown-item" href="admin/profile.php"><i class="fas fa-user-edit"></i> Profil</a></li>
                                 <li><hr class="dropdown-divider"></li>
+                                <?php endif; ?>
                                 <li><a class="dropdown-item" href="logout.php"><i class="fas fa-sign-out-alt"></i> Abmelden</a></li>
                             </ul>
                         </li>
