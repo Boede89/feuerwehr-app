@@ -1823,7 +1823,8 @@ function find_divera_event_by_foreign_id($reservation_id, $access_key, $api_base
 
 /**
  * Löscht einen Termin in Divera 24/7 (API DELETE /api/v2/events/{id}).
- * @param int $event_id Divera-Event-ID
+ * Accesskey muss als Query-Parameter übergeben werden (wie bei POST).
+ * @param int $event_id Divera-Event-ID (Pfad-Parameter)
  * @param string $access_key Divera-Accesskey (Einheits- oder Benutzer-Key)
  * @param string $api_base_url Basis-URL der Divera-API
  * @return bool true bei HTTP 2xx, false sonst
@@ -1835,27 +1836,39 @@ function delete_divera_event($event_id, $access_key, $api_base_url = 'https://ap
     }
     $access_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string) $access_key));
     if ($access_key === '') {
+        error_log('Divera Event löschen: Accesskey fehlt (Event-ID: ' . $event_id . ')');
         return false;
     }
     $base = rtrim(trim((string) $api_base_url), '/') ?: 'https://app.divera247.com';
-    $url_path = '/api/v2/events/' . $event_id;
-    log_divera_debug_delete($event_id, $url_path);
-    $url = $base . $url_path . '?accesskey=' . urlencode($access_key);
-    $ctx = stream_context_create([
-        'http' => [
-            'method'  => 'DELETE',
-            'header'  => "Content-Type: application/json\r\n",
-            'timeout' => 15,
-        ],
+    $url = $base . '/api/v2/events/' . $event_id . '?accesskey=' . urlencode($access_key);
+    log_divera_debug_delete($event_id, '/api/v2/events/' . $event_id);
+
+    $ch = curl_init($url);
+    if (!$ch) {
+        error_log('Divera Event löschen: cURL konnte nicht initialisiert werden');
+        return false;
+    }
+    curl_setopt_array($ch, [
+        CURLOPT_CUSTOMREQUEST => 'DELETE',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json'],
     ]);
-    $raw = @file_get_contents($url, false, $ctx);
-    $code = 0;
-    if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) {
-        $code = (int) $m[1];
+    $raw = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_err = curl_error($ch);
+    curl_close($ch);
+
+    if ($curl_err !== '') {
+        error_log('Divera Event löschen cURL-Fehler: ' . $curl_err . ' (Event-ID: ' . $event_id . ')');
+        return false;
     }
     $success = $code >= 200 && $code < 300;
+    if ($success && is_string($raw)) {
+        log_divera_debug_response($raw, 'delete');
+    }
     if (!$success) {
-        error_log('Divera Event löschen fehlgeschlagen. HTTP ' . $code . '. Event-ID: ' . $event_id);
+        error_log('Divera Event löschen fehlgeschlagen. HTTP ' . $code . '. Event-ID: ' . $event_id . '. Response: ' . (is_string($raw) ? substr($raw, 0, 500) : ''));
     }
     return $success;
 }

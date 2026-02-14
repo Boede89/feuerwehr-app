@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             // Spalte existiert bereits
         }
         // Nur bearbeitete Reservierungen können gelöscht werden
-        $stmt = $db->prepare("SELECT status, divera_event_id FROM reservations WHERE id = ?");
+        $stmt = $db->prepare("SELECT status, divera_event_id, approved_by FROM reservations WHERE id = ?");
         $stmt->execute([$reservation_id]);
         $reservation = $stmt->fetch();
         
@@ -51,15 +51,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             }
             
             $remaining_links = 0;
-            // Divera-Termin löschen (nur wenn aktiviert)
+            // Divera-Termin löschen (nur wenn aktiviert) – Access Key: zuerst Genehmiger, dann aktueller User, dann Einheits-Key
             if ($divera_reservation_enabled) {
                 $divera_event_id = (int) ($reservation['divera_event_id'] ?? 0);
-                $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
-                if ($divera_key === '') {
+                $divera_key = '';
+                $approved_by = (int) ($reservation['approved_by'] ?? 0);
+                if ($approved_by > 0) {
                     $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-                    $stmt_u->execute([$_SESSION['user_id'] ?? 0]);
+                    $stmt_u->execute([$approved_by]);
                     $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
                     $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
+                }
+                if ($divera_key === '' && isset($_SESSION['user_id'])) {
+                    $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                    $stmt_u->execute([$_SESSION['user_id']]);
+                    $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
+                    $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
+                }
+                if ($divera_key === '') {
+                    $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
                 }
                 $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
                 if ($divera_event_id <= 0 && $divera_key !== '' && function_exists('find_divera_event_by_foreign_id')) {
@@ -277,18 +287,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
         }
 
-        // 1a) Divera-Termin löschen (wenn aktiviert)
+        // 1a) Divera-Termin löschen (wenn aktiviert) – Access Key: zuerst Genehmiger, dann aktueller User, dann Einheits-Key
         if ($divera_reservation_enabled) {
-            $stmt = $db->prepare("SELECT divera_event_id FROM reservations WHERE id = ?");
+            $stmt = $db->prepare("SELECT divera_event_id, approved_by FROM reservations WHERE id = ?");
             $stmt->execute([$reservation_id]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             $divera_event_id = (int) ($row['divera_event_id'] ?? 0);
-            $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
-            if ($divera_key === '') {
+            $divera_key = '';
+            $approved_by = (int) ($row['approved_by'] ?? 0);
+            if ($approved_by > 0) {
                 $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-                $stmt_u->execute([$_SESSION['user_id'] ?? 0]);
+                $stmt_u->execute([$approved_by]);
                 $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
                 $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
+            }
+            if ($divera_key === '' && isset($_SESSION['user_id'])) {
+                $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                $stmt_u->execute([$_SESSION['user_id']]);
+                $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
+                $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
+            }
+            if ($divera_key === '') {
+                $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
             }
             $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
             if ($divera_event_id <= 0 && $divera_key !== '' && function_exists('find_divera_event_by_foreign_id')) {
