@@ -6,6 +6,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once '../config/divera.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -28,12 +29,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     $reservation_id = (int)$_POST['reservation_id'];
     
     try {
+        try {
+            $db->exec("ALTER TABLE reservations ADD COLUMN divera_event_id INT NULL DEFAULT NULL");
+        } catch (Exception $e) {
+            // Spalte existiert bereits
+        }
         // Nur bearbeitete Reservierungen können gelöscht werden
-        $stmt = $db->prepare("SELECT status FROM reservations WHERE id = ?");
+        $stmt = $db->prepare("SELECT status, divera_event_id FROM reservations WHERE id = ?");
         $stmt->execute([$reservation_id]);
         $reservation = $stmt->fetch();
         
         if ($reservation && in_array($reservation['status'], ['approved', 'rejected', 'cancelled'])) {
+            $remaining_links = 0;
+            // Divera-Termin löschen, falls vorhanden
+            $divera_event_id = (int) ($reservation['divera_event_id'] ?? 0);
+            if ($divera_event_id > 0) {
+                $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
+                if ($divera_key === '') {
+                    $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                    $stmt_u->execute([$_SESSION['user_id'] ?? 0]);
+                    $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
+                    $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
+                }
+                $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+                if ($divera_key !== '' && delete_divera_event($divera_event_id, $divera_key, $api_base)) {
+                    error_log("RESERVATIONS DELETE: Divera Event gelöscht: " . $divera_event_id);
+                } elseif ($divera_event_id > 0) {
+                    error_log("RESERVATIONS DELETE: Divera Event konnte nicht gelöscht werden: " . $divera_event_id);
+                }
+            }
             // Hole Google Calendar Event ID vor dem Löschen
             $stmt = $db->prepare("SELECT google_event_id, start_datetime, end_datetime, title FROM calendar_events WHERE reservation_id = ?");
             $stmt->execute([$reservation_id]);

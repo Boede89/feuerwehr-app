@@ -109,8 +109,18 @@ try {
             }
             $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
             if ($divera_key !== '') {
-                $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error);
-                if ($divera_sent) {
+                $divera_event_id = null;
+                $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error, $divera_event_id);
+                if ($divera_sent && $divera_event_id > 0) {
+                    try {
+                        $db->exec("ALTER TABLE reservations ADD COLUMN divera_event_id INT NULL DEFAULT NULL");
+                    } catch (Exception $e) {
+                        // Spalte existiert bereits
+                    }
+                    $stmt_upd = $db->prepare("UPDATE reservations SET divera_event_id = ? WHERE id = ?");
+                    $stmt_upd->execute([$divera_event_id, $reservation_id]);
+                    error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (Event-ID: $divera_event_id).");
+                } elseif ($divera_sent) {
                     error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt.");
                 }
             } else {
@@ -261,8 +271,18 @@ try {
             }
             $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
             if ($divera_key !== '') {
-                $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error);
-                if ($divera_sent) {
+                $divera_event_id = null;
+                $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error, $divera_event_id);
+                if ($divera_sent && $divera_event_id > 0) {
+                    try {
+                        $db->exec("ALTER TABLE reservations ADD COLUMN divera_event_id INT NULL DEFAULT NULL");
+                    } catch (Exception $e) {
+                        // Spalte existiert bereits
+                    }
+                    $stmt_upd = $db->prepare("UPDATE reservations SET divera_event_id = ? WHERE id = ?");
+                    $stmt_upd->execute([$divera_event_id, $reservation_id]);
+                    error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (mit Konfliktlösung, Event-ID: $divera_event_id).");
+                } elseif ($divera_sent) {
                     error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (mit Konfliktlösung).");
                 }
             } else {

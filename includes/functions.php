@@ -1624,10 +1624,12 @@ function log_divera_debug_payload($payload, $source = 'reservation') {
  * @param string $access_key Divera-Accesskey (aus Profil oder Einheits-Einstellungen)
  * @param string $api_base_url Basis-URL der Divera-API (z. B. https://app.divera247.com)
  * @param array|null $divera_error Ausgabe: bei Fehlschlag ['code' => int, 'message' => string]
+ * @param int|null $divera_event_id Ausgabe: bei Erfolg die Divera-Event-ID (zum späteren Löschen)
  * @return bool true bei HTTP 2xx (wie im Formular), false sonst
  */
-function send_reservation_to_divera($reservation, $access_key, $api_base_url = 'https://app.divera247.com', &$divera_error = null) {
+function send_reservation_to_divera($reservation, $access_key, $api_base_url = 'https://app.divera247.com', &$divera_error = null, &$divera_event_id = null) {
     $divera_error = null;
+    $divera_event_id = null;
     // Key bereinigen: Trim + unsichtbare Zeichen (z. B. beim Kopieren) entfernen
     $access_key = trim((string) $access_key);
     $access_key = preg_replace('/[\r\n\t\v]+/', '', $access_key);
@@ -1697,6 +1699,45 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         $divera_error = ['code' => $code, 'message' => $msg];
         $rid = (int) ($reservation['id'] ?? 0);
         error_log('Divera Termin fehlgeschlagen. HTTP ' . $code . '. Reservierung-ID: ' . $rid . '. Response: ' . (is_string($raw) ? substr($raw, 0, 500) : '') . ' Message: ' . $msg);
+    } elseif ($success && is_array($data) && isset($data['data']['id'])) {
+        $divera_event_id = (int) $data['data']['id'];
+    }
+    return $success;
+}
+
+/**
+ * Löscht einen Termin in Divera 24/7 (API DELETE /api/v2/events/{id}).
+ * @param int $event_id Divera-Event-ID
+ * @param string $access_key Divera-Accesskey (Einheits- oder Benutzer-Key)
+ * @param string $api_base_url Basis-URL der Divera-API
+ * @return bool true bei HTTP 2xx, false sonst
+ */
+function delete_divera_event($event_id, $access_key, $api_base_url = 'https://app.divera247.com') {
+    $event_id = (int) $event_id;
+    if ($event_id <= 0) {
+        return false;
+    }
+    $access_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string) $access_key));
+    if ($access_key === '') {
+        return false;
+    }
+    $base = rtrim(trim((string) $api_base_url), '/') ?: 'https://app.divera247.com';
+    $url = $base . '/api/v2/events/' . $event_id . '?accesskey=' . urlencode($access_key);
+    $ctx = stream_context_create([
+        'http' => [
+            'method'  => 'DELETE',
+            'header'  => "Content-Type: application/json\r\n",
+            'timeout' => 15,
+        ],
+    ]);
+    $raw = @file_get_contents($url, false, $ctx);
+    $code = 0;
+    if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) {
+        $code = (int) $m[1];
+    }
+    $success = $code >= 200 && $code < 300;
+    if (!$success) {
+        error_log('Divera Event löschen fehlgeschlagen. HTTP ' . $code . '. Event-ID: ' . $event_id);
     }
     return $success;
 }
