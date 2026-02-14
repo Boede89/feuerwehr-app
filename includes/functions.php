@@ -1586,14 +1586,16 @@ function merge_duplicate_members() {
 
 /**
  * Sendet eine genehmigte Reservierung als Termin an Divera 24/7 (API v2/events).
- * Nutzt dasselbe JSON-Format wie das Formular „Termin an Divera 24/7 senden“ (notification_type, title, ts_start, ts_end, address, text).
+ * Nutzt dasselbe JSON-Format und dieselbe Erfolgsprüfung wie das Formular „Termin an Divera 24/7 senden“.
  *
  * @param array $reservation Reservierungs-Datensatz (start_datetime, end_datetime, reason, location, vehicle_name, …)
- * @param string $access_key Divera-Accesskey des Benutzers (aus Profil)
+ * @param string $access_key Divera-Accesskey (aus Profil oder Einheits-Einstellungen)
  * @param string $api_base_url Basis-URL der Divera-API (z. B. https://app.divera247.com)
- * @return bool true bei Erfolg (HTTP 2xx und success im JSON-Body), false sonst
+ * @param array|null $divera_error Ausgabe: bei Fehlschlag ['code' => int, 'message' => string]
+ * @return bool true bei HTTP 2xx (wie im Formular), false sonst
  */
-function send_reservation_to_divera($reservation, $access_key, $api_base_url = 'https://app.divera247.com') {
+function send_reservation_to_divera($reservation, $access_key, $api_base_url = 'https://app.divera247.com', &$divera_error = null) {
+    $divera_error = null;
     $access_key = trim((string) $access_key);
     if ($access_key === '') {
         return false;
@@ -1635,7 +1637,8 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         $code = (int) $m[1];
     }
     $data = is_string($raw) ? json_decode($raw, true) : null;
-    $success = $code >= 200 && $code < 300 && !empty($data['success']);
+    // Erfolgsprüfung wie im Formular: nur HTTP 2xx (Formular prüft nicht auf data.success)
+    $success = $code >= 200 && $code < 300;
     if (!$success) {
         $msg = null;
         if (is_array($data)) {
@@ -1647,8 +1650,12 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
                 $msg = is_array($data['errors']) ? implode(' ', $data['errors']) : (string) $data['errors'];
             }
         }
+        if ($msg === null || $msg === '') {
+            $msg = $code === 403 ? 'Accesskey fehlt oder ist ungültig.' : ('HTTP ' . $code);
+        }
+        $divera_error = ['code' => $code, 'message' => $msg];
         $rid = (int) ($reservation['id'] ?? 0);
-        error_log('Divera Termin fehlgeschlagen. HTTP ' . $code . '. Reservierung-ID: ' . $rid . '. Response: ' . (is_string($raw) ? substr($raw, 0, 500) : '') . ($msg ? ' Message: ' . $msg : ''));
+        error_log('Divera Termin fehlgeschlagen. HTTP ' . $code . '. Reservierung-ID: ' . $rid . '. Response: ' . (is_string($raw) ? substr($raw, 0, 500) : '') . ' Message: ' . $msg);
     }
     return $success;
 }

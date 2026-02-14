@@ -1642,7 +1642,9 @@ if ($can_atemschutz) {
                     if (data.divera_sent) {
                         msg += '\n\nDer Termin wurde an Divera 24/7 übermittelt.';
                     } else if (data.needs_divera_key) {
-                        msg += '\n\nHinweis: Damit der Termin an Divera 24/7 übermittelt wird, bitte in Ihrem Profil einen Divera Access Key hinterlegen (Profil → Divera 24/7 Access Key).';
+                        msg += '\n\nHinweis: Damit der Termin an Divera 24/7 übermittelt wird, bitte in Ihrem Profil oder in den Divera-Einstellungen einen Access Key hinterlegen.';
+                    } else if (data.divera_error) {
+                        msg += '\n\nDivera: ' + (data.divera_error.message || 'HTTP ' + data.divera_error.code);
                     }
                     alert(msg);
                     
@@ -1759,7 +1761,9 @@ if ($can_atemschutz) {
                     if (data.divera_sent) {
                         msg += '\n\nDer Termin wurde an Divera 24/7 übermittelt.';
                     } else if (data.needs_divera_key) {
-                        msg += '\n\nHinweis: Damit der Termin an Divera 24/7 übermittelt wird, bitte in Ihrem Profil einen Divera Access Key hinterlegen (Profil → Divera 24/7 Access Key).';
+                        msg += '\n\nHinweis: Damit der Termin an Divera 24/7 übermittelt wird, bitte in Ihrem Profil oder in den Divera-Einstellungen einen Access Key hinterlegen.';
+                    } else if (data.divera_error) {
+                        msg += '\n\nDivera: ' + (data.divera_error.message || 'HTTP ' + data.divera_error.code);
                     }
                     alert(msg);
                     
