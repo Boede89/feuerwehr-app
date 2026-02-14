@@ -232,13 +232,27 @@ try {
     // ignore
 }
 
-// Aktueller Entwurf (nur für eingeloggten User)
+// Aktueller Entwurf (nur für eingeloggten User, nur wenn Daten vorhanden)
 $aktueller_entwurf = null;
 if (isset($_SESSION['user_id'])) {
     try {
         $stmt = $db->prepare("SELECT * FROM anwesenheitsliste_drafts WHERE user_id = ?");
         $stmt->execute([(int)$_SESSION['user_id']]);
-        $aktueller_entwurf = $stmt->fetch(PDO::FETCH_ASSOC);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row && !empty($row['draft_data'])) {
+            $d = json_decode($row['draft_data'], true);
+            $has_content = !empty($d['members']) || !empty($d['vehicles']) || !empty($d['einsatzleiter_member_id']);
+            $tf = ['uhrzeit_von', 'uhrzeit_bis', 'alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzleiter_freitext', 'bezeichnung_sonstige'];
+            foreach ($tf as $f) {
+                if (!empty(trim((string)($d[$f] ?? '')))) { $has_content = true; break; }
+            }
+            if (!$has_content && !empty($d['custom_data'])) {
+                foreach ($d['custom_data'] as $v) {
+                    if (!empty(trim((string)$v))) { $has_content = true; break; }
+                }
+            }
+            if ($has_content) $aktueller_entwurf = $row;
+        }
     } catch (Exception $e) {
         // ignore
     }

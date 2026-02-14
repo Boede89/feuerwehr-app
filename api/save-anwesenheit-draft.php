@@ -127,6 +127,32 @@ try {
     error_log('anwesenheitsliste_drafts Tabelle: ' . $e->getMessage());
 }
 
+// Leeren Entwurf nicht speichern (keine Daten eingegeben)
+$has_members = !empty($draft['members']);
+$has_vehicles = !empty($draft['vehicles']);
+$text_fields = ['uhrzeit_von', 'uhrzeit_bis', 'alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzleiter_freitext', 'bezeichnung_sonstige'];
+$has_text = false;
+foreach ($text_fields as $f) {
+    if (!empty(trim((string)($draft[$f] ?? '')))) { $has_text = true; break; }
+}
+$has_einsatzleiter = !empty($draft['einsatzleiter_member_id']);
+$has_custom = false;
+if (!empty($draft['custom_data']) && is_array($draft['custom_data'])) {
+    foreach ($draft['custom_data'] as $v) {
+        if (!empty(trim((string)$v))) { $has_custom = true; break; }
+    }
+}
+$draft_has_content = $has_members || $has_vehicles || $has_text || $has_einsatzleiter || $has_custom;
+
+if (!$draft_has_content) {
+    try {
+        $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE user_id = ?");
+        $stmt->execute([$user_id]);
+    } catch (Exception $e) { /* ignore */ }
+    echo json_encode(['success' => true, 'message' => 'Leerer Entwurf nicht gespeichert']);
+    exit;
+}
+
 $draft_data = json_encode($draft);
 $datum = $draft['datum'] ?? date('Y-m-d');
 $auswahl = $draft['auswahl'] ?? '';
