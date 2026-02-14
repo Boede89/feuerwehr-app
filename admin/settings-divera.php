@@ -18,7 +18,7 @@ $error = '';
 $settings = [];
 $divera_debug_payloads = [];
 try {
-    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url', 'divera_debug_payloads')");
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url', 'divera_reservation_group_ids', 'divera_debug_payloads')");
     $stmt->execute();
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $settings[$row['setting_key']] = $row['setting_value'];
@@ -41,14 +41,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $divera_access_key = trim((string) ($settings['divera_access_key'] ?? ''));
             }
             $divera_api_base_url = trim($_POST['divera_api_base_url'] ?? '') ?: 'https://app.divera247.com';
+            $divera_reservation_group_ids = trim((string) ($_POST['divera_reservation_group_ids'] ?? ''));
 
-            foreach (['divera_access_key' => $divera_access_key, 'divera_api_base_url' => $divera_api_base_url] as $k => $v) {
+            foreach (['divera_access_key' => $divera_access_key, 'divera_api_base_url' => $divera_api_base_url, 'divera_reservation_group_ids' => $divera_reservation_group_ids] as $k => $v) {
                 $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
                 $stmt->execute([$k, $v]);
             }
             $message = 'Divera-Einstellungen gespeichert.';
             $settings['divera_access_key'] = $divera_access_key;
             $settings['divera_api_base_url'] = $divera_api_base_url;
+            $settings['divera_reservation_group_ids'] = $divera_reservation_group_ids;
         } catch (Exception $e) {
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
         }
@@ -114,6 +116,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="mb-3">
                             <label class="form-label">API-Basis-URL</label>
                             <input class="form-control" type="url" name="divera_api_base_url" value="<?php echo htmlspecialchars($settings['divera_api_base_url'] ?? 'https://app.divera247.com'); ?>" placeholder="https://app.divera247.com">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Empfänger-Gruppen (Fahrzeugreservierungen)</label>
+                            <input class="form-control" type="text" name="divera_reservation_group_ids" placeholder="z.B. 1, 2, 3" value="<?php echo htmlspecialchars($settings['divera_reservation_group_ids'] ?? ''); ?>">
+                            <div class="form-text">Wenn gesetzt, werden genehmigte Fahrzeugreservierungen an diese Divera-Gruppen gesendet (notification_type 3). Leer = alle des Standortes (notification_type 2). Gruppen-IDs in Divera unter Verwaltung → Gruppen einsehen.</div>
                         </div>
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                         <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>

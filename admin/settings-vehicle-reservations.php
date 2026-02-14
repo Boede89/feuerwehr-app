@@ -61,9 +61,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Fahrzeugspezifische Settings (erweiterbar)
             $veh = [
                 'vehicle_sort_mode' => sanitize_input($_POST['vehicle_sort_mode'] ?? 'manual'),
-                'vehicle_transfer_url' => trim((string)($_POST['vehicle_transfer_url'] ?? '')),
-                'vehicle_transfer_text' => trim((string)($_POST['vehicle_transfer_text'] ?? '')),
-                'divera_reservation_group_ids' => trim((string)($_POST['divera_reservation_group_ids'] ?? '')),
                 'divera_reservation_enabled' => isset($_POST['divera_reservation_enabled']) ? '1' : '0',
                 'google_calendar_reservation_enabled' => isset($_POST['google_calendar_reservation_enabled']) ? '1' : '0',
             ];
@@ -179,33 +176,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
                 <div class="form-text">Beide Optionen können aktiviert sein. Bei Genehmigung werden Termine an die aktivierten Systeme gesendet; beim Löschen werden sie dort entfernt.</div>
-            </div>
-        </div>
-
-        <div class="card mb-4">
-            <div class="card-header"><i class="fas fa-users"></i> Divera 24/7 – Empfänger-Gruppe</div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label">Gruppen-IDs (kommagetrennt)</label>
-                    <input class="form-control" name="divera_reservation_group_ids" placeholder="z.B. 1, 2, 3" value="<?php echo htmlspecialchars($settings['divera_reservation_group_ids'] ?? ''); ?>">
-                    <div class="form-text">Wenn gesetzt, werden genehmigte Reservierungen an diese Divera-Gruppen gesendet (notification_type 3). Leer = alle des Standortes (notification_type 2). Gruppen-IDs in Divera unter Verwaltung → Gruppen einsehen.</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card mb-4">
-            <div class="card-header"><i class="fas fa-right-left"></i> Termine übertragen</div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label">Ziel-URL (Weiterleitung)</label>
-                    <input class="form-control" name="vehicle_transfer_url" placeholder="https://ziel.example.com/import" value="<?php echo htmlspecialchars($settings['vehicle_transfer_url'] ?? ''); ?>">
-                    <div class="form-text">Auf diese URL wird nach dem Kopieren weitergeleitet.</div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Text für Zwischenablage</label>
-                    <textarea class="form-control" rows="4" name="vehicle_transfer_text" placeholder="Hier den Standardtext eintragen..."><?php echo htmlspecialchars($settings['vehicle_transfer_text'] ?? ''); ?></textarea>
-                    <div class="form-text">Dieser Text erscheint im Fenster und kann per Button kopiert werden.</div>
-                </div>
             </div>
         </div>
 
