@@ -2530,7 +2530,14 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         if (canCourses) {
                             const memberIdInput = document.getElementById('memberId');
                             const memberId = memberIdInput && memberIdInput.value ? memberIdInput.value : null;
-                            loadCoursesForAddMember(memberId);
+                            // Aktuelle Formular-Auswahl mitgeben, damit sie nach "Übernehmen" beim erneuten Öffnen erhalten bleibt
+                            const formSelection = [];
+                            document.querySelectorAll('.add-member-course-input').forEach(function(input) {
+                                const cid = input.dataset.courseId || input.id.replace('add_course_', '');
+                                const yearInput = document.getElementById('add_course_year_' + cid);
+                                if (cid) formSelection.push({ id: cid, year: yearInput ? yearInput.value.trim() : '' });
+                            });
+                            loadCoursesForAddMember(memberId, formSelection);
                         }
                     }
                 });
@@ -3026,9 +3033,12 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 });
         }
         
-        function loadCoursesForAddMember(memberId = null) {
+        function loadCoursesForAddMember(memberId = null, formSelection = []) {
             const container = document.getElementById('addMemberCoursesContainer');
             if (!container) return;
+            
+            // Alte Hidden-Inputs entfernen (werden neu gesetzt), damit keine Duplikate entstehen
+            document.querySelectorAll('.add-member-course-input').forEach(function(input) { input.remove(); });
             
             // Event-Delegation für Lehrgangs-Buttons (einmalig), damit Klicks zuverlässig die Markierung aktualisieren
             if (!container.dataset.delegationAdded) {
@@ -3073,6 +3083,11 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         if (data.success && data.courses) {
                             currentCourses = data.courses;
                         }
+                        // Formular-Auswahl mit Server-Daten zusammenführen (Formular hat Vorrang für noch nicht gespeicherte Änderungen)
+                        const merged = {};
+                        currentCourses.forEach(function(c) { merged[c.id] = { id: c.id, year: c.year || '' }; });
+                        formSelection.forEach(function(f) { merged[f.id] = { id: f.id, year: f.year || '' }; });
+                        currentCourses = Object.values(merged);
                         loadCoursesAndPreselect(currentCourses);
                     })
                     .catch(error => {
@@ -3080,7 +3095,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         loadCoursesAndPreselect([]);
                     });
             } else {
-                loadCoursesAndPreselect([]);
+                loadCoursesAndPreselect(formSelection.length > 0 ? formSelection.map(function(f) { return { id: f.id, year: f.year }; }) : []);
             }
         }
         
