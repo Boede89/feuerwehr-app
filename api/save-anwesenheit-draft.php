@@ -112,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
         }
     }
     }
+    $_SESSION[$draft_key] = $draft;
 }
 $user_id = (int)$_SESSION['user_id'];
 
