@@ -173,16 +173,18 @@ try {
             }
         }
         
-        // E-Mail an Antragsteller senden
-        $subject = "✅ Reservierung genehmigt - " . $reservation['requester_name'];
-        $message = createApprovalEmailHTML($reservation);
-        
-        send_email($reservation['requester_email'], $subject, $message, '', true);
-        
-        // Aktivitätslog
-        log_activity($_SESSION['user_id'], 'reservation_approved', "Reservierung #$reservation_id genehmigt");
-        
         $db->commit();
+        
+        // E-Mail und Log nach Commit (Fehler hier dürfen Erfolg nicht verhindern)
+        try {
+            $subject = "✅ Reservierung genehmigt - " . $reservation['requester_name'];
+            $message = createApprovalEmailHTML($reservation);
+            send_email($reservation['requester_email'], $subject, $message, '', true);
+            log_activity($_SESSION['user_id'], 'reservation_approved', "Reservierung #$reservation_id genehmigt");
+        } catch (Throwable $e) {
+            error_log("E-Mail/Log nach Genehmigung fehlgeschlagen (Reservierung trotzdem genehmigt): " . $e->getMessage());
+        }
+        
         $out = [
             'success'          => true,
             'message'          => 'Reservierung wurde genehmigt',
@@ -398,15 +400,17 @@ try {
             }
         }
         
-        // E-Mail an Antragsteller senden
-        $subject = "✅ Reservierung genehmigt - " . $reservation['requester_name'];
-        $message = createApprovalEmailHTML($reservation);
-        send_email($reservation['requester_email'], $subject, $message, '', true);
-        
-        // Aktivitätslog
-        log_activity($_SESSION['user_id'], 'reservation_approved', "Reservierung #$reservation_id genehmigt mit Konfliktlösung");
-        
         $db->commit();
+        
+        try {
+            $subject = "✅ Reservierung genehmigt - " . $reservation['requester_name'];
+            $message = createApprovalEmailHTML($reservation);
+            send_email($reservation['requester_email'], $subject, $message, '', true);
+            log_activity($_SESSION['user_id'], 'reservation_approved', "Reservierung #$reservation_id genehmigt mit Konfliktlösung");
+        } catch (Throwable $e) {
+            error_log("E-Mail/Log nach Genehmigung (Konfliktlösung) fehlgeschlagen: " . $e->getMessage());
+        }
+        
         $out = [
             'success'          => true,
             'message'          => 'Reservierung wurde genehmigt und Konflikte gelöst',

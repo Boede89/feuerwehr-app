@@ -21,7 +21,8 @@ if (!$input || !isset($input['section_name']) || !isset($input['is_collapsed']))
 }
 
 $section_name = sanitize_input($input['section_name']);
-$is_collapsed = (bool)$input['is_collapsed'];
+$is_collapsed = filter_var($input['is_collapsed'] ?? false, FILTER_VALIDATE_BOOLEAN);
+$is_collapsed_int = $is_collapsed ? 1 : 0;
 $user_id = $_SESSION['user_id'];
 
 try {
@@ -51,7 +52,7 @@ try {
         updated_at = CURRENT_TIMESTAMP
     ");
     
-    $stmt->execute([$user_id, $section_name, $is_collapsed]);
+    $stmt->execute([$user_id, $section_name, $is_collapsed_int]);
     
     // Debug: Erfolg loggen
     error_log("Dashboard-Einstellung erfolgreich gespeichert für User $user_id, Section $section_name");
