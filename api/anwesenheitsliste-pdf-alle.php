@@ -167,12 +167,12 @@ foreach ($listen as $idx => $liste) {
     }
     $part .= '</table></div>';
 
-    $part .= '<div class="section two-cols"><div class="col"><div class="section-title">Personal</div><table><thead><tr><th>Name</th><th>Fahrzeug</th></tr></thead><tbody>';
+    $part .= '<div class="section"><table class="two-cols-table" width="100%"><tr><td width="50%"><div class="section-title">Personal</div><table><thead><tr><th>Name</th><th class="col-fahrzeug">Fzg</th></tr></thead><tbody>';
     foreach ($liste_members as $lm) {
-        $part .= '<tr><td>' . htmlspecialchars(trim($lm['last_name'] . ', ' . $lm['first_name'])) . '</td><td>' . htmlspecialchars($lm['vehicle_name'] ?? '-') . '</td></tr>';
+        $part .= '<tr><td>' . htmlspecialchars(trim($lm['last_name'] . ', ' . $lm['first_name'])) . '</td><td class="col-fahrzeug">' . htmlspecialchars($lm['vehicle_name'] ?? '-') . '</td></tr>';
     }
     if (empty($liste_members)) $part .= '<tr><td colspan="2">Keine Einträge</td></tr>';
-    $part .= '</tbody></table></div><div class="col"><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
+    $part .= '</tbody></table></td><td width="50%"><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
     foreach ($vehicle_ids as $vid) {
         if ($vid <= 0) continue;
         $vname = '';
@@ -187,7 +187,7 @@ foreach ($listen as $idx => $liste) {
         $part .= '<tr><td>' . htmlspecialchars($vname) . '</td><td>' . htmlspecialchars(trim($roles['maschinist']) ?: '-') . '</td><td>' . htmlspecialchars(trim($roles['einheitsfuehrer']) ?: '-') . '</td><td class="col-staerke">' . htmlspecialchars($besatzungsstaerke) . '</td></tr>';
     }
     if (empty($vehicle_ids) || (count($vehicle_ids) === 1 && in_array(0, $vehicle_ids))) $part .= '<tr><td colspan="4">Keine Fahrzeuge zugeordnet</td></tr>';
-    $part .= '</tbody></table></div></div>';
+    $part .= '</tbody></table></td></tr></table></div>';
 
     $part .= '<div class="bottom-row"><div class="einsatzleiter-cell"><strong>Einsatzleiter:</strong> ' . htmlspecialchars($einsatzleiter_name ?: '-') . '</div><div class="signature-cell"><div class="signature-line"></div><div class="signature-label">Unterschrift Einsatzleiter</div></div></div></div>';
     $html_parts[] = $part;
@@ -197,13 +197,14 @@ $html = '<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Anwes
 @page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:9pt;line-height:1.25;color:#333;margin:0;padding:10px}
 .header{text-align:center;border-bottom:2px solid #0d6efd;padding-bottom:8px;margin-bottom:10px}.header h1{margin:0 0 2px 0;font-size:14pt;color:#0d6efd}.header .sub{color:#666;font-size:8pt}
 .section{margin-bottom:10px}.section-title{font-weight:bold;font-size:10pt;margin-bottom:4px;padding-bottom:2px;border-bottom:1px solid #dee2e6}
-.two-cols{display:flex;gap:16px;margin-bottom:10px}.two-cols .col{flex:1;min-width:0;width:50%}
-table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:8pt}th,td{border:1px solid #dee2e6;padding:4px 6px;text-align:left}th{background:#f8f9fa;font-weight:bold}
+.two-cols-table{width:100%;border-collapse:collapse;margin-bottom:10px}.two-cols-table td{width:50%;vertical-align:top;padding:0 8px 0 0}.two-cols-table td:last-child{padding:0 0 0 8px}
+.col-fahrzeug{width:45px;max-width:45px}
+table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:8pt;table-layout:fixed}th,td{border:1px solid #dee2e6;padding:4px 6px;text-align:left}th{background:#f8f9fa;font-weight:bold}
 .label-cell{width:100px;background:#f8f9fa;font-weight:bold}.stamm-inline .label-cell{width:90px}
 .col-staerke{width:32px;max-width:32px}
 .bottom-row{display:flex;gap:24px;align-items:flex-end;margin-top:20px;padding-top:12px;border-top:1px solid #333}.bottom-row .einsatzleiter-cell{flex:1}.bottom-row .signature-cell{flex-shrink:0;padding-top:24px}
 .signature-line{border-bottom:1px solid #333;width:160px;height:22px}.signature-label{font-size:8pt;color:#666;margin-top:2px}
-@media print{body{padding:0}.report-page{page-break-after:always}.report-page:last-child{page-break-after:auto}.section,.two-cols{page-break-inside:avoid}}
+@media print{body{padding:0}.report-page{page-break-after:always}.report-page:last-child{page-break-after:auto}.section,.two-cols-table{page-break-inside:avoid}}
 </style></head><body>' . implode('', $html_parts) . '</body></html>';
 
 $filename = 'Anwesenheitslisten_alle_' . date('Y-m-d') . '.pdf';

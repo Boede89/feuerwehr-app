@@ -148,9 +148,11 @@ $html = '<!DOCTYPE html>
         .header .sub { color: #666; font-size: 8pt; }
         .section { margin-bottom: 10px; }
         .section-title { font-weight: bold; font-size: 10pt; margin-bottom: 4px; padding-bottom: 2px; border-bottom: 1px solid #dee2e6; }
-        .two-cols { display: flex; gap: 16px; margin-bottom: 10px; }
-        .two-cols .col { flex: 1; min-width: 0; width: 50%; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 8pt; }
+        .two-cols-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        .two-cols-table td { width: 50%; vertical-align: top; padding: 0 8px 0 0; }
+        .two-cols-table td:last-child { padding: 0 0 0 8px; }
+        .col-fahrzeug { width: 45px; max-width: 45px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 8pt; table-layout: fixed; }
         th, td { border: 1px solid #dee2e6; padding: 4px 6px; text-align: left; }
         th { background: #f8f9fa; font-weight: bold; }
         .label-cell { width: 100px; background: #f8f9fa; font-weight: bold; }
@@ -161,7 +163,7 @@ $html = '<!DOCTYPE html>
         .bottom-row .signature-cell { flex-shrink: 0; padding-top: 24px; }
         .signature-line { border-bottom: 1px solid #333; width: 160px; height: 22px; }
         .signature-label { font-size: 8pt; color: #666; margin-top: 2px; }
-        @media print { body { padding: 0; } .section, .two-cols { page-break-inside: avoid; } }
+        @media print { body { padding: 0; } .section, .two-cols-table { page-break-inside: avoid; } }
     </style>
 </head>
 <body>
@@ -199,14 +201,14 @@ foreach ($anwesenheitsliste_felder as $f) {
 }
 $html .= '</table></div>';
 
-$html .= '<div class="section two-cols"><div class="col"><div class="section-title">Personal</div><table><thead><tr><th>Name</th><th>Fahrzeug</th></tr></thead><tbody>';
+$html .= '<div class="section"><table class="two-cols-table" width="100%"><tr><td width="50%"><div class="section-title">Personal</div><table><thead><tr><th>Name</th><th class="col-fahrzeug">Fzg</th></tr></thead><tbody>';
 foreach ($liste_members as $lm) {
     $name = trim($lm['last_name'] . ', ' . $lm['first_name']);
     $vehicle = $lm['vehicle_name'] ?? '-';
-    $html .= '<tr><td>' . htmlspecialchars($name) . '</td><td>' . htmlspecialchars($vehicle) . '</td></tr>';
+    $html .= '<tr><td>' . htmlspecialchars($name) . '</td><td class="col-fahrzeug">' . htmlspecialchars($vehicle) . '</td></tr>';
 }
 if (empty($liste_members)) $html .= '<tr><td colspan="2">Keine Einträge</td></tr>';
-$html .= '</tbody></table></div><div class="col"><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
+$html .= '</tbody></table></td><td width="50%"><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
 foreach ($vehicle_ids as $vid) {
     if ($vid <= 0) continue;
     $vname = '';
@@ -223,7 +225,7 @@ foreach ($vehicle_ids as $vid) {
 if (empty($vehicle_ids) || (count($vehicle_ids) === 1 && in_array(0, $vehicle_ids))) {
     $html .= '<tr><td colspan="4">Keine Fahrzeuge zugeordnet</td></tr>';
 }
-$html .= '</tbody></table></div></div>';
+$html .= '</tbody></table></td></tr></table></div>';
 
 $html .= '
     <div class="bottom-row">
