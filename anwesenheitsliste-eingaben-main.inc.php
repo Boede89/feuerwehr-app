@@ -511,7 +511,7 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                             </div>
                             <?php endif; ?>
                             <?php
-                            $is_uebungsdienst = ($is_einsatz && ($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst') || (!$is_einsatz && isset($dienst) && ($dienst['typ'] ?? '') === 'uebungsdienst');
+                            $is_uebungsdienst = ($is_einsatz && in_array($draft['bezeichnung_sonstige'] ?? '', ['Übungsdienst', 'Jahreshauptversammlung'])) || (!$is_einsatz && isset($dienst) && in_array($dienst['typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung']));
                             $uebungsdienst_hide_ids = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
                             ?>
                             <p class="form-label mb-2">Personal und Fahrzeuge erfassen:</p>
@@ -565,7 +565,7 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                 $feld_uebungsdienst_hide = in_array($id, $uebungsdienst_hide_ids);
                                 $feld_einsatzleiter = ($type === 'einsatzleiter');
                                 $div_style = '';
-                                if ($is_einsatz && $feld_uebungsdienst_hide) $div_style = 'display:none';
+                                if ($is_einsatz && $feld_uebungsdienst_hide && $is_uebungsdienst) $div_style = 'display:none';
                                 if ($is_einsatz && $feld_einsatzleiter) $div_style = $is_uebungsdienst ? 'display:none' : '';
                             ?>
                             <div class="mb-3<?php echo $type === 'textarea' ? ' mb-4' : ''; ?> feld-uebungsdienst-toggle" data-feld="<?php echo htmlspecialchars($id); ?>" data-hide-uebungsdienst="<?php echo $feld_uebungsdienst_hide ? '1' : '0'; ?>" data-einsatzleiter="<?php echo $feld_einsatzleiter ? '1' : '0'; ?>"<?php echo $div_style !== '' ? ' style="' . $div_style . '"' : ''; ?>>
@@ -686,8 +686,8 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
         var v=this.value;
         document.getElementById('typ_sonstige_freitext_wrap').style.display=v==='__custom__'?'block':'none';
         document.getElementById('einsatzstichwort_wrap').style.display=v==='einsatz'?'block':'none';
-        document.getElementById('thema_wrap').style.display=v==='uebungsdienst'?'block':'none';
-        var isUeb= v==='uebungsdienst';
+        document.getElementById('thema_wrap').style.display=(v==='uebungsdienst')?'block':'none';
+        var isUeb= v==='uebungsdienst'||v==='jahreshauptversammlung';
         document.querySelectorAll('.feld-uebungsdienst-toggle[data-hide-uebungsdienst="1"]').forEach(function(el){el.style.display=isUeb?'none':'block';});
         var elWrap=document.getElementById('einsatzleiter_wrap');
         var uebWrap=document.getElementById('uebungsleiter_wrap');
