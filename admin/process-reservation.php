@@ -427,7 +427,7 @@ try {
     }
     
 } catch (Throwable $e) {
-    if (isset($db)) {
+    if (isset($db) && $db->inTransaction()) {
         try { $db->rollBack(); } catch (Throwable $rb) {}
     }
     error_log("Process Reservation Error: " . $e->getMessage());
