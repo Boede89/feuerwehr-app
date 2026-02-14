@@ -236,19 +236,11 @@ if (isset($_POST['test_email_btn'])) {
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title"><i class="fas fa-file-alt"></i> Formularcenter</h5>
-                        <p class="text-muted">Formulare verwalten und Dienstplan-Einstellungen.</p>
+                        <p class="text-muted">Formulare, Dienstplan und Anwesenheitsliste konfigurieren.</p>
                         <div class="mt-auto">
-                            <div class="d-flex gap-2 flex-wrap">
-                                <a class="btn btn-primary" href="settings-forms.php">
-                                    <i class="fas fa-file-alt"></i> Formulare
-                                </a>
-                                <a class="btn btn-outline-primary" href="settings-dienstplan.php">
-                                    <i class="fas fa-calendar-alt"></i> Dienstplan
-                                </a>
-                                <a class="btn btn-outline-primary" href="settings-anwesenheitsliste.php">
-                                    <i class="fas fa-clipboard-list"></i> Anwesenheitsliste
-                                </a>
-                            </div>
+                            <a class="btn btn-primary" href="settings-formularcenter.php">
+                                <i class="fas fa-sliders"></i> Öffnen
+                            </a>
                         </div>
                     </div>
                 </div>

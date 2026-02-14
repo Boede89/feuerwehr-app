@@ -201,7 +201,13 @@ function opt($arr) {
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h3 mb-0"><i class="fas fa-clipboard-list"></i> Anwesenheitsliste – Felder verwalten</h1>
-        <a href="settings.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
+        <?php
+        $return_formularcenter = isset($_GET['return']) && $_GET['return'] === 'formularcenter';
+        $back_url = $return_formularcenter ? 'settings-formularcenter.php?tab=anwesenheitsliste' : 'settings.php';
+        $back_label = $return_formularcenter ? 'Zurück zu Formularcenter' : 'Zurück';
+        $back_target = $return_formularcenter ? ' target="_parent"' : '';
+        ?>
+        <a href="<?php echo htmlspecialchars($back_url); ?>" class="btn btn-outline-secondary"<?php echo $back_target; ?>><i class="fas fa-arrow-left"></i> <?php echo htmlspecialchars($back_label); ?></a>
     </div>
     <?php if ($message) echo show_success($message); ?>
     <?php if ($error) echo show_error($error); ?>

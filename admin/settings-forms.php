@@ -342,8 +342,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="row mt-4">
                 <div class="col-12">
                     <div class="d-flex justify-content-between">
-                        <a href="settings.php" class="btn btn-outline-secondary">
-                            <i class="fas fa-arrow-left"></i> Zurück zu Einstellungen
+                        <?php
+                        $return_formularcenter = isset($_GET['return']) && $_GET['return'] === 'formularcenter';
+                        $back_url = $return_formularcenter ? 'settings-formularcenter.php?tab=forms' : 'settings.php';
+                        $back_label = $return_formularcenter ? 'Zurück zu Formularcenter' : 'Zurück zu Einstellungen';
+                        $back_target = $return_formularcenter ? ' target="_parent"' : '';
+                        ?>
+                        <a href="<?php echo htmlspecialchars($back_url); ?>" class="btn btn-outline-secondary"<?php echo $back_target; ?>>
+                            <i class="fas fa-arrow-left"></i> <?php echo htmlspecialchars($back_label); ?>
                         </a>
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save"></i> Einstellungen speichern

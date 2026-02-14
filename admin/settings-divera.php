@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/divera.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -17,6 +18,7 @@ $error = '';
 
 $settings = [];
 $divera_debug_payloads = [];
+$divera_api_debug = null;
 $divera_reservation_groups = [];
 $legacy_ids_raw = '';
 try {
@@ -44,6 +46,46 @@ try {
     }
 } catch (Exception $e) {
     $error = 'Fehler beim Laden: ' . $e->getMessage();
+}
+
+// Divera API Debug (Alarms + Events live test)
+$divera_key = trim((string) ($settings['divera_access_key'] ?? $divera_config['access_key'] ?? ''));
+if ($divera_key === '' && isset($_SESSION['user_id'])) {
+    try {
+        $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $divera_key = trim((string) ($row['divera_access_key'] ?? ''));
+    } catch (Exception $e) { /* ignore */ }
+}
+$api_base = rtrim(trim((string) ($settings['divera_api_base_url'] ?? $divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+$divera_api_debug = [
+    'has_key' => $divera_key !== '',
+    'api_base' => $api_base,
+    'alarms' => null,
+    'events' => null,
+];
+if ($divera_key !== '') {
+    $ctx = stream_context_create(['http' => ['timeout' => 15]]);
+    $url_alarms_list = $api_base . '/api/v2/alarms/list?accesskey=' . urlencode($divera_key) . '&closed=0';
+    $raw_alarms = @file_get_contents($url_alarms_list, false, $ctx);
+    $url_alarms_direct = $api_base . '/api/v2/alarms?accesskey=' . urlencode($divera_key);
+    $raw_alarms_direct = @file_get_contents($url_alarms_direct, false, $ctx);
+    $divera_api_debug['alarms'] = [
+        'url' => $api_base . '/api/v2/alarms/list?accesskey=***&closed=0',
+        'url_direct' => $api_base . '/api/v2/alarms?accesskey=***',
+        'raw' => $raw_alarms,
+        'raw_direct' => $raw_alarms_direct,
+        'parsed' => is_string($raw_alarms) ? json_decode($raw_alarms, true) : null,
+        'parsed_direct' => is_string($raw_alarms_direct) ? json_decode($raw_alarms_direct, true) : null,
+    ];
+    $url_events = $api_base . '/api/v2/events?accesskey=' . urlencode($divera_key);
+    $raw_events = @file_get_contents($url_events, false, $ctx);
+    $divera_api_debug['events'] = [
+        'url' => $api_base . '/api/v2/events?accesskey=***',
+        'raw' => $raw_events,
+        'parsed' => is_string($raw_events) ? json_decode($raw_events, true) : null,
+    ];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -125,7 +167,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <button class="nav-link active" id="verbindung-tab" data-bs-toggle="tab" data-bs-target="#verbindung" type="button">Verbindung</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="debug-tab" data-bs-toggle="tab" data-bs-target="#debug" type="button">Debug</button>
+            <button class="nav-link" id="api-debug-tab" data-bs-toggle="tab" data-bs-target="#api-debug" type="button">API Debug</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="debug-tab" data-bs-toggle="tab" data-bs-target="#debug" type="button">Letzte API-Anfragen</button>
         </li>
     </ul>
 
@@ -168,6 +213,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+        </div>
+        <div class="tab-pane fade" id="api-debug" role="tabpanel">
+            <div class="card">
+                <div class="card-header"><i class="fas fa-bug"></i> Divera API Debug</div>
+                <div class="card-body">
+                    <?php if (!$divera_api_debug['has_key']): ?>
+                        <div class="alert alert-warning">
+                            <strong>Kein Divera Access Key konfiguriert.</strong> Bitte im Tab „Verbindung“ oder im <a href="profile.php">Profil</a> einen Divera Access Key hinterlegen.
+                        </div>
+                    <?php else: ?>
+                        <p class="text-muted small mb-3">API-Basis: <code><?php echo htmlspecialchars($divera_api_debug['api_base']); ?></code></p>
+
+                        <h6 class="mt-4">1. Alarms API (aktive Einsätze für Anwesenheitsliste)</h6>
+                        <p class="small text-muted">Anfrage-URL (list):</p>
+                        <pre class="bg-light p-2 rounded small overflow-auto"><?php echo htmlspecialchars($divera_api_debug['alarms']['url']); ?></pre>
+                        <p class="small text-muted">Alternative URL (alarms):</p>
+                        <pre class="bg-light p-2 rounded small overflow-auto"><?php echo htmlspecialchars($divera_api_debug['alarms']['url_direct']); ?></pre>
+                        <p class="small text-muted mt-2">Antwort list (<?php echo $divera_api_debug['alarms']['raw'] === false ? 'Fehler – keine Antwort' : strlen($divera_api_debug['alarms']['raw']) . ' Zeichen'; ?>):</p>
+                        <pre class="bg-dark text-light p-2 rounded small overflow-auto" style="max-height: 300px;"><?php
+                        if ($divera_api_debug['alarms']['raw'] === false) {
+                            echo 'Fehler: Konnte keine Verbindung herstellen.';
+                        } else {
+                            $pretty = json_encode(json_decode($divera_api_debug['alarms']['raw']), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                            echo htmlspecialchars($pretty ?: $divera_api_debug['alarms']['raw']);
+                        }
+                        ?></pre>
+                        <?php if ($divera_api_debug['alarms']['raw_direct'] !== false): ?>
+                        <p class="small text-muted mt-2">Antwort alarms (<?php echo strlen($divera_api_debug['alarms']['raw_direct']); ?> Zeichen):</p>
+                        <pre class="bg-dark text-light p-2 rounded small overflow-auto" style="max-height: 200px;"><?php
+                        $pretty_d = json_encode(json_decode($divera_api_debug['alarms']['raw_direct']), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                        echo htmlspecialchars($pretty_d ?: $divera_api_debug['alarms']['raw_direct']);
+                        ?></pre>
+                        <?php endif; ?>
+                        <?php
+                        $alarms_ok = is_array($divera_api_debug['alarms']['parsed']) && !empty($divera_api_debug['alarms']['parsed']['success']);
+                        $alarms_direct_ok = is_array($divera_api_debug['alarms']['parsed_direct'] ?? null) && !empty($divera_api_debug['alarms']['parsed_direct']['success']);
+                        if ($alarms_ok || $alarms_direct_ok):
+                            $use_parsed = $alarms_ok ? $divera_api_debug['alarms']['parsed'] : $divera_api_debug['alarms']['parsed_direct'];
+                            $alarm_data = $use_parsed['data'] ?? [];
+                            $count = is_array($alarm_data) ? count($alarm_data) : 0;
+                        ?>
+                            <p class="mt-2">
+                                <span class="badge bg-success">Erfolgreich</span>
+                                <span class="text-muted"><?php echo $count; ?> offene Alarmierung(en)</span>
+                                <?php if ($alarms_ok && !$alarms_direct_ok): ?><span class="text-muted small">(list)</span><?php endif; ?>
+                                <?php if ($alarms_direct_ok && !$alarms_ok): ?><span class="text-muted small">(alarms)</span><?php endif; ?>
+                            </p>
+                        <?php else: ?>
+                            <p class="mt-2">
+                                <?php
+                                $p = $divera_api_debug['alarms']['parsed'] ?? $divera_api_debug['alarms']['parsed_direct'] ?? [];
+                                $err_msg = is_array($p) ? ($p['message'] ?? $p['error'] ?? $p['msg'] ?? '') : '';
+                                if ($err_msg === '') {
+                                    $err_msg = ($divera_api_debug['alarms']['raw'] === false && ($divera_api_debug['alarms']['raw_direct'] ?? true) === false)
+                                        ? 'Keine Verbindung zu Divera möglich.'
+                                        : 'API gab success: false zurück. Mögliche Ursachen: ungültiger Access Key, Alarms-API nicht in der Divera-Lizenz enthalten (kostenpflichtiges Modul), oder fehlende Berechtigung.';
+                                }
+                                ?>
+                                <span class="badge bg-danger">Fehler</span>
+                                <span class="text-danger"><?php echo htmlspecialchars($err_msg); ?></span>
+                            </p>
+                        <?php endif; ?>
+
+                        <h6 class="mt-4">2. Events API (Termine für Dienstplan-Import)</h6>
+                        <p class="small text-muted">Anfrage-URL:</p>
+                        <pre class="bg-light p-2 rounded small overflow-auto"><?php echo htmlspecialchars($divera_api_debug['events']['url']); ?></pre>
+                        <p class="small text-muted mt-2">Antwort (<?php echo $divera_api_debug['events']['raw'] === false ? 'Fehler – keine Antwort' : strlen($divera_api_debug['events']['raw']) . ' Zeichen'; ?>):</p>
+                        <pre class="bg-dark text-light p-2 rounded small overflow-auto" style="max-height: 300px;"><?php
+                        if ($divera_api_debug['events']['raw'] === false) {
+                            echo 'Fehler: Konnte keine Verbindung herstellen.';
+                        } else {
+                            $pretty = json_encode(json_decode($divera_api_debug['events']['raw']), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                            echo htmlspecialchars($pretty ?: $divera_api_debug['events']['raw']);
+                        }
+                        ?></pre>
+                        <?php if (is_array($divera_api_debug['events']['parsed']) && isset($divera_api_debug['events']['parsed']['success'])): ?>
+                            <p class="mt-2">
+                                <?php if ($divera_api_debug['events']['parsed']['success']): ?>
+                                    <span class="badge bg-success">Erfolgreich</span>
+                                    <?php
+                                    $ev_data = $divera_api_debug['events']['parsed']['data'] ?? [];
+                                    $items = $ev_data['items'] ?? $ev_data;
+                                    $ev_count = is_array($items) ? count($items) : 0;
+                                    ?>
+                                    <span class="text-muted"><?php echo $ev_count; ?> Termin(e)</span>
+                                <?php else:
+                                    $err_msg = $divera_api_debug['events']['parsed']['message'] ?? $divera_api_debug['events']['parsed']['error'] ?? $divera_api_debug['events']['parsed']['msg'] ?? '';
+                                    if ($err_msg === '') {
+                                        $err_msg = 'API gab success: false zurück. Mögliche Ursachen: ungültiger Access Key oder fehlende Berechtigung.';
+                                    }
+                                ?>
+                                    <span class="badge bg-danger">Fehler</span>
+                                    <span class="text-danger"><?php echo htmlspecialchars($err_msg); ?></span>
+                                <?php endif; ?>
+                            </p>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
         <div class="tab-pane fade" id="debug" role="tabpanel">
             <div class="card">
