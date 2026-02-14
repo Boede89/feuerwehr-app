@@ -63,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'vehicle_sort_mode' => sanitize_input($_POST['vehicle_sort_mode'] ?? 'manual'),
                 'divera_reservation_enabled' => isset($_POST['divera_reservation_enabled']) ? '1' : '0',
                 'google_calendar_reservation_enabled' => isset($_POST['google_calendar_reservation_enabled']) ? '1' : '0',
+                'divera_reservation_default_group_id' => trim((string)($_POST['divera_reservation_default_group_id'] ?? '')),
             ];
 
             // Persistieren: Upsert je Einstellung
@@ -176,6 +177,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
                 <div class="form-text">Beide Optionen können aktiviert sein. Bei Genehmigung werden Termine an die aktivierten Systeme gesendet; beim Löschen werden sie dort entfernt.</div>
+                <?php
+                $divera_groups = [];
+                if (!empty($settings['divera_reservation_groups'])) {
+                    $dec = json_decode($settings['divera_reservation_groups'], true);
+                    $divera_groups = is_array($dec) ? $dec : [];
+                }
+                $default_group_id = trim((string)($settings['divera_reservation_default_group_id'] ?? ''));
+                if (!empty($divera_groups)): ?>
+                <div class="mb-3 mt-3">
+                    <label class="form-label">Standard-Empfänger-Gruppe (Divera)</label>
+                    <select class="form-select" name="divera_reservation_default_group_id">
+                        <option value="">– Keine (alle des Standortes) –</option>
+                        <?php foreach ($divera_groups as $g): if ((int)($g['id'] ?? 0) <= 0) continue; ?>
+                        <option value="<?php echo (int)$g['id']; ?>" <?php echo $default_group_id === (string)(int)$g['id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($g['name'] ?? 'Gruppe ' . $g['id']); ?> (ID: <?php echo (int)$g['id']; ?>)
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text">Diese Gruppe wird beim Genehmigen standardmäßig ausgewählt. Kann beim Genehmigen geändert werden.</div>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
 

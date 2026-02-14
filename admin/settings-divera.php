@@ -17,14 +17,29 @@ $error = '';
 
 $settings = [];
 $divera_debug_payloads = [];
+$divera_reservation_groups = [];
+$legacy_ids_raw = '';
 try {
-    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url', 'divera_reservation_group_ids', 'divera_debug_payloads')");
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url', 'divera_reservation_groups', 'divera_reservation_group_ids', 'divera_debug_payloads')");
     $stmt->execute();
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $settings[$row['setting_key']] = $row['setting_value'];
         if ($row['setting_key'] === 'divera_debug_payloads' && $row['setting_value'] !== '') {
             $dec = json_decode($row['setting_value'], true);
             $divera_debug_payloads = is_array($dec) ? $dec : [];
+        }
+        if ($row['setting_key'] === 'divera_reservation_groups' && $row['setting_value'] !== '') {
+            $dec = json_decode($row['setting_value'], true);
+            $divera_reservation_groups = is_array($dec) ? $dec : [];
+        }
+        if ($row['setting_key'] === 'divera_reservation_group_ids') {
+            $legacy_ids_raw = trim((string)$row['setting_value']);
+        }
+    }
+    if (empty($divera_reservation_groups) && !empty($legacy_ids_raw)) {
+        $ids = array_filter(array_map('intval', preg_split('/[\s,;]+/', $legacy_ids_raw)));
+        foreach ($ids as $id) {
+            if ($id > 0) $divera_reservation_groups[] = ['id' => $id, 'name' => 'Gruppe ' . $id];
         }
     }
 } catch (Exception $e) {
@@ -41,16 +56,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $divera_access_key = trim((string) ($settings['divera_access_key'] ?? ''));
             }
             $divera_api_base_url = trim($_POST['divera_api_base_url'] ?? '') ?: 'https://app.divera247.com';
-            $divera_reservation_group_ids = trim((string) ($_POST['divera_reservation_group_ids'] ?? ''));
 
-            foreach (['divera_access_key' => $divera_access_key, 'divera_api_base_url' => $divera_api_base_url, 'divera_reservation_group_ids' => $divera_reservation_group_ids] as $k => $v) {
+            // Empfänger-Gruppen: ID + Name pro Zeile
+            $group_ids = $_POST['divera_group_id'] ?? [];
+            $group_names = $_POST['divera_group_name'] ?? [];
+            $groups = [];
+            foreach ($group_ids as $i => $gid) {
+                $gid = (int) trim($gid);
+                $gname = trim((string) ($group_names[$i] ?? ''));
+                if ($gid > 0) {
+                    $groups[] = ['id' => $gid, 'name' => $gname !== '' ? $gname : 'Gruppe ' . $gid];
+                }
+            }
+            $divera_reservation_groups_json = json_encode($groups);
+
+            foreach (['divera_access_key' => $divera_access_key, 'divera_api_base_url' => $divera_api_base_url, 'divera_reservation_groups' => $divera_reservation_groups_json] as $k => $v) {
                 $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
                 $stmt->execute([$k, $v]);
             }
             $message = 'Divera-Einstellungen gespeichert.';
             $settings['divera_access_key'] = $divera_access_key;
             $settings['divera_api_base_url'] = $divera_api_base_url;
-            $settings['divera_reservation_group_ids'] = $divera_reservation_group_ids;
+            $divera_reservation_groups = $groups;
         } catch (Exception $e) {
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
         }
@@ -119,8 +146,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Empfänger-Gruppen (Fahrzeugreservierungen)</label>
-                            <input class="form-control" type="text" name="divera_reservation_group_ids" placeholder="z.B. 1, 2, 3" value="<?php echo htmlspecialchars($settings['divera_reservation_group_ids'] ?? ''); ?>">
-                            <div class="form-text">Wenn gesetzt, werden genehmigte Fahrzeugreservierungen an diese Divera-Gruppen gesendet (notification_type 3). Leer = alle des Standortes (notification_type 2). Gruppen-IDs in Divera unter Verwaltung → Gruppen einsehen.</div>
+                            <p class="text-muted small">Definieren Sie Divera-Gruppen mit ID und Namen. Beim Genehmigen kann die Empfänger-Gruppe ausgewählt werden. Gruppen-IDs in Divera unter Verwaltung → Gruppen einsehen.</p>
+                            <div id="diveraGroupsContainer">
+                                <?php foreach ($divera_reservation_groups as $idx => $g): ?>
+                                <div class="input-group mb-2 divera-group-row">
+                                    <input type="number" class="form-control" name="divera_group_id[]" placeholder="ID" value="<?php echo (int)$g['id']; ?>" min="1">
+                                    <input type="text" class="form-control" name="divera_group_name[]" placeholder="Name der Gruppe" value="<?php echo htmlspecialchars($g['name'] ?? ''); ?>">
+                                    <button type="button" class="btn btn-outline-danger btn-remove-group" title="Gruppe entfernen"><i class="fas fa-trash"></i></button>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAddGroup"><i class="fas fa-plus me-1"></i>Gruppe hinzufügen</button>
                         </div>
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                         <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
@@ -183,5 +219,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('diveraGroupsContainer');
+    const btnAdd = document.getElementById('btnAddGroup');
+    const rowTpl = () => {
+        const div = document.createElement('div');
+        div.className = 'input-group mb-2 divera-group-row';
+        div.innerHTML = '<input type="number" class="form-control" name="divera_group_id[]" placeholder="ID" min="1">' +
+            '<input type="text" class="form-control" name="divera_group_name[]" placeholder="Name der Gruppe">' +
+            '<button type="button" class="btn btn-outline-danger btn-remove-group" title="Gruppe entfernen"><i class="fas fa-trash"></i></button>';
+        return div;
+    };
+    btnAdd.addEventListener('click', function() {
+        container.appendChild(rowTpl());
+    });
+    container.addEventListener('click', function(e) {
+        if (e.target.closest('.btn-remove-group')) {
+            e.target.closest('.divera-group-row').remove();
+        }
+    });
+});
+</script>
 </body>
 </html>

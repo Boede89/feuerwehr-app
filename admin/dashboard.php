@@ -168,6 +168,27 @@ if ($can_reservations) {
     }
 }
 
+// Divera-Empfänger-Gruppen und Standard für Genehmigung (nur wenn Reservierungen berechtigt)
+$divera_reservation_groups = [];
+$divera_reservation_default_group_id = '';
+$divera_reservation_enabled = true;
+if ($can_reservations) {
+    try {
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_groups', 'divera_reservation_default_group_id', 'divera_reservation_enabled')");
+        $stmt->execute();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if ($row['setting_key'] === 'divera_reservation_groups' && $row['setting_value'] !== '') {
+                $dec = json_decode($row['setting_value'], true);
+                $divera_reservation_groups = is_array($dec) ? $dec : [];
+            } elseif ($row['setting_key'] === 'divera_reservation_default_group_id') {
+                $divera_reservation_default_group_id = trim((string)$row['setting_value']);
+            } elseif ($row['setting_key'] === 'divera_reservation_enabled') {
+                $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+            }
+        }
+    } catch (Exception $e) {}
+}
+
 // Atemschutzeintrag-Anträge laden (nur wenn berechtigt)
 $atemschutz_entries = [];
 if ($can_atemschutz) {
@@ -520,6 +541,25 @@ if ($can_atemschutz) {
                             <p id="modalStatus" class="mb-3"></p>
                         </div>
                     </div>
+                    <?php if ($divera_reservation_enabled && !empty($divera_reservation_groups)): 
+                        $valid_groups = array_filter($divera_reservation_groups, fn($g) => (int)($g['id'] ?? 0) > 0);
+                        if (!empty($valid_groups)): ?>
+                    <hr>
+                    <div class="mb-3">
+                        <label for="diveraGroupSelect" class="form-label">
+                            <i class="fas fa-users me-1"></i>Empfänger-Gruppe (Divera 24/7)
+                        </label>
+                        <select class="form-select" id="diveraGroupSelect">
+                            <option value="">– Alle des Standortes –</option>
+                            <?php foreach ($valid_groups as $g): ?>
+                            <option value="<?php echo (int)$g['id']; ?>" <?php echo $divera_reservation_default_group_id === (string)(int)$g['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($g['name'] ?? 'Gruppe ' . $g['id']); ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text">An welche Divera-Gruppe(n) der Termin gesendet werden soll.</div>
+                    </div>
+                    <?php endif; endif; ?>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -1621,6 +1661,8 @@ if ($can_atemschutz) {
             approveBtn.disabled = true;
             approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Genehmige...';
             
+            const diveraGroupEl = document.getElementById('diveraGroupSelect');
+            const diveraGroupIds = (diveraGroupEl && diveraGroupEl.value !== '') ? [parseInt(diveraGroupEl.value, 10)] : [];
             fetch('process-reservation.php', {
                 method: 'POST',
                 headers: {
@@ -1628,7 +1670,8 @@ if ($can_atemschutz) {
                 },
                 body: JSON.stringify({
                     action: 'approve',
-                    reservation_id: window.currentReservationId
+                    reservation_id: window.currentReservationId,
+                    divera_group_ids: diveraGroupIds
                 })
             })
             .then(response => response.text().then(text => ({ status: response.status, ok: response.ok, text })))
@@ -1757,6 +1800,8 @@ if ($can_atemschutz) {
             confirmBtn.disabled = true;
             confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Verarbeite...';
             
+            const diveraGroupEl = document.getElementById('diveraGroupSelect');
+            const diveraGroupIds = (diveraGroupEl && diveraGroupEl.value !== '') ? [parseInt(diveraGroupEl.value, 10)] : [];
             fetch('process-reservation.php', {
                 method: 'POST',
                 headers: {
@@ -1765,7 +1810,8 @@ if ($can_atemschutz) {
                 body: JSON.stringify({
                     action: 'approve_with_conflict_resolution',
                     reservation_id: window.currentReservationId,
-                    conflict_ids: window.conflictIds
+                    conflict_ids: window.conflictIds,
+                    divera_group_ids: diveraGroupIds
                 })
             })
             .then(response => response.json())
