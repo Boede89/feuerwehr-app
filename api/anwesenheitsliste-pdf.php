@@ -97,6 +97,20 @@ function _al_val_formatted($liste, $key, $custom_data = [], $type = '') {
     }
     return $v;
 }
+function _calc_einsatzdauer($von, $bis) {
+    if (empty($von) || empty($bis)) return '';
+    if (!preg_match('/^(\d{1,2}):(\d{2})/', trim($von), $mv) || !preg_match('/^(\d{1,2}):(\d{2})/', trim($bis), $mb)) return '';
+    $min_von = (int)$mv[1] * 60 + (int)$mv[2];
+    $min_bis = (int)$mb[1] * 60 + (int)$mb[2];
+    if ($min_bis < $min_von) $min_bis += 24 * 60;
+    $diff = $min_bis - $min_von;
+    if ($diff < 0) return '';
+    $h = floor($diff / 60);
+    $m = $diff % 60;
+    if ($h > 0 && $m > 0) return $h . ' Std ' . $m . ' Min';
+    if ($h > 0) return $h . ' Std';
+    return $m . ' Min';
+}
 
 $einsatzleiter_name = '';
 if (!empty($liste['einsatzleiter_freitext'])) {
@@ -135,13 +149,16 @@ $html = '<!DOCTYPE html>
         .section { margin-bottom: 10px; }
         .section-title { font-weight: bold; font-size: 10pt; margin-bottom: 4px; padding-bottom: 2px; border-bottom: 1px solid #dee2e6; }
         .two-cols { display: flex; gap: 16px; margin-bottom: 10px; }
-        .two-cols .col { flex: 1; min-width: 0; }
+        .two-cols .col { flex: 1; min-width: 0; width: 50%; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 8pt; }
         th, td { border: 1px solid #dee2e6; padding: 4px 6px; text-align: left; }
         th { background: #f8f9fa; font-weight: bold; }
-        .label-cell { width: 120px; background: #f8f9fa; font-weight: bold; }
-        .signature-block { margin-top: 20px; padding-top: 12px; border-top: 1px solid #333; }
-        .signature-line { margin-top: 30px; border-bottom: 1px solid #333; width: 180px; height: 20px; }
+        .label-cell { width: 100px; background: #f8f9fa; font-weight: bold; }
+        .stamm-inline .label-cell { width: 90px; }
+        .bottom-row { display: flex; gap: 24px; align-items: flex-end; margin-top: 20px; padding-top: 12px; border-top: 1px solid #333; }
+        .bottom-row .einsatzleiter-cell { flex: 1; }
+        .bottom-row .signature-cell { flex-shrink: 0; }
+        .signature-line { border-bottom: 1px solid #333; width: 160px; height: 22px; }
         .signature-label { font-size: 8pt; color: #666; margin-top: 2px; }
         @media print { body { padding: 0; } .section, .two-cols { page-break-inside: avoid; } }
     </style>
@@ -154,21 +171,30 @@ $html = '<!DOCTYPE html>
     </div>';
 
 $einsatzbericht_display = 'A' . (trim($liste['einsatzbericht_nummer'] ?? '') !== '' ? $liste['einsatzbericht_nummer'] : '');
-$html .= '<div class="section"><div class="section-title">Stammdaten</div><table>';
-$html .= '<tr><td class="label-cell">Einsatzbericht Nr.</td><td>' . htmlspecialchars($einsatzbericht_display) . '</td></tr>';
+$alarmierung = _al_val($liste, 'alarmierung_durch', $custom_data);
+$uhrzeit_von = _al_val($liste, 'uhrzeit_von', $custom_data);
+$uhrzeit_bis = _al_val($liste, 'uhrzeit_bis', $custom_data);
+$einsatzstichwort = _al_val($liste, 'einsatzstichwort', $custom_data);
+$klassifizierung = _al_val($liste, 'klassifizierung', $custom_data);
+$einsatzdauer = _calc_einsatzdauer($uhrzeit_von, $uhrzeit_bis);
+if ($uhrzeit_von !== '' && strlen($uhrzeit_von) >= 5) $uhrzeit_von = substr($uhrzeit_von, 0, 5);
+if ($uhrzeit_bis !== '' && strlen($uhrzeit_bis) >= 5) $uhrzeit_bis = substr($uhrzeit_bis, 0, 5);
+
+$html .= '<div class="section"><div class="section-title">Stammdaten</div><table class="stamm-inline">';
+$html .= '<tr><td class="label-cell">Einsatzbericht Nr.</td><td>' . htmlspecialchars($einsatzbericht_display) . '</td><td class="label-cell">Alarmierung durch</td><td>' . htmlspecialchars($alarmierung ?: '-') . '</td></tr>';
+$html .= '<tr><td class="label-cell">Uhrzeit von</td><td>' . htmlspecialchars($uhrzeit_von ?: '-') . '</td><td class="label-cell">Uhrzeit bis</td><td>' . htmlspecialchars($uhrzeit_bis ?: '-') . '</td><td class="label-cell">Einsatzdauer</td><td>' . htmlspecialchars($einsatzdauer ?: '-') . '</td></tr>';
+$html .= '<tr><td class="label-cell">Stichwort</td><td>' . htmlspecialchars($einsatzstichwort ?: '-') . '</td><td class="label-cell">Klassifizierung</td><td>' . htmlspecialchars($klassifizierung ?: '-') . '</td></tr>';
+$skip_ids = ['einsatzbericht_nummer','alarmierung_durch','uhrzeit_von','uhrzeit_bis','einsatzstichwort','klassifizierung','einsatzleiter'];
 foreach ($anwesenheitsliste_felder as $f) {
     if (empty($f['visible'])) continue;
     $fid = $f['id'] ?? '';
-    $type = $f['type'] ?? 'text';
-    if ($fid === 'einsatzleiter') {
-        $val = $einsatzleiter_name;
-    } else {
-        $val = _al_val($liste, $fid, $custom_data);
-    }
+    if (in_array($fid, $skip_ids)) continue;
+    $val = _al_val($liste, $fid, $custom_data);
     if ($val === '' || $val === null) continue;
+    $type = $f['type'] ?? 'text';
     if (($type === 'time' || in_array($fid, ['uhrzeit_von','uhrzeit_bis'])) && strlen($val) >= 5) $val = substr($val, 0, 5);
     $label = $f['label'] ?? $fid;
-    $html .= '<tr><td class="label-cell">' . htmlspecialchars($label) . '</td><td>' . htmlspecialchars($val) . '</td></tr>';
+    $html .= '<tr><td class="label-cell">' . htmlspecialchars($label) . '</td><td colspan="5">' . htmlspecialchars($val) . '</td></tr>';
 }
 $html .= '</table></div>';
 
@@ -199,9 +225,14 @@ if (empty($vehicle_ids) || (count($vehicle_ids) === 1 && in_array(0, $vehicle_id
 $html .= '</tbody></table></div></div>';
 
 $html .= '
-    <div class="signature-block">
-        <div class="signature-line"></div>
-        <div class="signature-label">Unterschrift Einsatzleiter</div>
+    <div class="bottom-row">
+        <div class="einsatzleiter-cell">
+            <strong>Einsatzleiter:</strong> ' . htmlspecialchars($einsatzleiter_name ?: '-') . '
+        </div>
+        <div class="signature-cell">
+            <div class="signature-line"></div>
+            <div class="signature-label">Unterschrift Einsatzleiter</div>
+        </div>
     </div>
 </body>
 </html>';
