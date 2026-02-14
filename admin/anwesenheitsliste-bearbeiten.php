@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
         try {
-            $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
+            $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','einsatzstichwort','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
             $updates = [];
             $params = [];
             foreach ($anwesenheitsliste_felder as $f) {
@@ -193,7 +193,7 @@ if (isset($_GET['message']) && $_GET['message'] === 'saved') {
 }
 
 function _al_val($liste, $key, $custom_data = []) {
-    $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
+    $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','einsatzstichwort','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
     if (in_array($key, $builtin)) return $liste[$key] ?? '';
     return $custom_data[$key] ?? '';
 }

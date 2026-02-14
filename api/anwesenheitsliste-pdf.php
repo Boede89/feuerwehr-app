@@ -85,9 +85,17 @@ if (!empty($liste['custom_data'])) {
 }
 
 function _al_val($liste, $key, $custom_data = []) {
-    $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
+    $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','einsatzstichwort','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
     if (in_array($key, $builtin)) return $liste[$key] ?? '';
     return $custom_data[$key] ?? '';
+}
+function _al_val_formatted($liste, $key, $custom_data = [], $type = '') {
+    $v = _al_val($liste, $key, $custom_data);
+    if ($v === '' || $v === null) return '-';
+    if (($type === 'time' || in_array($key, ['uhrzeit_von','uhrzeit_bis'])) && strlen($v) >= 5) {
+        return substr($v, 0, 5);
+    }
+    return $v;
 }
 
 $einsatzleiter_name = '';
@@ -140,17 +148,18 @@ $html = '<!DOCTYPE html>
     <div class="header">
         <h1>Anwesenheitsliste</h1>
         <div class="sub">' . htmlspecialchars(date('d.m.Y', strtotime($liste['datum']))) . ' – ' . htmlspecialchars($titel) . ' (' . htmlspecialchars($typ_label) . ')</div>
-        <div class="sub">Eingereicht am ' . format_datetime_berlin($liste['created_at']) . ' von ' . htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt') . '</div>
+        <div class="sub">Eingereicht am ' . format_datetime_berlin($liste['created_at'], 'd.m.Y H:i') . ' von ' . htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt') . '</div>
     </div>';
 
 $html .= '<div class="section"><div class="section-title">Stammdaten</div><table>';
 foreach ($anwesenheitsliste_felder as $f) {
     if (empty($f['visible'])) continue;
     $fid = $f['id'] ?? '';
+    $type = $f['type'] ?? 'text';
     if ($fid === 'einsatzleiter') {
         $val = $einsatzleiter_name ?: '-';
     } else {
-        $val = _al_val($liste, $fid, $custom_data) ?: '-';
+        $val = _al_val_formatted($liste, $fid, $custom_data, $type);
     }
     $label = $f['label'] ?? $fid;
     $html .= '<tr><td class="label-cell">' . htmlspecialchars($label) . '</td><td>' . htmlspecialchars($val) . '</td></tr>';
