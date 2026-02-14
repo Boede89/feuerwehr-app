@@ -54,18 +54,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             // Divera-Termin löschen (nur wenn aktiviert)
             if ($divera_reservation_enabled) {
                 $divera_event_id = (int) ($reservation['divera_event_id'] ?? 0);
-                if ($divera_event_id > 0) {
-                    $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
-                    if ($divera_key === '') {
-                        $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-                        $stmt_u->execute([$_SESSION['user_id'] ?? 0]);
-                        $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
-                        $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
+                $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
+                if ($divera_key === '') {
+                    $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                    $stmt_u->execute([$_SESSION['user_id'] ?? 0]);
+                    $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
+                    $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
+                }
+                $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+                if ($divera_event_id <= 0 && $divera_key !== '' && function_exists('find_divera_event_by_foreign_id')) {
+                    $divera_event_id = find_divera_event_by_foreign_id($reservation_id, $divera_key, $api_base) ?? 0;
+                    if ($divera_event_id > 0) {
+                        error_log("RESERVATIONS DELETE: Divera Event-ID per foreign_id ermittelt: " . $divera_event_id);
                     }
-                    $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
-                    if ($divera_key !== '' && delete_divera_event($divera_event_id, $divera_key, $api_base)) {
+                }
+                if ($divera_event_id > 0 && $divera_key !== '') {
+                    if (delete_divera_event($divera_event_id, $divera_key, $api_base)) {
                         error_log("RESERVATIONS DELETE: Divera Event gelöscht: " . $divera_event_id);
-                    } elseif ($divera_event_id > 0) {
+                    } else {
                         error_log("RESERVATIONS DELETE: Divera Event konnte nicht gelöscht werden: " . $divera_event_id);
                     }
                 }
@@ -277,18 +283,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
             $stmt->execute([$reservation_id]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             $divera_event_id = (int) ($row['divera_event_id'] ?? 0);
-            if ($divera_event_id > 0) {
-                $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
-                if ($divera_key === '') {
-                    $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-                    $stmt_u->execute([$_SESSION['user_id'] ?? 0]);
-                    $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
-                    $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
-                }
-                $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
-                if ($divera_key !== '' && delete_divera_event($divera_event_id, $divera_key, $api_base)) {
-                    error_log('DELETE-COMPLETE: Divera Event gelöscht: ' . $divera_event_id);
-                }
+            $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
+            if ($divera_key === '') {
+                $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                $stmt_u->execute([$_SESSION['user_id'] ?? 0]);
+                $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
+                $divera_key = trim((string) ($uk['divera_access_key'] ?? ''));
+            }
+            $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+            if ($divera_event_id <= 0 && $divera_key !== '' && function_exists('find_divera_event_by_foreign_id')) {
+                $divera_event_id = find_divera_event_by_foreign_id($reservation_id, $divera_key, $api_base) ?? 0;
+                if ($divera_event_id > 0) error_log('DELETE-COMPLETE: Divera Event-ID per foreign_id ermittelt: ' . $divera_event_id);
+            }
+            if ($divera_event_id > 0 && $divera_key !== '' && delete_divera_event($divera_event_id, $divera_key, $api_base)) {
+                error_log('DELETE-COMPLETE: Divera Event gelöscht: ' . $divera_event_id);
             }
         }
 

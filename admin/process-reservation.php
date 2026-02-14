@@ -8,7 +8,8 @@ require_once '../config/divera.php';
 
 function output_json($data) {
     if (ob_get_level()) ob_end_clean();
-    echo json_encode($data);
+    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 // Prüfe ob Benutzer eingeloggt ist
@@ -740,4 +741,3 @@ function createRejectionEmailHTML($reservation, $rejection_reason) {
     </body>
     </html>';
 }
-?>

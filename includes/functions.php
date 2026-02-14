@@ -1784,6 +1784,34 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
 }
 
 /**
+ * Sucht ein Divera-Event anhand der foreign_id (Reservierungs-ID).
+ * @param int $reservation_id Reservierungs-ID (= foreign_id in Divera)
+ * @param string $access_key Divera-Accesskey
+ * @param string $api_base_url Basis-URL der Divera-API
+ * @return int|null Divera-Event-ID oder null wenn nicht gefunden
+ */
+function find_divera_event_by_foreign_id($reservation_id, $access_key, $api_base_url = 'https://app.divera247.com') {
+    $reservation_id = (int) $reservation_id;
+    if ($reservation_id <= 0) return null;
+    $access_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string) $access_key));
+    if ($access_key === '') return null;
+    $base = rtrim(trim((string) $api_base_url), '/') ?: 'https://app.divera247.com';
+    $url = $base . '/api/v2/events?accesskey=' . urlencode($access_key);
+    $ctx = stream_context_create(['http' => ['timeout' => 15]]);
+    $raw = @file_get_contents($url, false, $ctx);
+    $data = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($data) || empty($data['data']['items'])) return null;
+    $foreign_id_needle = (string) $reservation_id;
+    foreach ($data['data']['items'] as $event_id => $event) {
+        if (!is_array($event)) continue;
+        if (isset($event['foreign_id']) && (string) $event['foreign_id'] === $foreign_id_needle) {
+            return (int) (isset($event['id']) ? $event['id'] : $event_id);
+        }
+    }
+    return null;
+}
+
+/**
  * Löscht einen Termin in Divera 24/7 (API DELETE /api/v2/events/{id}).
  * @param int $event_id Divera-Event-ID
  * @param string $access_key Divera-Accesskey (Einheits- oder Benutzer-Key)
