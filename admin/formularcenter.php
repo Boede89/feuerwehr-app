@@ -66,10 +66,13 @@ try {
     error_log('Dienstplan Tabelle: ' . $e->getMessage());
 }
 
-$message = '';
+$message = isset($_GET['message']) ? trim($_GET['message']) : '';
 $error = '';
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'forms';
 $dienstplan_jahr = isset($_GET['jahr']) ? (int)$_GET['jahr'] : (int)date('Y');
+$filter_typ = isset($_GET['filter_typ']) ? trim($_GET['filter_typ']) : '';
+$filter_datum_von = isset($_GET['filter_datum_von']) ? trim($_GET['filter_datum_von']) : '';
+$filter_datum_bis = isset($_GET['filter_datum_bis']) ? trim($_GET['filter_datum_bis']) : '';
 
 // CSRF-Token erzeugen
 if (empty($_SESSION['form_center_csrf'])) {
@@ -162,6 +165,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
             }
         }
     }
+    if ($action === 'delete_submission' && !$error) {
+        $id = (int)($_POST['submission_id'] ?? 0);
+        if ($id) {
+            try {
+                $db->prepare("DELETE FROM app_form_submissions WHERE id = ?")->execute([$id]);
+                $msg = urlencode('Formulareingabe wurde gelöscht.');
+                $redir = 'formularcenter.php?tab=submissions&message=' . $msg;
+                if (!empty($_POST['filter_typ'])) $redir .= '&filter_typ=' . urlencode($_POST['filter_typ']);
+                if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
+                if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
+                header('Location: ' . $redir);
+                exit;
+            } catch (Exception $e) {
+                $error = 'Löschen fehlgeschlagen.';
+            }
+        }
+    }
+    if ($action === 'delete_anwesenheitsliste' && !$error) {
+        $id = (int)($_POST['anwesenheitsliste_id'] ?? 0);
+        if ($id) {
+            try {
+                $db->prepare("DELETE FROM anwesenheitslisten WHERE id = ?")->execute([$id]);
+                $msg = urlencode('Anwesenheitsliste wurde gelöscht.');
+                $redir = 'formularcenter.php?tab=submissions&message=' . $msg;
+                if (!empty($_POST['filter_typ'])) $redir .= '&filter_typ=' . urlencode($_POST['filter_typ']);
+                if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
+                if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
+                header('Location: ' . $redir);
+                exit;
+            } catch (Exception $e) {
+                $error = 'Löschen fehlgeschlagen.';
+            }
+        }
+    }
 }
 
 // Formulare laden
@@ -173,34 +210,70 @@ try {
     $error = $error ?: 'Formulare konnten nicht geladen werden.';
 }
 
-// Eingaben laden (mit Formtitel und Benutzer)
+// Eingaben laden (mit Formtitel und Benutzer) – mit Datum-Filter
 $submissions = [];
 try {
-    $stmt = $db->query("
+    $sql = "
         SELECT s.*, f.title AS form_title,
                COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name
         FROM app_form_submissions s
         JOIN app_forms f ON f.id = s.form_id
         LEFT JOIN users u ON u.id = s.user_id
-        ORDER BY s.updated_at DESC
-    ");
+        WHERE 1=1
+    ";
+    $params = [];
+    if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
+        $sql .= " AND DATE(s.created_at) >= ?";
+        $params[] = $filter_datum_von;
+    }
+    if ($filter_datum_bis !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_bis)) {
+        $sql .= " AND DATE(s.created_at) <= ?";
+        $params[] = $filter_datum_bis;
+    }
+    $sql .= " ORDER BY s.updated_at DESC";
+    $stmt = $params ? $db->prepare($sql) : $db->query($sql);
+    if ($params) $stmt->execute($params);
     $submissions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Tabelle kann fehlen
 }
 
-// Anwesenheitslisten laden (als "eingegangene Formulare")
+// Anwesenheitslisten laden (als "eingegangene Formulare") – mit Typ- und Datum-Filter
 $anwesenheitslisten = [];
 try {
-    $stmt = $db->query("
+    $sql = "
         SELECT a.id, a.datum, a.bezeichnung, a.typ, a.created_at,
-               d.bezeichnung AS dienst_bezeichnung,
+               d.bezeichnung AS dienst_bezeichnung, d.typ AS dienst_typ,
                COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name
         FROM anwesenheitslisten a
         LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
         LEFT JOIN users u ON u.id = a.user_id
-        ORDER BY a.created_at DESC
-    ");
+        WHERE 1=1
+    ";
+    $params = [];
+    if ($filter_typ !== '') {
+        if ($filter_typ === 'einsatz') {
+            $sql .= " AND a.typ = 'einsatz'";
+        } elseif ($filter_typ === 'manuell') {
+            $sql .= " AND a.typ = 'manuell'";
+        } elseif ($filter_typ === 'dienst') {
+            $sql .= " AND a.typ = 'dienst'";
+        } elseif (in_array($filter_typ, ['uebungsdienst', 'jahreshauptversammlung', 'sonstiges'])) {
+            $sql .= " AND a.typ = 'dienst' AND d.typ = ?";
+            $params[] = $filter_typ;
+        }
+    }
+    if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
+        $sql .= " AND a.datum >= ?";
+        $params[] = $filter_datum_von;
+    }
+    if ($filter_datum_bis !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_bis)) {
+        $sql .= " AND a.datum <= ?";
+        $params[] = $filter_datum_bis;
+    }
+    $sql .= " ORDER BY a.created_at DESC";
+    $stmt = $params ? $db->prepare($sql) : $db->query($sql);
+    if ($params) $stmt->execute($params);
     $anwesenheitslisten = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Tabelle kann fehlen
@@ -380,16 +453,37 @@ try {
 
         <?php if ($active_tab === 'submissions'): ?>
             <div class="card shadow mb-4">
-                <div class="card-header"><i class="fas fa-inbox"></i> Eingegangene Formulare</div>
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span><i class="fas fa-inbox"></i> Eingegangene Formulare</span>
+                    <form method="get" class="d-flex flex-wrap align-items-center gap-2">
+                        <input type="hidden" name="tab" value="submissions">
+                        <select name="filter_typ" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <option value="">Alle Typen</option>
+                            <option value="einsatz" <?php echo $filter_typ === 'einsatz' ? 'selected' : ''; ?>>Einsatz</option>
+                            <option value="uebungsdienst" <?php echo $filter_typ === 'uebungsdienst' ? 'selected' : ''; ?>>Übungsdienst</option>
+                            <option value="dienst" <?php echo $filter_typ === 'dienst' ? 'selected' : ''; ?>>Dienst (alle)</option>
+                            <option value="manuell" <?php echo $filter_typ === 'manuell' ? 'selected' : ''; ?>>Manuell</option>
+                            <option value="jahreshauptversammlung" <?php echo $filter_typ === 'jahreshauptversammlung' ? 'selected' : ''; ?>>Jahreshauptversammlung</option>
+                            <option value="sonstiges" <?php echo $filter_typ === 'sonstiges' ? 'selected' : ''; ?>>Sonstiges</option>
+                        </select>
+                        <input type="date" name="filter_datum_von" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($filter_datum_von); ?>" placeholder="Von" onchange="this.form.submit()">
+                        <input type="date" name="filter_datum_bis" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($filter_datum_bis); ?>" placeholder="Bis" onchange="this.form.submit()">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="fas fa-filter"></i> Filtern</button>
+                        <?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== ''): ?>
+                        <a href="?tab=submissions" class="btn btn-outline-secondary btn-sm">Zurücksetzen</a>
+                        <?php endif; ?>
+                    </form>
+                </div>
                 <div class="card-body">
                     <?php if (empty($submissions) && empty($anwesenheitslisten)): ?>
-                        <p class="text-muted mb-0">Noch keine ausgefüllten Formulare oder Anwesenheitslisten vorhanden.</p>
+                        <p class="text-muted mb-0">Noch keine ausgefüllten Formulare oder Anwesenheitslisten vorhanden.<?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== ''): ?> Versuchen Sie, die Filter zu ändern.<?php endif; ?></p>
                     <?php else: ?>
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
                                         <th>Formular / Anwesenheitsliste</th>
+                                        <th>Typ</th>
                                         <th>Von</th>
                                         <th>Eingereicht</th>
                                         <th></th>
@@ -399,23 +493,44 @@ try {
                                     <?php foreach ($submissions as $s): ?>
                                     <tr>
                                         <td><i class="fas fa-file-alt text-muted me-1"></i> <?php echo htmlspecialchars($s['form_title']); ?></td>
+                                        <td><span class="badge bg-secondary">Formular</span></td>
                                         <td><?php echo htmlspecialchars(trim($s['user_first_name'] . ' ' . $s['user_last_name']) ?: 'Unbekannt'); ?></td>
                                         <td><?php echo date('d.m.Y H:i', strtotime($s['created_at'])); ?></td>
                                         <td>
                                             <a href="?tab=submissions&edit_submission=<?php echo (int)$s['id']; ?>#submissionModal" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#submissionModal" onclick='openSubmissionModal(<?php echo json_encode($s); ?>)'><i class="fas fa-edit"></i> Bearbeiten</a>
+                                            <form method="post" class="d-inline" onsubmit="return confirm('Formulareingabe wirklich löschen?');">
+                                                <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
+                                                <input type="hidden" name="action" value="delete_submission">
+                                                <input type="hidden" name="submission_id" value="<?php echo (int)$s['id']; ?>">
+                                                <?php if ($filter_typ !== ''): ?><input type="hidden" name="filter_typ" value="<?php echo htmlspecialchars($filter_typ); ?>"><?php endif; ?>
+                                                <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
+                                                <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="fas fa-trash"></i></button>
+                                            </form>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
                                     <?php foreach ($anwesenheitslisten as $a):
                                         $titel = $a['bezeichnung'] ?? $a['dienst_bezeichnung'] ?? 'Anwesenheit';
                                         $titel = date('d.m.Y', strtotime($a['datum'])) . ' – ' . $titel;
+                                        $typ_label = ($a['typ'] ?? '') === 'einsatz' ? 'Einsatz' : (($a['typ'] ?? '') === 'manuell' ? 'Manuell' : htmlspecialchars(get_dienstplan_typ_label($a['dienst_typ'] ?? 'uebungsdienst')));
                                     ?>
                                     <tr>
                                         <td><i class="fas fa-clipboard-list text-muted me-1"></i> <?php echo htmlspecialchars($titel); ?></td>
+                                        <td><span class="badge bg-info"><?php echo $typ_label; ?></span></td>
                                         <td><?php echo htmlspecialchars(trim($a['user_first_name'] . ' ' . $a['user_last_name']) ?: 'Unbekannt'); ?></td>
                                         <td><?php echo date('d.m.Y H:i', strtotime($a['created_at'])); ?></td>
                                         <td>
                                             <a href="anwesenheitsliste-bearbeiten.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
+                                            <form method="post" class="d-inline" onsubmit="return confirm('Anwesenheitsliste wirklich löschen?');">
+                                                <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
+                                                <input type="hidden" name="action" value="delete_anwesenheitsliste">
+                                                <input type="hidden" name="anwesenheitsliste_id" value="<?php echo (int)$a['id']; ?>">
+                                                <?php if ($filter_typ !== ''): ?><input type="hidden" name="filter_typ" value="<?php echo htmlspecialchars($filter_typ); ?>"><?php endif; ?>
+                                                <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
+                                                <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="fas fa-trash"></i></button>
+                                            </form>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
