@@ -150,8 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_course_assignmen
                     }
                 }
                 
-                // Qualifikation automatisch aus absolvierten Lehrgängen ableiten (niedrigste sort_order = höchste Stufe)
-                update_member_qualification_from_courses($member_id, $db);
+                // Qualifikation und Lehrgänge sind entkoppelt – keine automatische Ableitung
                 
                 if ($db->inTransaction()) {
                     $db->commit();
@@ -1035,14 +1034,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             }
                         }
                     }
-                    // Qualifikation: verknüpfte Lehrgänge hinzufügen wenn Qualifikation manuell gesetzt
-                    if ($can_courses && $qualification_id !== null) {
-                        add_courses_for_qualification_to_member($new_member_id, $qualification_id, $db);
-                    }
-                    // Qualifikation aus Lehrgängen ableiten (nur wenn Lehrgänge mit Qualifikation vorhanden)
-                    if ($can_courses) {
-                        update_member_qualification_from_courses($new_member_id, $db);
-                    }
+                    // Qualifikation und Lehrgänge sind entkoppelt – jeweils unabhängig speichern
                     
                     // Wenn PA-Träger aktiviert, erstelle automatisch Geräteträger
                     if ($is_pa_traeger == 1) {
@@ -1361,11 +1353,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             }
                         }
                         
-                        // Lehrgänge aus Bearbeiten-Formular speichern (nur wenn Nutzer den Lehrgangs-Bereich geöffnet hat)
-                        // Sonst würden bestehende Lehrgänge durch leeres Array überschrieben
-                        if ($can_courses && isset($_POST['course_section_modified']) && isset($_POST['course_assignments_json'])) {
-                            $course_assignments_json = $_POST['course_assignments_json'];
-                            $course_assignments = json_decode($course_assignments_json, true);
+                        // Lehrgänge speichern wenn: Nutzer Bereich geöffnet hat ODER Lehrgänge ausgewählt wurden
+                        $course_assignments_json = $_POST['course_assignments_json'] ?? '[]';
+                        $course_assignments_raw = is_string($course_assignments_json) ? json_decode($course_assignments_json, true) : [];
+                        $has_course_section = !empty($_POST['course_section_modified']);
+                        $has_course_data = is_array($course_assignments_raw) && count($course_assignments_raw) > 0;
+                        if ($can_courses && isset($_POST['course_assignments_json']) && ($has_course_section || $has_course_data)) {
+                            $course_assignments = is_array($course_assignments_raw) ? $course_assignments_raw : [];
                             if (is_array($course_assignments)) {
                                 // AGT automatisch hinzufügen wenn PA-Träger
                                 $agt_course_id = null;
@@ -1401,12 +1395,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             }
                         }
                         
-                        // Wenn Qualifikation manuell gesetzt: verknüpfte Lehrgänge als absolviert hinzufügen
-                        if ($qualification_id !== null) {
-                            add_courses_for_qualification_to_member($member_id, $qualification_id, $db);
-                        }
-                        // Qualifikation aus Lehrgängen ableiten (nur wenn Lehrgänge mit Qualifikation vorhanden)
-                        update_member_qualification_from_courses($member_id, $db);
+                        // Qualifikation und Lehrgänge sind entkoppelt – jeweils unabhängig speichern
                         
                         // Wenn Mitglied mit Benutzer verknüpft ist, aktualisiere auch Benutzer
                     if (!empty($old_user_id)) {
