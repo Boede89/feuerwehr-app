@@ -49,6 +49,13 @@ $action = $input['action'];
 $reservation_id = (int)$input['reservation_id'];
 $reason = $input['reason'] ?? '';
 
+// Divera-Spalte ggf. anlegen (vor Transaktion, da ALTER TABLE implizit committet)
+try {
+    $db->exec("ALTER TABLE reservations ADD COLUMN divera_event_id INT NULL DEFAULT NULL");
+} catch (Exception $e) {
+    // Spalte existiert bereits – ignorieren
+}
+
 if ($action === 'test') {
     output_json(['success' => true, 'message' => 'Verbindung OK', 'timestamp' => date('c')]);
 }
@@ -75,7 +82,10 @@ try {
         $conflicts = checkReservationConflicts($reservation);
         
         if (!empty($conflicts)) {
-            // Konflikte gefunden - sende Warnung zurück
+            // Konflikte gefunden - Transaktion zurücksetzen und Warnung zurückgeben
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             output_json([
                 'success' => false, 
                 'has_conflicts' => true,
@@ -136,11 +146,6 @@ try {
                     $divera_event_id = null;
                     $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error, $divera_event_id);
                     if ($divera_sent && $divera_event_id > 0) {
-                        try {
-                            $db->exec("ALTER TABLE reservations ADD COLUMN divera_event_id INT NULL DEFAULT NULL");
-                        } catch (Exception $e) {
-                            // Spalte existiert bereits
-                        }
                         $stmt_upd = $db->prepare("UPDATE reservations SET divera_event_id = ? WHERE id = ?");
                         $stmt_upd->execute([$divera_event_id, $reservation_id]);
                         error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (Event-ID: $divera_event_id).");
@@ -173,7 +178,9 @@ try {
             }
         }
         
-        $db->commit();
+        if ($db->inTransaction()) {
+            $db->commit();
+        }
         
         // E-Mail und Log nach Commit (Fehler hier dürfen Erfolg nicht verhindern)
         try {
@@ -214,7 +221,9 @@ try {
         // Aktivitätslog
         log_activity($_SESSION['user_id'], 'reservation_rejected', "Reservierung #$reservation_id abgelehnt: $reason");
         
-        $db->commit();
+        if ($db->inTransaction()) {
+            $db->commit();
+        }
         output_json(['success' => true, 'message' => 'Reservierung wurde abgelehnt']);
         
     } elseif ($action === 'approve_with_conflict_resolution') {
@@ -364,11 +373,6 @@ try {
                     $divera_event_id = null;
                     $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error, $divera_event_id);
                     if ($divera_sent && $divera_event_id > 0) {
-                        try {
-                            $db->exec("ALTER TABLE reservations ADD COLUMN divera_event_id INT NULL DEFAULT NULL");
-                        } catch (Exception $e) {
-                            // Spalte existiert bereits
-                        }
                         $stmt_upd = $db->prepare("UPDATE reservations SET divera_event_id = ? WHERE id = ?");
                         $stmt_upd->execute([$divera_event_id, $reservation_id]);
                         error_log("Reservierung #$reservation_id an Divera 24/7 übermittelt (mit Konfliktlösung, Event-ID: $divera_event_id).");
@@ -400,7 +404,9 @@ try {
             }
         }
         
-        $db->commit();
+        if ($db->inTransaction()) {
+            $db->commit();
+        }
         
         try {
             $subject = "✅ Reservierung genehmigt - " . $reservation['requester_name'];
@@ -427,8 +433,14 @@ try {
     }
     
 } catch (Throwable $e) {
-    if (isset($db) && $db->inTransaction()) {
-        try { $db->rollBack(); } catch (Throwable $rb) {}
+    if (isset($db)) {
+        try {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+        } catch (Throwable $rb) {
+            error_log("Rollback-Fehler (ignoriert): " . $rb->getMessage());
+        }
     }
     error_log("Process Reservation Error: " . $e->getMessage());
     error_log("Process Reservation Error Trace: " . $e->getTraceAsString());
