@@ -23,6 +23,10 @@ if ($id <= 0) {
     exit;
 }
 
+try {
+    $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN einsatzbericht_nummer VARCHAR(50) NULL");
+} catch (Exception $e) { /* Spalte existiert evtl. bereits */ }
+
 $liste = null;
 try {
     $stmt = $db->prepare("
@@ -98,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
         try {
-            $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','einsatzstichwort','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
+            $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','einsatzstichwort','einsatzbericht_nummer','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
             $updates = [];
             $params = [];
             foreach ($anwesenheitsliste_felder as $f) {
@@ -123,6 +127,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             $params[] = $einsatzleiter_member_id;
             $updates[] = 'einsatzleiter_freitext = ?';
             $params[] = $einsatzleiter_freitext !== '' ? $einsatzleiter_freitext : null;
+            $einsatzbericht_nummer = trim($_POST['einsatzbericht_nummer'] ?? '');
+            $updates[] = 'einsatzbericht_nummer = ?';
+            $params[] = $einsatzbericht_nummer !== '' ? $einsatzbericht_nummer : null;
             $custom_post = [];
             foreach ($anwesenheitsliste_felder as $f) {
                 if (empty($f['visible'])) continue;
@@ -193,7 +200,7 @@ if (isset($_GET['message']) && $_GET['message'] === 'saved') {
 }
 
 function _al_val($liste, $key, $custom_data = []) {
-    $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','einsatzstichwort','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
+    $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','einsatzstichwort','einsatzbericht_nummer','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
     if (in_array($key, $builtin)) return $liste[$key] ?? '';
     return $custom_data[$key] ?? '';
 }
@@ -233,6 +240,13 @@ function _al_val($liste, $key, $custom_data = []) {
             <div class="card-body">
                 <p class="text-muted small">Erstellt von <?php echo htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt'); ?> am <?php echo format_datetime_berlin($liste['created_at']); ?></p>
                 <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="einsatzbericht_nummer" class="form-label">Einsatzbericht Nummer</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light" style="min-width: 2.5rem;">A</span>
+                            <input type="text" class="form-control" id="einsatzbericht_nummer" name="einsatzbericht_nummer" placeholder="Nummer eingeben" value="<?php echo htmlspecialchars($liste['einsatzbericht_nummer'] ?? ''); ?>">
+                        </div>
+                    </div>
                     <?php foreach ($anwesenheitsliste_felder as $f):
                         if (empty($f['visible'])) continue;
                         $fid = $f['id'] ?? '';

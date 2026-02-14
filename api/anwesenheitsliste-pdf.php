@@ -85,7 +85,7 @@ if (!empty($liste['custom_data'])) {
 }
 
 function _al_val($liste, $key, $custom_data = []) {
-    $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','einsatzstichwort','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
+    $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','einsatzstichwort','einsatzbericht_nummer','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
     if (in_array($key, $builtin)) return $liste[$key] ?? '';
     return $custom_data[$key] ?? '';
 }
@@ -151,7 +151,9 @@ $html = '<!DOCTYPE html>
         <div class="sub">Eingereicht am ' . format_datetime_berlin($liste['created_at'], 'd.m.Y H:i') . ' von ' . htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt') . '</div>
     </div>';
 
+$einsatzbericht_display = !empty($liste['einsatzbericht_nummer']) ? 'A' . $liste['einsatzbericht_nummer'] : '-';
 $html .= '<div class="section"><div class="section-title">Stammdaten</div><table>';
+$html .= '<tr><td class="label-cell">Einsatzbericht Nummer</td><td>' . htmlspecialchars($einsatzbericht_display) . '</td></tr>';
 foreach ($anwesenheitsliste_felder as $f) {
     if (empty($f['visible'])) continue;
     $fid = $f['id'] ?? '';

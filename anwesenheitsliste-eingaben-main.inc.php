@@ -543,6 +543,7 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                 $opts = $f['options'] ?? [];
                                 $val = _anwesenheitsliste_draft_value($id, $draft);
                                 if ($id === 'uhrzeit_von' || $id === 'uhrzeit_bis') continue;
+                                if ($id === 'einsatzstichwort' && $is_einsatz) continue;
                             ?>
                             <div class="mb-3<?php echo $type === 'textarea' ? ' mb-4' : ''; ?>">
                                 <?php if ($type === 'einsatzleiter'): ?>

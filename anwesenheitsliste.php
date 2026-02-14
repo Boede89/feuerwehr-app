@@ -97,6 +97,7 @@ try {
     }
     $anwesenheit_extra_columns = [
         "einsatzstichwort VARCHAR(100) NULL",
+        "einsatzbericht_nummer VARCHAR(50) NULL",
         "uhrzeit_von TIME NULL",
         "uhrzeit_bis TIME NULL",
         "alarmierung_durch VARCHAR(100) NULL",
