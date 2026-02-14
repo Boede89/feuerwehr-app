@@ -2113,6 +2113,50 @@ function delete_divera_event($event_id, $access_key, $api_base_url = 'https://ap
 }
 
 /**
+ * Berechnet die Besatzungsstärke für eine Liste von Mitglieds-IDs.
+ * Format: Zugführer/Gruppenführer/Mannschaft/Summe
+ * Qualifikationen werden anhand des Namens zugeordnet (Zugführer, Gruppenführer, sonst Mannschaft).
+ *
+ * @param int[] $member_ids Array von Mitglieds-IDs
+ * @param PDO|null $db Datenbankverbindung
+ * @return string z.B. "1/2/5/8"
+ */
+function get_besatzungsstaerke($member_ids, $db = null) {
+    global $db;
+    $db = $db ?: ($GLOBALS['db'] ?? null);
+    if (!$db || empty($member_ids)) {
+        return '0/0/0/0';
+    }
+    $ids = array_map('intval', array_filter($member_ids));
+    if (empty($ids)) return '0/0/0/0';
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $stmt = $db->prepare("
+            SELECT m.id, LOWER(TRIM(COALESCE(q.name, ''))) AS qual_name
+            FROM members m
+            LEFT JOIN member_qualifications q ON q.id = m.qualification_id
+            WHERE m.id IN ($placeholders)
+        ");
+        $stmt->execute($ids);
+        $zf = $gf = $m = 0;
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $name = $row['qual_name'] ?? '';
+            if (strpos($name, 'zugführer') !== false || $name === 'zf') {
+                $zf++;
+            } elseif (strpos($name, 'gruppenführer') !== false || $name === 'gf') {
+                $gf++;
+            } else {
+                $m++;
+            }
+        }
+        $sum = $zf + $gf + $m;
+        return $zf . '/' . $gf . '/' . $m . '/' . $sum;
+    } catch (Exception $e) {
+        return '0/0/0/0';
+    }
+}
+
+/**
  * Leitet die Qualifikation eines Mitglieds aus dessen absolvierten Lehrgängen ab.
  * Verwendet die Qualifikation mit der niedrigsten sort_order (höchste Stufe).
  * Gibt die qualification_id zurück oder null, wenn keine Lehrgänge mit Qualifikation vorhanden sind.

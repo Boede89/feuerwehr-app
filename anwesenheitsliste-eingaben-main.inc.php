@@ -498,11 +498,17 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                             </div>
                             <?php endif; ?>
                             <p class="form-label mb-2">Personal und Fahrzeuge erfassen:</p>
+                            <?php
+                            $gesamt_staerke = get_besatzungsstaerke($draft['members'] ?? [], $db);
+                            ?>
                             <div class="row g-3 mb-4">
                                 <div class="col-md-6">
                                     <a href="<?php echo htmlspecialchars($personal_url); ?>" class="btn btn-primary w-100 anwesenheits-option-btn">
                                         <i class="fas fa-users fa-2x mb-2"></i><span>Personal</span>
                                         <small class="d-block mt-1 opacity-90">Anwesende auswählen, Fahrzeug zuordnen</small>
+                                        <?php if (!empty($draft['members'])): ?>
+                                        <span class="badge bg-light text-dark mt-1"><?php echo htmlspecialchars($gesamt_staerke); ?></span>
+                                        <?php endif; ?>
                                     </a>
                                 </div>
                                 <div class="col-md-6">

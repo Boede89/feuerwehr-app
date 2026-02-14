@@ -202,6 +202,7 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                                                 <th>Maschinist</th>
                                                 <th>Einheitsführer</th>
                                                 <th class="text-center">Besatzung</th>
+                                                <th class="text-center">Besatzungsstärke</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -214,6 +215,8 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                                             $row_bg = $is_selected ? ' style="background-color: #b6d4fe;"' : '';
                                             $crew_for_vehicle = $groups['on_vehicle'];
                                             $available_for_vehicle = $groups['others'];
+                                            $crew_ids = array_column($crew_for_vehicle, 'id');
+                                            $besatzungsstaerke = get_besatzungsstaerke($crew_ids, $db);
                                             $crew_json = htmlspecialchars(json_encode(array_map(function($m) { return ['id' => (int)$m['id'], 'name' => $m['last_name'] . ', ' . $m['first_name']]; }, $crew_for_vehicle)), ENT_QUOTES, 'UTF-8');
                                             $available_json = htmlspecialchars(json_encode(array_map(function($m) { return ['id' => (int)$m['id'], 'name' => $m['last_name'] . ', ' . $m['first_name']]; }, $available_for_vehicle)), ENT_QUOTES, 'UTF-8');
                                             ?>
@@ -242,6 +245,9 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                                                     <button type="button" class="btn btn-sm btn-outline-primary besatzung-btn" data-vehicle-id="<?php echo (int)$v['id']; ?>" data-vehicle-name="<?php echo htmlspecialchars($v['name'], ENT_QUOTES, 'UTF-8'); ?>" data-crew="<?php echo $crew_json; ?>" data-available="<?php echo $available_json; ?>" title="Besatzung anzeigen und verwalten">
                                                         <i class="fas fa-users"></i> Besatzung
                                                     </button>
+                                                </td>
+                                                <td class="no-click text-center"<?php echo $row_bg; ?>>
+                                                    <span class="badge bg-secondary"><?php echo htmlspecialchars($besatzungsstaerke); ?></span>
                                                 </td>
                                             </tr>
                                             <?php endforeach; ?>
