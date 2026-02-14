@@ -151,7 +151,7 @@ $html = '<!DOCTYPE html>
         <div class="sub">Eingereicht am ' . format_datetime_berlin($liste['created_at'], 'd.m.Y H:i') . ' von ' . htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt') . '</div>
     </div>';
 
-$einsatzbericht_display = !empty($liste['einsatzbericht_nummer']) ? 'A' . $liste['einsatzbericht_nummer'] : '-';
+$einsatzbericht_display = 'A' . (trim($liste['einsatzbericht_nummer'] ?? '') !== '' ? $liste['einsatzbericht_nummer'] : '');
 $html .= '<div class="section"><div class="section-title">Stammdaten</div><table>';
 $html .= '<tr><td class="label-cell">Einsatzbericht Nummer</td><td>' . htmlspecialchars($einsatzbericht_display) . '</td></tr>';
 foreach ($anwesenheitsliste_felder as $f) {
@@ -239,5 +239,5 @@ if ($wkhtmltopdfPath) {
 }
 
 header('Content-Type: text/html; charset=UTF-8');
-header('Content-Disposition: inline; filename="' . str_replace('.pdf', '.html', $filename) . '"');
+header('Content-Disposition: attachment; filename="' . str_replace('.pdf', '.html', $filename) . '"');
 echo $html;

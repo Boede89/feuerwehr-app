@@ -459,6 +459,10 @@ try {
             <div class="card shadow mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <span><i class="fas fa-inbox"></i> Eingegangene Formulare</span>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                    <?php if (!empty($anwesenheitslisten)): ?>
+                    <a href="../api/anwesenheitsliste-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-outline-success btn-sm" download title="Alle Anwesenheitslisten als PDF herunterladen"><i class="fas fa-file-pdf"></i> Alle Berichte als PDF</a>
+                    <?php endif; ?>
                     <form method="get" class="d-flex flex-wrap align-items-center gap-2">
                         <input type="hidden" name="tab" value="submissions">
                         <select name="filter_typ" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
@@ -477,6 +481,7 @@ try {
                         <a href="?tab=submissions" class="btn btn-outline-secondary btn-sm">Zurücksetzen</a>
                         <?php endif; ?>
                     </form>
+                    </div>
                 </div>
                 <div class="card-body">
                     <?php if (empty($submissions) && empty($anwesenheitslisten)): ?>
@@ -528,16 +533,7 @@ try {
                                         <td><?php echo format_datetime_berlin($a['created_at']); ?></td>
                                         <td>
                                             <a href="anwesenheitsliste-bearbeiten.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
-                                            <a href="../api/anwesenheitsliste-pdf.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" target="_blank"><i class="fas fa-file-pdf"></i> PDF</a>
-                                            <form method="post" class="d-inline" onsubmit="return confirm('Anwesenheitsliste wirklich löschen?');">
-                                                <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
-                                                <input type="hidden" name="action" value="delete_anwesenheitsliste">
-                                                <input type="hidden" name="anwesenheitsliste_id" value="<?php echo (int)$a['id']; ?>">
-                                                <?php if ($filter_typ !== ''): ?><input type="hidden" name="filter_typ" value="<?php echo htmlspecialchars($filter_typ); ?>"><?php endif; ?>
-                                                <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
-                                                <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
-                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="fas fa-trash"></i></button>
-                                            </form>
+                                            <a href="../api/anwesenheitsliste-pdf.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" download><i class="fas fa-file-pdf"></i> PDF</a>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>

@@ -16,6 +16,9 @@ if (!has_permission('forms')) {
     header('Location: dashboard.php?error=access_denied');
     exit;
 }
+if (empty($_SESSION['form_center_csrf'])) {
+    $_SESSION['form_center_csrf'] = bin2hex(random_bytes(32));
+}
 
 $id = (int)($_GET['id'] ?? $_POST['anwesenheitsliste_id'] ?? 0);
 if ($id <= 0) {
@@ -96,6 +99,21 @@ if (!empty($liste['custom_data'])) {
 
 $message = '';
 $error = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_anwesenheitsliste') {
+    if (!empty($_SESSION['form_center_csrf']) && isset($_POST['form_center_csrf']) && $_POST['form_center_csrf'] === $_SESSION['form_center_csrf']) {
+        $del_id = (int)($_POST['anwesenheitsliste_id'] ?? 0);
+        if ($del_id === $id) {
+            try {
+                $db->prepare("DELETE FROM anwesenheitslisten WHERE id = ?")->execute([$del_id]);
+                header('Location: formularcenter.php?tab=submissions&message=' . urlencode('Anwesenheitsliste wurde gelöscht.'));
+                exit;
+            } catch (Exception $e) {
+                $error = 'Löschen fehlgeschlagen.';
+            }
+        }
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitsliste'])) {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -219,8 +237,15 @@ function _al_val($liste, $key, $custom_data = []) {
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
         <a class="navbar-brand" href="../index.php"><i class="fas fa-fire"></i> Feuerwehr App</a>
-        <div class="navbar-nav ms-auto">
+        <div class="navbar-nav ms-auto d-flex align-items-center gap-2">
             <a class="nav-link" href="formularcenter.php?tab=submissions"><i class="fas fa-arrow-left"></i> Zurück zu eingegangenen Formularen</a>
+            <form method="post" class="d-inline" onsubmit="return confirm('Anwesenheitsliste wirklich löschen?');">
+                <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf'] ?? ''); ?>">
+                <input type="hidden" name="action" value="delete_anwesenheitsliste">
+                <input type="hidden" name="anwesenheitsliste_id" value="<?php echo (int)$id; ?>">
+                <input type="hidden" name="redirect" value="formularcenter">
+                <button type="submit" class="btn btn-outline-light btn-sm"><i class="fas fa-trash"></i> Löschen</button>
+            </form>
         </div>
     </div>
 </nav>
@@ -392,7 +417,7 @@ function _al_val($liste, $key, $custom_data = []) {
 
         <div class="mb-4">
             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
-            <a href="../api/anwesenheitsliste-pdf.php?id=<?php echo (int)$id; ?>" class="btn btn-outline-success" target="_blank"><i class="fas fa-file-pdf"></i> PDF herunterladen</a>
+            <a href="../api/anwesenheitsliste-pdf.php?id=<?php echo (int)$id; ?>" class="btn btn-outline-success" download><i class="fas fa-file-pdf"></i> PDF herunterladen</a>
             <a href="formularcenter.php?tab=submissions" class="btn btn-secondary">Abbrechen</a>
         </div>
     </form>
