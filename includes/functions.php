@@ -1903,7 +1903,16 @@ function fetch_divera_events($access_key, $api_base_url = 'https://app.divera247
         }
         // Falls Timestamp in Millisekunden (Wert > 10^10)
         if ($ts_start > 10000000000) { $ts_start = (int)($ts_start / 1000); $ts_end = (int)($ts_end / 1000); }
-        if ($ts_start <= 0 && $ts_end <= 0) continue;
+        // Letzter Fallback: ts_create (Erstellungsdatum – kann vom Termindatum abweichen)
+        if ($ts_start <= 0 && $ts_end <= 0) {
+            $ts_create = (int) ($ev['ts_create'] ?? $event['ts_create'] ?? 0);
+            if ($ts_create > 0) {
+                $ts_start = $ts_create;
+                $ts_end = $ts_create;
+            } else {
+                continue;
+            }
+        }
         if ($from_ts !== null && $ts_end < $from_ts) continue;
         if ($to_ts !== null && $ts_start > $to_ts) continue;
         $events[] = [

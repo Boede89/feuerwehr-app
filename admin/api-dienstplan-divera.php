@@ -34,11 +34,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if ($debug) {
         $url = $api_base . '/api/v2/events?accesskey=' . urlencode($divera_key);
         $raw = @file_get_contents($url, false, stream_context_create(['http' => ['timeout' => 20]]));
+        $parsed = is_string($raw) ? json_decode($raw, true) : null;
+        $items = $parsed['data']['items'] ?? $parsed['data'] ?? [];
+        $first_item = null;
+        if (is_array($items)) {
+            $first = reset($items);
+            if (is_array($first)) {
+                $ev = $first['Event'] ?? $first['data'] ?? $first;
+                $first_item = [
+                    'top_level_keys' => array_keys($first),
+                    'date' => $first['date'] ?? $ev['date'] ?? null,
+                    'ts_start' => $first['ts_start'] ?? $ev['ts_start'] ?? null,
+                    'ts_end' => $first['ts_end'] ?? $ev['ts_end'] ?? null,
+                    'ts_create' => $first['ts_create'] ?? $ev['ts_create'] ?? null,
+                ];
+            }
+        }
+        $from = isset($_GET['from']) ? strtotime($_GET['from']) : strtotime('first day of this year');
+        $to = isset($_GET['to']) ? strtotime($_GET['to']) : strtotime('last day of next year');
+        $divera_error = '';
+        $events = fetch_divera_events($divera_key, $api_base, $from, $to, $divera_error);
         echo json_encode([
             'debug' => true,
             'url_called' => $api_base . '/api/v2/events?accesskey=***',
             'raw_response' => $raw,
-            'parsed' => is_string($raw) ? json_decode($raw, true) : null,
+            'parsed' => $parsed,
+            'first_item_sample' => $first_item,
+            'from_ts' => $from,
+            'to_ts' => $to,
+            'events_count' => count($events),
+            'events' => $events,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         exit;
     }
