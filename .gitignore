@@ -47,6 +47,7 @@ mysql_data/
 # PHP
 vendor/
 composer.lock
+composer.phar
 
 # Cache
 cache/

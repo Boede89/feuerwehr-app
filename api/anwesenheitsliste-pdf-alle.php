@@ -181,6 +181,8 @@ table{width:100%;border-collapse:collapse;margin-bottom:12px}th,td{border:1px so
 @media print{body{padding:0}.report-page{page-break-after:always}.report-page:last-child{page-break-after:auto}}
 </style></head><body>' . implode('', $html_parts) . '</body></html>';
 
+$filename = 'Anwesenheitslisten_alle_' . date('Y-m-d') . '.pdf';
+
 $wkhtmltopdfPath = '';
 foreach (['/usr/bin/wkhtmltopdf', '/usr/local/bin/wkhtmltopdf', 'wkhtmltopdf'] as $path) {
     if ((strpos($path, '/') !== false && is_executable($path)) || (strpos($path, '/') === false && shell_exec('which ' . $path))) {
@@ -188,8 +190,6 @@ foreach (['/usr/bin/wkhtmltopdf', '/usr/local/bin/wkhtmltopdf', 'wkhtmltopdf'] a
         break;
     }
 }
-
-$filename = 'Anwesenheitslisten_alle_' . date('Y-m-d') . '.pdf';
 
 if ($wkhtmltopdfPath) {
     $pdfPath = tempnam(sys_get_temp_dir(), 'al_all_') . '.pdf';
@@ -208,6 +208,48 @@ if ($wkhtmltopdfPath) {
     }
     @unlink($pdfPath);
     @unlink($htmlPath);
+}
+
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+    if (class_exists('Dompdf\Dompdf')) {
+        try {
+            $dompdf = new \Dompdf\Dompdf(['isRemoteEnabled' => false]);
+            $dompdf->loadHtml($html, 'UTF-8');
+            $dompdf->setPaper('A4', 'portrait');
+            $dompdf->render();
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            echo $dompdf->output();
+            exit;
+        } catch (Exception $e) {
+            error_log('Dompdf Fehler: ' . $e->getMessage());
+        }
+    }
+}
+
+$tcpdfPath = __DIR__ . '/../vendor/tecnickcom/tcpdf/tcpdf.php';
+if (file_exists($tcpdfPath)) {
+    require_once $tcpdfPath;
+    if (class_exists('TCPDF')) {
+        try {
+            $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+            $pdf->SetCreator('Feuerwehr App');
+            $pdf->setPrintHeader(false);
+            $pdf->setPrintFooter(false);
+            $pdf->SetMargins(12, 12, 12);
+            $pdf->SetAutoPageBreak(true, 12);
+            $pdf->AddPage();
+            $pdf->SetFont('helvetica', '', 10);
+            $pdf->writeHTML($html, true, false, true, false, '');
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            echo $pdf->Output('', 'S');
+            exit;
+        } catch (Exception $e) {
+            error_log('TCPDF Fehler: ' . $e->getMessage());
+        }
+    }
 }
 
 header('Content-Type: text/html; charset=UTF-8');

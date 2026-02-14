@@ -1,0 +1,8 @@
+{
+    "name": "feuerwehr/app",
+    "description": "Feuerwehr App",
+    "require": {
+        "php": ">=7.4",
+        "dompdf/dompdf": "^2.0"
+    }
+}
