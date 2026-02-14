@@ -614,6 +614,28 @@ if ($can_atemschutz) {
         </div>
     </div>
 
+    <!-- Erfolgs-Modal (ersetzt Browser-Alert) -->
+    <div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header border-0 pb-0" style="background: linear-gradient(135deg, #28a745, #20c997); color: white;">
+                    <h5 class="modal-title">
+                        <i class="fas fa-check-circle me-2"></i>Erfolgreich
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+                </div>
+                <div class="modal-body pt-4">
+                    <div id="successModalBody">
+                        <!-- Inhalt wird per JS eingefügt -->
+                    </div>
+                    <p class="text-muted small mb-0 mt-3">
+                        <i class="fas fa-sync-alt fa-spin me-1"></i>Seite wird in Kürze neu geladen…
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Konflikt-Warnung Modal -->
     <div class="modal fade" id="conflictWarningModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -1653,6 +1675,21 @@ if ($can_atemschutz) {
             }
         }
         
+        // Erfolgs-Meldung in Modal anzeigen (ersetzt alert)
+        function showSuccessMessage(mainMsg, subMsgHtml) {
+            const detailsModal = bootstrap.Modal.getInstance(document.getElementById('reservationDetailsModal'));
+            const conflictModal = bootstrap.Modal.getInstance(document.getElementById('conflictWarningModal'));
+            if (detailsModal) detailsModal.hide();
+            if (conflictModal) conflictModal.hide();
+            const body = document.getElementById('successModalBody');
+            if (body) {
+                body.innerHTML = '<p class="mb-0 fs-5">' + mainMsg + '</p>' + (subMsgHtml || '');
+            }
+            const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+            successModal.show();
+            setTimeout(() => location.reload(), 2000);
+        }
+        
         // Reservierung genehmigen
         function approveReservation() {
             if (!window.currentReservationId) return;
@@ -1701,20 +1738,16 @@ if ($can_atemschutz) {
                     approveBtn.classList.remove('btn-success');
                     approveBtn.classList.add('btn-success');
                     
-                    let msg = data.message || 'Reservierung wurde genehmigt.';
+                    const mainMsg = data.message || 'Reservierung wurde genehmigt.';
+                    let subMsg = '';
                     if (data.divera_sent) {
-                        msg += '\n\nDer Termin wurde an Divera 24/7 übermittelt.';
+                        subMsg = '<div class="alert alert-success py-2 mt-2 mb-0"><i class="fas fa-calendar-check me-2"></i>Der Termin wurde an Divera 24/7 übermittelt.</div>';
                     } else if (data.needs_divera_key) {
-                        msg += '\n\nHinweis: Damit der Termin an Divera 24/7 übermittelt wird, bitte in Ihrem Profil oder in den Divera-Einstellungen einen Access Key hinterlegen.';
+                        subMsg = '<div class="alert alert-warning py-2 mt-2 mb-0"><i class="fas fa-key me-2"></i>Damit der Termin an Divera 24/7 übermittelt wird, bitte in Ihrem Profil oder in den Divera-Einstellungen einen Access Key hinterlegen.</div>';
                     } else if (data.divera_error) {
-                        msg += '\n\nDivera: ' + (data.divera_error.message || 'HTTP ' + data.divera_error.code);
+                        subMsg = '<div class="alert alert-danger py-2 mt-2 mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Divera: ' + (data.divera_error.message || 'HTTP ' + data.divera_error.code) + '</div>';
                     }
-                    alert(msg);
-                    
-                    // Modal nach 2 Sekunden schließen und Seite neu laden
-                    setTimeout(() => {
-                        location.reload();
-                    }, 2000);
+                    showSuccessMessage(mainMsg, subMsg);
                 } else if (data.has_conflicts) {
                     // Konflikte gefunden - zeige Warnung
                     approveBtn.disabled = false;
@@ -1825,20 +1858,16 @@ if ($can_atemschutz) {
                     confirmBtn.classList.remove('btn-warning');
                     confirmBtn.classList.add('btn-success');
                     
-                    let msg = data.message || 'Reservierung wurde genehmigt und Konflikte gelöst.';
+                    const mainMsg = data.message || 'Reservierung wurde genehmigt und Konflikte gelöst.';
+                    let subMsg = '';
                     if (data.divera_sent) {
-                        msg += '\n\nDer Termin wurde an Divera 24/7 übermittelt.';
+                        subMsg = '<div class="alert alert-success py-2 mt-2 mb-0"><i class="fas fa-calendar-check me-2"></i>Der Termin wurde an Divera 24/7 übermittelt.</div>';
                     } else if (data.needs_divera_key) {
-                        msg += '\n\nHinweis: Damit der Termin an Divera 24/7 übermittelt wird, bitte in Ihrem Profil oder in den Divera-Einstellungen einen Access Key hinterlegen.';
+                        subMsg = '<div class="alert alert-warning py-2 mt-2 mb-0"><i class="fas fa-key me-2"></i>Damit der Termin an Divera 24/7 übermittelt wird, bitte in Ihrem Profil oder in den Divera-Einstellungen einen Access Key hinterlegen.</div>';
                     } else if (data.divera_error) {
-                        msg += '\n\nDivera: ' + (data.divera_error.message || 'HTTP ' + data.divera_error.code);
+                        subMsg = '<div class="alert alert-danger py-2 mt-2 mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Divera: ' + (data.divera_error.message || 'HTTP ' + data.divera_error.code) + '</div>';
                     }
-                    alert(msg);
-                    
-                    // Alle Modals schließen und Seite neu laden
-                    setTimeout(() => {
-                        location.reload();
-                    }, 2000);
+                    showSuccessMessage(mainMsg, subMsg);
                 } else {
                     confirmBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
                     confirmBtn.classList.remove('btn-warning');
