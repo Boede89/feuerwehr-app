@@ -219,7 +219,7 @@ try {
     // Tabelle kann fehlen
 }
 
-// Alle Dienste ohne Anwesenheitsliste (für "Anderen Dienst auswählen") - nur bis heute, keine Zukunft
+// Alle Dienste ohne Anwesenheitsliste (für "Dienst auswählen") - nur bis heute, keine Zukunft
 $andere_dienste = [];
 try {
     $stmt = $db->prepare("
@@ -398,13 +398,13 @@ if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()),
                                 <div class="col-12 col-md-4">
                                     <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=einsatz&neu=1" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn text-decoration-none">
                                         <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
-                                        <h5 class="card-title mb-0">Einsatz oder Manuelle Anwesenheit</h5>
+                                        <h5 class="card-title mb-0">Manuelle Anwesenheit</h5>
                                     </a>
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <button type="button" class="btn btn-outline-primary w-100 h-100 anwesenheits-btn" data-bs-toggle="modal" data-bs-target="#andereDiensteModal">
                                         <div class="feature-icon mb-2"><i class="fas fa-list"></i></div>
-                                        <h5 class="card-title mb-0">Anderen Dienst auswählen</h5>
+                                        <h5 class="card-title mb-0">Dienst auswählen</h5>
                                     </button>
                                 </div>
                             </div>
@@ -413,12 +413,12 @@ if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()),
 
                         <a href="formulare.php" class="btn btn-link">Zurück zu Formulare</a>
 
-                        <!-- Modal: Anderen Dienst auswählen -->
+                        <!-- Modal: Dienst auswählen -->
                         <div class="modal fade" id="andereDiensteModal" tabindex="-1">
                             <div class="modal-dialog modal-dialog-scrollable">
                                 <div class="modal-content">
                                     <div class="modal-header">
-                                        <h5 class="modal-title">Anderen Dienst auswählen</h5>
+                                        <h5 class="modal-title">Dienst auswählen</h5>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                     </div>
                                     <div class="modal-body">
