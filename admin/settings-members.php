@@ -158,30 +158,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_missing_qualific
             $members = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
             $updated_from_courses = 0;
             $updated_from_default = 0;
-            $stmt_best = $db->prepare("
-                SELECT c.qualification_id
-                FROM member_courses mc
-                JOIN courses c ON c.id = mc.course_id AND c.qualification_id IS NOT NULL
-                JOIN member_qualifications q ON q.id = c.qualification_id
-                WHERE mc.member_id = ?
-                ORDER BY q.sort_order ASC
-                LIMIT 1
-            ");
             $stmt_up = $db->prepare("UPDATE members SET qualification_id = ? WHERE id = ?");
             foreach ($members as $m) {
                 $member_id = (int)$m['id'];
-                $qual_id = null;
-                $stmt_best->execute([$member_id]);
-                $row = $stmt_best->fetch(PDO::FETCH_ASSOC);
-                if ($row && !empty($row['qualification_id'])) {
-                    $qual_id = (int)$row['qualification_id'];
-                    $updated_from_courses++;
-                } elseif ($default_id !== null) {
-                    $qual_id = $default_id;
-                    $updated_from_default++;
-                }
+                $qual_id = get_member_qualification_from_courses($member_id, $db);
                 if ($qual_id !== null) {
                     $stmt_up->execute([$qual_id, $member_id]);
+                    $updated_from_courses++;
+                } elseif ($default_id !== null) {
+                    $stmt_up->execute([$default_id, $member_id]);
+                    $updated_from_default++;
                 }
             }
             $total = $updated_from_courses + $updated_from_default;

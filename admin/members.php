@@ -150,25 +150,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_course_assignmen
                     }
                 }
                 
-                // Qualifikation des Mitglieds aus Lehrgängen ableiten (beste Qualifikation nach Reihenfolge)
-                try {
-                    $stmt_best = $db->prepare("
-                        SELECT c.qualification_id
-                        FROM member_courses mc
-                        JOIN courses c ON c.id = mc.course_id AND c.qualification_id IS NOT NULL
-                        JOIN member_qualifications q ON q.id = c.qualification_id
-                        WHERE mc.member_id = ?
-                        ORDER BY q.sort_order ASC
-                        LIMIT 1
-                    ");
-                    $stmt_best->execute([$member_id]);
-                    $row = $stmt_best->fetch(PDO::FETCH_ASSOC);
-                    $best_qual_id = $row ? (int)$row['qualification_id'] : null;
-                    $stmt_up = $db->prepare("UPDATE members SET qualification_id = ? WHERE id = ?");
-                    $stmt_up->execute([$best_qual_id, $member_id]);
-                } catch (Exception $e) {
-                    // Tabellen/Spalten evtl. nicht vorhanden
-                }
+                // Qualifikation automatisch aus absolvierten Lehrgängen ableiten (niedrigste sort_order = höchste Stufe)
+                update_member_qualification_from_courses($member_id, $db);
                 
                 if ($db->inTransaction()) {
                     $db->commit();
@@ -1051,25 +1034,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 }
                             }
                         }
-                        // Qualifikation des neuen Mitglieds aus Lehrgängen ableiten (beste nach Reihenfolge)
-                        try {
-                            $stmt_best = $db->prepare("
-                                SELECT c.qualification_id
-                                FROM member_courses mc
-                                JOIN courses c ON c.id = mc.course_id AND c.qualification_id IS NOT NULL
-                                JOIN member_qualifications q ON q.id = c.qualification_id
-                                WHERE mc.member_id = ?
-                                ORDER BY q.sort_order ASC
-                                LIMIT 1
-                            ");
-                            $stmt_best->execute([$new_member_id]);
-                            $row = $stmt_best->fetch(PDO::FETCH_ASSOC);
-                            $best_qual_id = $row ? (int)$row['qualification_id'] : null;
-                            $stmt_up = $db->prepare("UPDATE members SET qualification_id = ? WHERE id = ?");
-                            $stmt_up->execute([$best_qual_id, $new_member_id]);
-                        } catch (Exception $e) {
-                            // Tabellen/Spalten evtl. nicht vorhanden
-                        }
+                        // Qualifikation automatisch aus absolvierten Lehrgängen ableiten (niedrigste sort_order = höchste Stufe)
+                        update_member_qualification_from_courses($new_member_id, $db);
                     }
                     
                     // Wenn PA-Träger aktiviert, erstelle automatisch Geräteträger
@@ -1388,6 +1354,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 // ignore
                             }
                         }
+                        
+                        // Lehrgänge aus Bearbeiten-Formular speichern (falls course_assignments_json übergeben)
+                        if ($can_courses && isset($_POST['course_assignments_json'])) {
+                            $course_assignments_json = $_POST['course_assignments_json'];
+                            $course_assignments = json_decode($course_assignments_json, true);
+                            if (is_array($course_assignments)) {
+                                // AGT automatisch hinzufügen wenn PA-Träger
+                                $agt_course_id = null;
+                                try {
+                                    $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' LIMIT 1");
+                                    $stmt_agt->execute();
+                                    $row = $stmt_agt->fetch(PDO::FETCH_ASSOC);
+                                    if ($row) $agt_course_id = (int)$row['id'];
+                                } catch (Exception $e) { /* ignore */ }
+                                if ($is_pa_traeger == 1 && $agt_course_id && $agt_course_id > 0) {
+                                    $has_agt = false;
+                                    foreach ($course_assignments as $ca) {
+                                        if ((int)($ca['course_id'] ?? 0) === $agt_course_id) { $has_agt = true; break; }
+                                    }
+                                    if (!$has_agt) {
+                                        $course_assignments[] = ['course_id' => $agt_course_id, 'completion_year' => ''];
+                                    }
+                                }
+                                $stmt_delete = $db->prepare("DELETE FROM member_courses WHERE member_id = ?");
+                                $stmt_delete->execute([$member_id]);
+                                foreach ($course_assignments as $course_data) {
+                                    $course_id = (int)($course_data['course_id'] ?? 0);
+                                    $completion_year = trim($course_data['completion_year'] ?? '');
+                                    if ($course_id > 0) {
+                                        $completed_date = null;
+                                        if (!empty($completion_year) && strtolower($completion_year) !== 'nicht bekannt' && is_numeric($completion_year)) {
+                                            $completed_date = $completion_year . '-01-01';
+                                        }
+                                        $stmt_course = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, ?)");
+                                        $stmt_course->execute([$member_id, $course_id, $completed_date]);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Qualifikation automatisch aus absolvierten Lehrgängen ableiten (niedrigste sort_order = höchste Stufe)
+                        update_member_qualification_from_courses($member_id, $db);
                         
                         // Wenn Mitglied mit Benutzer verknüpft ist, aktualisiere auch Benutzer
                     if (!empty($old_user_id)) {

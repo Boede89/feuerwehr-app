@@ -2039,4 +2039,61 @@ function delete_divera_event($event_id, $access_key, $api_base_url = 'https://ap
     }
     return $success;
 }
+
+/**
+ * Leitet die Qualifikation eines Mitglieds aus dessen absolvierten Lehrgängen ab.
+ * Verwendet die Qualifikation mit der niedrigsten sort_order (höchste Stufe).
+ * Gibt die qualification_id zurück oder null, wenn keine Lehrgänge mit Qualifikation vorhanden sind.
+ *
+ * @param int $member_id Mitglieds-ID
+ * @param PDO|null $db Datenbankverbindung (optional, verwendet global $db wenn nicht übergeben)
+ * @return int|null qualification_id oder null
+ */
+function get_member_qualification_from_courses($member_id, $db = null) {
+    global $db;
+    $db = $db ?: $GLOBALS['db'] ?? null;
+    if (!$db || $member_id <= 0) {
+        return null;
+    }
+    try {
+        $stmt = $db->prepare("
+            SELECT c.qualification_id
+            FROM member_courses mc
+            JOIN courses c ON c.id = mc.course_id AND c.qualification_id IS NOT NULL
+            JOIN member_qualifications q ON q.id = c.qualification_id
+            WHERE mc.member_id = ?
+            ORDER BY q.sort_order ASC
+            LIMIT 1
+        ");
+        $stmt->execute([$member_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row && !empty($row['qualification_id']) ? (int)$row['qualification_id'] : null;
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
+/**
+ * Aktualisiert die Qualifikation eines Mitglieds basierend auf dessen absolvierten Lehrgängen.
+ * Verwendet die Qualifikation mit der niedrigsten sort_order (höchste Stufe).
+ *
+ * @param int $member_id Mitglieds-ID
+ * @param PDO|null $db Datenbankverbindung (optional)
+ * @return bool true bei Erfolg
+ */
+function update_member_qualification_from_courses($member_id, $db = null) {
+    global $db;
+    $db = $db ?: $GLOBALS['db'] ?? null;
+    if (!$db || $member_id <= 0) {
+        return false;
+    }
+    try {
+        $qual_id = get_member_qualification_from_courses($member_id, $db);
+        $stmt = $db->prepare("UPDATE members SET qualification_id = ? WHERE id = ?");
+        $stmt->execute([$qual_id, $member_id]);
+        return true;
+    } catch (Exception $e) {
+        return false;
+    }
+}
 ?>
