@@ -58,7 +58,30 @@ if ($is_einsatz) {
 
 // Session-Draft für diese Anwesenheitsliste (ein Draft pro User)
 $draft_key = 'anwesenheit_draft';
+$neu = isset($_GET['neu']) && $_GET['neu'] === '1';
+if ($neu) {
+    unset($_SESSION[$draft_key]);
+}
+$draft_loaded = false;
 if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum || $_SESSION[$draft_key]['auswahl'] !== $auswahl) {
+    // Versuche Entwurf aus DB zu laden (nur wenn nicht explizit neu angefordert)
+    if (!$neu && isset($_SESSION['user_id'])) {
+        try {
+            $stmt = $db->prepare("SELECT datum, auswahl, draft_data FROM anwesenheitsliste_drafts WHERE user_id = ?");
+            $stmt->execute([(int)$_SESSION['user_id']]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row && $row['datum'] === $datum && $row['auswahl'] === $auswahl && !empty($row['draft_data'])) {
+                $loaded = json_decode($row['draft_data'], true);
+                if (is_array($loaded)) {
+                    $_SESSION[$draft_key] = $loaded;
+                    $draft_loaded = true;
+                }
+            }
+        } catch (Exception $e) {
+            // Tabelle evtl. nicht vorhanden
+        }
+    }
+    if (!$draft_loaded) {
     $_SESSION[$draft_key] = [
         'datum' => $datum,
         'auswahl' => $auswahl,
@@ -87,6 +110,7 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'custom_data' => [],
     ];
     $_SESSION[$draft_key]['uhrzeit_bis'] = date('H:i');
+    }
 }
 $draft = &$_SESSION[$draft_key];
 
@@ -303,6 +327,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             }
         }
         unset($_SESSION[$draft_key]);
+        try {
+            $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE user_id = ?")->execute([(int)$_SESSION['user_id']]);
+        } catch (Exception $e) { /* ignore */ }
         header('Location: anwesenheitsliste.php?message=erfolg');
         exit;
     } catch (Exception $e) {
@@ -487,6 +514,17 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
     </main>
     <footer class="bg-light mt-5 py-4"><div class="container text-center"><p class="text-muted mb-0">&copy; 2025 Boedes Feuerwehr App</p></div></footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    window.addEventListener('beforeunload', function() {
+        var form = document.getElementById('mainForm');
+        if (form) {
+            var fd = new FormData(form);
+            navigator.sendBeacon('api/save-anwesenheit-draft.php', fd);
+        } else {
+            navigator.sendBeacon('api/save-anwesenheit-draft.php', '');
+        }
+    });
+    </script>
     <script>
         (function(){var input=document.getElementById('einsatzstelle');var suggestionsEl=document.getElementById('einsatzstelle_suggestions');if(!input||!suggestionsEl)return;var debounceTimer;input.addEventListener('input',function(){clearTimeout(debounceTimer);var q=input.value.trim();if(q.length<3){suggestionsEl.style.display='none';suggestionsEl.innerHTML='';return;}debounceTimer=setTimeout(function(){fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(q)+'&countrycodes=de,at,ch&limit=5&addressdetails=1',{headers:{'Accept':'application/json'}}).then(function(r){return r.json();}).then(function(data){suggestionsEl.innerHTML='';if(!data||data.length===0){suggestionsEl.style.display='none';return;}data.forEach(function(item){var addr=item.address||{};var strasse=addr.road||'';var hausnummer=addr.house_number||'';var plz=addr.postcode||'';var ort=addr.city||addr.town||addr.village||addr.municipality||'';var zeile1=[strasse,hausnummer].filter(Boolean).join(' ');var zeile2=[plz,ort].filter(Boolean).join(' ');var display=[zeile1,zeile2].filter(Boolean).join(', ');if(!display)display=item.display_name||item.name||'';var a=document.createElement('button');a.type='button';a.className='list-group-item list-group-item-action list-group-item-light text-start';a.textContent=display;a.addEventListener('click',function(){input.value=display;suggestionsEl.style.display='none';suggestionsEl.innerHTML='';});suggestionsEl.appendChild(a);});suggestionsEl.style.display='block';}).catch(function(){suggestionsEl.style.display='none';});},400);});input.addEventListener('blur',function(){setTimeout(function(){suggestionsEl.style.display='none';},200);});document.addEventListener('click',function(e){if(!input.contains(e.target)&&!suggestionsEl.contains(e.target))suggestionsEl.style.display='none';});})();
     </script>

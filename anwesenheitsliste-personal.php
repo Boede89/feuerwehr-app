@@ -210,6 +210,28 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+    window.addEventListener('beforeunload', function() {
+        var form = document.getElementById('personalForm');
+        if (form) {
+            var fd = new FormData();
+            fd.append('form_type', 'personal');
+            form.querySelectorAll('.anw-row.selected').forEach(function(row) {
+                var midInput = row.querySelector('.member-id-input');
+                var vehicleSelect = row.querySelector('select[name^="vehicle"]');
+                var roleSelect = row.querySelector('select[name^="role"]');
+                if (midInput) {
+                    fd.append('member_id[]', midInput.value);
+                    if (vehicleSelect) fd.append('vehicle[' + midInput.value + ']', vehicleSelect.value);
+                    if (roleSelect) fd.append('role[' + midInput.value + ']', roleSelect.value);
+                }
+            });
+            navigator.sendBeacon('api/save-anwesenheit-draft.php', fd);
+        } else {
+            navigator.sendBeacon('api/save-anwesenheit-draft.php', '');
+        }
+    });
+    </script>
+    <script>
         document.querySelectorAll('.anw-row').forEach(function(row) {
             var nameCell = row.querySelector('.name-cell');
             var hiddenInput = row.querySelector('.member-id-input');

@@ -127,8 +127,40 @@ try {
     } catch (Exception $e2) {
         error_log('Anwesenheitsliste_fahrzeuge Tabelle: ' . $e2->getMessage());
     }
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS anwesenheitsliste_drafts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                datum DATE NOT NULL,
+                auswahl VARCHAR(50) NOT NULL,
+                dienstplan_id INT NULL,
+                typ VARCHAR(50) NOT NULL DEFAULT 'dienst',
+                bezeichnung VARCHAR(255) NULL,
+                draft_data JSON NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_user_draft (user_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+    } catch (Exception $e2) {
+        error_log('anwesenheitsliste_drafts Tabelle: ' . $e2->getMessage());
+    }
 } catch (Exception $e) {
     error_log('Anwesenheitsliste Tabellen: ' . $e->getMessage());
+}
+
+// Entwurf löschen (wenn angefragt)
+if (isset($_GET['action']) && $_GET['action'] === 'delete_draft' && isset($_SESSION['user_id'])) {
+    try {
+        $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE user_id = ?");
+        $stmt->execute([(int)$_SESSION['user_id']]);
+        unset($_SESSION['anwesenheit_draft']);
+    } catch (Exception $e) {
+        // ignore
+    }
+    header('Location: anwesenheitsliste.php');
+    exit;
 }
 
 $message = '';
@@ -185,19 +217,31 @@ try {
 
 // Speichern erfolgt auf der nächsten Seite (anwesenheitsliste-eingaben.php)
 
-// Letzte Anwesenheitslisten (Übersicht)
-$letzte_listen = [];
+// Letzte abgeschlossene Anwesenheitsliste (nur 1)
+$letzte_abgeschlossen = null;
 try {
     $stmt = $db->query("
         SELECT a.*, d.bezeichnung AS dienst_bezeichnung
         FROM anwesenheitslisten a
         LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
         ORDER BY a.created_at DESC
-        LIMIT 20
+        LIMIT 1
     ");
-    $letzte_listen = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $letzte_abgeschlossen = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // ignore
+}
+
+// Aktueller Entwurf (nur für eingeloggten User)
+$aktueller_entwurf = null;
+if (isset($_SESSION['user_id'])) {
+    try {
+        $stmt = $db->prepare("SELECT * FROM anwesenheitsliste_drafts WHERE user_id = ?");
+        $stmt->execute([(int)$_SESSION['user_id']]);
+        $aktueller_entwurf = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        // ignore
+    }
 }
 
 ?>
@@ -297,7 +341,7 @@ try {
                                     </div>
                                 <?php endif; ?>
                                 <div class="col-12 col-md-4">
-                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=einsatz" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn text-decoration-none">
+                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=einsatz&neu=1" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn text-decoration-none">
                                         <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
                                         <h5 class="card-title mb-0">Einsatz oder Manuelle Anwesenheit</h5>
                                     </a>
@@ -340,11 +384,41 @@ try {
                             </div>
                         </div>
 
-                        <?php if (!empty($letzte_listen)): ?>
+                        <?php if ($letzte_abgeschlossen || $aktueller_entwurf): ?>
                         <hr class="my-4">
                         <h5 class="h6 text-muted">Zuletzt angelegte Anwesenheitslisten</h5>
                         <ul class="list-group list-group-flush">
-                            <?php foreach (array_slice($letzte_listen, 0, 10) as $l): ?>
+                            <?php if ($aktueller_entwurf): 
+                                $e = $aktueller_entwurf;
+                                $label = '';
+                                if (($e['typ'] ?? '') === 'einsatz') $label = htmlspecialchars($e['bezeichnung'] ?? 'Einsatz');
+                                elseif (($e['typ'] ?? '') === 'manuell') $label = htmlspecialchars($e['bezeichnung'] ?? 'Manuelle Anwesenheit');
+                                else {
+                                    $dp_id = $e['dienstplan_id'] ?? null;
+                                    if ($dp_id) {
+                                        $stmt = $db->prepare("SELECT bezeichnung FROM dienstplan WHERE id = ?");
+                                        $stmt->execute([$dp_id]);
+                                        $d = $stmt->fetch(PDO::FETCH_ASSOC);
+                                        $label = htmlspecialchars($d['bezeichnung'] ?? 'Dienst');
+                                    } else $label = 'Dienst';
+                                }
+                            ?>
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0 border-warning">
+                                <span>
+                                    <span class="badge bg-warning text-dark me-2">Entwurf</span>
+                                    <?php echo date('d.m.Y', strtotime($e['datum'])); ?>
+                                    —
+                                    <?php echo $label; ?>
+                                </span>
+                                <span class="d-flex align-items-center gap-2">
+                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($e['datum']); ?>&auswahl=<?php echo urlencode($e['auswahl']); ?>" class="btn btn-sm btn-outline-primary">Fortsetzen</a>
+                                    <a href="anwesenheitsliste.php?action=delete_draft" class="btn btn-sm btn-outline-danger" title="Entwurf löschen" onclick="return confirm('Entwurf wirklich löschen?');"><i class="fas fa-trash"></i></a>
+                                </span>
+                            </li>
+                            <?php endif; ?>
+                            <?php if ($letzte_abgeschlossen): 
+                                $l = $letzte_abgeschlossen;
+                            ?>
                             <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                                 <span>
                                     <?php echo date('d.m.Y', strtotime($l['datum'])); ?>
@@ -357,7 +431,7 @@ try {
                                 </span>
                                 <small class="text-muted"><?php echo date('d.m. H:i', strtotime($l['created_at'])); ?></small>
                             </li>
-                            <?php endforeach; ?>
+                            <?php endif; ?>
                         </ul>
                         <?php endif; ?>
                     </div>

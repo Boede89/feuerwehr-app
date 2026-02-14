@@ -293,6 +293,28 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+    window.addEventListener('beforeunload', function() {
+        var form = document.getElementById('fahrzeugeForm');
+        if (form) {
+            var fd = new FormData();
+            fd.append('form_type', 'fahrzeuge');
+            form.querySelectorAll('.anw-row.selected').forEach(function(row) {
+                var vidInput = row.querySelector('.vehicle-id-input');
+                var maschSelect = row.querySelector('select[name^="maschinist"]');
+                var einhSelect = row.querySelector('select[name^="einheitsfuehrer"]');
+                if (vidInput) {
+                    fd.append('vehicle_id[]', vidInput.value);
+                    if (maschSelect) fd.append('maschinist[' + vidInput.value + ']', maschSelect.value);
+                    if (einhSelect) fd.append('einheitsfuehrer[' + vidInput.value + ']', einhSelect.value);
+                }
+            });
+            navigator.sendBeacon('api/save-anwesenheit-draft.php', fd);
+        } else {
+            navigator.sendBeacon('api/save-anwesenheit-draft.php', '');
+        }
+    });
+    </script>
+    <script>
         document.querySelectorAll('.anw-row').forEach(function(row) {
             var nameCell = row.querySelector('.name-cell');
             var hiddenInput = row.querySelector('.vehicle-id-input');
