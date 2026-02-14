@@ -1644,8 +1644,6 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
     $vehicle_name = $reservation['vehicle_name'] ?? 'Fahrzeug';
     $title = $vehicle_name . ' - ' . ($reservation['reason'] ?? 'Reservierung');
     $address = trim($reservation['location'] ?? '');
-    // text = Beschreibung (Grund), address = Ort – Ort nicht doppelt in text, da address bereits den Ort enthält
-    $text = trim($reservation['reason'] ?? '');
     $group_ids = isset($reservation['_divera_group_ids']) && is_array($reservation['_divera_group_ids'])
         ? array_map('intval', array_filter($reservation['_divera_group_ids']))
         : [];
@@ -1656,7 +1654,6 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         'ts_start'          => $start_ts,
         'ts_end'            => $end_ts,
         'address'           => $address,
-        'text'              => $text,
     ];
     if ($use_groups) {
         $event['group'] = $group_ids;
