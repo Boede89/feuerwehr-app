@@ -1034,7 +1034,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 }
                             }
                         }
-                        // Qualifikation automatisch aus absolvierten Lehrgängen ableiten (niedrigste sort_order = höchste Stufe)
+                    }
+                    // Qualifikation: verknüpfte Lehrgänge hinzufügen wenn Qualifikation manuell gesetzt
+                    if ($can_courses && $qualification_id !== null) {
+                        add_courses_for_qualification_to_member($new_member_id, $qualification_id, $db);
+                    }
+                    // Qualifikation aus Lehrgängen ableiten (nur wenn Lehrgänge mit Qualifikation vorhanden)
+                    if ($can_courses) {
                         update_member_qualification_from_courses($new_member_id, $db);
                     }
                     
@@ -1394,7 +1400,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             }
                         }
                         
-                        // Qualifikation automatisch aus absolvierten Lehrgängen ableiten (niedrigste sort_order = höchste Stufe)
+                        // Wenn Qualifikation manuell gesetzt: verknüpfte Lehrgänge als absolviert hinzufügen
+                        if ($qualification_id !== null) {
+                            add_courses_for_qualification_to_member($member_id, $qualification_id, $db);
+                        }
+                        // Qualifikation aus Lehrgängen ableiten (nur wenn Lehrgänge mit Qualifikation vorhanden)
                         update_member_qualification_from_courses($member_id, $db);
                         
                         // Wenn Mitglied mit Benutzer verknüpft ist, aktualisiere auch Benutzer

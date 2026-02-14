@@ -2076,6 +2076,8 @@ function get_member_qualification_from_courses($member_id, $db = null) {
 /**
  * Aktualisiert die Qualifikation eines Mitglieds basierend auf dessen absolvierten Lehrgängen.
  * Verwendet die Qualifikation mit der niedrigsten sort_order (höchste Stufe).
+ * Überschreibt NUR wenn der Mitglied Lehrgänge mit Qualifikation hat – sonst bleibt die
+ * manuell gesetzte Qualifikation erhalten.
  *
  * @param int $member_id Mitglieds-ID
  * @param PDO|null $db Datenbankverbindung (optional)
@@ -2089,8 +2091,44 @@ function update_member_qualification_from_courses($member_id, $db = null) {
     }
     try {
         $qual_id = get_member_qualification_from_courses($member_id, $db);
-        $stmt = $db->prepare("UPDATE members SET qualification_id = ? WHERE id = ?");
-        $stmt->execute([$qual_id, $member_id]);
+        // Nur aktualisieren wenn aus Lehrgängen eine Qualifikation ableitbar ist
+        // (sonst manuell gesetzte Qualifikation ohne Lehrgang-Verknüpfung beibehalten)
+        if ($qual_id !== null) {
+            $stmt = $db->prepare("UPDATE members SET qualification_id = ? WHERE id = ?");
+            $stmt->execute([$qual_id, $member_id]);
+        }
+        return true;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+/**
+ * Fügt einem Mitglied die Lehrgänge hinzu, die mit der angegebenen Qualifikation verknüpft sind.
+ * Wird aufgerufen wenn eine Qualifikation manuell zugewiesen wird – der Lehrgang gilt dann als absolviert.
+ *
+ * @param int $member_id Mitglieds-ID
+ * @param int $qualification_id Qualifikations-ID
+ * @param PDO|null $db Datenbankverbindung (optional)
+ * @return bool true bei Erfolg
+ */
+function add_courses_for_qualification_to_member($member_id, $qualification_id, $db = null) {
+    global $db;
+    $db = $db ?: $GLOBALS['db'] ?? null;
+    if (!$db || $member_id <= 0 || $qualification_id <= 0) {
+        return false;
+    }
+    try {
+        $stmt = $db->prepare("SELECT id FROM courses WHERE qualification_id = ?");
+        $stmt->execute([$qualification_id]);
+        $courses = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        if (empty($courses)) {
+            return true;
+        }
+        $stmt_ins = $db->prepare("INSERT INTO member_courses (member_id, course_id, completed_date) VALUES (?, ?, NULL) ON DUPLICATE KEY UPDATE member_id = member_id");
+        foreach ($courses as $course_id) {
+            $stmt_ins->execute([$member_id, (int)$course_id]);
+        }
         return true;
     } catch (Exception $e) {
         return false;
