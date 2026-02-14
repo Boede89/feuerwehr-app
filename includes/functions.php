@@ -1586,10 +1586,12 @@ function merge_duplicate_members() {
 
 /**
  * Sendet eine genehmigte Reservierung als Termin an Divera 24/7 (API v2/events).
- * @param array $reservation Reservierungs-Datensatz (start_datetime, end_datetime, reason, location, vehicle_name, …)
- * @param string $access_key Divera-Einheits-Accesskey (z. B. vom genehmigenden User)
+ * Nutzt das offizielle Event-JSON-Format (foreign_id, title, text, address, ts_start, ts_end, fullday, notification_type, …).
+ *
+ * @param array $reservation Reservierungs-Datensatz (id, start_datetime, end_datetime, reason, location, vehicle_name, …)
+ * @param string $access_key Divera-Einheits-Accesskey (Admin → Einstellungen → Divera 24/7)
  * @param string $api_base_url Basis-URL der Divera-API (z. B. https://app.divera247.com)
- * @return bool true bei Erfolg (HTTP 2xx), false sonst
+ * @return bool true bei Erfolg (HTTP 2xx und success im JSON-Body), false sonst
  */
 function send_reservation_to_divera($reservation, $access_key, $api_base_url = 'https://app.divera247.com') {
     $access_key = trim((string) $access_key);
@@ -1600,26 +1602,33 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
     $start_ts = strtotime($reservation['start_datetime'] ?? '');
     $end_ts = strtotime($reservation['end_datetime'] ?? '');
     if ($start_ts <= 0 || $end_ts <= 0) {
+        error_log('Divera: Ungültige Zeiten für Reservierung (start/end).');
         return false;
     }
+    $reservation_id = (int) ($reservation['id'] ?? 0);
+    $foreign_id = $reservation_id > 0 ? 'feuerwehr-app-reservation-' . $reservation_id : 'feuerwehr-app-' . uniqid('', true);
     $vehicle_name = $reservation['vehicle_name'] ?? 'Fahrzeug';
     $title = $vehicle_name . ' - ' . ($reservation['reason'] ?? 'Reservierung');
     $address = trim($reservation['location'] ?? '');
+    $text = $address !== '' ? 'Ort: ' . $address : ($reservation['reason'] ?? '');
+    // API v2/events: Event-Objekt mit notification_type + title Pflicht; foreign_id empfohlen; fullday=false bei konkreten Zeiten
     $body = [
         'Event' => [
+            'foreign_id'        => $foreign_id,
+            'title'             => $title,
+            'text'              => $text,
+            'address'           => $address,
+            'ts_start'          => $start_ts,
+            'ts_end'            => $end_ts,
+            'fullday'           => false,
             'notification_type' => 2,
-            'title' => $title,
-            'ts_start' => $start_ts,
-            'ts_end' => $end_ts,
-            'address' => $address,
-            'text' => $address !== '' ? 'Ort: ' . $address : ($reservation['reason'] ?? ''),
         ],
     ];
     $url = $base . '/api/v2/events?accesskey=' . urlencode($access_key);
     $ctx = stream_context_create([
         'http' => [
-            'method' => 'POST',
-            'header' => "Content-Type: application/json\r\n",
+            'method'  => 'POST',
+            'header'  => "Content-Type: application/json\r\n",
             'content' => json_encode($body),
             'timeout' => 15,
         ],
@@ -1629,6 +1638,21 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
     if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) {
         $code = (int) $m[1];
     }
-    return $code >= 200 && $code < 300;
+    $data = is_string($raw) ? json_decode($raw, true) : null;
+    $success = $code >= 200 && $code < 300 && !empty($data['success']);
+    if (!$success) {
+        $msg = null;
+        if (is_array($data)) {
+            $msg = $data['data']['message'] ?? $data['message'] ?? $data['error'] ?? null;
+            if (is_array($msg)) {
+                $msg = implode(' ', $msg);
+            }
+            if ($msg === null && !empty($data['errors'])) {
+                $msg = is_array($data['errors']) ? implode(' ', $data['errors']) : (string) $data['errors'];
+            }
+        }
+        error_log('Divera Termin fehlgeschlagen. HTTP ' . $code . '. Reservierung-ID: ' . $reservation_id . '. Response: ' . (is_string($raw) ? substr($raw, 0, 500) : '') . ($msg ? ' Message: ' . $msg : ''));
+    }
+    return $success;
 }
 ?>
