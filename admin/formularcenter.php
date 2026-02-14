@@ -57,11 +57,17 @@ try {
             datum DATE NOT NULL,
             bezeichnung VARCHAR(255) NOT NULL,
             typ VARCHAR(50) DEFAULT 'uebungsdienst',
+            uhrzeit_dienstbeginn TIME NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             KEY idx_datum (datum)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+    try {
+        $db->exec("ALTER TABLE dienstplan ADD COLUMN uhrzeit_dienstbeginn TIME NULL AFTER typ");
+    } catch (Exception $e2) {
+        /* Spalte existiert bereits */
+    }
 } catch (Exception $e) {
     error_log('Dienstplan Tabelle: ' . $e->getMessage());
 }
@@ -131,20 +137,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
         $thema = trim($_POST['dienstplan_thema'] ?? '');
         $thema_neu = trim($_POST['dienstplan_thema_neu'] ?? '');
         $typ_raw = trim($_POST['dienstplan_typ'] ?? '');
+        $uhrzeit = trim($_POST['dienstplan_uhrzeit'] ?? '');
         $typen = get_dienstplan_typen_auswahl();
         $typ = array_key_exists($typ_raw, $typen) ? $typ_raw : 'uebungsdienst';
         $thema_value = $thema === '__neu__' ? $thema_neu : $thema;
+        $uhrzeit_val = (preg_match('/^\d{1,2}:\d{2}$/', $uhrzeit) || preg_match('/^\d{1,2}:\d{2}:\d{2}$/', $uhrzeit)) ? $uhrzeit : null;
         if (empty($datum) || $thema_value === '') {
             $error = 'Datum und Thema sind erforderlich.';
         } else {
             try {
                 if ($id) {
-                    $stmt = $db->prepare("UPDATE dienstplan SET datum = ?, bezeichnung = ?, typ = ? WHERE id = ?");
-                    $stmt->execute([$datum, $thema_value, $typ, $id]);
+                    $stmt = $db->prepare("UPDATE dienstplan SET datum = ?, bezeichnung = ?, typ = ?, uhrzeit_dienstbeginn = ? WHERE id = ?");
+                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $id]);
                     $message = 'Dienstplan-Eintrag wurde aktualisiert.';
                 } else {
-                    $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ) VALUES (?, ?, ?)");
-                    $stmt->execute([$datum, $thema_value, $typ]);
+                    $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ, uhrzeit_dienstbeginn) VALUES (?, ?, ?, ?)");
+                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val]);
                     $message = 'Dienstplan-Eintrag wurde angelegt.';
                 }
                 $active_tab = 'dienstplan';
@@ -630,6 +638,11 @@ try {
                             <input type="date" class="form-control" id="dienstplan_datum" name="dienstplan_datum" required>
                         </div>
                         <div class="mb-3">
+                            <label for="dienstplan_uhrzeit" class="form-label">Uhrzeit Dienstbeginn</label>
+                            <input type="time" class="form-control" id="dienstplan_uhrzeit" name="dienstplan_uhrzeit">
+                            <div class="form-text">Wird automatisch in die Anwesenheitsliste übernommen (Uhrzeit von).</div>
+                        </div>
+                        <div class="mb-3">
                             <label for="dienstplan_typ" class="form-label">Typ</label>
                             <select class="form-select" id="dienstplan_typ" name="dienstplan_typ">
                                 <?php foreach (get_dienstplan_typen_auswahl() as $key => $label): ?>
@@ -857,6 +870,8 @@ try {
             document.getElementById('dienstplanModalTitle').textContent = entry ? 'Eintrag bearbeiten' : 'Neuer Eintrag';
             document.getElementById('dienstplan_id').value = entry ? entry.id : '';
             document.getElementById('dienstplan_datum').value = entry ? (entry.datum || '') : '';
+            var uhrzeitEl = document.getElementById('dienstplan_uhrzeit');
+            if (uhrzeitEl) uhrzeitEl.value = entry && entry.uhrzeit_dienstbeginn ? (entry.uhrzeit_dienstbeginn.length >= 5 ? entry.uhrzeit_dienstbeginn.substring(0, 5) : entry.uhrzeit_dienstbeginn) : '';
             var typSel = document.getElementById('dienstplan_typ');
             if (typSel) typSel.value = entry && entry.typ ? entry.typ : 'uebungsdienst';
             var themaSel = document.getElementById('dienstplan_thema');

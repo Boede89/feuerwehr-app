@@ -48,11 +48,17 @@ try {
             datum DATE NOT NULL,
             bezeichnung VARCHAR(255) NOT NULL,
             typ VARCHAR(50) DEFAULT 'dienst',
+            uhrzeit_dienstbeginn TIME NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             KEY idx_datum (datum)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+    try {
+        $db->exec("ALTER TABLE dienstplan ADD COLUMN uhrzeit_dienstbeginn TIME NULL AFTER typ");
+    } catch (Exception $e2) {
+        /* Spalte existiert bereits */
+    }
     $db->exec("
         CREATE TABLE IF NOT EXISTS anwesenheitslisten (
             id INT AUTO_INCREMENT PRIMARY KEY,

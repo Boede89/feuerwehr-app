@@ -115,9 +115,10 @@ if ($action === 'import') {
             $bezeichnung = $title;
         }
         if ($bezeichnung === '') $bezeichnung = 'Import aus Divera';
+        $uhrzeit = isset($e['ts_start']) && $e['ts_start'] > 0 ? date('H:i:s', $e['ts_start']) : null;
         try {
-            $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ) VALUES (?, ?, ?)");
-            $stmt->execute([$datum, $bezeichnung, $default_typ]);
+            $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ, uhrzeit_dienstbeginn) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$datum, $bezeichnung, $default_typ, $uhrzeit]);
             $imported++;
         } catch (Exception $ex) {
             error_log('Dienstplan Import: ' . $ex->getMessage());

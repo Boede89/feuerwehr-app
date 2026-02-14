@@ -43,7 +43,7 @@ if ($is_einsatz) {
         exit;
     }
     try {
-        $stmt = $db->prepare("SELECT id, datum, bezeichnung, typ FROM dienstplan WHERE id = ?");
+        $stmt = $db->prepare("SELECT id, datum, bezeichnung, typ, uhrzeit_dienstbeginn FROM dienstplan WHERE id = ?");
         $stmt->execute([$dienstplan_id]);
         $dienst = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$dienst) {
@@ -84,6 +84,15 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         }
     }
     if (!$draft_loaded) {
+    $thema_init = '';
+    $uhrzeit_von_init = '';
+    if (!$is_einsatz && isset($dienst)) {
+        if (!empty(trim($dienst['bezeichnung'] ?? ''))) $thema_init = trim($dienst['bezeichnung']);
+        $ub = trim((string)($dienst['uhrzeit_dienstbeginn'] ?? ''));
+        if ($ub !== '' && (preg_match('/^\d{1,2}:\d{2}$/', $ub) || preg_match('/^\d{1,2}:\d{2}:\d{2}$/', $ub))) {
+            $uhrzeit_von_init = strlen($ub) >= 5 ? substr($ub, 0, 5) : $ub;
+        }
+    }
     $_SESSION[$draft_key] = [
         'datum' => $datum,
         'auswahl' => $auswahl,
@@ -91,14 +100,14 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'typ' => $typ,
         'bezeichnung_sonstige' => null,
         'einsatzstichwort' => '',
-        'thema' => '',
+        'thema' => $thema_init,
         'bemerkung' => '',
         'members' => [],
         'member_vehicle' => [],
         'vehicles' => [],
         'vehicle_maschinist' => [],
         'vehicle_einheitsfuehrer' => [],
-        'uhrzeit_von' => '',
+        'uhrzeit_von' => $uhrzeit_von_init,
         'uhrzeit_bis' => '',
         'alarmierung_durch' => '',
         'einsatzstelle' => '',
@@ -308,7 +317,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         $typ_save = ($typ_sonstige ?? 'einsatz') === 'einsatz' ? 'einsatz' : 'manuell';
         $draft['typ'] = $typ_save;
     }
-    $bezeichnung_save = $typ_save === 'einsatz' ? $draft['bezeichnung_sonstige'] : ($typ_save === 'manuell' ? ($draft['thema'] ?? $draft['bezeichnung_sonstige']) : null);
+    $bezeichnung_save = $typ_save === 'einsatz' ? $draft['bezeichnung_sonstige'] : ($typ_save === 'manuell' ? ($draft['thema'] ?? $draft['bezeichnung_sonstige']) : (($typ_save === 'dienst' && trim((string)($draft['thema'] ?? '')) !== '') ? trim($draft['thema']) : null));
     $uhrzeit_von_save = $draft['uhrzeit_von'] !== '' ? $draft['uhrzeit_von'] : null;
     $uhrzeit_bis_save = $draft['uhrzeit_bis'] !== '' ? $draft['uhrzeit_bis'] : null;
     try {
@@ -493,6 +502,28 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                 </div>
                             </div>
                             <?php endif; ?>
+                            <?php if (!$is_einsatz && isset($dienst)):
+                                $dienstplan_themen = [];
+                                try {
+                                    $stmt = $db->query("SELECT DISTINCT bezeichnung FROM dienstplan ORDER BY bezeichnung");
+                                    $dienstplan_themen = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                                } catch (Exception $e) { /* ignore */ }
+                                $thema_dienst = trim((string)($draft['thema'] ?? $dienst['bezeichnung'] ?? ''));
+                            ?>
+                            <div class="mb-4">
+                                <label for="thema_dienst" class="form-label">Thema</label>
+                                <select class="form-select" id="thema_dienst" name="thema">
+                                    <option value="">— Bitte wählen oder neues Thema eingeben —</option>
+                                    <?php foreach ($dienstplan_themen as $t): ?>
+                                        <option value="<?php echo htmlspecialchars($t); ?>" <?php echo $thema_dienst === $t ? 'selected' : ''; ?>><?php echo htmlspecialchars($t); ?></option>
+                                    <?php endforeach; ?>
+                                    <option value="__neu__" <?php echo !in_array($thema_dienst, $dienstplan_themen) && $thema_dienst !== '' ? 'selected' : ''; ?>>— Neues Thema eingeben —</option>
+                                </select>
+                                <div class="mt-2" id="thema_dienst_neu_wrap" style="display: <?php echo !in_array($thema_dienst, $dienstplan_themen) && $thema_dienst !== '' ? 'block' : 'none'; ?>;">
+                                    <input type="text" class="form-control" id="thema_dienst_neu" name="thema_neu" placeholder="Neues Thema" value="<?php echo !in_array($thema_dienst, $dienstplan_themen) ? htmlspecialchars($thema_dienst) : ''; ?>">
+                                </div>
+                            </div>
+                            <?php endif; ?>
                             <?php
                             $is_uebungsdienst = ($is_einsatz && in_array($draft['bezeichnung_sonstige'] ?? '', ['Übungsdienst', 'Jahreshauptversammlung'])) || (!$is_einsatz && isset($dienst) && in_array($dienst['typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung']));
                             $uebungsdienst_hide_ids = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
@@ -503,7 +534,7 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                             ?>
                             <div class="row g-3 mb-4">
                                 <div class="col-md-6">
-                                    <a href="<?php echo htmlspecialchars($personal_url); ?>" class="btn btn-primary w-100 anwesenheits-option-btn">
+                                    <a href="<?php echo htmlspecialchars($personal_url); ?>" class="btn btn-primary w-100 anwesenheits-option-btn anwesenheits-save-before-nav">
                                         <i class="fas fa-users fa-2x mb-2"></i><span>Personal</span>
                                         <small class="d-block mt-1 opacity-90">Anwesende auswählen, Fahrzeug zuordnen</small>
                                         <?php if (!empty($draft['members'])): ?>
@@ -512,7 +543,7 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                     </a>
                                 </div>
                                 <div class="col-md-6">
-                                    <a href="<?php echo htmlspecialchars($fahrzeuge_url); ?>" class="btn btn-outline-primary w-100 anwesenheits-option-btn">
+                                    <a href="<?php echo htmlspecialchars($fahrzeuge_url); ?>" class="btn btn-outline-primary w-100 anwesenheits-option-btn anwesenheits-save-before-nav">
                                         <i class="fas fa-truck fa-2x mb-2"></i><span>Fahrzeuge</span>
                                         <small class="d-block mt-1 opacity-90">Eingesetzte Fahrzeuge, Maschinist & Einheitsführer</small>
                                     </a>
@@ -644,6 +675,18 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
             navigator.sendBeacon('api/save-anwesenheit-draft.php', '');
         }
     });
+    document.querySelectorAll('.anwesenheits-save-before-nav').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            var url = this.getAttribute('href');
+            var form = document.getElementById('mainForm');
+            if (!form || !url) { window.location.href = url || '#'; return; }
+            var fd = new FormData(form);
+            fetch('api/save-anwesenheit-draft.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function() { window.location.href = url; })
+                .catch(function() { window.location.href = url; });
+        });
+    });
     </script>
     <script>
         (function(){var input=document.getElementById('einsatzstelle');var suggestionsEl=document.getElementById('einsatzstelle_suggestions');if(!input||!suggestionsEl)return;var debounceTimer;input.addEventListener('input',function(){clearTimeout(debounceTimer);var q=input.value.trim();if(q.length<3){suggestionsEl.style.display='none';suggestionsEl.innerHTML='';return;}debounceTimer=setTimeout(function(){fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(q)+'&countrycodes=de,at,ch&limit=5&addressdetails=1',{headers:{'Accept':'application/json'}}).then(function(r){return r.json();}).then(function(data){suggestionsEl.innerHTML='';if(!data||data.length===0){suggestionsEl.style.display='none';return;}data.forEach(function(item){var addr=item.address||{};var strasse=addr.road||'';var hausnummer=addr.house_number||'';var plz=addr.postcode||'';var ort=addr.city||addr.town||addr.village||addr.municipality||'';var zeile1=[strasse,hausnummer].filter(Boolean).join(' ');var zeile2=[plz,ort].filter(Boolean).join(' ');var display=[zeile1,zeile2].filter(Boolean).join(', ');if(!display)display=item.display_name||item.name||'';var a=document.createElement('button');a.type='button';a.className='list-group-item list-group-item-action list-group-item-light text-start';a.textContent=display;a.addEventListener('click',function(){input.value=display;suggestionsEl.style.display='none';suggestionsEl.innerHTML='';});suggestionsEl.appendChild(a);});suggestionsEl.style.display='block';}).catch(function(){suggestionsEl.style.display='none';});},400);});input.addEventListener('blur',function(){setTimeout(function(){suggestionsEl.style.display='none';},200);});document.addEventListener('click',function(e){if(!input.contains(e.target)&&!suggestionsEl.contains(e.target))suggestionsEl.style.display='none';});})();
@@ -680,6 +723,15 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
     document.getElementById('thema').addEventListener('change',function(){
         document.getElementById('thema_neu_wrap').style.display=this.value==='__neu__'?'block':'none';
     });
+    </script>
+    <?php endif; ?>
+    <?php if (!$is_einsatz && isset($dienst)): ?>
+    <script>
+    (function(){
+        var sel=document.getElementById('thema_dienst');
+        var wrap=document.getElementById('thema_dienst_neu_wrap');
+        if(sel&&wrap){sel.addEventListener('change',function(){wrap.style.display=this.value==='__neu__'?'block':'none';});}
+    })();
     </script>
     <?php endif; ?>
 </body>
