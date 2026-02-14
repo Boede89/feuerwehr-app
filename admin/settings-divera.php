@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="card">
                 <div class="card-header"><i class="fas fa-cog"></i> Verbindung</div>
                 <div class="card-body">
-                    <p class="text-muted small">Diese Einstellungen werden für „Termin an Divera 24/7“ (Formulare) und für die automatische Übermittlung genehmigter Fahrzeugreservierungen an Divera verwendet. Weitere Optionen können später hier ergänzt werden.</p>
+                    <p class="text-muted small">Diese Einstellungen werden für die automatische Übermittlung genehmigter Fahrzeugreservierungen an Divera verwendet. Weitere Optionen können später hier ergänzt werden.</p>
                     <form method="POST">
                         <div class="mb-3">
                             <label class="form-label">Access Key (Einheits-Key)</label>
