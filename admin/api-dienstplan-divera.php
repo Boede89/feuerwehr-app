@@ -30,6 +30,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         echo json_encode(['success' => false, 'message' => 'Kein Divera Access Key konfiguriert', 'events' => []]);
         exit;
     }
+    $debug = isset($_GET['debug']) && $_GET['debug'] === '1';
+    if ($debug) {
+        $url = $api_base . '/api/v2/events?accesskey=' . urlencode($divera_key);
+        $raw = @file_get_contents($url, false, stream_context_create(['http' => ['timeout' => 20]]));
+        echo json_encode([
+            'debug' => true,
+            'url_called' => $api_base . '/api/v2/events?accesskey=***',
+            'raw_response' => $raw,
+            'parsed' => is_string($raw) ? json_decode($raw, true) : null,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     $from = isset($_GET['from']) ? strtotime($_GET['from']) : strtotime('first day of this year');
     $to = isset($_GET['to']) ? strtotime($_GET['to']) : strtotime('last day of next year');
     $divera_error = '';

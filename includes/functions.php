@@ -1870,16 +1870,23 @@ function fetch_divera_events($access_key, $api_base_url = 'https://app.divera247
         return [];
     }
     if (empty($data['data'])) return [];
-    $items = $data['data']['items'] ?? $data['data'];
+    $dataBlock = $data['data'];
+    $items = $dataBlock['items'] ?? $dataBlock;
     if (!is_array($items)) return [];
     $events = [];
     foreach ($items as $event_id => $event) {
         if (!is_array($event)) continue;
         $id = (int) (isset($event['id']) ? $event['id'] : $event_id);
-        // Divera event-result nutzt "date" als Terminszeit; ts_start/ts_end nur bei event-input
+        if ($id <= 0 && is_numeric($event_id)) $id = (int) $event_id;
+        if ($id <= 0) continue;
+        // Divera event-result: "date" = Terminszeit; Fallbacks: ts_start, ts_end, ts_create, ts_update
         $date_ts = (int) ($event['date'] ?? 0);
         $ts_start = (int) ($event['ts_start'] ?? $date_ts);
         $ts_end = (int) ($event['ts_end'] ?? $date_ts);
+        if ($ts_start <= 0) $ts_start = (int) ($event['ts_create'] ?? 0);
+        if ($ts_end <= 0) $ts_end = $ts_start;
+        // Falls Timestamp in Millisekunden (Wert > 10^10)
+        if ($ts_start > 10000000000) { $ts_start = (int)($ts_start / 1000); $ts_end = (int)($ts_end / 1000); }
         if ($ts_start <= 0 && $ts_end <= 0) continue;
         if ($from_ts !== null && $ts_end < $from_ts) continue;
         if ($to_ts !== null && $ts_start > $to_ts) continue;

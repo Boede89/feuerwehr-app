@@ -526,6 +526,7 @@ try {
                                 </button>
                             </div>
                         </div>
+                        <small class="text-muted">Bei Problemen: <a href="api-dienstplan-divera.php?debug=1" target="_blank">Debug-Ausgabe öffnen</a></small>
                     </div>
                     <div id="importEventsList" class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
                         <p class="text-muted small mb-0">Klicken Sie auf „Laden“, um Termine von Divera abzurufen.</p>
