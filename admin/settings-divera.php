@@ -132,21 +132,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <p class="text-muted">Noch keine Übermittlungen protokolliert.</p>
                     <?php else: ?>
                         <?php foreach ($divera_debug_payloads as $i => $entry): ?>
-                            <?php $is_delete = ($entry['type'] ?? 'post') === 'delete'; ?>
+                            <?php 
+                            $entry_type = $entry['type'] ?? 'post';
+                            $is_delete = $entry_type === 'delete';
+                            $is_response = $entry_type === 'response';
+                            $badge = $is_delete ? 'DELETE' : ($is_response ? 'RESPONSE' : 'POST');
+                            $badge_class = $is_delete ? 'danger' : ($is_response ? 'warning' : (($entry['source'] ?? '') === 'form' ? 'info' : 'primary'));
+                            ?>
                             <div class="card mb-3">
                                 <div class="card-header py-2 d-flex align-items-center">
                                     <strong>#<?php echo $i + 1; ?></strong>
                                     <span class="ms-2"><?php echo htmlspecialchars($entry['timestamp'] ?? ''); ?></span>
-                                    <span class="badge ms-2 bg-<?php echo $is_delete ? 'danger' : (($entry['source'] ?? '') === 'form' ? 'info' : 'primary'); ?>">
-                                        <?php echo $is_delete ? 'DELETE' : 'POST'; ?>
-                                    </span>
+                                    <span class="badge ms-2 bg-<?php echo $badge_class; ?>"><?php echo $badge; ?></span>
                                     <span class="badge bg-secondary ms-1"><?php echo htmlspecialchars($entry['source'] ?? 'unknown'); ?></span>
+                                    <?php if ($is_response && !empty($entry['context'])): ?>
+                                        <span class="badge bg-dark ms-1"><?php echo htmlspecialchars($entry['context']); ?></span>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="card-body p-2">
                                     <?php if ($is_delete): ?>
                                         <p class="mb-1"><strong>Event-ID:</strong> <?php echo (int)($entry['payload']['event_id'] ?? 0); ?></p>
                                         <p class="mb-1"><strong>URL-Pfad:</strong> <code><?php echo htmlspecialchars($entry['payload']['url_path'] ?? ''); ?></code></p>
                                         <pre class="mb-0 small" style="max-height: 150px; overflow: auto;"><?php echo htmlspecialchars(json_encode($entry['payload'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
+                                    <?php elseif ($is_response): ?>
+                                        <p class="mb-1 text-muted small">Divera-API-Antwort (zur Ermittlung der Event-ID):</p>
+                                        <pre class="mb-0 small" style="max-height: 300px; overflow: auto;"><?php echo htmlspecialchars($entry['payload']['raw_response'] ?? ''); ?></pre>
                                     <?php else: ?>
                                         <pre class="mb-0 small" style="max-height: 300px; overflow: auto;"><?php echo htmlspecialchars(json_encode($entry['payload'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
                                     <?php endif; ?>

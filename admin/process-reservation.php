@@ -1,14 +1,20 @@
 <?php
+ob_start();
 session_start();
 header('Content-Type: application/json; charset=utf-8');
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../config/divera.php';
 
+function output_json($data) {
+    if (ob_get_level()) ob_end_clean();
+    echo json_encode($data);
+}
+
 // Prüfe ob Benutzer eingeloggt ist
 if (!is_logged_in()) {
     http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'Nicht angemeldet']);
+    output_json(['success' => false, 'message' => 'Nicht angemeldet']);
     exit;
 }
 
@@ -24,7 +30,7 @@ error_log("Process Reservation Debug - can_reservations: " . ($can_reservations 
 // Prüfe ob Benutzer Reservierungen verwalten kann (entweder Admin oder can_reservations)
 if (!$is_admin && !$can_reservations) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Keine Berechtigung für Reservierungen']);
+    output_json(['success' => false, 'message' => 'Keine Berechtigung für Reservierungen']);
     exit;
 }
 
@@ -33,7 +39,7 @@ $input = json_decode(file_get_contents('php://input'), true);
 
 if (!$input || !isset($input['action']) || !isset($input['reservation_id'])) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Ungültige Parameter']);
+    output_json(['success' => false, 'message' => 'Ungültige Parameter']);
     exit;
 }
 
@@ -64,7 +70,7 @@ try {
         
         if (!empty($conflicts)) {
             // Konflikte gefunden - sende Warnung zurück
-            echo json_encode([
+            output_json([
                 'success' => false, 
                 'has_conflicts' => true,
                 'conflicts' => $conflicts,
@@ -180,7 +186,7 @@ try {
         if ($divera_error !== null) {
             $out['divera_error'] = $divera_error;
         }
-        echo json_encode($out);
+        output_json($out);
         
     } elseif ($action === 'reject') {
         // Reservierung ablehnen
@@ -201,7 +207,7 @@ try {
         log_activity($_SESSION['user_id'], 'reservation_rejected', "Reservierung #$reservation_id abgelehnt: $reason");
         
         $db->commit();
-        echo json_encode(['success' => true, 'message' => 'Reservierung wurde abgelehnt']);
+        output_json(['success' => true, 'message' => 'Reservierung wurde abgelehnt']);
         
     } elseif ($action === 'approve_with_conflict_resolution') {
         // Reservierung genehmigen und Konflikte lösen
@@ -404,7 +410,7 @@ try {
         if ($divera_error !== null) {
             $out['divera_error'] = $divera_error;
         }
-        echo json_encode($out);
+        output_json($out);
         
     } else {
         throw new Exception('Ungültige Aktion');
@@ -417,7 +423,7 @@ try {
     error_log("Process Reservation Error: " . $e->getMessage());
     error_log("Process Reservation Error Trace: " . $e->getTraceAsString());
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Server-Fehler: ' . $e->getMessage()]);
+    output_json(['success' => false, 'message' => 'Server-Fehler: ' . $e->getMessage()]);
 }
 
 // Konfliktprüfung für Reservierung

@@ -1608,6 +1608,24 @@ function log_divera_debug_payload($payload, $source = 'reservation') {
 }
 
 /**
+ * Speichert eine Divera-API-Response im Debug-Log (zur Fehlersuche bei ID-Parsing).
+ */
+function log_divera_debug_response($raw_response, $context = 'create') {
+    global $db;
+    if (empty($db) || !is_string($raw_response)) return;
+    try {
+        $entry = [
+            'timestamp' => date('Y-m-d H:i:s'),
+            'source'    => 'reservation',
+            'type'      => 'response',
+            'context'   => $context,
+            'payload'   => ['raw_response' => substr($raw_response, 0, 2000)],
+        ];
+        log_divera_debug_entry($entry);
+    } catch (Exception $e) {}
+}
+
+/**
  * Speichert einen Divera-DELETE-Request im Debug-Log (max. 5 Einträge).
  * @param int $event_id Divera-Event-ID
  * @param string $url_path API-Pfad ohne Access Key (z.B. /api/v2/events/123)
@@ -1699,7 +1717,7 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         'address'           => $address,
     ];
     if ($reservation_id > 0) {
-        $event['foreign_id'] = 'feuerwehr-app-reservation-' . $reservation_id;
+        $event['foreign_id'] = (string) $reservation_id;
     }
     if ($use_groups) {
         $event['group'] = $group_ids;
@@ -1724,6 +1742,9 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         $code = (int) $m[1];
     }
     $data = is_string($raw) ? json_decode($raw, true) : null;
+    if ($code >= 200 && $code < 300 && is_string($raw)) {
+        log_divera_debug_response($raw, 'create');
+    }
     // Erfolgsprüfung wie im Formular: nur HTTP 2xx (Formular prüft nicht auf data.success)
     $success = $code >= 200 && $code < 300;
     if (!$success) {
@@ -1744,13 +1765,19 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         $rid = (int) ($reservation['id'] ?? 0);
         error_log('Divera Termin fehlgeschlagen. HTTP ' . $code . '. Reservierung-ID: ' . $rid . '. Response: ' . (is_string($raw) ? substr($raw, 0, 500) : '') . ' Message: ' . $msg);
     } elseif ($success && is_array($data)) {
-        // Event-ID aus Response extrahieren (verschiedene mögliche Strukturen)
-        $divera_event_id = (int) ($data['data']['id'] ?? $data['data']['data']['id'] ?? $data['id'] ?? 0);
-        if ($divera_event_id <= 0 && !empty($data['data'])) {
-            $divera_event_id = (int) (is_array($data['data']) ? ($data['data']['id'] ?? 0) : 0);
+        // Event-ID aus Response extrahieren (Divera API: data.id)
+        $divera_event_id = 0;
+        if (isset($data['data']['id'])) {
+            $divera_event_id = (int) $data['data']['id'];
+        } elseif (isset($data['data']['data']['id'])) {
+            $divera_event_id = (int) $data['data']['data']['id'];
+        } elseif (isset($data['id'])) {
+            $divera_event_id = (int) $data['id'];
+        } elseif (!empty($data['data']) && is_numeric($data['data'])) {
+            $divera_event_id = (int) $data['data'];
         }
         if ($divera_event_id <= 0 && is_string($raw)) {
-            error_log('Divera: Erfolg, aber Event-ID nicht gefunden. Response-Struktur: ' . substr($raw, 0, 500));
+            error_log('Divera: Erfolg, aber Event-ID nicht gefunden. Response im Debug-Tab prüfen.');
         }
     }
     return $success;
