@@ -184,6 +184,25 @@ try {
     // Tabelle kann fehlen
 }
 
+// Anwesenheitslisten laden (als "eingegangene Formulare")
+$anwesenheitslisten = [];
+try {
+    $stmt = $db->query("
+        SELECT a.id, a.datum, a.bezeichnung, a.typ, a.created_at,
+               d.bezeichnung AS dienst_bezeichnung,
+               COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name
+        FROM anwesenheitslisten a
+        LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
+        LEFT JOIN users u ON u.id = a.user_id
+        ORDER BY a.created_at DESC
+    ");
+    $anwesenheitslisten = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Tabelle kann fehlen
+}
+
+$submissions_total = count($submissions) + count($anwesenheitslisten);
+
 // Dienstplan-Einträge und Themen für Dropdown
 $dienstplan_eintraege = [];
 $dienstplan_themen = [];
@@ -299,7 +318,7 @@ try {
             </li>
             <li class="nav-item">
                 <a class="nav-link <?php echo $active_tab === 'submissions' ? 'active' : ''; ?>" href="?tab=submissions">
-                    <i class="fas fa-inbox"></i> Eingegangene Formulare (<?php echo count($submissions); ?>)
+                    <i class="fas fa-inbox"></i> Eingegangene Formulare (<?php echo $submissions_total; ?>)
                 </a>
             </li>
             <li class="nav-item">
@@ -355,17 +374,17 @@ try {
         <?php endif; ?>
 
         <?php if ($active_tab === 'submissions'): ?>
-            <div class="card shadow">
+            <div class="card shadow mb-4">
                 <div class="card-header"><i class="fas fa-inbox"></i> Eingegangene Formulare</div>
                 <div class="card-body">
-                    <?php if (empty($submissions)): ?>
-                        <p class="text-muted mb-0">Noch keine ausgefüllten Formulare vorhanden.</p>
+                    <?php if (empty($submissions) && empty($anwesenheitslisten)): ?>
+                        <p class="text-muted mb-0">Noch keine ausgefüllten Formulare oder Anwesenheitslisten vorhanden.</p>
                     <?php else: ?>
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
-                                        <th>Formular</th>
+                                        <th>Formular / Anwesenheitsliste</th>
                                         <th>Von</th>
                                         <th>Eingereicht</th>
                                         <th></th>
@@ -374,11 +393,24 @@ try {
                                 <tbody>
                                     <?php foreach ($submissions as $s): ?>
                                     <tr>
-                                        <td><?php echo htmlspecialchars($s['form_title']); ?></td>
+                                        <td><i class="fas fa-file-alt text-muted me-1"></i> <?php echo htmlspecialchars($s['form_title']); ?></td>
                                         <td><?php echo htmlspecialchars(trim($s['user_first_name'] . ' ' . $s['user_last_name']) ?: 'Unbekannt'); ?></td>
                                         <td><?php echo date('d.m.Y H:i', strtotime($s['created_at'])); ?></td>
                                         <td>
                                             <a href="?tab=submissions&edit_submission=<?php echo (int)$s['id']; ?>#submissionModal" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#submissionModal" onclick='openSubmissionModal(<?php echo json_encode($s); ?>)'><i class="fas fa-edit"></i> Bearbeiten</a>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                    <?php foreach ($anwesenheitslisten as $a):
+                                        $titel = $a['bezeichnung'] ?? $a['dienst_bezeichnung'] ?? 'Anwesenheit';
+                                        $titel = date('d.m.Y', strtotime($a['datum'])) . ' – ' . $titel;
+                                    ?>
+                                    <tr>
+                                        <td><i class="fas fa-clipboard-list text-muted me-1"></i> <?php echo htmlspecialchars($titel); ?></td>
+                                        <td><?php echo htmlspecialchars(trim($a['user_first_name'] . ' ' . $a['user_last_name']) ?: 'Unbekannt'); ?></td>
+                                        <td><?php echo date('d.m.Y H:i', strtotime($a['created_at'])); ?></td>
+                                        <td>
+                                            <a href="anwesenheitsliste-bearbeiten.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
