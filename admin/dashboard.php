@@ -1679,6 +1679,7 @@ if ($can_atemschutz) {
                     approveBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
                     approveBtn.classList.remove('btn-success');
                     approveBtn.classList.add('btn-danger');
+                    alert(data.message || 'Ein Fehler ist aufgetreten.');
                     
                     setTimeout(() => {
                         approveBtn.disabled = false;
