@@ -38,7 +38,12 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Arbeitsverzeichnis setzen
 WORKDIR /var/www/html
 
-# Berechtigungen setzen
+# Entrypoint für uploads-Ordner
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+# Berechtigungen setzen (für initiales Image, Volume überschreibt bei Runtime)
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html
 
@@ -55,5 +60,5 @@ RUN echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/custom.ini \
 # Expose Port 80
 EXPOSE 80
 
-# Apache im Vordergrund starten
+# Apache im Vordergrund starten (via Entrypoint)
 CMD ["apache2-foreground"]
