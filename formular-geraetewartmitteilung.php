@@ -141,7 +141,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
     <title>Gerätewartmitteilung - Feuerwehr App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
+    <style>
+        .gwm-vehicle-card { min-width: 0; }
+        .gwm-vehicle-card .ts-wrapper { min-width: 220px; }
+        .gwm-vehicle-card .ts-control { min-height: 38px; }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -214,61 +220,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
                                 <?php if (empty($vehicles)): ?>
                                 <p class="text-muted">Keine Fahrzeuge in der Datenbank. Bitte in der Fahrzeugverwaltung anlegen.</p>
                                 <?php else: ?>
-                                <p class="text-muted small mb-3">Wählen Sie die eingesetzten Fahrzeuge aus und legen Sie Maschinist sowie Einheitsführer fest. Pro Fahrzeug können Sie die genutzten Geräte auswählen.</p>
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th class="text-center" style="width:50px">Auswahl</th>
-                                                <th>Fahrzeug</th>
-                                                <th>Maschinist</th>
-                                                <th>Einheitsführer</th>
-                                                <th>Eingesetzte Geräte</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($vehicles as $v): $vid = (int)$v['id']; $eq_list = $vehicles_with_equipment[$vid] ?? []; ?>
-                                            <tr class="vehicle-row" data-vehicle-id="<?php echo $vid; ?>">
-                                                <td class="text-center align-middle">
-                                                    <input type="checkbox" class="form-check-input vehicle-check" name="vehicle_selected[<?php echo $vid; ?>]" value="1" data-vid="<?php echo $vid; ?>">
-                                                    <input type="hidden" name="vehicle_id[]" value="<?php echo $vid; ?>" class="vehicle-id-input" disabled>
-                                                </td>
-                                                <td class="align-middle"><strong><?php echo htmlspecialchars($v['name']); ?></strong></td>
-                                                <td class="align-middle">
-                                                    <select class="form-select form-select-sm vehicle-select" name="maschinist[<?php echo $vid; ?>]" disabled>
-                                                        <option value="">— keine Auswahl —</option>
-                                                        <?php foreach ($members_all as $m): ?>
-                                                        <option value="<?php echo (int)$m['id']; ?>"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></option>
-                                                        <?php endforeach; ?>
-                                                    </select>
-                                                </td>
-                                                <td class="align-middle">
-                                                    <select class="form-select form-select-sm vehicle-select" name="einheitsfuehrer[<?php echo $vid; ?>]" disabled>
-                                                        <option value="">— keine Auswahl —</option>
-                                                        <?php foreach ($members_all as $m): ?>
-                                                        <option value="<?php echo (int)$m['id']; ?>"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></option>
-                                                        <?php endforeach; ?>
-                                                    </select>
-                                                </td>
-                                                <td class="equipment-cell">
-                                                    <?php if (!empty($eq_list)): ?>
-                                                    <div class="equipment-checkboxes" data-vid="<?php echo $vid; ?>" style="display:none">
-                                                        <?php foreach ($eq_list as $eq): ?>
-                                                        <div class="form-check form-check-inline">
-                                                            <input class="form-check-input" type="checkbox" name="equipment[<?php echo $vid; ?>][]" value="<?php echo (int)$eq['id']; ?>" id="eq_<?php echo $vid; ?>_<?php echo $eq['id']; ?>">
-                                                            <label class="form-check-label small" for="eq_<?php echo $vid; ?>_<?php echo $eq['id']; ?>"><?php echo htmlspecialchars($eq['name']); ?></label>
-                                                        </div>
-                                                        <?php endforeach; ?>
+                                <p class="text-muted small mb-3">Wählen Sie die eingesetzten Fahrzeuge aus und legen Sie Maschinist sowie Einheitsführer fest. Pro Fahrzeug können Sie die genutzten Geräte auswählen. Tippen Sie in die Felder, um nach Namen zu suchen.</p>
+                                <div class="row g-3">
+                                    <?php foreach ($vehicles as $v): $vid = (int)$v['id']; $eq_list = $vehicles_with_equipment[$vid] ?? []; ?>
+                                    <div class="col-12">
+                                        <div class="card gwm-vehicle-card vehicle-row" data-vehicle-id="<?php echo $vid; ?>">
+                                            <div class="card-body">
+                                                <div class="d-flex align-items-center gap-3 flex-wrap">
+                                                    <div class="form-check mb-0">
+                                                        <input type="checkbox" class="form-check-input vehicle-check" name="vehicle_selected[<?php echo $vid; ?>]" value="1" data-vid="<?php echo $vid; ?>" id="vchk_<?php echo $vid; ?>">
+                                                        <label class="form-check-label fw-bold" for="vchk_<?php echo $vid; ?>"><?php echo htmlspecialchars($v['name']); ?></label>
                                                     </div>
-                                                    <span class="text-muted small eq-placeholder">— Fahrzeug auswählen —</span>
+                                                    <input type="hidden" name="vehicle_id[]" value="<?php echo $vid; ?>" class="vehicle-id-input" disabled>
+                                                    <div class="vehicle-fields ms-md-auto d-flex flex-column flex-md-row gap-3 flex-wrap d-none">
+                                                        <div style="min-width: 220px;">
+                                                            <label class="form-label small mb-0">Maschinist</label>
+                                                            <select class="form-select vehicle-select vehicle-maschinist" name="maschinist[<?php echo $vid; ?>]" disabled>
+                                                                <option value="">— keine Auswahl —</option>
+                                                                <?php foreach ($members_all as $m): ?>
+                                                                <option value="<?php echo (int)$m['id']; ?>"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></option>
+                                                                <?php endforeach; ?>
+                                                            </select>
+                                                        </div>
+                                                        <div style="min-width: 220px;">
+                                                            <label class="form-label small mb-0">Einheitsführer</label>
+                                                            <select class="form-select vehicle-select vehicle-einheitsfuehrer" name="einheitsfuehrer[<?php echo $vid; ?>]" disabled>
+                                                                <option value="">— keine Auswahl —</option>
+                                                                <?php foreach ($members_all as $m): ?>
+                                                                <option value="<?php echo (int)$m['id']; ?>"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></option>
+                                                                <?php endforeach; ?>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="equipment-cell mt-2 vehicle-fields d-none">
+                                                    <?php if (!empty($eq_list)): ?>
+                                                    <div class="equipment-checkboxes" data-vid="<?php echo $vid; ?>">
+                                                        <label class="form-label small mb-1">Eingesetzte Geräte</label>
+                                                        <div class="d-flex flex-wrap gap-2">
+                                                            <?php foreach ($eq_list as $eq): ?>
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="checkbox" name="equipment[<?php echo $vid; ?>][]" value="<?php echo (int)$eq['id']; ?>" id="eq_<?php echo $vid; ?>_<?php echo $eq['id']; ?>">
+                                                                <label class="form-check-label small" for="eq_<?php echo $vid; ?>_<?php echo $eq['id']; ?>"><?php echo htmlspecialchars($eq['name']); ?></label>
+                                                            </div>
+                                                            <?php endforeach; ?>
+                                                        </div>
+                                                    </div>
                                                     <?php else: ?>
                                                     <span class="text-muted small">Keine Geräte hinterlegt</span>
                                                     <?php endif; ?>
-                                                </td>
-                                            </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
                                 </div>
                                 <?php endif; ?>
                             </div>
@@ -277,7 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
                         <div class="card mb-4" id="defectiveCard" style="display:none">
                             <div class="card-header bg-light"><strong>Defekte Geräte</strong></div>
                             <div class="card-body">
-                                <p class="text-muted small mb-3">Pro ausgewähltem Fahrzeug können Sie defekte Geräte angeben (aus den eingesetzten Geräten oder Freitext).</p>
+                                <p class="text-muted small mb-3">Pro ausgewähltem Fahrzeug können Sie defekte Geräte angeben – aus den eingesetzten Geräten oder per Freitext (immer möglich).</p>
                                 <div id="defectiveContainer"></div>
                             </div>
                         </div>
@@ -327,26 +332,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
     </div>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
 (function() {
     var vehicles = <?php echo json_encode(array_map(function($v) { return ['id' => (int)$v['id'], 'name' => $v['name']]; }, $vehicles)); ?>;
     var vehiclesWithEq = <?php echo json_encode($vehicles_with_equipment); ?>;
 
+    var tomSelectInstances = {};
+
     function toggleVehicleRow(checkbox) {
         var vid = parseInt(checkbox.dataset.vid, 10);
-        var row = checkbox.closest('tr');
-        var hid = row.querySelector('.vehicle-id-input');
-        var selects = row.querySelectorAll('.vehicle-select');
-        var eqBox = row.querySelector('.equipment-checkboxes');
-        var placeholder = row.querySelector('.eq-placeholder');
+        var card = checkbox.closest('.vehicle-row');
+        var hid = card.querySelector('.vehicle-id-input');
+        var fields = card.querySelectorAll('.vehicle-fields');
+        var selects = card.querySelectorAll('.vehicle-select');
+        var eqBox = card.querySelector('.equipment-checkboxes');
         if (checkbox.checked) {
             if (hid) { hid.disabled = false; }
-            selects.forEach(function(s) { s.disabled = false; });
-            if (eqBox) { eqBox.style.display = 'block'; placeholder.style.display = 'none'; }
+            fields.forEach(function(f) { f.classList.remove('d-none'); });
+            selects.forEach(function(s) {
+                s.disabled = false;
+                if (typeof TomSelect !== 'undefined' && !tomSelectInstances[s.name]) {
+                    try {
+                        tomSelectInstances[s.name] = new TomSelect(s, { create: false });
+                    } catch (e) { tomSelectInstances[s.name] = null; }
+                }
+            });
         } else {
             if (hid) { hid.disabled = true; }
-            selects.forEach(function(s) { s.disabled = true; s.value = ''; });
-            if (eqBox) { eqBox.style.display = 'none'; placeholder.style.display = 'inline'; }
+            fields.forEach(function(f) { f.classList.add('d-none'); });
+            selects.forEach(function(s) {
+                var inst = tomSelectInstances[s.name];
+                if (inst && inst.destroy) {
+                    inst.destroy();
+                    delete tomSelectInstances[s.name];
+                }
+                s.disabled = true;
+                s.value = '';
+            });
             if (eqBox) { eqBox.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.checked = false; }); }
         }
         updateDefectiveSection();
@@ -389,7 +412,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
             div.innerHTML = '<h6 class="mb-2">' + (v ? v.name : 'Fahrzeug') + '</h6>';
             var defDiv = document.createElement('div');
             defDiv.className = 'mb-2';
-            defDiv.innerHTML = '<label class="form-label small">Defekte Geräte (nur aus den eingesetzten)</label>';
+            defDiv.innerHTML = '<label class="form-label small">Defekte Geräte (aus eingesetzten)</label>';
             var cbDiv = document.createElement('div');
             cbDiv.className = 'mb-2';
             if (usedEq.length > 0) {
@@ -400,12 +423,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
                     cbDiv.appendChild(lbl);
                 });
             } else {
-                cbDiv.innerHTML = '<span class="text-muted small">Wählen Sie zuerst eingesetzte Geräte beim Fahrzeug aus.</span>';
+                cbDiv.innerHTML = '<span class="text-muted small">Keine eingesetzten Geräte – nutzen Sie Freitext unten.</span>';
             }
             defDiv.appendChild(cbDiv);
             var freitextDiv = document.createElement('div');
             freitextDiv.className = 'mb-2';
-            freitextDiv.innerHTML = '<label class="form-label small">Freitext (weiteres defektes Gerät)</label><input type="text" class="form-control form-control-sm" name="defective_freitext[' + vid + ']" placeholder="z.B. Schlauch 123">';
+            freitextDiv.innerHTML = '<label class="form-label small">Freitext (defektes Gerät, immer möglich)</label><input type="text" class="form-control form-control-sm" name="defective_freitext[' + vid + ']" placeholder="z.B. Schlauch 123">';
             var mangelDiv = document.createElement('div');
             mangelDiv.innerHTML = '<label class="form-label small">Mangel beschreiben (für dieses Fahrzeug)</label><textarea class="form-control form-control-sm" name="defective_mangel[' + vid + ']" rows="2" placeholder="Beschreibung des Mangels"></textarea>';
             div.appendChild(defDiv);
@@ -439,7 +462,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
             return false;
         }
         checked.forEach(function(cb) {
-            var hid = cb.closest('tr').querySelector('.vehicle-id-input');
+            var hid = cb.closest('.vehicle-row').querySelector('.vehicle-id-input');
             if (hid) hid.disabled = false;
         });
         return true;
