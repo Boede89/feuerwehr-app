@@ -457,40 +457,72 @@ if (isset($_SESSION['user_id'])) {
                                     $alarm_uhrzeit = date('H:i', $divera_alarm['date']);
                                     $alarm_stichwort = $divera_alarm['title'] ?: $divera_alarm['text'];
                                     $alarm_geschlossen = !empty($divera_alarm['closed']);
+                                    $has_draft = !empty($alle_entwuerfe);
                                 ?>
                                     <div class="col-12 col-md-4">
+                                        <?php if ($has_draft): ?>
+                                        <button type="button" class="btn btn-danger w-100 h-100 anwesenheits-btn text-decoration-none" data-bs-toggle="modal" data-bs-target="#draftHinweisModal">
+                                        <?php else: ?>
                                         <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($alarm_datum); ?>&auswahl=einsatz&divera_id=<?php echo (int)$divera_alarm['id']; ?>" class="btn btn-danger w-100 h-100 anwesenheits-btn text-decoration-none">
+                                        <?php endif; ?>
                                             <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
                                             <h5 class="card-title mb-1"><?php echo htmlspecialchars($alarm_stichwort ?: 'Aktueller Einsatz'); ?></h5>
                                             <p class="mb-0 small opacity-90"><?php echo date('d.m.Y H:i', $divera_alarm['date']); ?><?php if ($alarm_geschlossen): ?> <span class="badge bg-secondary">geschlossen</span><?php endif; ?></p>
                                             <small class="d-block mt-1 opacity-75">(Vorschlag aus Divera)</small>
-                                        </a>
+                                        <?php echo $has_draft ? '</button>' : '</a>'; ?>
                                     </div>
                                 <?php endif; ?>
                                 <?php if ($vorschlag): ?>
                                     <div class="col-12 col-md-4">
+                                        <?php if (!empty($alle_entwuerfe)): ?>
+                                        <button type="button" class="btn btn-primary w-100 h-100 anwesenheits-btn text-decoration-none" data-bs-toggle="modal" data-bs-target="#draftHinweisModal">
+                                        <?php else: ?>
                                         <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=<?php echo (int)$vorschlag['id']; ?>" class="btn btn-primary w-100 h-100 anwesenheits-btn text-decoration-none">
+                                        <?php endif; ?>
                                             <div class="feature-icon mb-2"><i class="fas fa-check"></i></div>
                                             <h5 class="card-title mb-1"><?php echo htmlspecialchars($vorschlag['bezeichnung']); ?></h5>
                                             <p class="mb-0 small opacity-90"><?php echo htmlspecialchars(get_dienstplan_typ_label($vorschlag['typ'] ?? 'uebungsdienst')); ?> · <?php echo date('d.m.Y', strtotime($vorschlag['datum'])); ?></p>
                                             <small class="d-block mt-1 opacity-75">(Vorschlag für heute)</small>
-                                        </a>
+                                        <?php echo !empty($alle_entwuerfe) ? '</button>' : '</a>'; ?>
                                     </div>
                                 <?php endif; ?>
                                 <div class="col-12 col-md-4">
+                                    <?php if (!empty($alle_entwuerfe)): ?>
+                                    <button type="button" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn text-decoration-none" data-bs-toggle="modal" data-bs-target="#draftHinweisModal">
+                                    <?php else: ?>
                                     <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=einsatz&neu=1" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn text-decoration-none">
+                                    <?php endif; ?>
                                         <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
                                         <h5 class="card-title mb-0">Manuelle Anwesenheit</h5>
-                                    </a>
+                                    <?php echo !empty($alle_entwuerfe) ? '</button>' : '</a>'; ?>
                                 </div>
                                 <div class="col-12 col-md-4">
-                                    <button type="button" class="btn btn-outline-primary w-100 h-100 anwesenheits-btn" data-bs-toggle="modal" data-bs-target="#andereDiensteModal">
+                                    <button type="button" class="btn btn-outline-primary w-100 h-100 anwesenheits-btn" data-bs-toggle="modal" data-bs-target="<?php echo !empty($alle_entwuerfe) ? '#draftHinweisModal' : '#andereDiensteModal'; ?>">
                                         <div class="feature-icon mb-2"><i class="fas fa-list"></i></div>
                                         <h5 class="card-title mb-0">Dienst auswählen</h5>
                                     </button>
                                 </div>
                             </div>
                             <p class="text-muted small mt-2 mb-0">Wählen Sie eine Option – Sie werden zur Eingabe weitergeleitet.</p>
+                        </div>
+
+                        <!-- Modal: Bericht in Bearbeitung -->
+                        <div class="modal fade" id="draftHinweisModal" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Bericht in Bearbeitung</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Es gibt bereits einen Bericht in Bearbeitung. Bitte schließen Sie diesen zuerst ab oder löschen Sie den Entwurf, bevor Sie eine neue Anwesenheitsliste anlegen.</p>
+                                        <p class="mb-0">Unten finden Sie die Entwürfe zum Fortsetzen oder Löschen.</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Verstanden</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <a href="formulare.php" class="btn btn-link">Zurück zu Formulare</a>

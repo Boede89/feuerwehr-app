@@ -103,6 +103,34 @@ try {
                                     </div>
                                 </a>
                             </div>
+                            <!-- Mängelbericht (Platzhalter) -->
+                            <div class="col-md-6 col-lg-4">
+                                <a href="formular-maengelbericht.php" class="text-decoration-none">
+                                    <div class="card h-100 shadow-sm feature-card clickable-card">
+                                        <div class="card-body text-center p-4 d-flex flex-column">
+                                            <div class="feature-icon mb-3">
+                                                <i class="fas fa-exclamation-triangle text-warning"></i>
+                                            </div>
+                                            <h5 class="card-title">Mängelbericht</h5>
+                                            <p class="card-text text-muted small">Mängel und Schäden erfassen und melden.</p>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                            <!-- Gerätewartmitteilung (Platzhalter) -->
+                            <div class="col-md-6 col-lg-4">
+                                <a href="formular-geraetewartmitteilung.php" class="text-decoration-none">
+                                    <div class="card h-100 shadow-sm feature-card clickable-card">
+                                        <div class="card-body text-center p-4 d-flex flex-column">
+                                            <div class="feature-icon mb-3">
+                                                <i class="fas fa-wrench text-info"></i>
+                                            </div>
+                                            <h5 class="card-title">Gerätewartmitteilung</h5>
+                                            <p class="card-text text-muted small">Mitteilungen zur Gerätewartung erfassen.</p>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
                             <?php if (!empty($forms)): ?>
                                 <?php foreach ($forms as $form): ?>
                                 <div class="col-md-6 col-lg-4">

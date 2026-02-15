@@ -337,7 +337,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
     $bezeichnung_save = $typ_save === 'einsatz' ? $draft['bezeichnung_sonstige'] : ($typ_save === 'manuell' ? ($draft['thema'] ?? $draft['bezeichnung_sonstige']) : (($typ_save === 'dienst' && trim((string)($draft['thema'] ?? '')) !== '') ? trim($draft['thema']) : null));
     $uhrzeit_von_save = $draft['uhrzeit_von'] !== '' ? $draft['uhrzeit_von'] : null;
     $uhrzeit_bis_save = $draft['uhrzeit_bis'] !== '' ? $draft['uhrzeit_bis'] : null;
-    try {
+
+    // Pflichtfelder prüfen – Bericht darf nicht abgeschlossen werden, wenn fehlend
+    $is_uebungsdienst = ($typ_save === 'manuell' && in_array(trim($draft['bezeichnung_sonstige'] ?? ''), ['Übungsdienst', 'Jahreshauptversammlung'], true))
+        || ($typ_save === 'dienst' && isset($dienst) && in_array($dienst['typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung'], true));
+    $pflichtfehler = [];
+    if ($is_uebungsdienst) {
+        // Übungsdienst: Datum (immer gesetzt), Uhrzeiten, Thema, Übungsleiter
+        if (empty(trim((string)($draft['uhrzeit_von'] ?? '')))) $pflichtfehler[] = 'Uhrzeit von';
+        if (empty(trim((string)($draft['uhrzeit_bis'] ?? '')))) $pflichtfehler[] = 'Uhrzeit bis';
+        if (empty(trim((string)($draft['thema'] ?? '')))) $pflichtfehler[] = 'Thema';
+        $ueb_ids = $draft['uebungsleiter_member_ids'] ?? [];
+        if (empty($ueb_ids) || !is_array($ueb_ids) || count(array_filter($ueb_ids)) === 0) $pflichtfehler[] = 'Übungsleiter';
+    } elseif ($typ_save === 'einsatz') {
+        // Einsatz: Datum (immer gesetzt), Uhrzeiten, Einsatzstichwort, Einsatzleiter, Einsatzstelle
+        if (empty(trim((string)($draft['uhrzeit_von'] ?? '')))) $pflichtfehler[] = 'Uhrzeit von';
+        if (empty(trim((string)($draft['uhrzeit_bis'] ?? '')))) $pflichtfehler[] = 'Uhrzeit bis';
+        if (empty(trim((string)($draft['einsatzstichwort'] ?? '')))) $pflichtfehler[] = 'Einsatzstichwort';
+        if (empty(trim((string)($draft['einsatzstelle'] ?? '')))) $pflichtfehler[] = 'Einsatzstelle';
+        $has_el = (!empty($draft['einsatzleiter_member_id']) || !empty(trim((string)($draft['einsatzleiter_freitext'] ?? '')));
+        if (!$has_el) $pflichtfehler[] = 'Einsatzleiter';
+    } else {
+        // Normaler Dienst (z.B. Wachdienst): nur Uhrzeiten
+        if (empty(trim((string)($draft['uhrzeit_von'] ?? '')))) $pflichtfehler[] = 'Uhrzeit von';
+        if (empty(trim((string)($draft['uhrzeit_bis'] ?? '')))) $pflichtfehler[] = 'Uhrzeit bis';
+    }
+    if (!empty($pflichtfehler)) {
+        $error = 'Bitte füllen Sie alle Pflichtfelder aus: ' . implode(', ', $pflichtfehler) . '. Sie können den Bericht später fortsetzen.';
+    }
+
+    if (empty($error)) try {
         try {
             $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN einsatzstichwort VARCHAR(100) NULL");
         } catch (Exception $e) { /* ignore */ }
