@@ -638,6 +638,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             }
         }
 
+        // Automatischer E-Mail-Versand für Mängelberichte (wenn aktiviert und Mängel gespeichert)
+        if (!empty($maengelbericht_ids)) {
+            $mb_email_auto = false;
+            $mb_email_recipients = [];
+            $mb_email_manual = '';
+            try {
+                $stmt_s = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('maengelbericht_email_auto', 'maengelbericht_email_recipients', 'maengelbericht_email_manual')");
+                $stmt_s->execute();
+                foreach ($stmt_s->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                    if ($r['setting_key'] === 'maengelbericht_email_auto') $mb_email_auto = ($r['setting_value'] ?? '0') === '1';
+                    elseif ($r['setting_key'] === 'maengelbericht_email_recipients') $mb_email_recipients = json_decode($r['setting_value'] ?? '[]', true) ?: [];
+                    elseif ($r['setting_key'] === 'maengelbericht_email_manual') $mb_email_manual = trim($r['setting_value'] ?? '');
+                }
+            } catch (Exception $e) {}
+            $mb_all_emails = [];
+            if ($mb_email_auto && (is_array($mb_email_recipients) && !empty($mb_email_recipients) || $mb_email_manual !== '')) {
+                if (!empty($mb_email_recipients)) {
+                    $ph = implode(',', array_fill(0, count($mb_email_recipients), '?'));
+                    $stmt_u = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND email IS NOT NULL AND email != ''");
+                    $stmt_u->execute(array_map('intval', $mb_email_recipients));
+                    foreach ($stmt_u->fetchAll(PDO::FETCH_COLUMN) as $em) { $mb_all_emails[] = trim($em); }
+                }
+                if ($mb_email_manual !== '') {
+                    foreach (preg_split('/[\r\n,;]+/', $mb_email_manual, -1, PREG_SPLIT_NO_EMPTY) as $em) {
+                        $em = trim($em);
+                        if (filter_var($em, FILTER_VALIDATE_EMAIL)) $mb_all_emails[] = $em;
+                    }
+                }
+                $mb_all_emails = array_unique(array_filter($mb_all_emails));
+                if (!empty($mb_all_emails) && function_exists('send_email_with_pdf_attachment')) {
+                    $mb_pdf_content = null;
+                    $_GET['ids'] = implode(',', $maengelbericht_ids);
+                    $_GET['_return'] = '1';
+                    $GLOBALS['_mb_pdf_content'] = null;
+                    try {
+                        ob_start();
+                        require __DIR__ . '/api/maengelbericht-pdf-alle.php';
+                        ob_end_clean();
+                        $mb_pdf_content = $GLOBALS['_mb_pdf_content'] ?? null;
+                    } catch (Exception $e) { ob_end_clean(); }
+                    if ($mb_pdf_content !== null && strlen($mb_pdf_content) > 100) {
+                        $titel = $bezeichnung_save ?? $draft['bezeichnung_sonstige'] ?? $draft['thema'] ?? 'Anwesenheit';
+                        $filename = 'Maengelberichte_' . $draft['datum'] . '_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $titel) . '.pdf';
+                        $subject = 'Neue Mängelberichte aus Anwesenheitsliste: ' . $titel . ' (' . date('d.m.Y', strtotime($draft['datum'])) . ')';
+                        $user_name = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '')) ?: 'Unbekannt';
+                        $html = '<p>Es wurden ' . count($maengelbericht_ids) . ' Mängelbericht(e) aus der Anwesenheitsliste eingereicht.</p><p><strong>Datum:</strong> ' . htmlspecialchars(date('d.m.Y', strtotime($draft['datum']))) . '<br><strong>Bezeichnung:</strong> ' . htmlspecialchars($titel) . '<br><strong>Eingereicht von:</strong> ' . htmlspecialchars($user_name) . '</p><p>Die Mängelberichte sind dieser E-Mail als PDF angehängt.</p>';
+                        foreach ($mb_all_emails as $em) {
+                            if (trim($em) !== '') send_email_with_pdf_attachment(trim($em), $subject, $html, $mb_pdf_content, $filename);
+                        }
+                    }
+                }
+            }
+        }
+
         unset($_SESSION[$draft_key]);
         try {
             $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?")->execute([$draft['datum'], $draft['auswahl']]);

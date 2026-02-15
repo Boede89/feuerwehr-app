@@ -92,6 +92,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
         ");
         $stmt->execute([$standort, $mangel_an, $bezeichnung ?: null, $mangel_beschreibung ?: null, $ursache ?: null, $verbleib ?: null, $aufgenommen_durch_text, $aufgenommen_durch_member_id, $aufgenommen_am, $_SESSION['user_id']]);
         $id = $db->lastInsertId();
+
+        // Automatischer E-Mail-Versand (wenn in Einstellungen aktiviert)
+        $email_auto = false;
+        $email_recipients = [];
+        $email_manual = '';
+        try {
+            $stmt_s = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('maengelbericht_email_auto', 'maengelbericht_email_recipients', 'maengelbericht_email_manual')");
+            $stmt_s->execute();
+            foreach ($stmt_s->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                if ($r['setting_key'] === 'maengelbericht_email_auto') $email_auto = ($r['setting_value'] ?? '0') === '1';
+                elseif ($r['setting_key'] === 'maengelbericht_email_recipients') $email_recipients = json_decode($r['setting_value'] ?? '[]', true) ?: [];
+                elseif ($r['setting_key'] === 'maengelbericht_email_manual') $email_manual = trim($r['setting_value'] ?? '');
+            }
+        } catch (Exception $e) {}
+        $all_emails = [];
+        if ($email_auto && (is_array($email_recipients) && !empty($email_recipients) || $email_manual !== '')) {
+            if (!empty($email_recipients)) {
+                $ph = implode(',', array_fill(0, count($email_recipients), '?'));
+                $stmt_u = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND email IS NOT NULL AND email != ''");
+                $stmt_u->execute(array_map('intval', $email_recipients));
+                foreach ($stmt_u->fetchAll(PDO::FETCH_COLUMN) as $em) { $all_emails[] = trim($em); }
+            }
+            if ($email_manual !== '') {
+                foreach (preg_split('/[\r\n,;]+/', $email_manual, -1, PREG_SPLIT_NO_EMPTY) as $em) {
+                    $em = trim($em);
+                    if (filter_var($em, FILTER_VALIDATE_EMAIL)) $all_emails[] = $em;
+                }
+            }
+            $all_emails = array_unique(array_filter($all_emails));
+            if (!empty($all_emails) && function_exists('send_email_with_pdf_attachment')) {
+                $pdf_content = null;
+                $_GET['id'] = $id;
+                $_GET['_return'] = '1';
+                $GLOBALS['_mb_pdf_content'] = null;
+                try {
+                    ob_start();
+                    require __DIR__ . '/api/maengelbericht-pdf.php';
+                    ob_end_clean();
+                    $pdf_content = $GLOBALS['_mb_pdf_content'] ?? null;
+                } catch (Exception $e) { ob_end_clean(); }
+                if ($pdf_content !== null && strlen($pdf_content) > 100) {
+                    $titel = $bezeichnung ?: $mangel_an . ' – ' . $standort;
+                    $filename = 'Maengelbericht_' . $aufgenommen_am . '_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $standort) . '.pdf';
+                    $subject = 'Neuer Mängelbericht: ' . $titel . ' (' . date('d.m.Y', strtotime($aufgenommen_am)) . ')';
+                    $user_name = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '')) ?: 'Unbekannt';
+                    $html = '<p>Ein neuer Mängelbericht wurde eingereicht.</p><p><strong>Standort:</strong> ' . htmlspecialchars($standort) . '<br><strong>Mangel an:</strong> ' . htmlspecialchars($mangel_an) . '<br><strong>Bezeichnung:</strong> ' . htmlspecialchars($bezeichnung ?: '-') . '<br><strong>Eingereicht von:</strong> ' . htmlspecialchars($user_name) . '</p><p>Der Mängelbericht ist dieser E-Mail als PDF angehängt.</p>';
+                    foreach ($all_emails as $em) {
+                        if (trim($em) !== '') send_email_with_pdf_attachment(trim($em), $subject, $html, $pdf_content, $filename);
+                    }
+                }
+            }
+        }
+
         $print_after = !empty($_POST['print_after_save']);
         header('Location: formulare.php?message=maengelbericht_erfolg&print_maengelbericht=' . ($print_after ? $id : ''));
         exit;
