@@ -49,53 +49,52 @@ lpstat -p
 
 Sie sollten `printer workplacepure` sehen.
 
-### Schritt 4: CUPS für Docker freigeben
+### Schritt 4: CUPS für Docker – Socket (empfohlen) oder Netzwerk
 
-Damit der Container den CUPS-Server des Hosts nutzen kann:
+**Option A: Socket-Passthrough (empfohlen, kein Forbidden)**
+
+Die docker-compose nutzt bereits den CUPS-Socket vom Host. Keine cupsd.conf-Änderungen nötig. Voraussetzung: CUPS läuft auf dem Host, der Socket existiert unter `/run/cups/cups.sock`.
+
+**Option B: Netzwerk-Zugriff (falls Socket nicht möglich)**
 
 ```bash
 # 1. CUPS auf allen Interfaces hören lassen
 sudo sed -i 's/Listen localhost:631/Listen 0.0.0.0:631/' /etc/cups/cupsd.conf
 
-# 2. Docker-Netzwerk Zugriff erlauben (sonst: "lpstat: Forbidden")
-# In /etc/cups/cupsd.conf beim Abschnitt <Location /> ergänzen:
-#   Allow from 127.0.0.1
-#   Allow from 172.17.0.0/16
+# 2. In /etc/cups/cupsd.conf: ServerAlias * und Allow from 172.17.0.0/16 im <Location />
 sudo nano /etc/cups/cupsd.conf
-# Im Block <Location /> nach "Allow from 127.0.0.1" die Zeile "Allow from 172.17.0.0/16" einfügen
 
 sudo systemctl restart cups
 ```
 
-**Hinweis:** Wenn der Server nur lokal erreichbar ist, reicht das. Für Produktion ggf. Firewall-Regeln anpassen.
+Dann in docker-compose `CUPS_SERVER=172.17.0.1` setzen und den Socket-Volume-Eintrag auskommentieren.
 
-### Schritt 5: docker-compose anpassen
+### Schritt 5: docker-compose (bereits vorkonfiguriert)
 
-In `docker-compose.yml` beim `web`-Service:
+Die `docker-compose.yml` enthält bereits:
+- Volume: `/run/cups/cups.sock` vom Host
+- Environment: `CUPS_SERVER=/run/cups/cups.sock`
 
-```yaml
-environment:
-  - APACHE_DOCUMENT_ROOT=/var/www/html
-  - CUPS_SERVER=172.17.0.1
-```
+Keine Änderung nötig, wenn Sie den Socket nutzen.
 
-`172.17.0.1` ist die Standard-IP des Docker-Hosts vom Container aus. Falls das nicht funktioniert, die tatsächliche Host-IP verwenden.
-
-### Schritt 6: Container neu starten
+### Schritt 6: Container neu bauen und starten
 
 ```bash
 cd ~/feuerwehr-app
 git pull
+docker compose build web
 docker compose down
 docker compose up -d
 ```
+
+**Hinweis:** `build` ist nötig, da www-data für den CUPS-Socket-Zugriff der Gruppe `lp` hinzugefügt wird.
 
 ### Schritt 7: Einstellungen in der App
 
 1. **Admin** → **Globale Einstellungen**
 2. Unter **Drucker**:
    - **Druckertyp:** Lokaler Drucker (CUPS)
-   - **CUPS-Server (Docker):** `172.17.0.1` (oder Host-IP) – wichtig, damit der Container den Host-CUPS nutzt. Kann leer bleiben, wenn `CUPS_SERVER` in docker-compose gesetzt ist.
+   - **CUPS-Server (Docker):** Leer lassen bei Socket-Nutzung. Bei Netzwerk: `172.17.0.1` eintragen.
    - **Druckername:** `workplacepure` (genau wie bei lpadmin)
 3. Optional: **Verfügbare Drucker** klicken – `workplacepure` sollte erscheinen
 4. **Speichern**
@@ -125,7 +124,10 @@ Im `Dockerfile` zusätzlich `cups` (nicht nur `cups-client`) installieren und de
 
 ### „lpstat: Forbidden“ / Zugriff verweigert
 
-- CUPS blockiert den Zugriff vom Container. In `/etc/cups/cupsd.conf` beim Abschnitt `<Location />` die Zeile `Allow from 172.17.0.0/16` ergänzen (nach `Allow from 127.0.0.1`), dann `sudo systemctl restart cups`.
+- CUPS blockiert den Zugriff vom Container (Host-Header oder IP). In `/etc/cups/cupsd.conf`:
+  1. **ServerAlias \*** einfügen (z.B. nach der ersten Zeile) – erlaubt Anfragen mit Host 172.17.0.1
+  2. Im Abschnitt `<Location />` die Zeile **Allow from 172.17.0.0/16** ergänzen
+- Dann: `sudo systemctl restart cups`
 
 ### „Unable to connect“ / „Connection refused“
 
@@ -142,10 +144,9 @@ Im `Dockerfile` zusätzlich `cups` (nicht nur `cups-client`) installieren und de
 
 ## Kurz-Checkliste
 
-- [ ] CUPS auf dem Host installiert und gestartet
+- [ ] CUPS auf dem Host installiert und gestartet (`/run/cups/cups.sock` existiert)
 - [ ] Drucker mit `lpadmin` angelegt (Name: `workplacepure`)
-- [ ] `lpstat -p` zeigt den Drucker
-- [ ] CUPS hört auf 0.0.0.0:631 und erlaubt 172.17.0.0/16 (Schritt 4)
-- [ ] `CUPS_SERVER=172.17.0.1` in docker-compose gesetzt
-- [ ] Container neu gestartet
-- [ ] In der App: Druckername `workplacepure` und ggf. CUPS-Server eingetragen
+- [ ] `lpstat -p` auf dem Host zeigt den Drucker
+- [ ] docker-compose mit CUPS-Socket-Volume (bereits vorkonfiguriert)
+- [ ] Container neu gebaut und gestartet: `docker compose build web && docker compose up -d`
+- [ ] In der App: Druckername `workplacepure`, CUPS-Server leer lassen

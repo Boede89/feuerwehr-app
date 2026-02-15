@@ -124,7 +124,7 @@ if ($return_var !== 0) {
     if (stripos($err, 'does not exist') !== false || stripos($err, 'printer or class') !== false) {
         $hint = ' Der Drucker existiert nicht in CUPS. Prüfen Sie in den globalen Einstellungen: „Verfügbare Drucker“ und setzen Sie „CUPS-Server (Docker)“ auf 172.17.0.1 (oder Host-IP), damit der Container den Host-CUPS nutzt.';
     } elseif (stripos($err, 'Forbidden') !== false) {
-        $hint = ' CUPS blockiert den Zugriff. Auf dem Host: In /etc/cups/cupsd.conf im Abschnitt „Location /“ die Zeile „Allow from 172.17.0.0/16“ einfügen, dann: sudo systemctl restart cups';
+        $hint = ' CUPS blockiert den Zugriff. Auf dem Host in /etc/cups/cupsd.conf: ServerAlias * und Allow from 172.17.0.0/16 im Location / einfügen, dann: sudo systemctl restart cups';
     } elseif (stripos($err, 'Unable to connect') !== false || stripos($err, 'Connection refused') !== false) {
         $hint = ' Keine Verbindung zum CUPS-Server. Setzen Sie CUPS_SERVER in docker-compose (z.B. host.docker.internal oder die IP des Hosts).';
     }

@@ -14,7 +14,8 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     cups-client \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && usermod -aG lp www-data
 
 # PHP Extensions installieren
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \

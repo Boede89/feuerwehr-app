@@ -50,14 +50,16 @@ services:
       - ./:/var/www/html
       - ./docker/apache/000-default.conf:/etc/apache2/sites-available/000-default.conf
       - ./docker/php/php.ini:/usr/local/etc/php/php.ini
+      # CUPS-Socket vom Host (empfohlen, umgeht Forbidden): Host muss CUPS laufen haben
+      - /run/cups/cups.sock:/run/cups/cups.sock
     depends_on:
       - mysql
     networks:
       - feuerwehr_network
     environment:
       - APACHE_DOCUMENT_ROOT=/var/www/html
-      # CUPS-Server für Druckfunktion: Host mit CUPS (lpstat -p zeigt Drucker). Linux: 172.17.0.1 oder Host-IP; Windows/Mac: host.docker.internal
-      # - CUPS_SERVER=172.17.0.1
+      # CUPS: Socket (empfohlen) oder Netzwerk. Socket = kein Forbidden. Netzwerk = 172.17.0.1 + ServerAlias in cupsd.conf
+      - CUPS_SERVER=/run/cups/cups.sock
 
 volumes:
   mysql_data:
