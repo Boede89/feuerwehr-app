@@ -168,15 +168,33 @@ foreach ($listen as $idx => $liste) {
             foreach (array_map('intval', $eq_ids) as $eid) {
                 if ($eid > 0 && isset($eq_map[$eid])) $names[] = $eq_map[$eid];
             }
-            $sonst = trim($vehicle_equipment_sonstiges[$vid] ?? '');
-            if ($sonst !== '') $names[] = $sonst;
+            $sonst = $vehicle_equipment_sonstiges[$vid] ?? '';
+            if (is_array($sonst)) {
+                foreach ($sonst as $s) {
+                    $s = trim((string)$s);
+                    if ($s !== '') $names[] = $s;
+                }
+            } elseif (trim((string)$sonst) !== '') {
+                $names[] = trim($sonst);
+            }
             $vehicle_equipment_names[(int)$vid] = implode(', ', $names);
         }
     }
     foreach ($vehicle_equipment_sonstiges as $vid => $sonst) {
         $vid = (int)$vid;
-        if ($vid > 0 && trim((string)$sonst) !== '' && !isset($vehicle_equipment_names[$vid])) {
-            $vehicle_equipment_names[$vid] = trim($sonst);
+        if ($vid <= 0) continue;
+        if (isset($vehicle_equipment_names[$vid])) continue;
+        $parts = [];
+        if (is_array($sonst)) {
+            foreach ($sonst as $s) {
+                $s = trim((string)$s);
+                if ($s !== '') $parts[] = $s;
+            }
+        } elseif (trim((string)$sonst) !== '') {
+            $parts[] = trim($sonst);
+        }
+        if (!empty($parts)) {
+            $vehicle_equipment_names[$vid] = implode(', ', $parts);
         }
     }
 

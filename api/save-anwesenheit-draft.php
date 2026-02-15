@@ -64,8 +64,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
         if (!empty($_POST['equipment_sonstiges']) && is_array($_POST['equipment_sonstiges'])) {
             foreach ($_POST['equipment_sonstiges'] as $vid => $txt) {
                 $vid = (int)$vid;
-                if ($vid > 0 && trim((string)$txt) !== '') {
-                    $draft['vehicle_equipment_sonstiges'][$vid] = trim((string)$txt);
+                if ($vid <= 0) continue;
+                $items = [];
+                if (is_array($txt)) {
+                    foreach ($txt as $s) {
+                        $s = trim((string)$s);
+                        if ($s !== '') $items[] = $s;
+                    }
+                } else {
+                    $lines = preg_split('/[\r\n]+/', trim((string)$txt), -1, PREG_SPLIT_NO_EMPTY);
+                    foreach ($lines as $s) {
+                        $s = trim($s);
+                        if ($s !== '') $items[] = $s;
+                    }
+                }
+                if (!empty($items)) {
+                    $draft['vehicle_equipment_sonstiges'][$vid] = array_values(array_unique($items));
                 }
             }
         }

@@ -112,9 +112,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($selected)) {
             $draft['vehicle_equipment'][$vid] = array_values(array_filter($selected, function($x) { return $x > 0; }));
         }
-        $sonstiges = trim($_POST['equipment_sonstiges'][$vid] ?? '');
-        if ($sonstiges !== '') {
-            $draft['vehicle_equipment_sonstiges'][$vid] = $sonstiges;
+        $sonstiges_raw = $_POST['equipment_sonstiges'][$vid] ?? '';
+        $sonstiges_list = [];
+        if (is_array($sonstiges_raw)) {
+            foreach ($sonstiges_raw as $s) {
+                $s = trim((string)$s);
+                if ($s !== '') $sonstiges_list[] = $s;
+            }
+        } else {
+            $lines = preg_split('/[\r\n]+/', trim((string)$sonstiges_raw), -1, PREG_SPLIT_NO_EMPTY);
+            foreach ($lines as $s) {
+                $s = trim($s);
+                if ($s !== '') $sonstiges_list[] = $s;
+            }
+        }
+        if (!empty($sonstiges_list)) {
+            $draft['vehicle_equipment_sonstiges'][$vid] = array_values(array_unique($sonstiges_list));
         }
     }
     header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
@@ -228,7 +241,13 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                                         <i class="fas fa-plus-circle"></i> Sonstiges
                                     </div>
                                     <div class="mt-2 geraete-sonstiges-wrap" id="sonstiges_<?php echo (int)$vid; ?>" style="<?php echo !empty($saved_sonstiges[$vid]) ? '' : 'display:none'; ?>">
-                                        <input type="text" class="form-control form-control-sm" name="equipment_sonstiges[<?php echo (int)$vid; ?>]" placeholder="Weiteres Gerät manuell eingeben" value="<?php echo htmlspecialchars($saved_sonstiges[$vid] ?? ''); ?>" style="max-width:300px">
+                                        <?php
+                                        $sonst_val = $saved_sonstiges[$vid] ?? '';
+                                        $sonst_lines = is_array($sonst_val) ? $sonst_val : ($sonst_val !== '' ? [$sonst_val] : []);
+                                        $sonst_display = implode("\n", $sonst_lines);
+                                        ?>
+                                        <textarea class="form-control form-control-sm" name="equipment_sonstiges[<?php echo (int)$vid; ?>]" placeholder="Weitere Geräte manuell eingeben (ein Gerät pro Zeile)" rows="3" style="max-width:400px"><?php echo htmlspecialchars($sonst_display); ?></textarea>
+                                        <small class="text-muted">Ein Gerät pro Zeile</small>
                                     </div>
                                 </div>
                                 <div class="geraete-hidden-inputs" data-vid="<?php echo (int)$vid; ?>">

@@ -355,27 +355,40 @@ if ($source_vehicle_id > 0 && $source_vehicle_id !== $vehicle_id) {
 }
 
 $sonstiges_from_anwesenheit = [];
+$existing_names = [];
+foreach ($equipment as $eq) {
+    $existing_names[strtolower(trim($eq['name']))] = true;
+}
 try {
-    $stmt = $db->query("SELECT custom_data FROM anwesenheitslisten WHERE custom_data IS NOT NULL AND custom_data != ''");
-    $existing_names = [];
-    foreach ($equipment as $eq) {
-        $existing_names[strtolower(trim($eq['name']))] = true;
-    }
     $stmt_ignored = $db->prepare("SELECT id FROM vehicle_equipment_sonstiges_ignored WHERE vehicle_id = ? AND name = ?");
+    $sources = [];
+    $stmt = $db->query("SELECT custom_data FROM anwesenheitslisten WHERE custom_data IS NOT NULL AND custom_data != ''");
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $dec = json_decode($row['custom_data'] ?? '', true);
+        $sources[] = $row['custom_data'];
+    }
+    try {
+        $stmt2 = $db->query("SELECT draft_data FROM anwesenheitsliste_drafts WHERE draft_data IS NOT NULL AND draft_data != ''");
+        while ($row = $stmt2->fetch(PDO::FETCH_ASSOC)) {
+            $sources[] = $row['draft_data'];
+        }
+    } catch (Exception $e) {}
+    foreach ($sources as $json_str) {
+        $dec = json_decode($json_str ?? '', true);
         if (!is_array($dec)) continue;
         $sonst = $dec['vehicle_equipment_sonstiges'] ?? [];
         if (!is_array($sonst)) continue;
         foreach ($sonst as $vid => $txt) {
             if ((int)$vid !== $vehicle_id) continue;
-            $txt = trim((string)$txt);
-            if ($txt === '') continue;
-            $key = strtolower($txt);
-            if (isset($existing_names[$key])) continue;
-            $stmt_ignored->execute([$vehicle_id, $txt]);
-            if ($stmt_ignored->fetch()) continue;
-            $sonstiges_from_anwesenheit[$key] = $txt;
+            $items = is_array($txt) ? $txt : ($txt !== '' ? [trim((string)$txt)] : []);
+            foreach ($items as $item) {
+                $item = trim((string)$item);
+                if ($item === '') continue;
+                $key = strtolower($item);
+                if (isset($existing_names[$key])) continue;
+                $stmt_ignored->execute([$vehicle_id, $item]);
+                if ($stmt_ignored->fetch()) continue;
+                $sonstiges_from_anwesenheit[$key] = $item;
+            }
         }
     }
     $sonstiges_from_anwesenheit = array_values(array_unique($sonstiges_from_anwesenheit));
@@ -493,11 +506,13 @@ try {
         </div>
     </div>
 
-    <?php if (!empty($sonstiges_from_anwesenheit)): ?>
     <div class="card mb-4">
         <div class="card-header"><i class="fas fa-list-alt"></i> Aus Anwesenheitslisten (Sonstiges)</div>
         <div class="card-body">
-            <p class="text-muted small mb-3">Diese Geräte wurden bei Anwesenheitslisten unter „Sonstiges“ eingegeben. Sie können sie zur Auswahlliste hinzufügen oder verwerfen.</p>
+            <p class="text-muted small mb-3">Diese Geräte wurden bei Anwesenheitslisten unter „Sonstiges“ eingegeben (auch aus Entwürfen). Sie können sie zur Auswahlliste hinzufügen oder verwerfen.</p>
+            <?php if (empty($sonstiges_from_anwesenheit)): ?>
+            <p class="text-muted mb-0">Noch keine Einträge. Wenn Sie bei einer Anwesenheitsliste unter „Sonstiges“ Geräte eingeben (ein Gerät pro Zeile) und die Liste absenden oder speichern, erscheinen sie hier.</p>
+            <?php else: ?>
             <ul class="list-group list-group-flush">
                 <?php foreach ($sonstiges_from_anwesenheit as $txt): ?>
                 <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -527,9 +542,9 @@ try {
                 </li>
                 <?php endforeach; ?>
             </ul>
+            <?php endif; ?>
         </div>
     </div>
-    <?php endif; ?>
 
     <div class="card mb-4">
         <div class="card-header">Kategorien (optional – zum Sortieren der Geräte)</div>
