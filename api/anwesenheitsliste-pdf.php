@@ -319,7 +319,17 @@ $html .= '</tbody></table></td></tr></table></div>';
 
 $leiter_label = $is_uebungsdienst_pdf ? 'Übungsleiter' : 'Einsatzleiter';
 $unterschrift_label = $is_uebungsdienst_pdf ? 'Unterschrift Übungsleiter' : 'Unterschrift Einsatzleiter';
-$eingereicht_str = 'Eingereicht am ' . format_datetime_berlin($liste['created_at'], 'd.m.Y H:i') . ' von ' . htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt');
+$berichtersteller_name = $custom_data_pdf['berichtersteller_text'] ?? '';
+if ($berichtersteller_name === '' && !empty($custom_data_pdf['berichtersteller']) && ctype_digit((string)$custom_data_pdf['berichtersteller'])) {
+    try {
+        $stmt_b = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
+        $stmt_b->execute([(int)$custom_data_pdf['berichtersteller']]);
+        $mb = $stmt_b->fetch(PDO::FETCH_ASSOC);
+        if ($mb) $berichtersteller_name = trim($mb['last_name'] . ', ' . $mb['first_name']);
+    } catch (Exception $e) {}
+}
+if ($berichtersteller_name === '') $berichtersteller_name = trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt';
+$eingereicht_str = 'Eingereicht am ' . format_datetime_berlin($liste['created_at'], 'd.m.Y H:i') . ' von ' . htmlspecialchars($berichtersteller_name);
 $html .= '
     <div class="bottom-row">
         <div class="einsatzleiter-cell">

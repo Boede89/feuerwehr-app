@@ -305,7 +305,9 @@ function _anwesenheitsliste_draft_value($id, $draft) {
 
 // Speichern (nur auf dieser Seite): Liste anlegen + Personal/Fahrzeuge aus Session
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
-    $draft['berichtersteller'] = trim($_POST['berichtersteller'] ?? '') ?: null;
+    $ber = trim($_POST['berichtersteller'] ?? '');
+    if ($ber === '') $ber = trim($_POST['berichtersteller_display'] ?? '');
+    $draft['berichtersteller'] = $ber !== '' ? $ber : null;
     $typ_sonstige = trim($_POST['typ_sonstige'] ?? '');
     $typ_sonstige_freitext = trim($_POST['typ_sonstige_freitext'] ?? '');
     foreach ($anwesenheitsliste_felder as $f) {
@@ -391,6 +393,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         if (empty(trim((string)($draft['uhrzeit_von'] ?? '')))) $pflichtfehler[] = 'Uhrzeit von';
         if (empty(trim((string)($draft['uhrzeit_bis'] ?? '')))) $pflichtfehler[] = 'Uhrzeit bis';
     }
+    $berichtersteller_val = trim((string)($draft['berichtersteller'] ?? ''));
+    if ($berichtersteller_val === '') $pflichtfehler[] = 'Berichtersteller';
     if (!empty($pflichtfehler)) {
         $error = 'Bitte füllen Sie alle Pflichtfelder aus: ' . implode(', ', $pflichtfehler) . '. Sie können den Bericht später fortsetzen.';
     }
@@ -422,6 +426,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         }
         if (!empty($draft['member_pa']) && is_array($draft['member_pa'])) {
             $custom_data_for_save['member_pa'] = array_values(array_map('intval', array_filter($draft['member_pa'])));
+        }
+        if (trim((string)($draft['berichtersteller'] ?? '')) !== '') {
+            $ber_val = trim($draft['berichtersteller']);
+            $custom_data_for_save['berichtersteller'] = $ber_val;
+            $berichtersteller_text = $ber_val;
+            if (ctype_digit($ber_val)) {
+                try {
+                    $stmt_m = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
+                    $stmt_m->execute([(int)$ber_val]);
+                    $m = $stmt_m->fetch(PDO::FETCH_ASSOC);
+                    if ($m) $berichtersteller_text = trim($m['last_name'] . ', ' . $m['first_name']);
+                } catch (Exception $e) {}
+            }
+            $custom_data_for_save['berichtersteller_text'] = $berichtersteller_text;
         }
         $custom_data_json = !empty($custom_data_for_save) ? json_encode($custom_data_for_save) : null;
         $einsatzstichwort_save = ($typ_save === 'einsatz' && !empty($draft['einsatzstichwort'])) ? $draft['einsatzstichwort'] : null;
@@ -790,7 +808,7 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                             </div>
                             <?php endif; ?>
                             <div class="mb-4">
-                                <label class="form-label">Berichtersteller</label>
+                                <label class="form-label">Berichtersteller <span class="text-danger">*</span></label>
                                 <div class="position-relative">
                                     <input type="text" class="form-control" id="berichtersteller_display" name="berichtersteller_display" placeholder="Buchstaben eingeben zum Filtern der Mitglieder" autocomplete="off" value="<?php echo htmlspecialchars($berichtersteller_display); ?>">
                                     <input type="hidden" name="berichtersteller" id="berichtersteller" value="<?php echo htmlspecialchars($berichtersteller_val ?? ''); ?>">
@@ -1004,6 +1022,9 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                 var hasEl = (einsatzleiter && einsatzleiter !== '') || (einsatzleiterFreitext && einsatzleiterFreitext.trim() !== '');
                 if (!hasEl) fehler.push('Einsatzleiter');
             }
+            var berichterstellerDisplay = (form.querySelector('[name="berichtersteller_display"]') || {}).value || '';
+            var berichtersteller = (form.querySelector('[name="berichtersteller"]') || {}).value || '';
+            if (!berichterstellerDisplay.trim() && !berichtersteller.trim()) fehler.push('Berichtersteller');
             return fehler;
         }
         if (btnSave && modal && form) {
