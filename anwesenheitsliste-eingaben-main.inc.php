@@ -468,6 +468,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             }
         }
         // Mängel aus Draft: Mängelberichte automatisch erstellen
+        $maengelbericht_ids = [];
         $maengel_list = $draft['maengel'] ?? [];
         if (!empty($maengel_list) && is_array($maengel_list)) {
             try {
@@ -490,6 +491,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                     }
                     $auf_am = date('Y-m-d');
                     $stmt_mb->execute([$standort, $mangel_an, $bezeichnung, $mangel_beschreibung, $ursache, $verbleib, $auf_text, $auf_member_id, $auf_am, $_SESSION['user_id']]);
+                    $maengelbericht_ids[] = $db->lastInsertId();
                 }
             } catch (Exception $e) {
                 error_log('Anwesenheitsliste Mängelberichte: ' . $e->getMessage());
@@ -623,7 +625,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?")->execute([$draft['datum'], $draft['auswahl']]);
         } catch (Exception $e) { /* ignore */ }
         $print_after = !empty($_POST['print_after_save']);
-        header('Location: anwesenheitsliste.php?message=erfolg' . ($print_after ? '&print=' . $list_id : ''));
+        $print_maengelbericht_after = !empty($_POST['print_maengelbericht_after_save']) && !empty($maengelbericht_ids);
+        $redirect = 'anwesenheitsliste.php?message=erfolg';
+        if ($print_after) $redirect .= '&print=' . $list_id;
+        if ($print_maengelbericht_after) $redirect .= '&print_maengelbericht=' . implode(',', $maengelbericht_ids);
+        header('Location: ' . $redirect);
         exit;
     } catch (Exception $e) {
         $error = 'Speichern fehlgeschlagen: ' . $e->getMessage();
@@ -716,6 +722,7 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                         <form method="post" id="mainForm">
                             <input type="hidden" name="save_final" value="1">
                             <input type="hidden" name="print_after_save" id="print_after_save" value="0">
+                            <input type="hidden" name="print_maengelbericht_after_save" id="print_maengelbericht_after_save" value="0">
                             <?php if ($is_einsatz): 
                                 $dienstplan_themen = [];
                                 try {
@@ -933,10 +940,16 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                 </div>
                 <div class="modal-body">
                     <p>Möchten Sie den Bericht wirklich absenden?</p>
-                    <div class="form-check">
+                    <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" checked>
                         <label class="form-check-label" for="cbPrintAfterSave">Anwesenheitsliste drucken</label>
                     </div>
+                    <?php if (!empty($draft['maengel']) && is_array($draft['maengel'])): ?>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="cbPrintMaengelberichtAfterSave" checked>
+                        <label class="form-check-label" for="cbPrintMaengelberichtAfterSave">Mängelbericht drucken</label>
+                    </div>
+                    <?php endif; ?>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
@@ -957,7 +970,9 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
         var btnSave = document.getElementById('btnSaveAnwesenheit');
         var modal = document.getElementById('saveConfirmModal');
         var cbPrint = document.getElementById('cbPrintAfterSave');
+        var cbPrintMaengel = document.getElementById('cbPrintMaengelberichtAfterSave');
         var inputPrint = document.getElementById('print_after_save');
+        var inputPrintMaengel = document.getElementById('print_maengelbericht_after_save');
         var form = document.getElementById('mainForm');
         var validationEl = document.getElementById('validationError');
         var isEinsatz = <?php echo $is_einsatz ? 'true' : 'false'; ?>;
@@ -1010,6 +1025,7 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
             });
             document.getElementById('btnConfirmSave').addEventListener('click', function() {
                 if (inputPrint) inputPrint.value = cbPrint && cbPrint.checked ? '1' : '0';
+                if (inputPrintMaengel) inputPrintMaengel.value = cbPrintMaengel && cbPrintMaengel.checked ? '1' : '0';
                 form.submit();
             });
         }

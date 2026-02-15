@@ -617,23 +617,40 @@ if (isset($_SESSION['user_id'])) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     (function() {
-        var m = /[?&]print=(\d+)/.exec(window.location.search);
+        var search = window.location.search;
+        var m = /[?&]print=(\d+)/.exec(search);
+        var mMb = /[?&]print_maengelbericht=([^&]+)/.exec(search);
+        var pending = (m && m[1] ? 1 : 0) + (mMb && mMb[1] ? 1 : 0);
+        var done = 0;
+        function cleanup() {
+            done++;
+            if (done >= pending) {
+                history.replaceState(null, '', window.location.pathname + '?message=erfolg');
+            }
+        }
         if (m && m[1]) {
-            var id = m[1];
-            fetch('api/print-anwesenheitsliste.php?id=' + id, { credentials: 'same-origin' })
+            fetch('api/print-anwesenheitsliste.php?id=' + m[1], { credentials: 'same-origin' })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.success) {
                         var msg = document.querySelector('.alert-success');
                         if (msg) msg.textContent = (msg.textContent || '') + ' Druckauftrag wurde gesendet.';
-                    } else {
-                        alert('Druck fehlgeschlagen: ' + (data.message || 'Unbekannter Fehler'));
-                    }
+                    } else { alert('Druck fehlgeschlagen: ' + (data.message || 'Unbekannter Fehler')); }
                 })
                 .catch(function() { alert('Druck fehlgeschlagen.'); })
-                .finally(function() {
-                    history.replaceState(null, '', window.location.pathname + '?message=erfolg');
-                });
+                .finally(cleanup);
+        }
+        if (mMb && mMb[1]) {
+            fetch('api/print-maengelbericht.php?ids=' + encodeURIComponent(mMb[1]), { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        var msg = document.querySelector('.alert-success');
+                        if (msg) msg.textContent = (msg.textContent || '') + (msg.textContent.indexOf('Druckauftrag') >= 0 ? ' Mängelberichte wurden gedruckt.' : ' Druckauftrag wurde gesendet.');
+                    } else { alert('Mängelbericht-Druck fehlgeschlagen: ' + (data.message || 'Unbekannter Fehler')); }
+                })
+                .catch(function() { alert('Mängelbericht-Druck fehlgeschlagen.'); })
+                .finally(cleanup);
         }
     })();
     </script>

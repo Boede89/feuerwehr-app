@@ -19,10 +19,11 @@ if (!has_permission('forms')) {
 
 $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
 $alle = !empty($_GET['alle']) || !empty($_POST['alle']);
+$ids = trim($_GET['ids'] ?? $_POST['ids'] ?? '');
 $filter_datum_von = trim($_GET['filter_datum_von'] ?? $_POST['filter_datum_von'] ?? '');
 $filter_datum_bis = trim($_GET['filter_datum_bis'] ?? $_POST['filter_datum_bis'] ?? '');
 
-if (!$alle && $id <= 0) {
+if (!$alle && $id <= 0 && $ids === '') {
     echo json_encode(['success' => false, 'message' => 'Ungültige ID']);
     exit;
 }
@@ -59,10 +60,11 @@ if (!$has_printer) {
 }
 
 $GLOBALS['_mb_pdf_content'] = null;
-if ($alle) {
+if ($alle || $ids !== '') {
     $_GET['_return'] = '1';
     $_GET['filter_datum_von'] = $filter_datum_von;
     $_GET['filter_datum_bis'] = $filter_datum_bis;
+    if ($ids !== '') $_GET['ids'] = $ids;
     require __DIR__ . '/maengelbericht-pdf-alle.php';
 } else {
     $_GET['_return'] = '1';

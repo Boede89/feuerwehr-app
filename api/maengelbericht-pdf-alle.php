@@ -19,6 +19,7 @@ if (!has_permission('forms')) {
 
 $filter_datum_von = trim($_GET['filter_datum_von'] ?? '');
 $filter_datum_bis = trim($_GET['filter_datum_bis'] ?? '');
+$ids_param = trim($_GET['ids'] ?? '');
 $return_mode = !empty($_GET['_return']);
 
 $sql = "
@@ -28,11 +29,19 @@ $sql = "
     WHERE 1=1
 ";
 $params = [];
-if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
+if ($ids_param !== '') {
+    $ids = array_filter(array_map('intval', explode(',', $ids_param)), function($x) { return $x > 0; });
+    if (!empty($ids)) {
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $sql .= " AND m.id IN ($ph)";
+        $params = array_merge($params, $ids);
+    }
+}
+if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von) && empty($ids_param)) {
     $sql .= " AND m.aufgenommen_am >= ?";
     $params[] = $filter_datum_von;
 }
-if ($filter_datum_bis !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_bis)) {
+if ($filter_datum_bis !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_bis) && empty($ids_param)) {
     $sql .= " AND m.aufgenommen_am <= ?";
     $params[] = $filter_datum_bis;
 }
