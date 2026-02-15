@@ -108,6 +108,7 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'vehicle_maschinist' => [],
         'vehicle_einheitsfuehrer' => [],
         'vehicle_equipment' => [],
+        'vehicle_equipment_sonstiges' => [],
         'uhrzeit_von' => $uhrzeit_von_init,
         'uhrzeit_bis' => '',
         'alarmierung_durch' => '',
@@ -181,6 +182,7 @@ if (!is_array($draft['vehicles'])) $draft['vehicles'] = [];
 if (!is_array($draft['vehicle_maschinist'])) $draft['vehicle_maschinist'] = [];
 if (!is_array($draft['vehicle_einheitsfuehrer'])) $draft['vehicle_einheitsfuehrer'] = [];
 if (!is_array($draft['vehicle_equipment'])) $draft['vehicle_equipment'] = [];
+if (!is_array($draft['vehicle_equipment_sonstiges'])) $draft['vehicle_equipment_sonstiges'] = [];
 if (!is_array($draft['custom_data'])) $draft['custom_data'] = [];
 
 // Sicherstellen, dass anwesenheitslisten alle Spalten hat (falls Nutzer direkt diese Seite aufruft)
@@ -342,6 +344,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         }
         if (!empty($draft['vehicle_equipment'])) {
             $custom_data_for_save['vehicle_equipment'] = $draft['vehicle_equipment'];
+        }
+        if (!empty($draft['vehicle_equipment_sonstiges'])) {
+            $custom_data_for_save['vehicle_equipment_sonstiges'] = $draft['vehicle_equipment_sonstiges'];
         }
         $custom_data_json = !empty($custom_data_for_save) ? json_encode($custom_data_for_save) : null;
         $einsatzstichwort_save = ($typ_save === 'einsatz' && !empty($draft['einsatzstichwort'])) ? $draft['einsatzstichwort'] : null;

@@ -176,6 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
                 $custom_post['uebungsleiter_member_ids'] = [];
             }
             $custom_post['vehicle_equipment'] = [];
+            $custom_post['vehicle_equipment_sonstiges'] = [];
             if (!empty($_POST['equipment']) && is_array($_POST['equipment'])) {
                 foreach ($_POST['equipment'] as $vid => $ids) {
                     $vid = (int)$vid;
@@ -184,6 +185,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
                         if (!empty($ids)) {
                             $custom_post['vehicle_equipment'][$vid] = array_values($ids);
                         }
+                    }
+                }
+            }
+            if (!empty($_POST['equipment_sonstiges']) && is_array($_POST['equipment_sonstiges'])) {
+                foreach ($_POST['equipment_sonstiges'] as $vid => $txt) {
+                    $vid = (int)$vid;
+                    if ($vid > 0 && trim((string)$txt) !== '') {
+                        $custom_post['vehicle_equipment_sonstiges'][$vid] = trim((string)$txt);
                     }
                 }
             }
@@ -436,6 +445,8 @@ function _al_val($liste, $key, $custom_data = []) {
                 }
                 $saved_vehicle_equipment = $custom_data['vehicle_equipment'] ?? [];
                 if (!is_array($saved_vehicle_equipment)) $saved_vehicle_equipment = [];
+                $saved_vehicle_equipment_sonstiges = $custom_data['vehicle_equipment_sonstiges'] ?? [];
+                if (!is_array($saved_vehicle_equipment_sonstiges)) $saved_vehicle_equipment_sonstiges = [];
                 $vehicles_with_equipment = [];
                 if (!empty($vehicle_ids)) {
                     try {
@@ -444,10 +455,29 @@ function _al_val($liste, $key, $custom_data = []) {
                             $vname = '';
                             foreach ($vehicles_list as $v) { if ((int)$v['id'] === $vid) { $vname = $v['name']; break; } }
                             if ($vname === '') $vname = 'Fahrzeug ' . $vid;
-                            $stmt = $db->prepare("SELECT id, name FROM vehicle_equipment WHERE vehicle_id = ? ORDER BY sort_order, name");
-                            $stmt->execute([$vid]);
-                            $equipment = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                            $vehicles_with_equipment[$vid] = ['name' => $vname, 'equipment' => $equipment];
+                            try {
+                                $stmt = $db->prepare("
+                                    SELECT e.id, e.name, e.category_id, c.name AS category_name
+                                    FROM vehicle_equipment e
+                                    LEFT JOIN vehicle_equipment_category c ON c.id = e.category_id
+                                    WHERE e.vehicle_id = ?
+                                    ORDER BY COALESCE(c.sort_order, 999), c.name, e.sort_order, e.name
+                                ");
+                                $stmt->execute([$vid]);
+                                $equipment_raw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                            } catch (Exception $e2) {
+                                $stmt = $db->prepare("SELECT id, name, NULL AS category_id, NULL AS category_name FROM vehicle_equipment WHERE vehicle_id = ? ORDER BY sort_order, name");
+                                $stmt->execute([$vid]);
+                                $equipment_raw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                            }
+                            $by_cat = [];
+                            foreach ($equipment_raw as $eq) {
+                                $cat = trim($eq['category_name'] ?? '') !== '' ? $eq['category_name'] : null;
+                                if ($cat === null) $cat = '';
+                                if (!isset($by_cat[$cat])) $by_cat[$cat] = [];
+                                $by_cat[$cat][] = $eq;
+                            }
+                            $vehicles_with_equipment[$vid] = ['name' => $vname, 'equipment_by_category' => $by_cat];
                         }
                     } catch (Exception $e) {}
                 }
@@ -492,30 +522,68 @@ function _al_val($liste, $key, $custom_data = []) {
         <div class="card mb-4">
             <div class="card-header"><i class="fas fa-tools"></i> Geräte – eingesetzte Gerätschaften pro Fahrzeug</div>
             <div class="card-body">
-                <p class="text-muted small">Markieren Sie die Geräte, die pro Fahrzeug eingesetzt wurden.</p>
+                <p class="text-muted small">Klicken Sie auf die Geräte zur Auswahl (farbliche Markierung). Bei „Sonstiges“ öffnet sich ein Textfeld.</p>
+                <style>.geraete-item-edit{cursor:pointer;padding:0.5rem 0.75rem;border-radius:6px;border:2px solid #e9ecef;transition:all 0.2s;display:inline-block;margin:0.2rem}.geraete-item-edit:hover{background:#f8f9fa}.geraete-item-edit-selected{background:#0d6efd!important;color:#fff!important;border-color:#0d6efd!important}.geraete-cat-edit{font-size:0.85rem;color:#6c757d;margin-bottom:0.3rem}</style>
                 <?php foreach ($vehicles_with_equipment as $vid => $data): ?>
                 <div class="card mb-3">
                     <div class="card-header py-2"><strong><?php echo htmlspecialchars($data['name']); ?></strong></div>
                     <div class="card-body py-3">
-                        <?php if (empty($data['equipment'])): ?>
-                        <p class="text-muted small mb-0">Keine Geräte hinterlegt. <a href="vehicles-geraete.php?vehicle_id=<?php echo (int)$vid; ?>">Geräte in Fahrzeug-Einstellungen verwalten</a></p>
+                        <?php if (empty($data['equipment_by_category'])): ?>
+                        <p class="text-muted small mb-2">Keine Geräte hinterlegt. <a href="vehicles-geraete.php?vehicle_id=<?php echo (int)$vid; ?>">Geräte verwalten</a></p>
                         <?php else: ?>
-                        <div class="d-flex flex-wrap gap-3">
-                            <?php foreach ($data['equipment'] as $eq):
-                                $checked = isset($saved_vehicle_equipment[$vid]) && in_array((int)$eq['id'], array_map('intval', $saved_vehicle_equipment[$vid]));
-                            ?>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="equipment[<?php echo (int)$vid; ?>][]" value="<?php echo (int)$eq['id']; ?>" id="eq_<?php echo (int)$vid; ?>_<?php echo (int)$eq['id']; ?>"<?php echo $checked ? ' checked' : ''; ?>>
-                                <label class="form-check-label" for="eq_<?php echo (int)$vid; ?>_<?php echo (int)$eq['id']; ?>"><?php echo htmlspecialchars($eq['name']); ?></label>
+                        <?php foreach ($data['equipment_by_category'] as $cat_name => $items): ?>
+                        <div class="mb-3">
+                            <?php if ($cat_name !== ''): ?><div class="geraete-cat-edit"><?php echo htmlspecialchars($cat_name); ?></div><?php endif; ?>
+                            <div class="d-flex flex-wrap">
+                                <?php foreach ($items as $eq):
+                                    $checked = isset($saved_vehicle_equipment[$vid]) && in_array((int)$eq['id'], array_map('intval', $saved_vehicle_equipment[$vid]));
+                                ?>
+                                <div class="geraete-item-edit geraete-equipment-edit <?php echo $checked ? 'geraete-item-edit-selected' : ''; ?>" data-vid="<?php echo (int)$vid; ?>" data-eq-id="<?php echo (int)$eq['id']; ?>" role="button" tabindex="0"><?php echo htmlspecialchars($eq['name']); ?></div>
+                                <?php endforeach; ?>
                             </div>
-                            <?php endforeach; ?>
                         </div>
+                        <?php endforeach; ?>
                         <?php endif; ?>
+                        <div class="mt-2">
+                            <div class="geraete-item-edit geraete-sonstiges-trigger-edit <?php echo !empty($saved_vehicle_equipment_sonstiges[$vid]) ? 'geraete-item-edit-selected' : ''; ?>" data-vid="<?php echo (int)$vid; ?>" role="button" tabindex="0"><i class="fas fa-plus-circle"></i> Sonstiges</div>
+                            <div class="mt-2 geraete-sonstiges-wrap-edit" id="sonstiges_edit_<?php echo (int)$vid; ?>" style="<?php echo !empty($saved_vehicle_equipment_sonstiges[$vid]) ? '' : 'display:none'; ?>">
+                                <input type="text" class="form-control form-control-sm" name="equipment_sonstiges[<?php echo (int)$vid; ?>]" placeholder="Weiteres Gerät manuell eingeben" value="<?php echo htmlspecialchars($saved_vehicle_equipment_sonstiges[$vid] ?? ''); ?>" style="max-width:300px">
+                            </div>
+                        </div>
+                        <div class="geraete-hidden-inputs-edit" data-vid="<?php echo (int)$vid; ?>">
+                            <?php if (isset($saved_vehicle_equipment[$vid])): foreach ($saved_vehicle_equipment[$vid] as $eqid): ?>
+                            <input type="hidden" name="equipment[<?php echo (int)$vid; ?>][]" value="<?php echo (int)$eqid; ?>">
+                            <?php endforeach; endif; ?>
+                        </div>
                     </div>
                 </div>
                 <?php endforeach; ?>
             </div>
         </div>
+        <script>
+        (function(){
+            function syncEdit(vid){
+                var c=document.querySelector('.geraete-hidden-inputs-edit[data-vid="'+vid+'"]');
+                if(!c)return;
+                c.innerHTML='';
+                document.querySelectorAll('.geraete-equipment-edit.geraete-item-edit-selected[data-vid="'+vid+'"]').forEach(function(el){
+                    var eqId=el.getAttribute('data-eq-id');
+                    if(eqId){var i=document.createElement('input');i.type='hidden';i.name='equipment['+vid+'][]';i.value=eqId;c.appendChild(i);}
+                });
+            }
+            document.querySelectorAll('.geraete-equipment-edit').forEach(function(el){
+                el.onclick=function(){this.classList.toggle('geraete-item-edit-selected');syncEdit(this.getAttribute('data-vid'));};
+                el.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this.click();}};
+            });
+            document.querySelectorAll('.geraete-sonstiges-trigger-edit').forEach(function(el){
+                el.onclick=function(){
+                    var vid=this.getAttribute('data-vid'),w=document.getElementById('sonstiges_edit_'+vid);
+                    if(w){var s=w.style.display==='none';w.style.display=s?'block':'none';this.classList.toggle('geraete-item-edit-selected',s);if(s)w.querySelector('input').focus();}
+                };
+                el.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this.click();}};
+            });
+        })();
+        </script>
         <?php endif; ?>
 
         <div class="mb-4">

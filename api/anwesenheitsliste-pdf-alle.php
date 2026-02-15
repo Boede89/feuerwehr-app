@@ -143,6 +143,7 @@ foreach ($listen as $idx => $liste) {
     $vehicle_roles = [];
     foreach ($liste_vehicles as $lv) $vehicle_roles[$lv['vehicle_id']] = ['maschinist' => trim($lv['masch_first'] . ' ' . $lv['masch_last']), 'einheitsfuehrer' => trim($lv['einh_first'] . ' ' . $lv['einh_last'])];
     $vehicle_equipment_data = $custom_data_pdf['vehicle_equipment'] ?? [];
+    $vehicle_equipment_sonstiges = $custom_data_pdf['vehicle_equipment_sonstiges'] ?? [];
     $vehicle_equipment_names = [];
     if (!empty($vehicle_equipment_data)) {
         $all_eq_ids = [];
@@ -150,24 +151,32 @@ foreach ($listen as $idx => $liste) {
             if (is_array($eq_ids)) $all_eq_ids = array_merge($all_eq_ids, array_map('intval', $eq_ids));
         }
         $all_eq_ids = array_unique(array_filter($all_eq_ids));
+        $eq_map = [];
         if (!empty($all_eq_ids)) {
             try {
                 $ph = implode(',', array_fill(0, count($all_eq_ids), '?'));
                 $stmt = $db->prepare("SELECT id, name FROM vehicle_equipment WHERE id IN ($ph)");
                 $stmt->execute(array_values($all_eq_ids));
-                $eq_map = [];
                 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
                     $eq_map[(int)$r['id']] = $r['name'];
                 }
-                foreach ($vehicle_equipment_data as $vid => $eq_ids) {
-                    if (!is_array($eq_ids)) continue;
-                    $names = [];
-                    foreach (array_map('intval', $eq_ids) as $eid) {
-                        if ($eid > 0 && isset($eq_map[$eid])) $names[] = $eq_map[$eid];
-                    }
-                    $vehicle_equipment_names[(int)$vid] = implode(', ', $names);
-                }
             } catch (Exception $e) {}
+        }
+        foreach ($vehicle_equipment_data as $vid => $eq_ids) {
+            if (!is_array($eq_ids)) continue;
+            $names = [];
+            foreach (array_map('intval', $eq_ids) as $eid) {
+                if ($eid > 0 && isset($eq_map[$eid])) $names[] = $eq_map[$eid];
+            }
+            $sonst = trim($vehicle_equipment_sonstiges[$vid] ?? '');
+            if ($sonst !== '') $names[] = $sonst;
+            $vehicle_equipment_names[(int)$vid] = implode(', ', $names);
+        }
+    }
+    foreach ($vehicle_equipment_sonstiges as $vid => $sonst) {
+        $vid = (int)$vid;
+        if ($vid > 0 && trim((string)$sonst) !== '' && !isset($vehicle_equipment_names[$vid])) {
+            $vehicle_equipment_names[$vid] = trim($sonst);
         }
     }
 
