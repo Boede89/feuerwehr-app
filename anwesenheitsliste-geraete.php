@@ -600,14 +600,14 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
     var verbleibDefault = 'Gerätehaus';
 
     matSelect.addEventListener('change', function() {
+        var val = this.value;
         var opt = this.options[this.selectedIndex];
-        if (this.value === '__anderes__') {
+        if (val === '__anderes__') {
             bezeichnungInput.value = '';
-            verbleibInput.value = verbleibDefault;
-        } else if (opt && opt.dataset) {
-            bezeichnungInput.value = opt.dataset.bezeichnung || this.value;
-            verbleibInput.value = verbleibDefault;
+        } else if (val && opt) {
+            bezeichnungInput.value = (opt.dataset && opt.dataset.bezeichnung) ? opt.dataset.bezeichnung : val;
         }
+        verbleibInput.value = verbleibDefault;
     });
 
     function getExistingMaengel() {
