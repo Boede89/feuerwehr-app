@@ -69,25 +69,25 @@ $html = '<!DOCTYPE html>
     <style>
         @page { size: A4; margin: 12mm; }
         * { box-sizing: border-box; }
-        body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; line-height: 1.35; color: #333; margin: 0; padding: 8px 12px; }
-        .header { text-align: center; margin-bottom: 12px; }
-        .section { margin-bottom: 14px; }
-        .section-title { font-weight: bold; font-size: 10pt; margin-bottom: 6px; padding-bottom: 2px; border-bottom: 1px solid #333; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; line-height: 1.3; color: #333; margin: 0; padding: 6px 12px; }
+        .header { text-align: center; margin-bottom: 8px; }
+        .section { margin-bottom: 8px; }
+        .section-title { font-weight: bold; font-size: 10pt; margin-bottom: 4px; padding-bottom: 2px; border-bottom: 1px solid #333; }
         table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-        .label-cell { width: 140px; background: #f5f5f5; font-weight: bold; padding: 4px 8px; border: 1px solid #ddd; }
-        .value-cell { padding: 4px 8px; border: 1px solid #ddd; }
-        .geraetewart-section { margin-top: 20px; padding-top: 12px; border-top: 2px solid #333; }
-        .geraetewart-title { font-weight: bold; font-size: 11pt; margin-bottom: 10px; }
-        .line-field { display: flex; align-items: flex-end; margin-bottom: 14px; min-height: 36px; }
-        .line-field label { min-width: 140px; font-weight: bold; padding-bottom: 4px; }
-        .line-field .line { flex: 1; border-bottom: 1px solid #333; margin-left: 8px; min-height: 28px; padding-top: 8px; }
-        .prioritaet-row { display: flex; align-items: center; margin: 12px 0; }
-        .prioritaet-row .box { width: 14px; height: 14px; border: 1px solid #333; margin-right: 4px; display: inline-block; }
-        .prioritaet-row span { margin-right: 20px; }
-        .veranlassung-line { border-bottom: 1px solid #333; min-height: 28px; margin: 10px 0; padding-top: 8px; }
-        .signature-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid #333; }
-        .signature-line { border-bottom: 1px solid #333; width: 180px; min-height: 32px; margin-top: 24px; }
-        .signature-label { font-size: 8pt; color: #666; margin-top: 4px; }
+        .label-cell { width: 140px; background: #f5f5f5; font-weight: bold; padding: 3px 6px; border: 1px solid #ddd; }
+        .value-cell { padding: 3px 6px; border: 1px solid #ddd; }
+        .geraetewart-section { margin-top: 10px; padding-top: 8px; border-top: 2px solid #333; }
+        .geraetewart-title { font-weight: bold; font-size: 11pt; margin-bottom: 6px; }
+        .line-field { display: flex; align-items: flex-end; margin-bottom: 6px; min-height: 24px; }
+        .line-field label { min-width: 140px; font-weight: bold; padding-bottom: 2px; }
+        .line-field .line { flex: 1; border-bottom: 1px solid #333; margin-left: 8px; min-height: 18px; padding-top: 4px; }
+        .prioritaet-row { display: flex; align-items: center; margin: 6px 0; }
+        .prioritaet-row .box { width: 12px; height: 12px; border: 1px solid #333; margin-right: 4px; display: inline-block; }
+        .prioritaet-row span { margin-right: 16px; }
+        .veranlassung-line { border-bottom: 1px solid #333; min-height: 18px; margin: 5px 0; padding-top: 4px; }
+        .signature-section { margin-top: 10px; padding-top: 8px; border-top: 1px solid #333; }
+        .signature-line { border-bottom: 1px solid #333; width: 160px; min-height: 22px; margin-top: 10px; }
+        .signature-label { font-size: 8pt; color: #666; margin-top: 2px; }
         @media print { .section { page-break-inside: avoid; } }
     </style>
 </head>
@@ -107,7 +107,7 @@ $html = '<!DOCTYPE html>
         </table>
         <div class="signature-section">
             <div class="signature-line"></div>
-            <div class="signature-label">Unterschrift (Person, die den Mangel aufgenommen hat)</div>
+            <div class="signature-label">Unterschrift</div>
         </div>
     </div>
 
@@ -123,13 +123,13 @@ $html = '<!DOCTYPE html>
             <span class="box"></span><span>Mittel</span>
             <span class="box"></span><span>Gering</span>
         </div>
-        <div style="margin-top: 12px;">
+        <div style="margin-top: 8px;">
             <label style="font-weight: bold;">Weitere Veranlassung</label>
             <div class="veranlassung-line"></div>
             <div class="veranlassung-line"></div>
             <div class="veranlassung-line"></div>
         </div>
-        <div class="line-field" style="margin-top: 12px;">
+        <div class="line-field" style="margin-top: 8px;">
             <label>Mangel beseitigt am:</label>
             <div class="line"></div>
         </div>
