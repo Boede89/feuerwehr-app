@@ -194,12 +194,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
     <title>Gerätewartmitteilung - Feuerwehr App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
     <style>
-        .gwm-vehicle-card { min-width: 0; }
-        .gwm-vehicle-card .ts-wrapper { min-width: 220px; }
-        .gwm-vehicle-card .ts-control { min-height: 38px; }
+        .gwm-vehicle-card .vehicle-select { min-width: 220px; }
     </style>
 </head>
 <body>
@@ -273,7 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
                                 <?php if (empty($vehicles)): ?>
                                 <p class="text-muted">Keine Fahrzeuge in der Datenbank. Bitte in der Fahrzeugverwaltung anlegen.</p>
                                 <?php else: ?>
-                                <p class="text-muted small mb-3">Wählen Sie die eingesetzten Fahrzeuge aus und legen Sie Maschinist sowie Einheitsführer fest. Pro Fahrzeug können Sie die genutzten Geräte auswählen. Tippen Sie in die Felder, um nach Namen zu suchen.</p>
+                                <p class="text-muted small mb-3">Wählen Sie die eingesetzten Fahrzeuge aus und legen Sie Maschinist sowie Einheitsführer fest. Pro Fahrzeug können Sie die genutzten Geräte auswählen. Tipp: In den Dropdown-Feldern können Sie den ersten Buchstaben tippen, um schnell zur passenden Option zu springen.</p>
                                 <div class="row g-3">
                                     <?php foreach ($vehicles as $v): $vid = (int)$v['id']; $eq_list = $vehicles_with_equipment[$vid] ?? []; ?>
                                     <div class="col-12">
@@ -385,13 +382,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
     </div>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
 (function() {
     var vehicles = <?php echo json_encode(array_map(function($v) { return ['id' => (int)$v['id'], 'name' => $v['name']]; }, $vehicles)); ?>;
     var vehiclesWithEq = <?php echo json_encode($vehicles_with_equipment); ?>;
-
-    var tomSelectInstances = {};
 
     function toggleVehicleRow(checkbox) {
         var vid = parseInt(checkbox.dataset.vid, 10);
@@ -403,26 +397,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
         if (checkbox.checked) {
             if (hid) { hid.disabled = false; }
             fields.forEach(function(f) { f.classList.remove('d-none'); });
-            selects.forEach(function(s) {
-                s.disabled = false;
-                if (typeof TomSelect !== 'undefined' && !tomSelectInstances[s.name]) {
-                    try {
-                        tomSelectInstances[s.name] = new TomSelect(s, { create: false });
-                    } catch (e) { tomSelectInstances[s.name] = null; }
-                }
-            });
+            selects.forEach(function(s) { s.disabled = false; });
         } else {
             if (hid) { hid.disabled = true; }
             fields.forEach(function(f) { f.classList.add('d-none'); });
-            selects.forEach(function(s) {
-                var inst = tomSelectInstances[s.name];
-                if (inst && inst.destroy) {
-                    inst.destroy();
-                    delete tomSelectInstances[s.name];
-                }
-                s.disabled = true;
-                s.value = '';
-            });
+            selects.forEach(function(s) { s.disabled = true; s.value = ''; });
             if (eqBox) { eqBox.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.checked = false; }); }
         }
         updateDefectiveSection();
