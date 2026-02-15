@@ -95,6 +95,7 @@ if (!empty($liste['custom_data'])) {
 }
 $uebungsleiter_ids = $custom_data['uebungsleiter_member_ids'] ?? [];
 if (!is_array($uebungsleiter_ids)) $uebungsleiter_ids = [];
+$member_pa_ids = array_flip($custom_data['member_pa'] ?? []);
 $is_uebungsdienst_edit = !empty($uebungsleiter_ids)
     || (($liste['typ'] ?? '') === 'dienst' && in_array($liste['dienst_typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung']))
     || (($liste['typ'] ?? '') === 'manuell' && in_array($liste['bezeichnung'] ?? '', ['Übungsdienst', 'Jahreshauptversammlung']));
@@ -177,6 +178,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             }
             $custom_post['vehicle_equipment'] = [];
             $custom_post['vehicle_equipment_sonstiges'] = [];
+            $custom_post['member_pa'] = [];
+            if (!empty($_POST['member_pa']) && is_array($_POST['member_pa'])) {
+                $custom_post['member_pa'] = array_values(array_filter(array_map('intval', $_POST['member_pa']), function($x){return $x>0;}));
+            }
+            $old_member_pa = $custom_data['member_pa'] ?? [];
+            if (!is_array($old_member_pa)) $old_member_pa = [];
+            $new_pa_additions = array_diff($custom_post['member_pa'], $old_member_pa);
             if (!empty($_POST['equipment']) && is_array($_POST['equipment'])) {
                 foreach ($_POST['equipment'] as $vid => $ids) {
                     $vid = (int)$vid;
@@ -256,6 +264,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
                 }
             } catch (Exception $e) {
                 // Tabelle evtl. nicht vorhanden
+            }
+
+            // PA neu gesetzt: Atemschutzeinträge für neu hinzugefügte PA-Mitglieder erstellen
+            if (!empty($new_pa_additions)) {
+                $entry_type = ($liste['typ'] ?? '') === 'einsatz' ? 'einsatz' : 'uebung';
+                $entry_date = $liste['datum'];
+                $traeger_ids = [];
+                foreach ($new_pa_additions as $mid) {
+                    if ((int)$mid <= 0) continue;
+                    try {
+                        $st = $db->prepare("SELECT id FROM atemschutz_traeger WHERE member_id = ? AND status = 'Aktiv'");
+                        $st->execute([$mid]);
+                        $tid = $st->fetchColumn();
+                        if ($tid) $traeger_ids[] = (int)$tid;
+                    } catch (Exception $e) {}
+                }
+                if (!empty($traeger_ids)) {
+                    try {
+                        $user_id_save = (int)($_SESSION['user_id'] ?? 0);
+                        $stmt_ae = $db->prepare("INSERT INTO atemschutz_entries (entry_type, entry_date, requester_id, status) VALUES (?, ?, ?, 'pending')");
+                        $stmt_ae->execute([$entry_type, $entry_date, $user_id_save ?: null]);
+                        $entry_id = $db->lastInsertId();
+                        $stmt_et = $db->prepare("INSERT INTO atemschutz_entry_traeger (entry_id, traeger_id) VALUES (?, ?)");
+                        foreach ($traeger_ids as $tid) { $stmt_et->execute([$entry_id, $tid]); }
+                        $stmt_adm = $db->prepare("SELECT email FROM users WHERE atemschutz_notifications = 1");
+                        $stmt_adm->execute();
+                        $admins = $stmt_adm->fetchAll(PDO::FETCH_COLUMN);
+                        if (!empty($admins) && function_exists('send_email')) {
+                            $ph = implode(',', array_fill(0, count($traeger_ids), '?'));
+                            $stmt_n = $db->prepare("SELECT first_name, last_name FROM atemschutz_traeger WHERE id IN ($ph)");
+                            $stmt_n->execute($traeger_ids);
+                            $names = array_map(fn($r) => trim($r['first_name'] . ' ' . $r['last_name']), $stmt_n->fetchAll(PDO::FETCH_ASSOC));
+                            $type_name = $entry_type === 'einsatz' ? 'Einsatz' : 'Übung';
+                            $msg = '<p>Ein neuer Atemschutzeintrag-Antrag aus der Anwesenheitsliste (Bearbeitung) wartet auf Ihre Genehmigung.</p><p><strong>Typ:</strong> ' . htmlspecialchars($type_name) . ', <strong>Datum:</strong> ' . date('d.m.Y', strtotime($entry_date)) . '</p><p><strong>Geräteträger:</strong> ' . htmlspecialchars(implode(', ', $names)) . '</p>';
+                            foreach ($admins as $admin_email) { if (trim($admin_email) !== '') send_email(trim($admin_email), 'Neuer Atemschutzeintrag-Antrag (Anwesenheitsliste) - ' . $type_name, $msg, '', true); }
+                        }
+                    } catch (Exception $e) { error_log('Anwesenheitsliste Bearbeiten PA-Atemschutz: ' . $e->getMessage()); }
+                }
             }
 
             $message = 'Anwesenheitsliste wurde gespeichert.';
@@ -408,7 +454,7 @@ function _al_val($liste, $key, $custom_data = []) {
         <div class="card mb-4">
             <div class="card-header">Personal</div>
             <div class="card-body">
-                <p class="text-muted small">Anwesende Mitglieder und zugeordnete Fahrzeuge.</p>
+                <p class="text-muted small">Anwesende Mitglieder und zugeordnete Fahrzeuge. PA = Atemschutz getragen (erstellt Atemschutzeintrag zur Genehmigung).</p>
                 <div id="membersContainer">
                     <?php
                     $member_ids = array_column($liste_members, 'member_id');
@@ -420,17 +466,18 @@ function _al_val($liste, $key, $custom_data = []) {
                     foreach ($liste_members as $lm):
                         $mid = $lm['member_id'];
                         $vid = $lm['vehicle_id'];
+                        $pa_checked = isset($member_pa_ids[(int)$mid]);
                     ?>
                     <div class="row g-2 mb-2 align-items-center member-row">
                         <div class="col-md-5">
-                            <select class="form-select form-select-sm" name="member_id[]">
+                            <select class="form-select form-select-sm member-select" name="member_id[]">
                                 <option value="">— auswählen —</option>
                                 <?php foreach ($members_list as $m): ?>
                                 <option value="<?php echo (int)$m['id']; ?>" <?php echo (int)$mid === (int)$m['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <select class="form-select form-select-sm" name="member_vehicle[]">
                                 <option value="">— kein Fahrzeug —</option>
                                 <?php foreach ($vehicles_list as $v): ?>
@@ -438,7 +485,11 @@ function _al_val($liste, $key, $custom_data = []) {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-2"><button type="button" class="btn btn-sm btn-outline-danger btn-remove-member"><i class="fas fa-times"></i></button></div>
+                        <div class="col-md-2 text-center">
+                            <label class="form-check-label small" title="PA getragen">PA</label>
+                            <input type="checkbox" class="form-check-input member-pa-cb" name="member_pa[]" value="<?php echo (int)$mid; ?>" <?php echo $pa_checked ? 'checked' : ''; ?>>
+                        </div>
+                        <div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger btn-remove-member"><i class="fas fa-times"></i></button></div>
                     </div>
                     <?php $idx++; endforeach; ?>
                 </div>
@@ -653,19 +704,33 @@ function druckenAnwesenheitsliste(id,btn){btn=btn||(event&&event.target?event.ta
         var c = document.getElementById('membersContainer');
         var div = document.createElement('div');
         div.className = 'row g-2 mb-2 align-items-center member-row';
-        var selM = '<select class="form-select form-select-sm" name="member_id[]"><option value="">— auswählen —</option>';
+        var selM = '<select class="form-select form-select-sm member-select" name="member_id[]"><option value="">— auswählen —</option>';
         membersList.forEach(function(m) { selM += '<option value="' + m.id + '"' + (mid == m.id ? ' selected' : '') + '>' + (m.name || '').replace(/</g,'&lt;') + '</option>'; });
         selM += '</select>';
         var selV = '<select class="form-select form-select-sm" name="member_vehicle[]"><option value="">— kein Fahrzeug —</option>';
         vehiclesList.forEach(function(v) { selV += '<option value="' + v.id + '"' + (vid == v.id ? ' selected' : '') + '>' + (v.name || '').replace(/</g,'&lt;') + '</option>'; });
         selV += '</select>';
-        div.innerHTML = '<div class="col-md-5">' + selM + '</div><div class="col-md-4">' + selV + '</div><div class="col-md-2"><button type="button" class="btn btn-sm btn-outline-danger btn-remove-member"><i class="fas fa-times"></i></button></div>';
+        var paCb = '<div class="col-md-2 text-center"><label class="form-check-label small">PA</label><input type="checkbox" class="form-check-input member-pa-cb" name="member_pa[]" value="' + (mid || '') + '"></div>';
+        div.innerHTML = '<div class="col-md-5">' + selM + '</div><div class="col-md-3">' + selV + '</div>' + paCb + '<div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger btn-remove-member"><i class="fas fa-times"></i></button></div>';
+        div.querySelector('.member-select').onchange = function() {
+            var cb = div.querySelector('.member-pa-cb');
+            if (cb) cb.value = this.value || '';
+        };
         c.appendChild(div);
         div.querySelector('.btn-remove-member').onclick = function() { div.remove(); };
     }
     document.getElementById('btnAddMember').onclick = function() { addMemberRow('', ''); };
     document.querySelectorAll('.btn-remove-member').forEach(function(btn) {
         btn.onclick = function() { btn.closest('.member-row').remove(); };
+    });
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.classList && e.target.classList.contains('member-select')) {
+            var row = e.target.closest('.member-row');
+            if (row) {
+                var cb = row.querySelector('.member-pa-cb');
+                if (cb) cb.value = e.target.value || '';
+            }
+        }
     });
 })();
 </script>

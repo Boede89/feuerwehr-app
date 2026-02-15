@@ -166,6 +166,34 @@ function send_email_smtp($to, $subject, $message, $smtp_host, $smtp_port, $smtp_
 }
 
 /**
+ * E-Mail mit PDF-Anhang senden
+ */
+function send_email_with_pdf_attachment($to, $subject, $htmlBody, $pdfContent, $pdfFilename) {
+    global $db;
+    try {
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_encryption', 'smtp_from_email', 'smtp_from_name')");
+        $stmt->execute();
+        $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        $smtp_host = $settings['smtp_host'] ?? '';
+        $smtp_port = $settings['smtp_port'] ?? '587';
+        $smtp_username = $settings['smtp_username'] ?? '';
+        $smtp_password = $settings['smtp_password'] ?? '';
+        $smtp_encryption = $settings['smtp_encryption'] ?? 'tls';
+        $from_email = $settings['smtp_from_email'] ?? 'noreply@feuerwehr-app.local';
+        $from_name = $settings['smtp_from_name'] ?? 'Feuerwehr App';
+        if (!empty($smtp_host) && !empty($smtp_username) && !empty($smtp_password)) {
+            require_once __DIR__ . '/smtp.php';
+            $smtp = new SimpleSMTP($smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $from_email, $from_name);
+            return $smtp->sendWithAttachment($to, $subject, $htmlBody, true, $pdfContent, $pdfFilename);
+        }
+        return false;
+    } catch (Exception $e) {
+        error_log('send_email_with_pdf_attachment: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * E-Mail über Gmail senden (vereinfachte Version)
  */
 function send_email_gmail($to, $subject, $message, $username, $password, $from_email, $from_name) {

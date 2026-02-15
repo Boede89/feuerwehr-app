@@ -512,6 +512,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             }
         }
 
+        // Automatischer E-Mail-Versand (wenn aktiviert)
+        $email_auto = false;
+        $email_recipients = [];
+        $email_manual = '';
+        try {
+            $stmt_s = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('anwesenheitsliste_email_auto', 'anwesenheitsliste_email_recipients', 'anwesenheitsliste_email_manual')");
+            $stmt_s->execute();
+            foreach ($stmt_s->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                if ($r['setting_key'] === 'anwesenheitsliste_email_auto') $email_auto = ($r['setting_value'] ?? '0') === '1';
+                elseif ($r['setting_key'] === 'anwesenheitsliste_email_recipients') $email_recipients = json_decode($r['setting_value'] ?? '[]', true) ?: [];
+                elseif ($r['setting_key'] === 'anwesenheitsliste_email_manual') $email_manual = trim($r['setting_value'] ?? '');
+            }
+        } catch (Exception $e) {}
+        $all_emails = [];
+        if ($email_auto && (is_array($email_recipients) && !empty($email_recipients) || $email_manual !== '')) {
+            if (!empty($email_recipients)) {
+                $ph = implode(',', array_fill(0, count($email_recipients), '?'));
+                $stmt_u = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND email IS NOT NULL AND email != ''");
+                $stmt_u->execute(array_map('intval', $email_recipients));
+                foreach ($stmt_u->fetchAll(PDO::FETCH_COLUMN) as $em) { $all_emails[] = trim($em); }
+            }
+            if ($email_manual !== '') {
+                foreach (preg_split('/[\r\n,;]+/', $email_manual, -1, PREG_SPLIT_NO_EMPTY) as $em) {
+                    $em = trim($em);
+                    if (filter_var($em, FILTER_VALIDATE_EMAIL)) $all_emails[] = $em;
+                }
+            }
+            $all_emails = array_unique(array_filter($all_emails));
+            if (!empty($all_emails) && function_exists('send_email_with_pdf_attachment')) {
+                $pdf_content = null;
+                $_GET['id'] = $list_id;
+                $_GET['_return'] = '1';
+                $GLOBALS['_al_pdf_content'] = null;
+                try {
+                    ob_start();
+                    require __DIR__ . '/api/anwesenheitsliste-pdf.php';
+                    ob_end_clean();
+                    $pdf_content = $GLOBALS['_al_pdf_content'] ?? null;
+                } catch (Exception $e) { ob_end_clean(); }
+                if ($pdf_content !== null && strlen($pdf_content) > 100) {
+                    $titel = $bezeichnung_save ?? $draft['bezeichnung_sonstige'] ?? $draft['thema'] ?? 'Anwesenheit';
+                    $filename = 'Anwesenheitsliste_' . $draft['datum'] . '_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $titel) . '.pdf';
+                    $subject = 'Neue Anwesenheitsliste: ' . $titel . ' (' . date('d.m.Y', strtotime($draft['datum'])) . ')';
+                    $user_name = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '')) ?: 'Unbekannt';
+                    $html = '<p>Eine neue Anwesenheitsliste wurde eingereicht.</p><p><strong>Datum:</strong> ' . htmlspecialchars(date('d.m.Y', strtotime($draft['datum']))) . '<br><strong>Bezeichnung:</strong> ' . htmlspecialchars($titel) . '<br><strong>Eingereicht von:</strong> ' . htmlspecialchars($user_name) . '</p><p>Die Anwesenheitsliste ist dieser E-Mail als PDF angehängt.</p>';
+                    foreach ($all_emails as $em) {
+                        if (trim($em) !== '') send_email_with_pdf_attachment(trim($em), $subject, $html, $pdf_content, $filename);
+                    }
+                }
+            }
+        }
+
         unset($_SESSION[$draft_key]);
         try {
             $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?")->execute([$draft['datum'], $draft['auswahl']]);
