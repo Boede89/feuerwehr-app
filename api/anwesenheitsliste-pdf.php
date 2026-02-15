@@ -212,14 +212,14 @@ $html = '<!DOCTYPE html>
     <meta charset="UTF-8">
     <title>Anwesenheitsliste – ' . htmlspecialchars($titel) . '</title>
     <style>
-        @page { size: A4; margin: 12mm; }
+        @page { size: A4; margin-top: 6mm; margin-bottom: 12mm; margin-left: 12mm; margin-right: 12mm; }
         * { box-sizing: border-box; }
-        body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; line-height: 1.25; color: #333; margin: 0; padding: 10px; }
-        .header { text-align: center; padding-bottom: 4px; margin-bottom: 6px; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; line-height: 1.25; color: #333; margin: 0; padding: 4px 10px 10px; }
+        .header { text-align: center; padding: 0; margin: 0 0 4px 0; }
         .eingereicht-text { font-size: 8pt; color: #666; }
-        .section { margin-bottom: 10px; }
+        .section { margin-bottom: 8px; }
         .section-title { font-weight: bold; font-size: 10pt; margin-bottom: 4px; padding-bottom: 2px; border-bottom: 1px solid #dee2e6; }
-        .two-cols-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        .two-cols-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
         .two-cols-table td { vertical-align: top; padding: 0 8px 0 0; }
         .two-cols-table td:first-child { width: 40%; }
         .two-cols-table td:last-child { width: 60%; padding: 0 0 0 8px; }
