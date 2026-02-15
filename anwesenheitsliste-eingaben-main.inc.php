@@ -414,6 +414,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             // ignore
         }
         try {
+        $gwm_id = null;
         $custom_data_for_save = $draft['custom_data'] ?? [];
         if (!empty($draft['uebungsleiter_member_ids'])) {
             $custom_data_for_save['uebungsleiter_member_ids'] = $draft['uebungsleiter_member_ids'];
@@ -498,7 +499,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 $gwm_mangel = !empty(trim((string)($draft['bemerkung'] ?? ''))) ? trim($draft['bemerkung']) : null;
                 $stmt_gwm = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id) VALUES (?, ?, ?, 'hergestellt', ?, ?, ?, ?)");
                 $stmt_gwm->execute([$gwm_typ, $gwm_art, $draft['datum'], $gwm_mangel, $gwm_el_mid, $gwm_el_txt, $_SESSION['user_id']]);
-                $gwm_id = $db->lastInsertId();
+                $gwm_id = (int)$db->lastInsertId();
                 $stmt_gwm_f = $db->prepare("INSERT INTO geraetewartmitteilung_fahrzeuge (geraetewartmitteilung_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id, equipment_used, defective_equipment, defective_freitext, defective_mangel) VALUES (?, ?, ?, ?, ?, '[]', NULL, NULL)");
                 foreach ($all_vehicle_ids as $vid) {
                     $masch = isset($draft['vehicle_maschinist'][$vid]) && preg_match('/^\d+$/', (string)$draft['vehicle_maschinist'][$vid]) ? (int)$draft['vehicle_maschinist'][$vid] : null;
@@ -730,9 +731,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         } catch (Exception $e) { /* ignore */ }
         $print_after = !empty($_POST['print_after_save']);
         $print_maengelbericht_after = !empty($_POST['print_maengelbericht_after_save']) && !empty($maengelbericht_ids);
+        $print_geraetewartmitteilung_after = !empty($_POST['print_geraetewartmitteilung_after_save']) && $gwm_id > 0;
         $redirect = 'anwesenheitsliste.php?message=erfolg';
         if ($print_after) $redirect .= '&print=' . $list_id;
         if ($print_maengelbericht_after) $redirect .= '&print_maengelbericht=' . implode(',', $maengelbericht_ids);
+        if ($print_geraetewartmitteilung_after) $redirect .= '&print_geraetewartmitteilung=' . $gwm_id;
         header('Location: ' . $redirect);
         exit;
     } catch (Exception $e) {
@@ -827,6 +830,7 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                             <input type="hidden" name="save_final" value="1">
                             <input type="hidden" name="print_after_save" id="print_after_save" value="0">
                             <input type="hidden" name="print_maengelbericht_after_save" id="print_maengelbericht_after_save" value="0">
+                            <input type="hidden" name="print_geraetewartmitteilung_after_save" id="print_geraetewartmitteilung_after_save" value="0">
                             <?php if ($is_einsatz): 
                                 $dienstplan_themen = [];
                                 try {
@@ -1054,6 +1058,14 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                         <label class="form-check-label" for="cbPrintMaengelberichtAfterSave">Mängelbericht drucken</label>
                     </div>
                     <?php endif; ?>
+                    <?php
+                    $has_vehicles_for_gwm = !empty($draft['vehicles']) || !empty(array_filter($draft['member_vehicle'] ?? []));
+                    if ($has_vehicles_for_gwm): ?>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="cbPrintGeraetewartmitteilungAfterSave" checked>
+                        <label class="form-check-label" for="cbPrintGeraetewartmitteilungAfterSave">Gerätewartmitteilung drucken</label>
+                    </div>
+                    <?php endif; ?>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
@@ -1075,8 +1087,10 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
         var modal = document.getElementById('saveConfirmModal');
         var cbPrint = document.getElementById('cbPrintAfterSave');
         var cbPrintMaengel = document.getElementById('cbPrintMaengelberichtAfterSave');
+        var cbPrintGwm = document.getElementById('cbPrintGeraetewartmitteilungAfterSave');
         var inputPrint = document.getElementById('print_after_save');
         var inputPrintMaengel = document.getElementById('print_maengelbericht_after_save');
+        var inputPrintGwm = document.getElementById('print_geraetewartmitteilung_after_save');
         var form = document.getElementById('mainForm');
         var validationEl = document.getElementById('validationError');
         var isEinsatz = <?php echo $is_einsatz ? 'true' : 'false'; ?>;
@@ -1133,6 +1147,7 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
             document.getElementById('btnConfirmSave').addEventListener('click', function() {
                 if (inputPrint) inputPrint.value = cbPrint && cbPrint.checked ? '1' : '0';
                 if (inputPrintMaengel) inputPrintMaengel.value = cbPrintMaengel && cbPrintMaengel.checked ? '1' : '0';
+                if (inputPrintGwm) inputPrintGwm.value = cbPrintGwm && cbPrintGwm.checked ? '1' : '0';
                 form.submit();
             });
         }

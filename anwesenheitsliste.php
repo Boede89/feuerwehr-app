@@ -620,7 +620,8 @@ if (isset($_SESSION['user_id'])) {
         var search = window.location.search;
         var m = /[?&]print=(\d+)/.exec(search);
         var mMb = /[?&]print_maengelbericht=([^&]+)/.exec(search);
-        var pending = (m && m[1] ? 1 : 0) + (mMb && mMb[1] ? 1 : 0);
+        var mGwm = /[?&]print_geraetewartmitteilung=(\d+)/.exec(search);
+        var pending = (m && m[1] ? 1 : 0) + (mMb && mMb[1] ? 1 : 0) + (mGwm && mGwm[1] ? 1 : 0);
         var done = 0;
         function cleanup() {
             done++;
@@ -650,6 +651,18 @@ if (isset($_SESSION['user_id'])) {
                     } else { alert('Mängelbericht-Druck fehlgeschlagen: ' + (data.message || 'Unbekannter Fehler')); }
                 })
                 .catch(function() { alert('Mängelbericht-Druck fehlgeschlagen.'); })
+                .finally(cleanup);
+        }
+        if (mGwm && mGwm[1]) {
+            fetch('api/print-geraetewartmitteilung.php?id=' + encodeURIComponent(mGwm[1]), { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        var msg = document.querySelector('.alert-success');
+                        if (msg) msg.textContent = (msg.textContent || '') + (msg.textContent.indexOf('Druckauftrag') >= 0 ? ' Gerätewartmitteilung wurde gedruckt.' : ' Druckauftrag wurde gesendet.');
+                    } else { alert('Gerätewartmitteilung-Druck fehlgeschlagen: ' + (data.message || 'Unbekannter Fehler')); }
+                })
+                .catch(function() { alert('Gerätewartmitteilung-Druck fehlgeschlagen.'); })
                 .finally(cleanup);
         }
     })();
