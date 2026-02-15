@@ -62,7 +62,10 @@ if (empty($berichte)) {
 }
 
 $html_parts = [];
-foreach ($berichte as $bericht) {
+$berichte_count = count($berichte);
+foreach ($berichte as $idx => $bericht) {
+    $is_last = ($idx === $berichte_count - 1);
+    $page_break_style = $is_last ? '' : 'page-break-after: always;';
     $aufgenommen_durch = '';
     if (!empty($bericht['aufgenommen_durch_member_id'])) {
         try {
@@ -78,7 +81,7 @@ foreach ($berichte as $bericht) {
     $aufgenommen_am_display = !empty($bericht['aufgenommen_am']) ? date('d.m.Y', strtotime($bericht['aufgenommen_am'])) : '-';
 
     $html_parts[] = '
-    <div class="mb-page" style="page-break-after: always;">
+    <div class="mb-page" style="' . $page_break_style . '">
         <div class="section">
             <div class="section-title">Mängelbericht – ' . htmlspecialchars($bericht['standort'] ?? '') . ' (' . date('d.m.Y', strtotime($bericht['aufgenommen_am'])) . ')</div>
             <table>
