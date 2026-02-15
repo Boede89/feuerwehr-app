@@ -490,7 +490,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         $maengel_list = $draft['maengel'] ?? [];
         if (!empty($maengel_list) && is_array($maengel_list)) {
             try {
-                $db->exec("CREATE TABLE IF NOT EXISTS maengelberichte (id INT AUTO_INCREMENT PRIMARY KEY, standort VARCHAR(100) NOT NULL, mangel_an VARCHAR(50) NOT NULL, bezeichnung VARCHAR(255) NULL, mangel_beschreibung TEXT NULL, ursache TEXT NULL, verbleib TEXT NULL, aufgenommen_durch_text VARCHAR(255) NULL, aufgenommen_durch_member_id INT NULL, aufgenommen_am DATE NOT NULL, user_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, KEY idx_aufgenommen_am (aufgenommen_am), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $db->exec("CREATE TABLE IF NOT EXISTS maengelberichte (id INT AUTO_INCREMENT PRIMARY KEY, standort VARCHAR(100) NOT NULL, mangel_an VARCHAR(50) NOT NULL, bezeichnung VARCHAR(255) NULL, mangel_beschreibung TEXT NULL, ursache TEXT NULL, verbleib TEXT NULL, aufgenommen_durch_text VARCHAR(255) NULL, aufgenommen_durch_member_id INT NULL, aufgenommen_am DATE NOT NULL, user_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, email_sent_at DATETIME NULL, KEY idx_aufgenommen_am (aufgenommen_am), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                try { $db->exec("ALTER TABLE maengelberichte ADD COLUMN email_sent_at DATETIME NULL"); } catch (Exception $e) { /* Spalte existiert ggf. bereits */ }
                 $stmt_mb = $db->prepare("INSERT INTO maengelberichte (standort, mangel_an, bezeichnung, mangel_beschreibung, ursache, verbleib, aufgenommen_durch_text, aufgenommen_durch_member_id, aufgenommen_am, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 foreach ($maengel_list as $m) {
                     $standort = $m['standort'] ?? 'GH Amern';
@@ -687,6 +688,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                         foreach ($mb_all_emails as $em) {
                             if (trim($em) !== '') send_email_with_pdf_attachment(trim($em), $subject, $html, $mb_pdf_content, $filename);
                         }
+                        try {
+                            $ph = implode(',', array_fill(0, count($maengelbericht_ids), '?'));
+                            $stmt_up = $db->prepare("UPDATE maengelberichte SET email_sent_at = NOW() WHERE id IN ($ph)");
+                            $stmt_up->execute(array_map('intval', $maengelbericht_ids));
+                        } catch (Exception $e) {}
                     }
                 }
             }

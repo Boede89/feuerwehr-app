@@ -101,12 +101,18 @@ try {
             user_id INT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            email_sent_at DATETIME NULL,
             KEY idx_aufgenommen_am (aufgenommen_am),
             KEY idx_created_at (created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
 } catch (Exception $e) {
     error_log('maengelberichte Tabelle: ' . $e->getMessage());
+}
+try {
+    $db->exec("ALTER TABLE maengelberichte ADD COLUMN email_sent_at DATETIME NULL");
+} catch (Exception $e) {
+    /* Spalte existiert ggf. bereits */
 }
 
 $message = isset($_GET['message']) ? trim($_GET['message']) : '';
@@ -363,7 +369,7 @@ try {
 $maengelberichte = [];
 try {
     $sql = "
-        SELECT m.id, m.standort, m.mangel_an, m.bezeichnung, m.aufgenommen_am, m.created_at,
+        SELECT m.id, m.standort, m.mangel_an, m.bezeichnung, m.aufgenommen_am, m.created_at, m.email_sent_at,
                COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name
         FROM maengelberichte m
         LEFT JOIN users u ON u.id = m.user_id
@@ -736,7 +742,7 @@ try {
                                         <td><i class="fas fa-exclamation-triangle text-warning me-1"></i> <?php echo $titel; ?></td>
                                         <td><span class="badge bg-warning text-dark">Mängelbericht</span></td>
                                         <td><?php echo htmlspecialchars(trim($m['user_first_name'] . ' ' . $m['user_last_name']) ?: 'Unbekannt'); ?></td>
-                                        <td><?php echo format_datetime_berlin($m['created_at']); ?></td>
+                                        <td><?php echo format_datetime_berlin($m['created_at']); ?><?php if (!empty($m['email_sent_at'])): ?><br><small class="text-success"><i class="fas fa-envelope me-1"></i>Per E-Mail versendet: <?php echo format_datetime_berlin($m['email_sent_at']); ?></small><?php endif; ?></td>
                                         <td>
                                             <a href="maengelbericht-bearbeiten.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
                                             <a href="../api/maengelbericht-pdf.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" download><i class="fas fa-file-pdf"></i> PDF</a>

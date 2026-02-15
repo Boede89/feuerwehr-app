@@ -32,6 +32,7 @@ try {
             user_id INT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            email_sent_at DATETIME NULL,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
             KEY idx_aufgenommen_am (aufgenommen_am),
             KEY idx_created_at (created_at)
@@ -39,6 +40,11 @@ try {
     ");
 } catch (Exception $e) {
     error_log('maengelberichte Tabelle: ' . $e->getMessage());
+}
+try {
+    $db->exec("ALTER TABLE maengelberichte ADD COLUMN email_sent_at DATETIME NULL");
+} catch (Exception $e) {
+    /* Spalte existiert ggf. bereits */
 }
 
 $standort_options = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
@@ -141,6 +147,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                     foreach ($all_emails as $em) {
                         if (trim($em) !== '') send_email_with_pdf_attachment(trim($em), $subject, $html, $pdf_content, $filename);
                     }
+                    try {
+                        $db->prepare("UPDATE maengelberichte SET email_sent_at = NOW() WHERE id = ?")->execute([$id]);
+                    } catch (Exception $e) {}
                 }
             }
         }
