@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     pkg-config \
     libssl-dev \
+    cups-client \
     && rm -rf /var/lib/apt/lists/*
 
 # PHP Extensions installieren

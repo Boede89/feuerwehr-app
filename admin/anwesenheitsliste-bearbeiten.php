@@ -623,7 +623,7 @@ function _al_val($liste, $key, $custom_data = []) {
         <div class="mb-4">
             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
             <a href="../api/anwesenheitsliste-pdf.php?id=<?php echo (int)$id; ?>" class="btn btn-outline-success" download><i class="fas fa-file-pdf"></i> PDF herunterladen</a>
-            <button type="button" class="btn btn-outline-secondary" onclick="druckenAnwesenheitsliste(<?php echo (int)$id; ?>);"><i class="fas fa-print"></i> Drucken</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="druckenAnwesenheitsliste(<?php echo (int)$id; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
             <a href="formularcenter.php?tab=submissions" class="btn btn-secondary">Abbrechen</a>
         </div>
     </form>
@@ -643,7 +643,7 @@ document.querySelectorAll('.uebungsleiter-item').forEach(function(el){
     });
 });
 (function(){var cnt=document.querySelectorAll('.uebungsleiter-item-selected').length;var badge=document.getElementById('uebungsleiter_count_edit');if(badge){badge.textContent=cnt+' ausgewählt';badge.className='badge ms-1 '+(cnt>0?'bg-primary':'bg-secondary');}})();
-function druckenAnwesenheitsliste(id){var w=window.open('../api/anwesenheitsliste-pdf.php?id='+id+'&print=1','_blank','noopener');if(w){setTimeout(function(){try{w.print();w.onafterprint=function(){w.close();};}catch(e){w.close();}},1500);}}
+function druckenAnwesenheitsliste(id,btn){btn=btn||(event&&event.target?event.target.closest('button'):null);if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm"></span> Drucken...';}fetch('../api/print-anwesenheitsliste.php?id='+id).then(function(r){return r.json();}).then(function(data){if(data.success){alert('Druckauftrag wurde an den Drucker gesendet.');}else{alert('Fehler: '+(data.message||'Unbekannter Fehler'));}}).catch(function(){alert('Fehler beim Senden des Druckauftrags.');}).finally(function(){if(btn){btn.disabled=false;btn.innerHTML='<i class="fas fa-print"></i> Drucken';}});}
 </script>
 <script>
 (function() {

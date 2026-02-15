@@ -74,8 +74,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'app_url' => sanitize_input($_POST['app_url'] ?? ''),
             ];
 
-            // Drucker (IPP / Cloud) – für zukünftigen server-seitigen Druck
+            // Drucker (lokal oder IPP/Cloud)
             $printer = [
+                'printer_type' => in_array($_POST['printer_type'] ?? '', ['local', 'ipp']) ? $_POST['printer_type'] : 'local',
+                'printer_destination' => sanitize_input($_POST['printer_destination'] ?? ''),
                 'printer_ipp_url' => sanitize_input($_POST['printer_ipp_url'] ?? ''),
                 'printer_username' => sanitize_input($_POST['printer_username'] ?? ''),
             ];
@@ -222,20 +224,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="row g-4 mt-1">
             <div class="col-lg-6">
                 <div class="card h-100">
-                    <div class="card-header"><i class="fas fa-print"></i> Drucker (IPP / Cloud)</div>
+                    <div class="card-header"><i class="fas fa-print"></i> Drucker</div>
                     <div class="card-body">
-                        <p class="text-muted small mb-3">Optional: Für automatischen Druck auf einen IPP-Drucker oder Cloud-Druckdienst. Der Druck-Button öffnet derzeit das PDF und startet den Browser-Druckdialog. Server-seitiger IPP-Druck ist in Vorbereitung.</p>
+                        <p class="text-muted small mb-3">Für den Druck-Button: Anwesenheitslisten werden als PDF erzeugt und per CUPS (lp) an den konfigurierten Drucker gesendet. Im Linux-Container muss CUPS installiert sein.</p>
                         <div class="mb-3">
-                            <label class="form-label">IPP-URL / Freigabelink</label>
-                            <input class="form-control" name="printer_ipp_url" placeholder="z.B. ipp://drucker.example.com/ipp/print oder https://..." value="<?php echo htmlspecialchars($settings['printer_ipp_url'] ?? ''); ?>">
+                            <label class="form-label">Druckertyp</label>
+                            <select class="form-select" name="printer_type" id="printer_type">
+                                <option value="local" <?php echo ($settings['printer_type'] ?? 'local') === 'local' ? 'selected' : ''; ?>>Lokaler Drucker (CUPS)</option>
+                                <option value="ipp" <?php echo ($settings['printer_type'] ?? '') === 'ipp' ? 'selected' : ''; ?>>IPP / Cloud-Drucker</option>
+                            </select>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Benutzername</label>
-                            <input class="form-control" name="printer_username" value="<?php echo htmlspecialchars($settings['printer_username'] ?? ''); ?>">
+                        <div class="mb-3" id="printer_local_wrap">
+                            <label class="form-label">Druckername (lokal)</label>
+                            <input class="form-control" name="printer_destination" placeholder="z.B. HP_LaserJet oder leer für Standarddrucker (lpstat -p zeigt verfügbare Drucker)" value="<?php echo htmlspecialchars($settings['printer_destination'] ?? ''); ?>">
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Passwort</label>
-                            <input class="form-control" type="password" name="printer_password" placeholder="Leer lassen zum Beibehalten">
+                        <div id="printer_ipp_wrap" style="display: <?php echo ($settings['printer_type'] ?? 'local') === 'ipp' ? 'block' : 'none'; ?>;">
+                            <div class="mb-3">
+                                <label class="form-label">IPP-URL / Freigabelink</label>
+                                <input class="form-control" name="printer_ipp_url" placeholder="z.B. ipp://drucker.example.com/ipp/print" value="<?php echo htmlspecialchars($settings['printer_ipp_url'] ?? ''); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Benutzername</label>
+                                <input class="form-control" name="printer_username" value="<?php echo htmlspecialchars($settings['printer_username'] ?? ''); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Passwort</label>
+                                <input class="form-control" type="password" name="printer_password" placeholder="Leer lassen zum Beibehalten">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -251,6 +266,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.getElementById('printer_type')?.addEventListener('change', function() {
+    var isIpp = this.value === 'ipp';
+    document.getElementById('printer_local_wrap').style.display = isIpp ? 'none' : 'block';
+    document.getElementById('printer_ipp_wrap').style.display = isIpp ? 'block' : 'none';
+});
+</script>
 </body>
 </html>
 
