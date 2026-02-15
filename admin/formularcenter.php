@@ -93,6 +93,7 @@ $dienstplan_jahr = isset($_GET['jahr']) ? (int)$_GET['jahr'] : (int)date('Y');
 $filter_typ = isset($_GET['filter_typ']) ? trim($_GET['filter_typ']) : '';
 $filter_datum_von = isset($_GET['filter_datum_von']) ? trim($_GET['filter_datum_von']) : '';
 $filter_datum_bis = isset($_GET['filter_datum_bis']) ? trim($_GET['filter_datum_bis']) : '';
+$filter_formular = isset($_GET['filter_formular']) ? trim($_GET['filter_formular']) : '';
 
 // CSRF-Token erzeugen
 if (empty($_SESSION['form_center_csrf'])) {
@@ -212,6 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                 if (!empty($_POST['filter_typ'])) $redir .= '&filter_typ=' . urlencode($_POST['filter_typ']);
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
+                if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
                 header('Location: ' . $redir);
                 exit;
             } catch (Exception $e) {
@@ -229,6 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                 if (!empty($_POST['filter_typ'])) $redir .= '&filter_typ=' . urlencode($_POST['filter_typ']);
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
+                if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
                 header('Location: ' . $redir);
                 exit;
             } catch (Exception $e) {
@@ -317,6 +320,26 @@ try {
 }
 
 $submissions_total = count($submissions) + count($anwesenheitslisten);
+
+// Zähler für Formular-Buttons (vor Filterung)
+$form_counts_for_buttons = [];
+foreach ($submissions as $s) {
+    $fid = (int)($s['form_id'] ?? 0);
+    $ftitle = trim($s['form_title'] ?? 'Formular');
+    if ($fid > 0 && $ftitle !== '') {
+        $form_counts_for_buttons[$fid] = ($form_counts_for_buttons[$fid] ?? 0) + 1;
+    }
+}
+$anwesenheitslisten_count = count($anwesenheitslisten);
+
+// Nach Formulartyp filtern (Buttons: Anwesenheitsliste, Mängelbericht, etc.)
+if ($filter_formular === 'anwesenheitsliste') {
+    $submissions = [];
+} elseif (preg_match('/^form_(\d+)$/', $filter_formular, $fm)) {
+    $form_id_filter = (int)$fm[1];
+    $submissions = array_filter($submissions, fn($s) => (int)($s['form_id'] ?? 0) === $form_id_filter);
+    $anwesenheitslisten = [];
+}
 
 // Dienstplan-Einträge und Themen für Dropdown
 $dienstplan_eintraege = [];
@@ -521,6 +544,8 @@ try {
                     <?php endif; ?>
                     <form method="get" class="d-flex flex-wrap align-items-center gap-2">
                         <input type="hidden" name="tab" value="submissions">
+                        <input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>">
+                        <?php if ($filter_formular === 'anwesenheitsliste'): ?>
                         <select name="filter_typ" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
                             <option value="">Alle Typen</option>
                             <option value="einsatz" <?php echo $filter_typ === 'einsatz' ? 'selected' : ''; ?>>Einsatz</option>
@@ -530,38 +555,44 @@ try {
                             <option value="jahreshauptversammlung" <?php echo $filter_typ === 'jahreshauptversammlung' ? 'selected' : ''; ?>>Jahreshauptversammlung</option>
                             <option value="sonstiges" <?php echo $filter_typ === 'sonstiges' ? 'selected' : ''; ?>>Sonstiges</option>
                         </select>
+                        <?php endif; ?>
                         <input type="date" name="filter_datum_von" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($filter_datum_von); ?>" placeholder="Von" onchange="this.form.submit()">
                         <input type="date" name="filter_datum_bis" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($filter_datum_bis); ?>" placeholder="Bis" onchange="this.form.submit()">
                         <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="fas fa-filter"></i> Filtern</button>
-                        <?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== ''): ?>
+                        <?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== ''): ?>
                         <a href="?tab=submissions" class="btn btn-outline-secondary btn-sm">Zurücksetzen</a>
                         <?php endif; ?>
                     </form>
                     </div>
                 </div>
                 <div class="card-body">
-                    <?php if (empty($submissions) && empty($anwesenheitslisten)): ?>
-                        <p class="text-muted mb-0">Noch keine ausgefüllten Formulare oder Anwesenheitslisten vorhanden.<?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== ''): ?> Versuchen Sie, die Filter zu ändern.<?php endif; ?></p>
-                    <?php else:
-                        $groups = [];
-                        foreach ($submissions as $s) {
-                            $s['created_at_display'] = format_datetime_berlin($s['created_at']);
-                            $key = trim($s['form_title'] ?? 'Formular');
-                            if (!isset($groups[$key])) $groups[$key] = ['type' => 'form', 'items' => []];
-                            $groups[$key]['items'][] = $s;
-                        }
-                        foreach ($anwesenheitslisten as $a) {
-                            $typ_label = ($a['typ'] ?? '') === 'einsatz' ? 'Einsatz' : (($a['typ'] ?? '') === 'manuell' ? 'Manuell' : get_dienstplan_typ_label($a['dienst_typ'] ?? 'uebungsdienst'));
-                            $key = 'Anwesenheitsliste – ' . $typ_label;
-                            if (!isset($groups[$key])) $groups[$key] = ['type' => 'anwesenheit', 'items' => []];
-                            $groups[$key]['items'][] = $a;
-                        }
-                        ksort($groups);
+                    <?php
+                    $base_params = ['tab' => 'submissions'];
+                    if ($filter_typ !== '') $base_params['filter_typ'] = $filter_typ;
+                    if ($filter_datum_von !== '') $base_params['filter_datum_von'] = $filter_datum_von;
+                    if ($filter_datum_bis !== '') $base_params['filter_datum_bis'] = $filter_datum_bis;
                     ?>
+                    <div class="mb-3">
+                        <span class="me-2 text-muted small">Formular:</span>
+                        <a href="?<?php echo http_build_query($base_params); ?>" class="btn btn-sm <?php echo $filter_formular === '' ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1">Alle</a>
+                        <?php
+                            $p = $base_params;
+                            $p['filter_formular'] = 'anwesenheitsliste';
+                        ?>
+                        <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'anwesenheitsliste' ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1"><i class="fas fa-clipboard-list me-1"></i> Anwesenheitsliste (<?php echo $anwesenheitslisten_count; ?>)</a>
+                        <?php foreach ($forms as $f):
+                            $cnt = $form_counts_for_buttons[(int)$f['id']] ?? 0;
+                            $p = $base_params;
+                            $p['filter_formular'] = 'form_' . $f['id'];
+                        ?>
+                        <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'form_' . $f['id'] ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1"><?php echo htmlspecialchars($f['title']); ?> (<?php echo $cnt; ?>)</a>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php if (empty($submissions) && empty($anwesenheitslisten)): ?>
+                        <p class="text-muted mb-0">Noch keine ausgefüllten Formulare oder Anwesenheitslisten vorhanden.<?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== ''): ?> Versuchen Sie, die Filter zu ändern.<?php endif; ?></p>
+                    <?php else: ?>
                         <div class="table-responsive">
-                            <?php foreach ($groups as $group_label => $group): ?>
-                            <h6 class="mt-3 mb-2 text-muted"><?php echo htmlspecialchars($group_label); ?> (<?php echo count($group['items']); ?>)</h6>
-                            <table class="table table-hover mb-4">
+                            <table class="table table-hover">
                                 <thead>
                                     <tr>
                                         <th>Formular / Anwesenheitsliste</th>
@@ -572,9 +603,8 @@ try {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($group['items'] as $item):
-                                        if ($group['type'] === 'form'):
-                                            $s = $item;
+                                    <?php foreach ($submissions as $s):
+                                        $s['created_at_display'] = format_datetime_berlin($s['created_at']);
                                     ?>
                                     <tr>
                                         <td><i class="fas fa-file-alt text-muted me-1"></i> <?php echo htmlspecialchars($s['form_title']); ?></td>
@@ -590,18 +620,19 @@ try {
                                                 <?php if ($filter_typ !== ''): ?><input type="hidden" name="filter_typ" value="<?php echo htmlspecialchars($filter_typ); ?>"><?php endif; ?>
                                                 <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
                                                 <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
+                                                <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
                                                 <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="fas fa-trash"></i></button>
                                             </form>
                                         </td>
                                     </tr>
-                                    <?php else:
-                                            $a = $item;
-                                            $bez = $a['bezeichnung'] ?? $a['dienst_bezeichnung'] ?? 'Anwesenheit';
-                                            $titel = date('d.m.Y', strtotime($a['datum'])) . ' – ' . $bez;
-                                            if (!empty($a['einsatzstichwort']) && ($a['typ'] ?? '') === 'einsatz') {
-                                                $titel .= ' – ' . $a['einsatzstichwort'];
-                                            }
-                                            $typ_label = ($a['typ'] ?? '') === 'einsatz' ? 'Einsatz' : (($a['typ'] ?? '') === 'manuell' ? 'Manuell' : htmlspecialchars(get_dienstplan_typ_label($a['dienst_typ'] ?? 'uebungsdienst')));
+                                    <?php endforeach; ?>
+                                    <?php foreach ($anwesenheitslisten as $a):
+                                        $bez = $a['bezeichnung'] ?? $a['dienst_bezeichnung'] ?? 'Anwesenheit';
+                                        $titel = date('d.m.Y', strtotime($a['datum'])) . ' – ' . $bez;
+                                        if (!empty($a['einsatzstichwort']) && ($a['typ'] ?? '') === 'einsatz') {
+                                            $titel .= ' – ' . $a['einsatzstichwort'];
+                                        }
+                                        $typ_label = ($a['typ'] ?? '') === 'einsatz' ? 'Einsatz' : (($a['typ'] ?? '') === 'manuell' ? 'Manuell' : htmlspecialchars(get_dienstplan_typ_label($a['dienst_typ'] ?? 'uebungsdienst')));
                                     ?>
                                     <tr>
                                         <td><i class="fas fa-clipboard-list text-muted me-1"></i> <?php echo htmlspecialchars($titel); ?></td>
@@ -614,10 +645,9 @@ try {
                                             <button type="button" class="btn btn-outline-secondary btn-sm" title="Drucken" onclick="druckenAnwesenheitsliste(<?php echo (int)$a['id']; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
                                         </td>
                                     </tr>
-                                    <?php endif; endforeach; ?>
+                                    <?php endforeach; ?>
                                 </tbody>
                             </table>
-                            <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
                 </div>
