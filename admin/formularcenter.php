@@ -68,6 +68,20 @@ try {
     } catch (Exception $e2) {
         /* Spalte existiert bereits */
     }
+    try {
+        $db->exec("ALTER TABLE dienstplan ADD COLUMN uhrzeit_dienstende TIME NULL AFTER uhrzeit_dienstbeginn");
+    } catch (Exception $e2) {
+        /* Spalte existiert bereits */
+    }
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS dienstplan_ausbilder (
+            dienstplan_id INT NOT NULL,
+            member_id INT NOT NULL,
+            PRIMARY KEY (dienstplan_id, member_id),
+            FOREIGN KEY (dienstplan_id) REFERENCES dienstplan(id) ON DELETE CASCADE,
+            FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
 } catch (Exception $e) {
     error_log('Dienstplan Tabelle: ' . $e->getMessage());
 }
@@ -138,21 +152,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
         $thema_neu = trim($_POST['dienstplan_thema_neu'] ?? '');
         $typ_raw = trim($_POST['dienstplan_typ'] ?? '');
         $uhrzeit = trim($_POST['dienstplan_uhrzeit'] ?? '');
+        $uhrzeit_ende = trim($_POST['dienstplan_uhrzeit_ende'] ?? '');
+        $ausbilder_ids = isset($_POST['dienstplan_ausbilder']) && is_array($_POST['dienstplan_ausbilder']) ? array_filter(array_map('intval', $_POST['dienstplan_ausbilder'])) : [];
         $typen = get_dienstplan_typen_auswahl();
         $typ = array_key_exists($typ_raw, $typen) ? $typ_raw : 'uebungsdienst';
         $thema_value = $thema === '__neu__' ? $thema_neu : $thema;
         $uhrzeit_val = (preg_match('/^\d{1,2}:\d{2}$/', $uhrzeit) || preg_match('/^\d{1,2}:\d{2}:\d{2}$/', $uhrzeit)) ? $uhrzeit : null;
+        $uhrzeit_ende_val = (preg_match('/^\d{1,2}:\d{2}$/', $uhrzeit_ende) || preg_match('/^\d{1,2}:\d{2}:\d{2}$/', $uhrzeit_ende)) ? $uhrzeit_ende : null;
         if (empty($datum) || $thema_value === '') {
             $error = 'Datum und Thema sind erforderlich.';
         } else {
             try {
                 if ($id) {
-                    $stmt = $db->prepare("UPDATE dienstplan SET datum = ?, bezeichnung = ?, typ = ?, uhrzeit_dienstbeginn = ? WHERE id = ?");
-                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $id]);
+                    $stmt = $db->prepare("UPDATE dienstplan SET datum = ?, bezeichnung = ?, typ = ?, uhrzeit_dienstbeginn = ?, uhrzeit_dienstende = ? WHERE id = ?");
+                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $uhrzeit_ende_val, $id]);
+                    $db->prepare("DELETE FROM dienstplan_ausbilder WHERE dienstplan_id = ?")->execute([$id]);
+                    foreach ($ausbilder_ids as $mid) {
+                        if ($mid > 0) {
+                            $db->prepare("INSERT INTO dienstplan_ausbilder (dienstplan_id, member_id) VALUES (?, ?)")->execute([$id, $mid]);
+                        }
+                    }
                     $message = 'Dienstplan-Eintrag wurde aktualisiert.';
                 } else {
-                    $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ, uhrzeit_dienstbeginn) VALUES (?, ?, ?, ?)");
-                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val]);
+                    $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ, uhrzeit_dienstbeginn, uhrzeit_dienstende) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $uhrzeit_ende_val]);
+                    $new_id = (int)$db->lastInsertId();
+                    foreach ($ausbilder_ids as $mid) {
+                        if ($mid > 0) {
+                            $db->prepare("INSERT INTO dienstplan_ausbilder (dienstplan_id, member_id) VALUES (?, ?)")->execute([$new_id, $mid]);
+                        }
+                    }
                     $message = 'Dienstplan-Eintrag wurde angelegt.';
                 }
                 $active_tab = 'dienstplan';
@@ -294,9 +323,12 @@ $dienstplan_eintraege = [];
 $dienstplan_themen = [];
 try {
     $stmt = $db->prepare("
-        SELECT * FROM dienstplan
-        WHERE datum >= ? AND datum <= ?
-        ORDER BY datum, bezeichnung
+        SELECT d.*, GROUP_CONCAT(da.member_id) AS ausbilder_ids
+        FROM dienstplan d
+        LEFT JOIN dienstplan_ausbilder da ON da.dienstplan_id = d.id
+        WHERE d.datum >= ? AND d.datum <= ?
+        GROUP BY d.id
+        ORDER BY d.datum, d.bezeichnung
     ");
     $stmt->execute([$dienstplan_jahr . '-01-01', $dienstplan_jahr . '-12-31']);
     $dienstplan_eintraege = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -308,6 +340,16 @@ try {
 
 $edit_form = null;
 $edit_submission = null;
+$members_for_ausbilder = [];
+$members_by_id = [];
+try {
+    $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    $members_for_ausbilder = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($members_for_ausbilder as $m) {
+        $members_by_id[(int)$m['id']] = trim($m['last_name'] . ', ' . $m['first_name']);
+    }
+} catch (Exception $e) {}
+
 $edit_dienstplan = null;
 if (isset($_GET['edit_form'])) {
     $id = (int)$_GET['edit_form'];
@@ -324,6 +366,11 @@ if (isset($_GET['edit_dienstplan'])) {
         $stmt = $db->prepare("SELECT * FROM dienstplan WHERE id = ?");
         $stmt->execute([$id]);
         $edit_dienstplan = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+    if ($edit_dienstplan) {
+        $stmt = $db->prepare("SELECT member_id FROM dienstplan_ausbilder WHERE dienstplan_id = ?");
+        $stmt->execute([$edit_dienstplan['id']]);
+        $edit_dienstplan['ausbilder_member_ids'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 }
 if (isset($_GET['edit_submission'])) {
@@ -402,11 +449,6 @@ try {
 
         <ul class="nav nav-tabs mb-3">
             <li class="nav-item">
-                <a class="nav-link <?php echo $active_tab === 'forms' ? 'active' : ''; ?>" href="?tab=forms">
-                    <i class="fas fa-list"></i> Formulare verwalten
-                </a>
-            </li>
-            <li class="nav-item">
                 <a class="nav-link <?php echo $active_tab === 'submissions' ? 'active' : ''; ?>" href="?tab=submissions">
                     <i class="fas fa-inbox"></i> Eingegangene Formulare (<?php echo $submissions_total; ?>)
                 </a>
@@ -414,6 +456,11 @@ try {
             <li class="nav-item">
                 <a class="nav-link <?php echo $active_tab === 'dienstplan' ? 'active' : ''; ?>" href="?tab=dienstplan">
                     <i class="fas fa-calendar-alt"></i> Dienstplan
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?php echo $active_tab === 'forms' ? 'active' : ''; ?>" href="?tab=forms">
+                    <i class="fas fa-list"></i> Formulare verwalten
                 </a>
             </li>
         </ul>
@@ -593,15 +640,30 @@ try {
                                         <th>Datum</th>
                                         <th>Typ</th>
                                         <th>Thema</th>
+                                        <th>Dienstbeginn</th>
+                                        <th>Dienstende</th>
+                                        <th>Ausbilder</th>
                                         <th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($dienstplan_eintraege as $e): ?>
+                                    <?php foreach ($dienstplan_eintraege as $e):
+                                        $ausbilder_namen = [];
+                                        if (!empty($e['ausbilder_ids'])) {
+                                            foreach (array_map('intval', explode(',', $e['ausbilder_ids'])) as $mid) {
+                                                if ($mid > 0 && isset($members_by_id[$mid])) {
+                                                    $ausbilder_namen[] = $members_by_id[$mid];
+                                                }
+                                            }
+                                        }
+                                    ?>
                                     <tr>
                                         <td><?php echo date('d.m.Y', strtotime($e['datum'])); ?></td>
                                         <td><span class="badge bg-primary"><?php echo htmlspecialchars(get_dienstplan_typ_label($e['typ'] ?? 'uebungsdienst')); ?></span></td>
                                         <td><?php echo htmlspecialchars($e['bezeichnung']); ?></td>
+                                        <td><?php echo !empty($e['uhrzeit_dienstbeginn']) ? substr($e['uhrzeit_dienstbeginn'], 0, 5) : '—'; ?></td>
+                                        <td><?php echo !empty($e['uhrzeit_dienstende']) ? substr($e['uhrzeit_dienstende'], 0, 5) : '—'; ?></td>
+                                        <td><small><?php echo !empty($ausbilder_namen) ? htmlspecialchars(implode(', ', $ausbilder_namen)) : '—'; ?></small></td>
                                         <td>
                                             <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#dienstplanModal" onclick='openDienstplanModal(<?php echo json_encode($e); ?>)'><i class="fas fa-edit"></i></button>
                                             <form method="post" class="d-inline" onsubmit="return confirm('Eintrag wirklich löschen?');">
@@ -643,6 +705,26 @@ try {
                             <label for="dienstplan_uhrzeit" class="form-label">Uhrzeit Dienstbeginn</label>
                             <input type="time" class="form-control" id="dienstplan_uhrzeit" name="dienstplan_uhrzeit">
                             <div class="form-text">Wird automatisch in die Anwesenheitsliste übernommen (Uhrzeit von).</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="dienstplan_uhrzeit_ende" class="form-label">Uhrzeit Dienstende</label>
+                            <input type="time" class="form-control" id="dienstplan_uhrzeit_ende" name="dienstplan_uhrzeit_ende">
+                            <div class="form-text">Wird in die Anwesenheitsliste übernommen (Uhrzeit bis).</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Ausbilder</label>
+                            <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                                <?php foreach ($members_for_ausbilder as $m): ?>
+                                <div class="form-check">
+                                    <input class="form-check-input dienstplan-ausbilder-cb" type="checkbox" name="dienstplan_ausbilder[]" value="<?php echo (int)$m['id']; ?>" id="ausb_<?php echo (int)$m['id']; ?>">
+                                    <label class="form-check-label" for="ausb_<?php echo (int)$m['id']; ?>"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></label>
+                                </div>
+                                <?php endforeach; ?>
+                                <?php if (empty($members_for_ausbilder)): ?>
+                                <p class="text-muted small mb-0">Keine Mitglieder vorhanden.</p>
+                                <?php endif; ?>
+                            </div>
+                            <div class="form-text">Werden in der Anwesenheitsliste als Übungsleiter vorausgewählt.</div>
                         </div>
                         <div class="mb-3">
                             <label for="dienstplan_typ" class="form-label">Typ</label>
@@ -874,6 +956,16 @@ try {
             document.getElementById('dienstplan_datum').value = entry ? (entry.datum || '') : '';
             var uhrzeitEl = document.getElementById('dienstplan_uhrzeit');
             if (uhrzeitEl) uhrzeitEl.value = entry && entry.uhrzeit_dienstbeginn ? (entry.uhrzeit_dienstbeginn.length >= 5 ? entry.uhrzeit_dienstbeginn.substring(0, 5) : entry.uhrzeit_dienstbeginn) : '';
+            var uhrzeitEndeEl = document.getElementById('dienstplan_uhrzeit_ende');
+            if (uhrzeitEndeEl) uhrzeitEndeEl.value = entry && entry.uhrzeit_dienstende ? (entry.uhrzeit_dienstende.length >= 5 ? entry.uhrzeit_dienstende.substring(0, 5) : entry.uhrzeit_dienstende) : '';
+            var ausbilderIds = [];
+            if (entry) {
+                if (Array.isArray(entry.ausbilder_member_ids)) ausbilderIds = entry.ausbilder_member_ids.map(function(x){return parseInt(x,10);});
+                else if (entry.ausbilder_ids) ausbilderIds = String(entry.ausbilder_ids).split(',').map(function(x){return parseInt(x.trim(),10);}).filter(function(x){return !isNaN(x);});
+            }
+            document.querySelectorAll('.dienstplan-ausbilder-cb').forEach(function(cb) {
+                cb.checked = ausbilderIds.indexOf(parseInt(cb.value, 10)) >= 0;
+            });
             var typSel = document.getElementById('dienstplan_typ');
             if (typSel) typSel.value = entry && entry.typ ? entry.typ : 'uebungsdienst';
             var themaSel = document.getElementById('dienstplan_thema');

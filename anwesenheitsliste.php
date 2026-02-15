@@ -59,6 +59,24 @@ try {
     } catch (Exception $e2) {
         /* Spalte existiert bereits */
     }
+    try {
+        $db->exec("ALTER TABLE dienstplan ADD COLUMN uhrzeit_dienstende TIME NULL AFTER uhrzeit_dienstbeginn");
+    } catch (Exception $e2) {
+        /* Spalte existiert bereits */
+    }
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS dienstplan_ausbilder (
+                dienstplan_id INT NOT NULL,
+                member_id INT NOT NULL,
+                PRIMARY KEY (dienstplan_id, member_id),
+                FOREIGN KEY (dienstplan_id) REFERENCES dienstplan(id) ON DELETE CASCADE,
+                FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+    } catch (Exception $e2) {
+        /* Tabelle existiert evtl. bereits */
+    }
     $db->exec("
         CREATE TABLE IF NOT EXISTS anwesenheitslisten (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -565,5 +583,27 @@ if (isset($_SESSION['user_id'])) {
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (function() {
+        var m = /[?&]print=(\d+)/.exec(window.location.search);
+        if (m && m[1]) {
+            var id = m[1];
+            fetch('api/print-anwesenheitsliste.php?id=' + id, { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        var msg = document.querySelector('.alert-success');
+                        if (msg) msg.textContent = (msg.textContent || '') + ' Druckauftrag wurde gesendet.';
+                    } else {
+                        alert('Druck fehlgeschlagen: ' + (data.message || 'Unbekannter Fehler'));
+                    }
+                })
+                .catch(function() { alert('Druck fehlgeschlagen.'); })
+                .finally(function() {
+                    history.replaceState(null, '', window.location.pathname + '?message=erfolg');
+                });
+        }
+    })();
+    </script>
 </body>
 </html>

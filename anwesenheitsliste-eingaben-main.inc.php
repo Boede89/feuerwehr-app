@@ -43,9 +43,14 @@ if ($is_einsatz) {
         exit;
     }
     try {
-        $stmt = $db->prepare("SELECT id, datum, bezeichnung, typ, uhrzeit_dienstbeginn FROM dienstplan WHERE id = ?");
+        $stmt = $db->prepare("SELECT id, datum, bezeichnung, typ, uhrzeit_dienstbeginn, uhrzeit_dienstende FROM dienstplan WHERE id = ?");
         $stmt->execute([$dienstplan_id]);
         $dienst = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($dienst) {
+            $stmt2 = $db->prepare("SELECT member_id FROM dienstplan_ausbilder WHERE dienstplan_id = ?");
+            $stmt2->execute([$dienstplan_id]);
+            $dienst['ausbilder_member_ids'] = $stmt2->fetchAll(PDO::FETCH_COLUMN);
+        }
         if (!$dienst) {
             header('Location: anwesenheitsliste.php?error=auswahl');
             exit;
@@ -86,11 +91,20 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
     if (!$draft_loaded) {
     $thema_init = '';
     $uhrzeit_von_init = '';
+    $uhrzeit_bis_init = '';
+    $uebungsleiter_init = [];
     if (!$is_einsatz && isset($dienst)) {
         if (!empty(trim($dienst['bezeichnung'] ?? ''))) $thema_init = trim($dienst['bezeichnung']);
         $ub = trim((string)($dienst['uhrzeit_dienstbeginn'] ?? ''));
         if ($ub !== '' && (preg_match('/^\d{1,2}:\d{2}$/', $ub) || preg_match('/^\d{1,2}:\d{2}:\d{2}$/', $ub))) {
             $uhrzeit_von_init = strlen($ub) >= 5 ? substr($ub, 0, 5) : $ub;
+        }
+        $ue = trim((string)($dienst['uhrzeit_dienstende'] ?? ''));
+        if ($ue !== '' && (preg_match('/^\d{1,2}:\d{2}$/', $ue) || preg_match('/^\d{1,2}:\d{2}:\d{2}$/', $ue))) {
+            $uhrzeit_bis_init = strlen($ue) >= 5 ? substr($ue, 0, 5) : $ue;
+        }
+        if (!empty($dienst['ausbilder_member_ids']) && is_array($dienst['ausbilder_member_ids'])) {
+            $uebungsleiter_init = array_map('intval', $dienst['ausbilder_member_ids']);
         }
     }
     $_SESSION[$draft_key] = [
@@ -110,7 +124,8 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'vehicle_equipment' => [],
         'vehicle_equipment_sonstiges' => [],
         'uhrzeit_von' => $uhrzeit_von_init,
-        'uhrzeit_bis' => '',
+        'uhrzeit_bis' => $uhrzeit_bis_init !== '' ? $uhrzeit_bis_init : date('H:i'),
+        'uebungsleiter_member_ids' => $uebungsleiter_init,
         'alarmierung_durch' => '',
         'einsatzstelle' => '',
         'objekt' => '',
@@ -122,10 +137,8 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'brandwache' => '',
         'einsatzleiter_member_id' => null,
         'einsatzleiter_freitext' => '',
-        'uebungsleiter_member_ids' => [],
         'custom_data' => [],
     ];
-    $_SESSION[$draft_key]['uhrzeit_bis'] = date('H:i');
     }
 }
 $draft = &$_SESSION[$draft_key];
@@ -396,7 +409,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         try {
             $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?")->execute([$draft['datum'], $draft['auswahl']]);
         } catch (Exception $e) { /* ignore */ }
-        header('Location: anwesenheitsliste.php?message=erfolg');
+        $print_after = !empty($_POST['print_after_save']);
+        header('Location: anwesenheitsliste.php?message=erfolg' . ($print_after ? '&print=' . $list_id : ''));
         exit;
     } catch (Exception $e) {
         $error = 'Speichern fehlgeschlagen: ' . $e->getMessage();
@@ -485,6 +499,7 @@ $geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&au
                         </div>
                         <form method="post" id="mainForm">
                             <input type="hidden" name="save_final" value="1">
+                            <input type="hidden" name="print_after_save" id="print_after_save" value="0">
                             <?php if ($is_einsatz): 
                                 $dienstplan_themen = [];
                                 try {
@@ -670,10 +685,32 @@ $geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&au
                             </div>
                             <?php endforeach; ?>
                             <div class="d-flex flex-wrap gap-2">
-                                <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Anwesenheitsliste speichern</button>
+                                <button type="button" class="btn btn-success" id="btnSaveAnwesenheit"><i class="fas fa-save"></i> Anwesenheitsliste speichern</button>
                                 <a href="anwesenheitsliste.php" class="btn btn-secondary">Zurück zur Auswahl</a>
                             </div>
                         </form>
+    <!-- Modal: Bericht absenden bestätigen -->
+    <div class="modal fade" id="saveConfirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Bericht absenden</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Möchten Sie den Bericht wirklich absenden?</p>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" checked>
+                        <label class="form-check-label" for="cbPrintAfterSave">Anwesenheitsliste drucken</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="button" class="btn btn-success" id="btnConfirmSave"><i class="fas fa-check"></i> Ja, absenden</button>
+                </div>
+            </div>
+        </div>
+    </div>
                     </div>
                 </div>
             </div>
@@ -682,6 +719,22 @@ $geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&au
     <footer class="bg-light mt-5 py-4"><div class="container text-center"><p class="text-muted mb-0">&copy; 2025 Boedes Feuerwehr App</p></div></footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+    (function(){
+        var btnSave = document.getElementById('btnSaveAnwesenheit');
+        var modal = document.getElementById('saveConfirmModal');
+        var cbPrint = document.getElementById('cbPrintAfterSave');
+        var inputPrint = document.getElementById('print_after_save');
+        var form = document.getElementById('mainForm');
+        if (btnSave && modal && form) {
+            btnSave.addEventListener('click', function() {
+                new bootstrap.Modal(modal).show();
+            });
+            document.getElementById('btnConfirmSave').addEventListener('click', function() {
+                if (inputPrint) inputPrint.value = cbPrint && cbPrint.checked ? '1' : '0';
+                form.submit();
+            });
+        }
+    })();
     window.addEventListener('beforeunload', function() {
         var form = document.getElementById('mainForm');
         if (form) {
