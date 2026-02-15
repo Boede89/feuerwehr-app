@@ -446,6 +446,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
     } catch (Exception $e) {
         $error = 'Speichern fehlgeschlagen: ' . $e->getMessage();
     }
+    }
 }
 
 $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
