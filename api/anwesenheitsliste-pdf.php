@@ -21,6 +21,7 @@ if (!has_permission('forms')) {
 }
 
 $id = (int)($_GET['id'] ?? 0);
+$for_print = !empty($_GET['print']);
 if ($id <= 0) {
     header('HTTP/1.1 400 Bad Request');
     echo 'Ungültige ID';
@@ -340,7 +341,7 @@ if ($wkhtmltopdfPath) {
     shell_exec($cmd . ' 2>&1');
     if (file_exists($pdfPath) && filesize($pdfPath) > 0) {
         header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
         header('Content-Length: ' . filesize($pdfPath));
         readfile($pdfPath);
         @unlink($pdfPath);
@@ -360,7 +361,7 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
             $dompdf->setPaper('A4', 'portrait');
             $dompdf->render();
             header('Content-Type: application/pdf');
-            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
             echo $dompdf->output();
             exit;
         } catch (Exception $e) {
@@ -384,7 +385,7 @@ if (file_exists($tcpdfPath)) {
             $pdf->SetFont('helvetica', '', 10);
             $pdf->writeHTML($html, true, false, true, false, '');
             header('Content-Type: application/pdf');
-            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
             echo $pdf->Output('', 'S');
             exit;
         } catch (Exception $e) {
@@ -394,5 +395,5 @@ if (file_exists($tcpdfPath)) {
 }
 
 header('Content-Type: text/html; charset=UTF-8');
-header('Content-Disposition: attachment; filename="' . str_replace('.pdf', '.html', $filename) . '"');
+header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . str_replace('.pdf', '.html', $filename) . '"');
 echo $html;

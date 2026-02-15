@@ -1042,16 +1042,16 @@ try {
         });
 
         function druckenAnwesenheitsliste(id) {
-            var w = window.open('../api/anwesenheitsliste-pdf.php?id=' + id, '_blank', 'noopener');
+            var w = window.open('../api/anwesenheitsliste-pdf.php?id=' + id + '&print=1', '_blank', 'noopener');
             if (w) {
-                setTimeout(function() { try { w.print(); w.onafterprint = function() { w.close(); }; } catch(e) { w.close(); } }, 1200);
+                setTimeout(function() { try { w.print(); w.onafterprint = function() { w.close(); }; } catch(e) { w.close(); } }, 1500);
             }
         }
         function druckenAnwesenheitslisteAlle(query) {
-            var url = '../api/anwesenheitsliste-pdf-alle.php' + (query ? '?' + query : '');
+            var url = '../api/anwesenheitsliste-pdf-alle.php' + (query ? '?' + query + '&print=1' : '?print=1');
             var w = window.open(url, '_blank', 'noopener');
             if (w) {
-                setTimeout(function() { try { w.print(); w.onafterprint = function() { w.close(); }; } catch(e) { w.close(); } }, 2500);
+                setTimeout(function() { try { w.print(); w.onafterprint = function() { w.close(); }; } catch(e) { w.close(); } }, 3000);
             }
         }
     </script>
