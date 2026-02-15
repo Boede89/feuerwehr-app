@@ -470,6 +470,7 @@ try {
                     <div class="d-flex flex-wrap align-items-center gap-2">
                     <?php if (!empty($anwesenheitslisten)): ?>
                     <a href="../api/anwesenheitsliste-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-outline-success btn-sm" download title="Alle Anwesenheitslisten als PDF herunterladen"><i class="fas fa-file-pdf"></i> Alle Berichte als PDF</a>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" title="Alle Anwesenheitslisten drucken" onclick="druckenAnwesenheitslisteAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>')"><i class="fas fa-print"></i> Alle drucken</button>
                     <?php endif; ?>
                     <form method="get" class="d-flex flex-wrap align-items-center gap-2">
                         <input type="hidden" name="tab" value="submissions">
@@ -545,6 +546,7 @@ try {
                                         <td>
                                             <a href="anwesenheitsliste-bearbeiten.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
                                             <a href="../api/anwesenheitsliste-pdf.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" download><i class="fas fa-file-pdf"></i> PDF</a>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" title="Drucken" onclick="druckenAnwesenheitsliste(<?php echo (int)$a['id']; ?>)"><i class="fas fa-print"></i> Drucken</button>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
@@ -1038,6 +1040,20 @@ try {
                     btn.innerHTML = '<i class="fas fa-upload"></i> Ausgewählte exportieren';
                 });
         });
+
+        function druckenAnwesenheitsliste(id) {
+            var w = window.open('../api/anwesenheitsliste-pdf.php?id=' + id, '_blank', 'noopener');
+            if (w) {
+                setTimeout(function() { try { w.print(); w.onafterprint = function() { w.close(); }; } catch(e) { w.close(); } }, 1200);
+            }
+        }
+        function druckenAnwesenheitslisteAlle(query) {
+            var url = '../api/anwesenheitsliste-pdf-alle.php' + (query ? '?' + query : '');
+            var w = window.open(url, '_blank', 'noopener');
+            if (w) {
+                setTimeout(function() { try { w.print(); w.onafterprint = function() { w.close(); }; } catch(e) { w.close(); } }, 2500);
+            }
+        }
     </script>
 </body>
 </html>

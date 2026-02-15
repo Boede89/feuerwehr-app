@@ -74,7 +74,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'app_url' => sanitize_input($_POST['app_url'] ?? ''),
             ];
 
-            $all = array_merge($smtp, $google, $app);
+            // Drucker (IPP / Cloud) – für zukünftigen server-seitigen Druck
+            $printer = [
+                'printer_ipp_url' => sanitize_input($_POST['printer_ipp_url'] ?? ''),
+                'printer_username' => sanitize_input($_POST['printer_username'] ?? ''),
+            ];
+            if (!empty(trim($_POST['printer_password'] ?? ''))) {
+                $printer['printer_password'] = trim($_POST['printer_password']);
+            } else {
+                $printer['printer_password'] = $settings['printer_password'] ?? '';
+            }
+
+            $all = array_merge($smtp, $google, $app, $printer);
             foreach ($all as $k => $v) {
                 $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
                 $stmt->execute([$k, $v]);
@@ -204,6 +215,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="card-body">
                         <div class="mb-3"><label class="form-label">App Name</label><input class="form-control" name="app_name" value="<?php echo htmlspecialchars($settings['app_name'] ?? ''); ?>"></div>
                         <div class="mb-3"><label class="form-label">App URL</label><input class="form-control" name="app_url" value="<?php echo htmlspecialchars($settings['app_url'] ?? ''); ?>"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row g-4 mt-1">
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header"><i class="fas fa-print"></i> Drucker (IPP / Cloud)</div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Optional: Für automatischen Druck auf einen IPP-Drucker oder Cloud-Druckdienst. Der Druck-Button öffnet derzeit das PDF und startet den Browser-Druckdialog. Server-seitiger IPP-Druck ist in Vorbereitung.</p>
+                        <div class="mb-3">
+                            <label class="form-label">IPP-URL / Freigabelink</label>
+                            <input class="form-control" name="printer_ipp_url" placeholder="z.B. ipp://drucker.example.com/ipp/print oder https://..." value="<?php echo htmlspecialchars($settings['printer_ipp_url'] ?? ''); ?>">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Benutzername</label>
+                            <input class="form-control" name="printer_username" value="<?php echo htmlspecialchars($settings['printer_username'] ?? ''); ?>">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Passwort</label>
+                            <input class="form-control" type="password" name="printer_password" placeholder="Leer lassen zum Beibehalten">
+                        </div>
                     </div>
                 </div>
             </div>
