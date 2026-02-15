@@ -147,9 +147,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'Fehler: ' . $e->getMessage();
                 }
             }
+        } elseif ($action === 'copy_from') {
+            $source_vehicle_id = (int)($_POST['source_vehicle_id'] ?? 0);
+            if ($source_vehicle_id > 0 && $source_vehicle_id !== $vehicle_id) {
+                try {
+                    $stmt = $db->prepare("SELECT id FROM vehicles WHERE id = ?");
+                    $stmt->execute([$source_vehicle_id]);
+                    if (!$stmt->fetch()) {
+                        $error = 'Quell-Fahrzeug nicht gefunden.';
+                    } else {
+                        $cat_map = [];
+                        $stmt = $db->prepare("SELECT id, name, sort_order FROM vehicle_equipment_category WHERE vehicle_id = ? ORDER BY sort_order, name");
+                        $stmt->execute([$source_vehicle_id]);
+                        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
+                            $ins = $db->prepare("INSERT INTO vehicle_equipment_category (vehicle_id, name, sort_order) VALUES (?, ?, ?)");
+                            $ins->execute([$vehicle_id, $c['name'], (int)$c['sort_order']]);
+                            $cat_map[(int)$c['id']] = (int)$db->lastInsertId();
+                        }
+                        $stmt = $db->prepare("SELECT name, category_id, sort_order FROM vehicle_equipment WHERE vehicle_id = ? ORDER BY sort_order, name");
+                        $stmt->execute([$source_vehicle_id]);
+                        $ins_eq = $db->prepare("INSERT INTO vehicle_equipment (vehicle_id, name, category_id, sort_order) VALUES (?, ?, ?, ?)");
+                        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $eq) {
+                            $new_cat = isset($cat_map[(int)$eq['category_id']]) ? $cat_map[(int)$eq['category_id']] : null;
+                            $ins_eq->execute([$vehicle_id, $eq['name'], $new_cat, (int)$eq['sort_order']]);
+                        }
+                        $message = 'Geräte und Kategorien wurden vom gewählten Fahrzeug übernommen.';
+                    }
+                } catch (Exception $e) {
+                    $error = 'Fehler: ' . $e->getMessage();
+                }
+            } else {
+                $error = 'Bitte wählen Sie ein anderes Fahrzeug aus.';
+            }
         }
     }
 }
+
+$all_vehicles = [];
+try {
+    $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name");
+    $all_vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
 
 $categories = [];
 try {
@@ -211,6 +249,35 @@ if (isset($equipment_by_category[0])) {
     <h1 class="h3 mb-4"><i class="fas fa-tools"></i> Geräte – <?php echo htmlspecialchars($vehicle['name']); ?></h1>
     <?php if ($message): ?><div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
     <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
+
+    <?php
+    $other_vehicles = array_filter($all_vehicles, function($v) use ($vehicle_id) { return (int)$v['id'] !== $vehicle_id; });
+    if (!empty($other_vehicles)):
+    ?>
+    <div class="card mb-4">
+        <div class="card-header"><i class="fas fa-copy"></i> Geräte von anderem Fahrzeug übernehmen</div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">Kopieren Sie alle Kategorien und Geräte von einem anderen Fahrzeug hierher – ohne alles neu einzugeben.</p>
+            <form method="post" class="d-flex flex-wrap gap-2 align-items-end">
+                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                <input type="hidden" name="vehicle_id" value="<?php echo (int)$vehicle_id; ?>">
+                <input type="hidden" name="action" value="copy_from">
+                <div>
+                    <label class="form-label small">Von Fahrzeug</label>
+                    <select class="form-select form-select-sm" name="source_vehicle_id" required style="min-width:200px">
+                        <option value="">— auswählen —</option>
+                        <?php foreach ($other_vehicles as $v): ?>
+                        <option value="<?php echo (int)$v['id']; ?>"><?php echo htmlspecialchars($v['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-outline-primary" onclick="return confirm('Alle Kategorien und Geräte vom gewählten Fahrzeug werden hierher kopiert. Bestehende Einträge bleiben erhalten. Fortfahren?');">
+                    <i class="fas fa-copy"></i> Übernehmen
+                </button>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <div class="card mb-4">
         <div class="card-header">Gerät hinzufügen</div>
