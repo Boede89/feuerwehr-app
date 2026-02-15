@@ -40,6 +40,10 @@ try {
 
 $printer_type = trim($settings['printer_type'] ?? 'local');
 $printer_destination = trim($settings['printer_destination'] ?? '');
+$printer_cups_server = trim($settings['printer_cups_server'] ?? '');
+if ($printer_cups_server === '' && getenv('CUPS_SERVER') !== false) {
+    $printer_cups_server = trim(getenv('CUPS_SERVER'));
+}
 $printer_ipp_url = trim($settings['printer_ipp_url'] ?? '');
 $printer_username = trim($settings['printer_username'] ?? '');
 $printer_password = trim($settings['printer_password'] ?? '');
@@ -102,9 +106,15 @@ if ($printer_type === 'ipp' && $printer_ipp_url !== '') {
     }
 }
 
+// CUPS-Server explizit setzen (wichtig für Docker: Container nutzt Host-CUPS)
+$env_prefix = '';
+if ($printer_cups_server !== '') {
+    $env_prefix = 'CUPS_SERVER=' . escapeshellarg($printer_cups_server) . ' ';
+}
+
 $output = [];
 $return_var = 0;
-exec($lp_cmd, $output, $return_var);
+exec($env_prefix . $lp_cmd, $output, $return_var);
 @unlink($pdfPath);
 
 if ($return_var !== 0) {
@@ -112,7 +122,7 @@ if ($return_var !== 0) {
     error_log('print-anwesenheitsliste lp error: ' . $err);
     $hint = '';
     if (stripos($err, 'does not exist') !== false || stripos($err, 'printer or class') !== false) {
-        $hint = ' Der Drucker existiert nicht in CUPS. Prüfen Sie in den globalen Einstellungen unter „Verfügbare Drucker“ oder setzen Sie CUPS_SERVER in docker-compose, damit der Container den CUPS-Server des Hosts nutzt.';
+        $hint = ' Der Drucker existiert nicht in CUPS. Prüfen Sie in den globalen Einstellungen: „Verfügbare Drucker“ und setzen Sie „CUPS-Server (Docker)“ auf 172.17.0.1 (oder Host-IP), damit der Container den Host-CUPS nutzt.';
     } elseif (stripos($err, 'Unable to connect') !== false || stripos($err, 'Connection refused') !== false) {
         $hint = ' Keine Verbindung zum CUPS-Server. Setzen Sie CUPS_SERVER in docker-compose (z.B. host.docker.internal oder die IP des Hosts).';
     }

@@ -78,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $printer = [
                 'printer_type' => in_array($_POST['printer_type'] ?? '', ['local', 'ipp']) ? $_POST['printer_type'] : 'local',
                 'printer_destination' => sanitize_input($_POST['printer_destination'] ?? ''),
+                'printer_cups_server' => trim(sanitize_input($_POST['printer_cups_server'] ?? '')),
                 'printer_ipp_url' => sanitize_input($_POST['printer_ipp_url'] ?? ''),
                 'printer_username' => sanitize_input($_POST['printer_username'] ?? ''),
             ];
@@ -234,7 +235,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="ipp" <?php echo ($settings['printer_type'] ?? '') === 'ipp' ? 'selected' : ''; ?>>IPP / Cloud-Drucker</option>
                             </select>
                         </div>
-                        <div class="mb-3" id="printer_local_wrap">
+                        <div class="mb-3" id="printer_local_wrap" style="display: <?php echo ($settings['printer_type'] ?? 'local') === 'ipp' ? 'none' : 'block'; ?>;">
+                            <label class="form-label">CUPS-Server (Docker)</label>
+                            <input class="form-control" name="printer_cups_server" placeholder="z.B. 172.17.0.1 oder host.docker.internal (leer = CUPS_SERVER aus docker-compose)" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
+                            <small class="text-muted">Nur bei Docker: Host-Adresse, damit der Container den CUPS-Server des Hosts nutzt.</small>
+                        </div>
+                        <div class="mb-3" id="printer_local_wrap2" style="display: <?php echo ($settings['printer_type'] ?? 'local') === 'ipp' ? 'none' : 'block'; ?>;">
                             <label class="form-label">Druckername (lokal)</label>
                             <div class="input-group">
                                 <input class="form-control" name="printer_destination" id="printer_destination" placeholder="z.B. HP_LaserJet oder leer für Standarddrucker" value="<?php echo htmlspecialchars($settings['printer_destination'] ?? ''); ?>">
@@ -275,6 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 document.getElementById('printer_type')?.addEventListener('change', function() {
     var isIpp = this.value === 'ipp';
     document.getElementById('printer_local_wrap').style.display = isIpp ? 'none' : 'block';
+    document.getElementById('printer_local_wrap2').style.display = isIpp ? 'none' : 'block';
     document.getElementById('printer_ipp_wrap').style.display = isIpp ? 'block' : 'none';
 });
 document.getElementById('btn_list_printers')?.addEventListener('click', function() {

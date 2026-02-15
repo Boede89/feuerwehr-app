@@ -16,11 +16,25 @@ if (!isset($_SESSION['user_id']) || !hasAdminPermission()) {
 $lp_bin = (file_exists('/usr/bin/lp') && is_executable('/usr/bin/lp')) ? '/usr/bin/lp' : 'lp';
 $lpstat_bin = (file_exists('/usr/bin/lpstat') && is_executable('/usr/bin/lpstat')) ? '/usr/bin/lpstat' : 'lpstat';
 
+$printer_cups_server = '';
+try {
+    $stmt = $db->prepare('SELECT setting_value FROM settings WHERE setting_key = ?');
+    $stmt->execute(['printer_cups_server']);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row && trim($row['setting_value'] ?? '') !== '') {
+        $printer_cups_server = trim($row['setting_value']);
+    }
+} catch (Exception $e) {}
+if ($printer_cups_server === '' && getenv('CUPS_SERVER') !== false) {
+    $printer_cups_server = trim(getenv('CUPS_SERVER'));
+}
+$env_prefix = ($printer_cups_server !== '') ? 'CUPS_SERVER=' . escapeshellarg($printer_cups_server) . ' ' : '';
+
 $printers = [];
 $raw = '';
 $err = '';
 
-exec(escapeshellarg($lpstat_bin) . ' -p 2>&1', $lines, $ret);
+exec($env_prefix . escapeshellarg($lpstat_bin) . ' -p 2>&1', $lines, $ret);
 $raw = implode("\n", $lines);
 
 if ($ret !== 0) {
@@ -41,7 +55,7 @@ foreach ($lines as $line) {
     }
 }
 
-exec(escapeshellarg($lpstat_bin) . ' -d 2>&1', $def_lines, $dret);
+exec($env_prefix . escapeshellarg($lpstat_bin) . ' -d 2>&1', $def_lines, $dret);
 $default_printer = '';
 foreach ($def_lines as $line) {
     if (preg_match('/^system default destination:\s*(\S+)/', $line, $m)) {

@@ -87,6 +87,7 @@ docker compose up -d
 1. **Admin** → **Globale Einstellungen**
 2. Unter **Drucker**:
    - **Druckertyp:** Lokaler Drucker (CUPS)
+   - **CUPS-Server (Docker):** `172.17.0.1` (oder Host-IP) – wichtig, damit der Container den Host-CUPS nutzt. Kann leer bleiben, wenn `CUPS_SERVER` in docker-compose gesetzt ist.
    - **Druckername:** `workplacepure` (genau wie bei lpadmin)
 3. Optional: **Verfügbare Drucker** klicken – `workplacepure` sollte erscheinen
 4. **Speichern**
@@ -111,10 +112,12 @@ Im `Dockerfile` zusätzlich `cups` (nicht nur `cups-client`) installieren und de
 
 - Drucker in CUPS anlegen (Schritt 2)
 - Druckername in den Einstellungen exakt so eintragen wie bei `lpadmin -p`
+- **CUPS-Server (Docker)** in den globalen Einstellungen setzen: `172.17.0.1` oder die Host-IP. Damit wird der Host-CUPS explizit angesprochen.
+- Test im Container: `docker compose exec web sh -c 'CUPS_SERVER=172.17.0.1 lpstat -p'` – sollten Drucker erscheinen
 
 ### „Unable to connect“ / „Connection refused“
 
-- `CUPS_SERVER` in docker-compose prüfen
+- `CUPS_SERVER` in docker-compose prüfen oder **CUPS-Server** in den App-Einstellungen setzen
 - CUPS auf dem Host läuft: `systemctl status cups`
 - CUPS hört auf 0.0.0.0:631 (siehe Schritt 4)
 
