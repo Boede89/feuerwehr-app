@@ -474,8 +474,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             $stmt->execute([$list_id, $mid, $vid]);
         }
         $all_vehicle_ids = array_unique(array_merge($draft['vehicles'], array_values(array_filter($draft['member_vehicle']))));
+        $all_vehicle_ids = array_filter(array_map('intval', $all_vehicle_ids), fn($x) => $x > 0);
         foreach ($all_vehicle_ids as $vid) {
-            if ((int)$vid <= 0) continue;
             $masch = isset($draft['vehicle_maschinist'][$vid]) ? $draft['vehicle_maschinist'][$vid] : null;
             $einh = isset($draft['vehicle_einheitsfuehrer'][$vid]) ? $draft['vehicle_einheitsfuehrer'][$vid] : null;
             try {
@@ -485,6 +485,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 // Tabelle evtl. nicht vorhanden
             }
         }
+
+        // Automatisch Gerätewartmitteilung erstellen (wenn mindestens ein Fahrzeug ausgewählt)
+        if (!empty($all_vehicle_ids)) {
+            try {
+                $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilungen (id INT AUTO_INCREMENT PRIMARY KEY, typ VARCHAR(20) NOT NULL, einsatz_uebungsart VARCHAR(50) NOT NULL, datum DATE NOT NULL, einsatzbereitschaft VARCHAR(30) NOT NULL, mangel_beschreibung TEXT NULL, einsatzleiter_member_id INT NULL, einsatzleiter_freitext VARCHAR(255) NULL, user_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, KEY idx_datum (datum), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilung_fahrzeuge (id INT AUTO_INCREMENT PRIMARY KEY, geraetewartmitteilung_id INT NOT NULL, vehicle_id INT NOT NULL, maschinist_member_id INT NULL, einheitsfuehrer_member_id INT NULL, equipment_used JSON NULL, defective_equipment JSON NULL, defective_freitext TEXT NULL, defective_mangel TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (geraetewartmitteilung_id) REFERENCES geraetewartmitteilungen(id) ON DELETE CASCADE, FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE, UNIQUE KEY unique_gwm_vehicle (geraetewartmitteilung_id, vehicle_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $gwm_typ = ($typ_save === 'einsatz') ? 'einsatz' : 'uebung';
+                $gwm_art = 'Sonstiges';
+                $gwm_el_mid = $draft['einsatzleiter_member_id'] ?? null;
+                $gwm_el_txt = !empty(trim((string)($draft['einsatzleiter_freitext'] ?? ''))) ? trim($draft['einsatzleiter_freitext']) : null;
+                $gwm_mangel = !empty(trim((string)($draft['bemerkung'] ?? ''))) ? trim($draft['bemerkung']) : null;
+                $stmt_gwm = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id) VALUES (?, ?, ?, 'hergestellt', ?, ?, ?, ?)");
+                $stmt_gwm->execute([$gwm_typ, $gwm_art, $draft['datum'], $gwm_mangel, $gwm_el_mid, $gwm_el_txt, $_SESSION['user_id']]);
+                $gwm_id = $db->lastInsertId();
+                $stmt_gwm_f = $db->prepare("INSERT INTO geraetewartmitteilung_fahrzeuge (geraetewartmitteilung_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id, equipment_used, defective_equipment, defective_freitext, defective_mangel) VALUES (?, ?, ?, ?, ?, '[]', NULL, NULL)");
+                foreach ($all_vehicle_ids as $vid) {
+                    $masch = isset($draft['vehicle_maschinist'][$vid]) && preg_match('/^\d+$/', (string)$draft['vehicle_maschinist'][$vid]) ? (int)$draft['vehicle_maschinist'][$vid] : null;
+                    $einh = isset($draft['vehicle_einheitsfuehrer'][$vid]) && preg_match('/^\d+$/', (string)$draft['vehicle_einheitsfuehrer'][$vid]) ? (int)$draft['vehicle_einheitsfuehrer'][$vid] : null;
+                    $eq_used = isset($draft['vehicle_equipment'][$vid]) && is_array($draft['vehicle_equipment'][$vid]) ? array_values(array_filter(array_map('intval', $draft['vehicle_equipment'][$vid]), fn($x) => $x > 0)) : [];
+                    $stmt_gwm_f->execute([$gwm_id, $vid, $masch, $einh, json_encode($eq_used)]);
+                }
+            } catch (Exception $e) {
+                error_log('Anwesenheitsliste Gerätewartmitteilung: ' . $e->getMessage());
+            }
+        }
+
         // Mängel aus Draft: Mängelberichte automatisch erstellen
         $maengelbericht_ids = [];
         $maengel_list = $draft['maengel'] ?? [];
