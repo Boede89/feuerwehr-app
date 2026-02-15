@@ -85,6 +85,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
                 }
             }
         }
+        $maengel = [];
+        if (!empty($_POST['maengel']) && is_array($_POST['maengel'])) {
+            $standort_opts = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
+            $mangel_an_opts = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
+            foreach ($_POST['maengel'] as $m) {
+                $standort = in_array(trim($m['standort'] ?? ''), $standort_opts) ? trim($m['standort']) : $standort_opts[0];
+                $mangel_an = in_array(trim($m['mangel_an'] ?? ''), $mangel_an_opts) ? trim($m['mangel_an']) : $mangel_an_opts[0];
+                $bezeichnung = trim($m['bezeichnung'] ?? '');
+                $mangel_beschreibung = trim($m['mangel_beschreibung'] ?? '');
+                $ursache = trim($m['ursache'] ?? '');
+                $verbleib = trim($m['verbleib'] ?? '');
+                $aufgenommen_durch = trim($m['aufgenommen_durch'] ?? '');
+                if ($bezeichnung !== '' || $mangel_beschreibung !== '' || $ursache !== '' || $verbleib !== '' || $aufgenommen_durch !== '') {
+                    $maengel[] = ['standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung ?: null, 'mangel_beschreibung' => $mangel_beschreibung ?: null, 'ursache' => $ursache ?: null, 'verbleib' => $verbleib ?: null, 'aufgenommen_durch' => $aufgenommen_durch ?: null];
+                }
+            }
+        }
+        $draft['maengel'] = $maengel;
     } elseif ($form_type === 'fahrzeuge') {
         $draft['vehicles'] = [];
         $draft['vehicle_maschinist'] = $draft['vehicle_maschinist'] ?? [];

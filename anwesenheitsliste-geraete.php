@@ -131,6 +131,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $draft['vehicle_equipment_sonstiges'][$vid] = array_values(array_unique($sonstiges_list));
         }
     }
+    $maengel = [];
+    if (!empty($_POST['maengel']) && is_array($_POST['maengel'])) {
+        $standort_opts = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
+        $mangel_an_opts = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
+        foreach ($_POST['maengel'] as $m) {
+            $standort = in_array(trim($m['standort'] ?? ''), $standort_opts) ? trim($m['standort']) : $standort_opts[0];
+            $mangel_an = in_array(trim($m['mangel_an'] ?? ''), $mangel_an_opts) ? trim($m['mangel_an']) : $mangel_an_opts[0];
+            $bezeichnung = trim($m['bezeichnung'] ?? '');
+            $mangel_beschreibung = trim($m['mangel_beschreibung'] ?? '');
+            $ursache = trim($m['ursache'] ?? '');
+            $verbleib = trim($m['verbleib'] ?? '');
+            $aufgenommen_durch = trim($m['aufgenommen_durch'] ?? '');
+            if ($bezeichnung !== '' || $mangel_beschreibung !== '' || $ursache !== '' || $verbleib !== '' || $aufgenommen_durch !== '') {
+                $maengel[] = ['standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung ?: null, 'mangel_beschreibung' => $mangel_beschreibung ?: null, 'ursache' => $ursache ?: null, 'verbleib' => $verbleib ?: null, 'aufgenommen_durch' => $aufgenommen_durch ?: null];
+            }
+        }
+    }
+    $draft['maengel'] = $maengel;
     anwesenheitsliste_draft_persist($db, $draft, (int)$_SESSION['user_id']);
     header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
     exit;
@@ -140,6 +158,47 @@ $saved_selection = $draft['vehicle_equipment'] ?? [];
 if (!is_array($saved_selection)) $saved_selection = [];
 $saved_sonstiges = $draft['vehicle_equipment_sonstiges'] ?? [];
 if (!is_array($saved_sonstiges)) $saved_sonstiges = [];
+
+if (!isset($draft['maengel']) || !is_array($draft['maengel'])) $draft['maengel'] = [];
+
+$standort_options = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
+$mangel_an_options = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
+$settings = [];
+try {
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('maengelbericht_standort_default', 'maengelbericht_mangel_an_default')");
+    $stmt->execute();
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) { $settings[$r['setting_key']] = $r['setting_value']; }
+} catch (Exception $e) {}
+$standort_default = trim($settings['maengelbericht_standort_default'] ?? '');
+if (!in_array($standort_default, $standort_options)) $standort_default = $standort_options[0];
+$mangel_an_default = trim($settings['maengelbericht_mangel_an_default'] ?? '');
+if (!in_array($mangel_an_default, $mangel_an_options)) $mangel_an_default = $mangel_an_options[0];
+
+$members_list = [];
+try {
+    $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    $members_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
+$selected_equipment_for_modal = [];
+foreach ($vehicles_with_equipment as $vid => $vdata) {
+    $vname = $vdata['name'];
+    if (isset($saved_selection[$vid])) {
+        foreach ($vdata['equipment_by_category'] ?? [] as $items) {
+            foreach ($items as $eq) {
+                if (in_array((int)$eq['id'], $saved_selection[$vid])) {
+                    $selected_equipment_for_modal[] = ['id' => 'eq_' . $eq['id'], 'name' => $eq['name'] . ' (' . $vname . ')', 'bezeichnung' => $eq['name']];
+                }
+            }
+        }
+    }
+    if (!empty($saved_sonstiges[$vid])) {
+        foreach ($saved_sonstiges[$vid] as $s) {
+            $s = trim((string)$s);
+            if ($s !== '') $selected_equipment_for_modal[] = ['id' => 'sonst_' . $vid . '_' . md5($s), 'name' => 'Sonstiges: ' . $s . ' (' . $vname . ')', 'bezeichnung' => $s];
+        }
+    }
+}
 
 $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 ?>
@@ -238,10 +297,11 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                                     </div>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
-                                <div class="mt-2">
-                                    <div class="geraete-item geraete-sonstiges-trigger <?php echo !empty($saved_sonstiges[$vid]) ? 'geraete-item-selected' : ''; ?>" data-vid="<?php echo (int)$vid; ?>" role="button" tabindex="0">
-                                        <i class="fas fa-plus-circle"></i> Sonstiges
-                                    </div>
+                                <div class="mt-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <div>
+                                        <div class="geraete-item geraete-sonstiges-trigger <?php echo !empty($saved_sonstiges[$vid]) ? 'geraete-item-selected' : ''; ?>" data-vid="<?php echo (int)$vid; ?>" role="button" tabindex="0">
+                                            <i class="fas fa-plus-circle"></i> Sonstiges
+                                        </div>
                                     <div class="mt-2 geraete-sonstiges-wrap" id="sonstiges_<?php echo (int)$vid; ?>" style="<?php echo !empty($saved_sonstiges[$vid]) ? '' : 'display:none'; ?>">
                                         <?php
                                         $sonst_val = $saved_sonstiges[$vid] ?? '';
@@ -251,6 +311,8 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                                         <textarea class="form-control form-control-sm" name="equipment_sonstiges[<?php echo (int)$vid; ?>]" placeholder="Weitere Geräte manuell eingeben (ein Gerät pro Zeile)" rows="3" style="max-width:400px"><?php echo htmlspecialchars($sonst_display); ?></textarea>
                                         <small class="text-muted">Ein Gerät pro Zeile</small>
                                     </div>
+                                    </div>
+                                    <button type="button" class="btn btn-outline-warning btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#mangelMeldenModal"><i class="fas fa-exclamation-triangle"></i> Mangel melden</button>
                                 </div>
                                 <div class="geraete-hidden-inputs" data-vid="<?php echo (int)$vid; ?>">
                                     <?php if (isset($saved_selection[$vid])): foreach ($saved_selection[$vid] as $eqid): ?>
@@ -260,6 +322,17 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                             </div>
                         </div>
                         <?php endforeach; ?>
+                        <div id="maengelHiddenContainer">
+                            <?php foreach ($draft['maengel'] as $idx => $m): ?>
+                            <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][standort]" value="<?php echo htmlspecialchars($m['standort'] ?? $standort_default); ?>">
+                            <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][mangel_an]" value="<?php echo htmlspecialchars($m['mangel_an'] ?? $mangel_an_default); ?>">
+                            <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][bezeichnung]" value="<?php echo htmlspecialchars($m['bezeichnung'] ?? ''); ?>">
+                            <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][mangel_beschreibung]" value="<?php echo htmlspecialchars($m['mangel_beschreibung'] ?? ''); ?>">
+                            <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][ursache]" value="<?php echo htmlspecialchars($m['ursache'] ?? ''); ?>">
+                            <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][verbleib]" value="<?php echo htmlspecialchars($m['verbleib'] ?? ''); ?>">
+                            <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][aufgenommen_durch]" value="<?php echo htmlspecialchars($m['aufgenommen_durch'] ?? ''); ?>">
+                            <?php endforeach; ?>
+                        </div>
                         <div class="d-flex flex-wrap gap-2 mt-3">
                             <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Übernehmen und zurück</button>
                             <a href="<?php echo htmlspecialchars($back_url); ?>" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Zurück (ohne Speichern)</a>
@@ -271,6 +344,64 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
         </div>
     </div>
 </main>
+
+<!-- Modal Mangel melden -->
+<div class="modal fade" id="mangelMeldenModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle text-warning"></i> Mangel melden</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Material mit Mangel</label>
+                    <select class="form-select" id="mangelModalMaterial">
+                        <option value="">-- Bitte wählen --</option>
+                        <?php foreach ($selected_equipment_for_modal as $eq): ?>
+                        <option value="<?php echo htmlspecialchars($eq['bezeichnung']); ?>" data-bezeichnung="<?php echo htmlspecialchars($eq['bezeichnung']); ?>"><?php echo htmlspecialchars($eq['name']); ?></option>
+                        <?php endforeach; ?>
+                        <option value="__anderes__">Anderes Material</option>
+                    </select>
+                </div>
+                <div class="mb-3" id="mangelModalAnderesWrap" style="display:none">
+                    <label class="form-label">Bezeichnung (anderes Material)</label>
+                    <input type="text" class="form-control" id="mangelModalAnderes" placeholder="Material eingeben">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Bezeichnung, ggf. Gerätenummer</label>
+                    <input type="text" class="form-control" id="mangelModalBezeichnung" placeholder="Wird bei Auswahl vorbelegt, bearbeitbar">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Mangel Beschreibung <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="mangelModalMangelBeschreibung" rows="2" required></textarea>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Ursache <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="mangelModalUrsache" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Verbleib <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="mangelModalVerbleib" required>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Aufgenommen durch <span class="text-danger">*</span></label>
+                    <div class="position-relative">
+                        <input type="text" class="form-control" id="mangelModalAufgenommenDisplay" placeholder="Buchstaben eingeben zum Filtern" autocomplete="off">
+                        <input type="hidden" id="mangelModalAufgenommenHidden">
+                        <div class="list-group position-absolute w-100 mt-1 shadow" id="mangelModalAufgenommenSuggestions" style="z-index: 1055; max-height: 180px; overflow-y: auto; display: none;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-warning text-dark" id="mangelModalHinzufuegen"><i class="fas fa-plus"></i> Mangel hinzufügen</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <footer class="bg-light mt-5 py-4">
     <div class="container text-center">
@@ -325,12 +456,118 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                 var show = wrap.style.display === 'none';
                 wrap.style.display = show ? 'block' : 'none';
                 this.classList.toggle('geraete-item-selected', show);
-                if (show) wrap.querySelector('input').focus();
+                if (show) { var ta = wrap.querySelector('textarea'); if (ta) ta.focus(); }
             }
         });
         el.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
         });
+    });
+
+    // Modal Mangel melden
+    var membersData = <?php echo json_encode(array_map(function($m) { return ['id' => (int)$m['id'], 'label' => trim($m['last_name'] . ', ' . $m['first_name'])]; }, $members_list)); ?>;
+    var standortDefault = <?php echo json_encode($standort_default); ?>;
+    var mangelAnDefault = <?php echo json_encode($mangel_an_default); ?>;
+    var maengelIndex = <?php echo count($draft['maengel']); ?>;
+
+    var matSelect = document.getElementById('mangelModalMaterial');
+    var anderesWrap = document.getElementById('mangelModalAnderesWrap');
+    var anderesInput = document.getElementById('mangelModalAnderes');
+    var bezeichnungInput = document.getElementById('mangelModalBezeichnung');
+    var mangelBeschr = document.getElementById('mangelModalMangelBeschreibung');
+    var ursacheInput = document.getElementById('mangelModalUrsache');
+    var verbleibInput = document.getElementById('mangelModalVerbleib');
+    var aufgenommenDisplay = document.getElementById('mangelModalAufgenommenDisplay');
+    var aufgenommenHidden = document.getElementById('mangelModalAufgenommenHidden');
+    var aufgenommenSuggestions = document.getElementById('mangelModalAufgenommenSuggestions');
+    var modal = document.getElementById('mangelMeldenModal');
+    var hinzufuegenBtn = document.getElementById('mangelModalHinzufuegen');
+
+    function filterMembers(q) {
+        q = (q || '').toLowerCase().trim();
+        if (q === '') return membersData;
+        return membersData.filter(function(m) { return (m.label || '').toLowerCase().indexOf(q) >= 0; });
+    }
+    function renderSuggestions(items) {
+        aufgenommenSuggestions.innerHTML = '';
+        items.forEach(function(item) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action list-group-item-light text-start';
+            btn.textContent = item.label;
+            btn.dataset.id = item.id;
+            btn.dataset.label = item.label;
+            btn.addEventListener('click', function() {
+                aufgenommenDisplay.value = this.dataset.label;
+                aufgenommenHidden.value = this.dataset.id;
+                aufgenommenSuggestions.style.display = 'none';
+            });
+            aufgenommenSuggestions.appendChild(btn);
+        });
+        aufgenommenSuggestions.style.display = items.length > 0 ? 'block' : 'none';
+    }
+    aufgenommenDisplay.addEventListener('input', function() {
+        aufgenommenHidden.value = '';
+        renderSuggestions(filterMembers(aufgenommenDisplay.value.trim()));
+    });
+    aufgenommenDisplay.addEventListener('focus', function() { renderSuggestions(filterMembers(aufgenommenDisplay.value.trim())); });
+    aufgenommenDisplay.addEventListener('blur', function() { setTimeout(function() { aufgenommenSuggestions.style.display = 'none'; }, 200); });
+
+    matSelect.addEventListener('change', function() {
+        var val = this.value;
+        if (val === '__anderes__') {
+            anderesWrap.style.display = 'block';
+            bezeichnungInput.value = anderesInput.value.trim();
+        } else {
+            anderesWrap.style.display = 'none';
+            bezeichnungInput.value = val;
+        }
+    });
+    anderesInput.addEventListener('input', function() {
+        if (matSelect.value === '__anderes__') bezeichnungInput.value = this.value.trim();
+    });
+
+    function resetMangelModal() {
+        matSelect.value = '';
+        anderesWrap.style.display = 'none';
+        anderesInput.value = '';
+        bezeichnungInput.value = '';
+        mangelBeschr.value = '';
+        ursacheInput.value = '';
+        verbleibInput.value = '';
+        aufgenommenDisplay.value = '';
+        aufgenommenHidden.value = '';
+    }
+    if (modal) {
+        modal.addEventListener('show.bs.modal', resetMangelModal);
+    }
+
+    hinzufuegenBtn.addEventListener('click', function() {
+        var bezeichnung = bezeichnungInput.value.trim();
+        if (matSelect.value === '__anderes__') bezeichnung = anderesInput.value.trim() || bezeichnung;
+        var mangelBeschrVal = mangelBeschr.value.trim();
+        var ursache = ursacheInput.value.trim();
+        var verbleib = verbleibInput.value.trim();
+        var aufgenommen = aufgenommenHidden.value.trim() || aufgenommenDisplay.value.trim();
+        if (!mangelBeschrVal || !ursache || !verbleib || !aufgenommen) {
+            alert('Bitte füllen Sie Mangel Beschreibung, Ursache, Verbleib und Aufgenommen durch aus.');
+            return;
+        }
+        var idx = maengelIndex++;
+        var container = document.getElementById('maengelHiddenContainer');
+        if (!container) return;
+        var frag = document.createDocumentFragment();
+        ['standort','mangel_an','bezeichnung','mangel_beschreibung','ursache','verbleib','aufgenommen_durch'].forEach(function(k) {
+            var inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'maengel[' + idx + '][' + k + ']';
+            inp.value = k === 'standort' ? standortDefault : k === 'mangel_an' ? mangelAnDefault : k === 'bezeichnung' ? bezeichnung : k === 'mangel_beschreibung' ? mangelBeschrVal : k === 'ursache' ? ursache : k === 'verbleib' ? verbleib : aufgenommen;
+            frag.appendChild(inp);
+        });
+        container.appendChild(frag);
+        var bsModal = bootstrap.Modal.getInstance(modal);
+        if (bsModal) bsModal.hide();
+        resetMangelModal();
     });
 })();
 window.addEventListener('beforeunload', function() {
