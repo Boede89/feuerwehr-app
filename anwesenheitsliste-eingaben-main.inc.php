@@ -118,6 +118,7 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'bemerkung' => '',
         'members' => [],
         'member_vehicle' => [],
+        'member_pa' => [],
         'vehicles' => [],
         'vehicle_maschinist' => [],
         'vehicle_einheitsfuehrer' => [],
@@ -191,6 +192,7 @@ foreach ($draft_defaults as $k => $v) {
 }
 if (!is_array($draft['members'])) $draft['members'] = [];
 if (!is_array($draft['member_vehicle'])) $draft['member_vehicle'] = [];
+if (!isset($draft['member_pa']) || !is_array($draft['member_pa'])) $draft['member_pa'] = [];
 if (!is_array($draft['vehicles'])) $draft['vehicles'] = [];
 if (!is_array($draft['vehicle_maschinist'])) $draft['vehicle_maschinist'] = [];
 if (!is_array($draft['vehicle_einheitsfuehrer'])) $draft['vehicle_einheitsfuehrer'] = [];
@@ -392,6 +394,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         if (!empty($draft['vehicle_equipment_sonstiges'])) {
             $custom_data_for_save['vehicle_equipment_sonstiges'] = $draft['vehicle_equipment_sonstiges'];
         }
+        if (!empty($draft['member_pa']) && is_array($draft['member_pa'])) {
+            $custom_data_for_save['member_pa'] = array_values(array_map('intval', array_filter($draft['member_pa'])));
+        }
         $custom_data_json = !empty($custom_data_for_save) ? json_encode($custom_data_for_save) : null;
         $einsatzstichwort_save = ($typ_save === 'einsatz' && !empty($draft['einsatzstichwort'])) ? $draft['einsatzstichwort'] : null;
         $divera_id_save = !empty($draft['divera_id']) ? (int)$draft['divera_id'] : null;
@@ -436,6 +441,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 // Tabelle evtl. nicht vorhanden
             }
         }
+        // PA-Checkbox: Automatische Atemschutzeinträge für PA-Träger erstellen (Status pending, Genehmigung erforderlich)
+        $member_pa = $draft['member_pa'] ?? [];
+        if (!empty($member_pa) && is_array($member_pa)) {
+            $entry_type = 'uebung';
+            if ($typ_save === 'einsatz') {
+                $entry_type = 'einsatz';
+            } elseif ($typ_save === 'manuell' && in_array(trim($draft['bezeichnung_sonstige'] ?? ''), ['Übungsdienst', 'Jahreshauptversammlung'], true)) {
+                $entry_type = 'uebung';
+            } elseif ($typ_save === 'dienst' && isset($dienst) && in_array($dienst['typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung'], true)) {
+                $entry_type = 'uebung';
+            } else {
+                $entry_type = 'uebung';
+            }
+            $entry_date = $draft['datum'];
+            $traeger_ids = [];
+            foreach (array_map('intval', array_filter($member_pa)) as $mid) {
+                if ($mid <= 0) continue;
+                try {
+                    $st = $db->prepare("SELECT id FROM atemschutz_traeger WHERE member_id = ? AND status = 'Aktiv'");
+                    $st->execute([$mid]);
+                    $tid = $st->fetchColumn();
+                    if ($tid) $traeger_ids[] = (int)$tid;
+                } catch (Exception $e) { /* Tabelle evtl. nicht vorhanden */ }
+            }
+            if (!empty($traeger_ids)) {
+                try {
+                    $user_id_save = (int)($_SESSION['user_id'] ?? 0);
+                    $user_name = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '')) ?: 'Unbekannt';
+                    $stmt_ae = $db->prepare("INSERT INTO atemschutz_entries (entry_type, entry_date, requester_id, status) VALUES (?, ?, ?, 'pending')");
+                    $stmt_ae->execute([$entry_type, $entry_date, $user_id_save ?: null]);
+                    $entry_id = $db->lastInsertId();
+                    $stmt_et = $db->prepare("INSERT INTO atemschutz_entry_traeger (entry_id, traeger_id) VALUES (?, ?)");
+                    foreach ($traeger_ids as $tid) {
+                        $stmt_et->execute([$entry_id, $tid]);
+                    }
+                    // E-Mail an Atemschutz-Admins
+                    $stmt_adm = $db->prepare("SELECT email FROM users WHERE atemschutz_notifications = 1");
+                    $stmt_adm->execute();
+                    $admins = $stmt_adm->fetchAll(PDO::FETCH_COLUMN);
+                    if (!empty($admins) && function_exists('send_email')) {
+                        $ph = implode(',', array_fill(0, count($traeger_ids), '?'));
+                        $stmt_n = $db->prepare("SELECT first_name, last_name FROM atemschutz_traeger WHERE id IN ($ph)");
+                        $stmt_n->execute($traeger_ids);
+                        $names = array_map(fn($r) => trim($r['first_name'] . ' ' . $r['last_name']), $stmt_n->fetchAll(PDO::FETCH_ASSOC));
+                        $type_name = $entry_type === 'einsatz' ? 'Einsatz' : 'Übung';
+                        $formatted_date = date('d.m.Y', strtotime($entry_date));
+                        try {
+                            $stmtApp = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_url'");
+                            $stmtApp->execute();
+                            $appUrl = $stmtApp->fetchColumn() ?: ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']);
+                        } catch (Exception $e) {
+                            $appUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+                        }
+                        $msg = '<p>Ein neuer Atemschutzeintrag-Antrag aus der Anwesenheitsliste wartet auf Ihre Genehmigung.</p>';
+                        $msg .= '<p><strong>Typ:</strong> ' . htmlspecialchars($type_name) . ', <strong>Datum:</strong> ' . htmlspecialchars($formatted_date) . ', <strong>Antragsteller:</strong> ' . htmlspecialchars($user_name) . '</p>';
+                        $msg .= '<p><strong>Geräteträger:</strong> ' . htmlspecialchars(implode(', ', $names)) . '</p>';
+                        $msg .= '<p><a href="' . htmlspecialchars($appUrl . '/admin/dashboard.php') . '">Antrag bearbeiten</a></p>';
+                        $subject = 'Neuer Atemschutzeintrag-Antrag (Anwesenheitsliste) - ' . $type_name;
+                        foreach ($admins as $admin_email) {
+                            if (trim($admin_email) !== '') send_email(trim($admin_email), $subject, $msg, '', true);
+                        }
+                    }
+                    if ($user_id_save && function_exists('log_activity')) {
+                        log_activity($user_id_save, 'atemschutz_entry_created', "Atemschutzeintrag-Antrag #$entry_id aus Anwesenheitsliste ($entry_type)");
+                    }
+                } catch (Exception $e) {
+                    error_log('Anwesenheitsliste PA-Atemschutz: ' . $e->getMessage());
+                }
+            }
+        }
+
         unset($_SESSION[$draft_key]);
         try {
             $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?")->execute([$draft['datum'], $draft['auswahl']]);

@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
     if ($form_type === 'personal') {
         $draft['members'] = [];
         $draft['member_vehicle'] = [];
+        $draft['member_pa'] = [];
         $draft['vehicle_maschinist'] = $draft['vehicle_maschinist'] ?? [];
         $draft['vehicle_einheitsfuehrer'] = $draft['vehicle_einheitsfuehrer'] ?? [];
         if (!empty($_POST['member_id']) && is_array($_POST['member_id'])) {
@@ -38,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
                     $draft['members'][] = $mid;
                     $vid = isset($_POST['vehicle'][$mid]) ? (int)$_POST['vehicle'][$mid] : 0;
                     if ($vid > 0) $draft['member_vehicle'][$mid] = $vid;
+                    if (!empty($_POST['member_pa'][$mid])) $draft['member_pa'][] = $mid;
                 }
             }
         }

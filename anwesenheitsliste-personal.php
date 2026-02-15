@@ -42,10 +42,11 @@ try {
     $vehicles = [];
 }
 
-// POST: Auswahl speichern und zurück (inkl. Rolle Maschinist/Einheitsführer pro Fahrzeug)
+// POST: Auswahl speichern und zurück (inkl. Rolle Maschinist/Einheitsführer pro Fahrzeug, PA-Checkbox)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $draft['members'] = [];
     $draft['member_vehicle'] = [];
+    $draft['member_pa'] = [];
     if (!empty($_POST['member_id']) && is_array($_POST['member_id'])) {
         foreach ($_POST['member_id'] as $mid) {
             $mid = (int)$mid;
@@ -54,6 +55,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $vid = isset($_POST['vehicle'][$mid]) ? (int)$_POST['vehicle'][$mid] : 0;
                 if ($vid > 0) {
                     $draft['member_vehicle'][$mid] = $vid;
+                }
+                if (!empty($_POST['member_pa'][$mid])) {
+                    $draft['member_pa'][] = $mid;
                 }
             }
         }
@@ -81,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Entfernen von null-Einträgen
     $draft['vehicle_maschinist'] = array_filter($draft['vehicle_maschinist'] ?? []);
     $draft['vehicle_einheitsfuehrer'] = array_filter($draft['vehicle_einheitsfuehrer'] ?? []);
+    if (empty($draft['member_pa'])) $draft['member_pa'] = [];
     header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
     exit;
 }
@@ -88,6 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 $selected_ids = array_flip($draft['members']);
 $member_vehicle = $draft['member_vehicle'];
+$member_pa = array_flip($draft['member_pa'] ?? []);
 $vehicle_maschinist = $draft['vehicle_maschinist'] ?? [];
 $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
 ?>
@@ -157,6 +163,7 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                                 <th>Name</th>
                                                 <th>Fahrzeug (optional)</th>
                                                 <th>Rolle auf Fahrzeug</th>
+                                                <th class="text-center" style="width: 60px;" title="PA = Atemschutz getragen">PA</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -168,6 +175,7 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                                 } elseif ($vid_cur && isset($vehicle_einheitsfuehrer[$vid_cur]) && (int)$vehicle_einheitsfuehrer[$vid_cur] === (int)$m['id']) {
                                                     $role_cur = 'einheitsfuehrer';
                                                 }
+                                                $pa_checked = isset($member_pa[$m['id']]);
                                             ?>
                                             <?php $row_selected = isset($selected_ids[$m['id']]); $row_bg = $row_selected ? ' style="background-color: #b6d4fe;"' : ''; ?>
                                             <tr class="anw-row <?php echo $row_selected ? 'selected' : ''; ?>" data-member-id="<?php echo (int)$m['id']; ?>">
@@ -189,6 +197,9 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                                         <option value="maschinist" <?php echo $role_cur === 'maschinist' ? 'selected' : ''; ?>>Maschinist</option>
                                                         <option value="einheitsfuehrer" <?php echo $role_cur === 'einheitsfuehrer' ? 'selected' : ''; ?>>Einheitsführer</option>
                                                     </select>
+                                                </td>
+                                                <td class="no-click text-center"<?php echo $row_bg; ?>>
+                                                    <input type="checkbox" class="form-check-input member-pa-check" name="member_pa[<?php echo (int)$m['id']; ?>]" value="1" <?php echo $pa_checked ? 'checked' : ''; ?> <?php echo $row_selected ? '' : 'disabled'; ?> title="PA getragen – erstellt Atemschutzeintrag zur Genehmigung">
                                                 </td>
                                             </tr>
                                             <?php endforeach; ?>
@@ -223,10 +234,12 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                 var midInput = row.querySelector('.member-id-input');
                 var vehicleSelect = row.querySelector('select[name^="vehicle"]');
                 var roleSelect = row.querySelector('select[name^="role"]');
+                var paCheck = row.querySelector('.member-pa-check');
                 if (midInput) {
                     fd.append('member_id[]', midInput.value);
                     if (vehicleSelect) fd.append('vehicle[' + midInput.value + ']', vehicleSelect.value);
                     if (roleSelect) fd.append('role[' + midInput.value + ']', roleSelect.value);
+                    if (paCheck && paCheck.checked) fd.append('member_pa[' + midInput.value + ']', '1');
                 }
             });
             navigator.sendBeacon('api/save-anwesenheit-draft.php', fd);
@@ -241,6 +254,7 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
             var hiddenInput = row.querySelector('.member-id-input');
             var vehicleSelect = row.querySelector('select[name^="vehicle"]');
             var roleSelect = row.querySelector('select[name^="role"]');
+            var paCheck = row.querySelector('.member-pa-check');
             if (!nameCell || !hiddenInput) return;
             function markRowSelected(selected) {
                 var cells = row.querySelectorAll('td');
@@ -250,12 +264,14 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                     cells.forEach(function(td) { td.style.backgroundColor = '#b6d4fe'; });
                     var span = nameCell.querySelector('.d-block');
                     if (span) span.classList.add('fw-bold');
+                    if (paCheck) paCheck.disabled = false;
                 } else {
                     hiddenInput.disabled = true;
                     row.classList.remove('selected');
                     cells.forEach(function(td) { td.style.backgroundColor = ''; });
                     var span = nameCell.querySelector('.d-block');
                     if (span) span.classList.remove('fw-bold');
+                    if (paCheck) { paCheck.disabled = true; paCheck.checked = false; }
                 }
             }
             nameCell.addEventListener('click', function(e) {

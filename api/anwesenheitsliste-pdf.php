@@ -115,6 +115,7 @@ function _calc_einsatzdauer($von, $bis) {
 }
 
 $custom_data_pdf = !empty($liste['custom_data']) ? (json_decode($liste['custom_data'], true) ?: []) : [];
+$member_pa_ids = array_flip($custom_data_pdf['member_pa'] ?? []);
 $uebungsleiter_ids = $custom_data_pdf['uebungsleiter_member_ids'] ?? [];
 $is_uebungsdienst_pdf = !empty($uebungsleiter_ids) || (($liste['typ'] ?? '') === 'dienst' && in_array($liste['dienst_typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung'])) || (($liste['typ'] ?? '') === 'manuell' && in_array($liste['bezeichnung'] ?? '', ['Übungsdienst', 'Jahreshauptversammlung']));
 $einsatzleiter_name = '';
@@ -277,14 +278,15 @@ foreach ($anwesenheitsliste_felder as $f) {
 }
 $html .= '</table></div>';
 
-$html .= '<div class="section"><table class="two-cols-table" width="100%"><tr><td><div class="section-title">Personal</div><table width="100%"><thead><tr><th>Name</th><th class="col-fahrzeug">Fzg</th></tr></thead><tbody>';
+$html .= '<div class="section"><table class="two-cols-table" width="100%"><tr><td><div class="section-title">Personal</div><table width="100%"><thead><tr><th>Name</th><th class="col-fahrzeug">Fzg</th><th class="col-pa" style="width:28px;text-align:center;">PA</th></tr></thead><tbody>';
 foreach ($liste_members as $lm) {
     $name = trim($lm['last_name'] . ', ' . $lm['first_name']);
     $vehicle = $lm['vehicle_name'] ?? '-';
-    $html .= '<tr><td>' . htmlspecialchars($name) . '</td><td class="col-fahrzeug">' . htmlspecialchars($vehicle) . '</td></tr>';
+    $pa_cross = isset($member_pa_ids[(int)$lm['member_id']]) ? '✓' : '';
+    $html .= '<tr><td>' . htmlspecialchars($name) . '</td><td class="col-fahrzeug">' . htmlspecialchars($vehicle) . '</td><td class="col-pa" style="text-align:center;">' . htmlspecialchars($pa_cross) . '</td></tr>';
 }
-if (empty($liste_members)) $html .= '<tr><td colspan="2">Keine Einträge</td></tr>';
-$html .= '<tr><td colspan="2" class="label-cell"><strong>Anzahl Personal: ' . count($liste_members) . '</strong></td></tr>';
+if (empty($liste_members)) $html .= '<tr><td colspan="3">Keine Einträge</td></tr>';
+$html .= '<tr><td colspan="3" class="label-cell"><strong>Anzahl Personal: ' . count($liste_members) . '</strong></td></tr>';
 $html .= '</tbody></table></td><td><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer / Geräte)</div><table width="100%"><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th><th>Geräte</th></tr></thead><tbody>';
 $gesamt_zf = $gesamt_gf = $gesamt_m = $gesamt_sum = 0;
 foreach ($vehicle_ids as $vid) {
