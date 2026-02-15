@@ -105,6 +105,10 @@ $html = '<!DOCTYPE html>
             <tr><td class="label-cell">Aufgenommen durch</td><td class="value-cell">' . htmlspecialchars($aufgenommen_durch ?: '-') . '</td></tr>
             <tr><td class="label-cell">Aufgenommen am</td><td class="value-cell">' . htmlspecialchars($aufgenommen_am_display) . '</td></tr>
         </table>
+        <div class="signature-section">
+            <div class="signature-line"></div>
+            <div class="signature-label">Unterschrift (Person, die den Mangel aufgenommen hat)</div>
+        </div>
     </div>
 
     <div class="section geraetewart-section">
