@@ -75,9 +75,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $name = trim($_POST['category_name'] ?? '');
             if ($name !== '') {
                 try {
-                    $stmt = $db->prepare("INSERT INTO vehicle_equipment_category (vehicle_id, name, sort_order) VALUES (?, ?, 0)");
+                    $stmt = $db->prepare("SELECT id FROM vehicle_equipment_category WHERE vehicle_id = ? AND name = ?");
                     $stmt->execute([$vehicle_id, $name]);
-                    $message = 'Kategorie hinzugefügt.';
+                    if ($stmt->fetch()) {
+                        $message = 'Diese Kategorie existiert bereits.';
+                    } else {
+                        $stmt = $db->prepare("INSERT INTO vehicle_equipment_category (vehicle_id, name, sort_order) VALUES (?, ?, 0)");
+                        $stmt->execute([$vehicle_id, $name]);
+                        $message = 'Kategorie hinzugefügt.';
+                    }
                 } catch (Exception $e) {
                     $error = 'Fehler: ' . $e->getMessage();
                 }
@@ -110,9 +116,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } else {
                         $category_id = null;
                     }
-                    $stmt = $db->prepare("INSERT INTO vehicle_equipment (vehicle_id, name, category_id, sort_order) VALUES (?, ?, ?, 0)");
+                    $stmt = $db->prepare("SELECT id FROM vehicle_equipment WHERE vehicle_id = ? AND name = ? AND (category_id <=> ?)");
                     $stmt->execute([$vehicle_id, $name, $category_id]);
-                    $message = 'Gerät hinzugefügt.';
+                    if ($stmt->fetch()) {
+                        $message = 'Dieses Gerät existiert bereits in dieser Kategorie.';
+                    } else {
+                        $stmt = $db->prepare("INSERT INTO vehicle_equipment (vehicle_id, name, category_id, sort_order) VALUES (?, ?, ?, 0)");
+                        $stmt->execute([$vehicle_id, $name, $category_id]);
+                        $message = 'Gerät hinzugefügt.';
+                    }
                 } catch (Exception $e) {
                     $error = 'Fehler: ' . $e->getMessage();
                 }
@@ -127,6 +139,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } catch (Exception $e) {
                     $error = 'Fehler: ' . $e->getMessage();
                 }
+            }
+        } elseif ($action === 'delete_all_equipment') {
+            try {
+                $stmt = $db->prepare("DELETE FROM vehicle_equipment WHERE vehicle_id = ?");
+                $stmt->execute([$vehicle_id]);
+                $message = 'Alle Geräte dieses Fahrzeugs wurden entfernt.';
+            } catch (Exception $e) {
+                $error = 'Fehler: ' . $e->getMessage();
             }
         } elseif ($action === 'update_category') {
             $eq_id = (int)($_POST['equipment_id'] ?? 0);
@@ -162,24 +182,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $cat_map = [];
                         $stmt = $db->prepare("SELECT id, name, sort_order FROM vehicle_equipment_category WHERE vehicle_id = ? ORDER BY sort_order, name");
                         $stmt->execute([$source_vehicle_id]);
+                        $check_cat = $db->prepare("SELECT id FROM vehicle_equipment_category WHERE vehicle_id = ? AND name = ?");
                         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
-                            $ins = $db->prepare("INSERT INTO vehicle_equipment_category (vehicle_id, name, sort_order) VALUES (?, ?, ?)");
-                            $ins->execute([$vehicle_id, $c['name'], (int)$c['sort_order']]);
-                            $cat_map[(int)$c['id']] = (int)$db->lastInsertId();
+                            $check_cat->execute([$vehicle_id, $c['name']]);
+                            $existing = $check_cat->fetch(PDO::FETCH_ASSOC);
+                            if ($existing) {
+                                $cat_map[(int)$c['id']] = (int)$existing['id'];
+                            } else {
+                                $ins = $db->prepare("INSERT INTO vehicle_equipment_category (vehicle_id, name, sort_order) VALUES (?, ?, ?)");
+                                $ins->execute([$vehicle_id, $c['name'], (int)$c['sort_order']]);
+                                $cat_map[(int)$c['id']] = (int)$db->lastInsertId();
+                            }
                         }
+                        $copied_count = 0;
+                        $skipped_count = 0;
                         if (!empty($copy_equipment_ids)) {
                             $ph = implode(',', array_fill(0, count($copy_equipment_ids), '?'));
                             $stmt = $db->prepare("SELECT name, category_id, sort_order FROM vehicle_equipment WHERE vehicle_id = ? AND id IN ($ph) ORDER BY sort_order, name");
                             $stmt->execute(array_merge([$source_vehicle_id], $copy_equipment_ids));
+                            $check_eq = $db->prepare("SELECT id FROM vehicle_equipment WHERE vehicle_id = ? AND name = ? AND (category_id <=> ?)");
                             $ins_eq = $db->prepare("INSERT INTO vehicle_equipment (vehicle_id, name, category_id, sort_order) VALUES (?, ?, ?, ?)");
                             foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $eq) {
                                 $new_cat = isset($cat_map[(int)$eq['category_id']]) ? $cat_map[(int)$eq['category_id']] : null;
-                                $ins_eq->execute([$vehicle_id, $eq['name'], $new_cat, (int)$eq['sort_order']]);
+                                $check_eq->execute([$vehicle_id, $eq['name'], $new_cat]);
+                                if ($check_eq->fetch()) {
+                                    $skipped_count++;
+                                } else {
+                                    $ins_eq->execute([$vehicle_id, $eq['name'], $new_cat, (int)$eq['sort_order']]);
+                                    $copied_count++;
+                                }
                             }
                         }
-                        $msg = 'Kategorien wurden übernommen.';
-                        if (count($copy_equipment_ids) > 0) {
-                            $msg = 'Kategorien und ' . count($copy_equipment_ids) . ' Gerät(e) wurden übernommen.';
+                        $msg = 'Kategorien wurden übernommen (bestehende übersprungen).';
+                        if ($copied_count > 0 || $skipped_count > 0) {
+                            $msg = $copied_count . ' Gerät(e) übernommen.';
+                            if ($skipped_count > 0) $msg .= ' ' . $skipped_count . ' bereits vorhanden und übersprungen.';
                         }
                         $message = $msg;
                     }
@@ -411,7 +448,17 @@ if ($source_vehicle_id > 0 && $source_vehicle_id !== $vehicle_id) {
     </div>
 
     <div class="card">
-        <div class="card-header">Geräte dieses Fahrzeugs</div>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Geräte dieses Fahrzeugs</span>
+            <?php if (!empty($equipment)): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Wirklich alle Geräte dieses Fahrzeugs löschen? Diese Aktion kann nicht rückgängig gemacht werden.');">
+                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                <input type="hidden" name="vehicle_id" value="<?php echo (int)$vehicle_id; ?>">
+                <input type="hidden" name="action" value="delete_all_equipment">
+                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash-alt"></i> Alle Geräte löschen</button>
+            </form>
+            <?php endif; ?>
+        </div>
         <div class="card-body">
             <?php if (empty($equipment)): ?>
                 <p class="text-muted mb-0">Noch keine Geräte hinterlegt. Diese werden bei der Anwesenheitsliste pro Fahrzeug zur Auswahl angezeigt.</p>
