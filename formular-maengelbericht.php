@@ -176,11 +176,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                         <div class="mb-3">
                             <label for="aufgenommen_durch_display" class="form-label">Aufgenommen durch</label>
                             <div class="position-relative">
-                                <input type="text" class="form-control" id="aufgenommen_durch_display" placeholder="Mitglied suchen oder Name eingeben" autocomplete="off">
+                                <input type="text" class="form-control" id="aufgenommen_durch_display" placeholder="Buchstaben eingeben zum Filtern der Mitgliederliste" autocomplete="off" inputmode="text">
                                 <input type="hidden" name="aufgenommen_durch" id="aufgenommen_durch" value="">
-                                <div id="aufgenommen_durch_suggestions" class="list-group position-absolute w-100 mt-1 shadow" style="z-index: 1050; max-height: 200px; overflow-y: auto; display: none;"></div>
+                                <div id="aufgenommen_durch_suggestions" class="list-group position-absolute w-100 mt-1 shadow" style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
                             </div>
-                            <small class="text-muted">Tippen Sie zum Suchen nach Mitgliedern oder geben Sie einen Namen ein.</small>
+                            <small class="text-muted">Mitglied auswählen – Buchstaben eingeben, um die Liste zu filtern (kein Scrollen nötig).</small>
                         </div>
                         <div class="mb-3">
                             <label for="aufgenommen_am" class="form-label">Aufgenommen am</label>
@@ -221,43 +221,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 (function() {
+    var membersData = <?php echo json_encode(array_map(function($m) {
+        return ['id' => (int)$m['id'], 'label' => trim($m['last_name'] . ', ' . $m['first_name'])];
+    }, $members_list)); ?>;
     var displayInput = document.getElementById('aufgenommen_durch_display');
     var hiddenInput = document.getElementById('aufgenommen_durch');
     var suggestionsEl = document.getElementById('aufgenommen_durch_suggestions');
-    var debounceTimer;
+    function filterMembers(q) {
+        q = (q || '').toLowerCase().trim();
+        if (q === '') return membersData;
+        return membersData.filter(function(m) {
+            return (m.label || '').toLowerCase().indexOf(q) >= 0;
+        });
+    }
+    function renderSuggestions(items) {
+        suggestionsEl.innerHTML = '';
+        items.forEach(function(item) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action list-group-item-light text-start';
+            btn.textContent = item.label;
+            btn.dataset.id = item.id;
+            btn.dataset.label = item.label;
+            btn.addEventListener('click', function() {
+                displayInput.value = this.dataset.label;
+                if (hiddenInput) hiddenInput.value = this.dataset.id;
+                suggestionsEl.style.display = 'none';
+            });
+            suggestionsEl.appendChild(btn);
+        });
+        suggestionsEl.style.display = items.length > 0 ? 'block' : 'none';
+    }
     if (displayInput && suggestionsEl) {
         displayInput.addEventListener('input', function() {
             if (hiddenInput) hiddenInput.value = '';
-            clearTimeout(debounceTimer);
             var q = displayInput.value.trim();
-            if (q.length < 2) { suggestionsEl.style.display = 'none'; suggestionsEl.innerHTML = ''; return; }
-            debounceTimer = setTimeout(function() {
-                fetch('api/search-members.php?q=' + encodeURIComponent(q) + '&limit=15')
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        suggestionsEl.innerHTML = '';
-                        if (!data || data.length === 0) { suggestionsEl.style.display = 'none'; return; }
-                        data.forEach(function(item) {
-                            var btn = document.createElement('button');
-                            btn.type = 'button';
-                            btn.className = 'list-group-item list-group-item-action list-group-item-light text-start';
-                            btn.textContent = item.label || item.value;
-                            btn.dataset.id = item.id;
-                            btn.dataset.label = item.label || item.value;
-                            btn.addEventListener('click', function() {
-                                displayInput.value = this.dataset.label;
-                                if (hiddenInput) hiddenInput.value = this.dataset.id;
-                                suggestionsEl.style.display = 'none';
-                                suggestionsEl.innerHTML = '';
-                            });
-                            suggestionsEl.appendChild(btn);
-                        });
-                        suggestionsEl.style.display = 'block';
-                    })
-                    .catch(function() { suggestionsEl.style.display = 'none'; });
-            }, 300);
+            renderSuggestions(filterMembers(q));
         });
-        displayInput.addEventListener('blur', function() { setTimeout(function() { suggestionsEl.style.display = 'none'; }, 200); });
+        displayInput.addEventListener('focus', function() {
+            var q = displayInput.value.trim();
+            renderSuggestions(filterMembers(q));
+        });
+        displayInput.addEventListener('blur', function() {
+            setTimeout(function() {
+                var idVal = hiddenInput ? hiddenInput.value : '';
+                if (!idVal && displayInput.value.trim() !== '') {
+                    displayInput.value = '';
+                }
+                suggestionsEl.style.display = 'none';
+            }, 200);
+        });
         document.addEventListener('click', function(e) {
             if (!displayInput.contains(e.target) && !suggestionsEl.contains(e.target)) suggestionsEl.style.display = 'none';
         });
@@ -266,8 +279,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
     if (form && hiddenInput) {
         form.addEventListener('submit', function() {
             var idVal = hiddenInput.value.trim();
-            var textVal = displayInput ? displayInput.value.trim() : '';
-            hiddenInput.value = idVal || textVal;
+            if (!idVal && displayInput && displayInput.value.trim()) {
+                hiddenInput.value = '';
+            } else {
+                hiddenInput.value = idVal;
+            }
         });
     }
 })();
