@@ -459,12 +459,28 @@ $geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&au
                         <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
                         <div class="alert alert-light border mb-4">
                             <strong>Gewählt:</strong><br>
-                            <form method="get" class="d-inline-flex align-items-center gap-2 mt-2">
-                                <input type="hidden" name="auswahl" value="<?php echo htmlspecialchars($auswahl); ?>">
-                                <label for="datum_aendern" class="form-label mb-0 small">Datum:</label>
-                                <input type="date" id="datum_aendern" name="datum" class="form-control form-control-sm" value="<?php echo htmlspecialchars($datum); ?>" style="width: auto;">
-                                <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="fas fa-sync-alt"></i> Übernehmen</button>
-                            </form>
+                            <div class="d-flex flex-wrap align-items-center gap-3 mt-2">
+                                <form method="get" class="d-inline-flex align-items-center gap-2">
+                                    <input type="hidden" name="auswahl" value="<?php echo htmlspecialchars($auswahl); ?>">
+                                    <label for="datum_aendern" class="form-label mb-0 small">Datum:</label>
+                                    <input type="date" id="datum_aendern" name="datum" class="form-control form-control-sm" value="<?php echo htmlspecialchars($datum); ?>" style="width: auto;">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="fas fa-sync-alt"></i> Übernehmen</button>
+                                </form>
+                                <?php
+                                $time_fields = array_filter($anwesenheitsliste_felder, fn($f) => ($f['type'] ?? '') === 'time' && !empty($f['visible']));
+                                if (count($time_fields) > 0):
+                                ?>
+                                <div class="d-inline-flex align-items-center gap-2 ms-2">
+                                    <?php foreach ($time_fields as $tf):
+                                        $tid = $tf['id'];
+                                        $tval = $tid === 'uhrzeit_bis' && empty($draft[$tid]) ? date('H:i') : ($draft[$tid] ?? '');
+                                    ?>
+                                    <label for="uhrzeit_header_<?php echo htmlspecialchars($tid); ?>" class="form-label mb-0 small"><?php echo htmlspecialchars($tf['label'] ?? $tid); ?>:</label>
+                                    <input type="time" form="mainForm" id="uhrzeit_header_<?php echo htmlspecialchars($tid); ?>" name="<?php echo htmlspecialchars($tid); ?>" class="form-control form-control-sm" value="<?php echo htmlspecialchars($tval); ?>" style="width: auto;">
+                                    <?php endforeach; ?>
+                                </div>
+                                <?php endif; ?>
+                            </div>
                             <span class="d-block mt-1 text-muted"><?php echo htmlspecialchars($titel_anzeige); ?></span>
                         </div>
                         <form method="post" id="mainForm">
@@ -566,23 +582,6 @@ $geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&au
                                     </a>
                                 </div>
                             </div>
-                            <?php
-                            $time_fields = array_filter($anwesenheitsliste_felder, fn($f) => ($f['type'] ?? '') === 'time' && !empty($f['visible']));
-                            if (count($time_fields) > 0):
-                                $time_ids = array_column($time_fields, 'id');
-                            ?>
-                            <div class="row g-3 mb-4">
-                                <?php foreach ($time_fields as $tf):
-                                    $tid = $tf['id'];
-                                    $tval = $tid === 'uhrzeit_bis' && empty($draft[$tid]) ? date('H:i') : ($draft[$tid] ?? '');
-                                ?>
-                                <div class="col-md-6">
-                                    <label for="<?php echo htmlspecialchars($tid); ?>" class="form-label"><?php echo htmlspecialchars($tf['label'] ?? $tid); ?></label>
-                                    <input type="time" class="form-control" id="<?php echo htmlspecialchars($tid); ?>" name="<?php echo htmlspecialchars($tid); ?>" value="<?php echo htmlspecialchars($tval); ?>">
-                                </div>
-                                <?php endforeach; ?>
-                            </div>
-                            <?php endif; ?>
                             <?php foreach ($anwesenheitsliste_felder as $f):
                                 if (empty($f['visible']) || ($f['type'] ?? '') === 'time') continue;
                                 $id = $f['id'] ?? '';
