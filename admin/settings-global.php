@@ -73,6 +73,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'app_name' => sanitize_input($_POST['app_name'] ?? ''),
                 'app_url' => sanitize_input($_POST['app_url'] ?? ''),
             ];
+            if (!empty($_FILES['app_logo']['tmp_name']) && is_uploaded_file($_FILES['app_logo']['tmp_name'])) {
+                $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                $mime = finfo_file($finfo, $_FILES['app_logo']['tmp_name']);
+                finfo_close($finfo);
+                if (in_array($mime, $allowed)) {
+                    $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'][$mime];
+                    $upload_dir = dirname(__DIR__) . '/uploads';
+                    if (!is_dir($upload_dir)) @mkdir($upload_dir, 0755, true);
+                    $logo_path = $upload_dir . '/logo.' . $ext;
+                    if (move_uploaded_file($_FILES['app_logo']['tmp_name'], $logo_path)) {
+                        $app['app_logo'] = 'uploads/logo.' . $ext;
+                    }
+                }
+            }
+            if (empty($app['app_logo'])) {
+                $app['app_logo'] = $settings['app_logo'] ?? '';
+            }
 
             // Drucker (lokal oder IPP/Cloud)
             $printer = [
@@ -137,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if ($message) echo show_success($message); ?>
     <?php if ($error) echo show_error($error); ?>
 
-    <form method="POST">
+    <form method="POST" enctype="multipart/form-data">
         <div class="row g-4">
             <div class="col-lg-6">
                 <div class="card h-100">
@@ -218,6 +236,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="card-body">
                         <div class="mb-3"><label class="form-label">App Name</label><input class="form-control" name="app_name" value="<?php echo htmlspecialchars($settings['app_name'] ?? ''); ?>"></div>
                         <div class="mb-3"><label class="form-label">App URL</label><input class="form-control" name="app_url" value="<?php echo htmlspecialchars($settings['app_url'] ?? ''); ?>"></div>
+                        <div class="mb-3">
+                            <label class="form-label">Logo für Formulare</label>
+                            <input class="form-control" type="file" name="app_logo" accept="image/jpeg,image/png,image/gif,image/webp">
+                            <small class="text-muted">Wird auf allen PDF-Formularen (Anwesenheitsliste etc.) oben angezeigt. Empfohlen: PNG oder JPG, max. 500 KB.</small>
+                            <?php if (!empty($settings['app_logo']) && file_exists(dirname(__DIR__) . '/' . $settings['app_logo'])): ?>
+                            <div class="mt-2">
+                                <img src="../<?php echo htmlspecialchars($settings['app_logo']); ?>?v=<?php echo filemtime(dirname(__DIR__) . '/' . $settings['app_logo']); ?>" alt="Logo" style="max-height: 60px; max-width: 200px;">
+                            </div>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             </div>

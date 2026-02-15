@@ -215,9 +215,8 @@ $html = '<!DOCTYPE html>
         @page { size: A4; margin: 12mm; }
         * { box-sizing: border-box; }
         body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; line-height: 1.25; color: #333; margin: 0; padding: 10px; }
-        .header { text-align: center; border-bottom: 2px solid #0d6efd; padding-bottom: 8px; margin-bottom: 10px; }
-        .header h1 { margin: 0 0 2px 0; font-size: 14pt; color: #0d6efd; }
-        .header .sub { color: #666; font-size: 8pt; }
+        .header { text-align: center; padding-bottom: 8px; margin-bottom: 10px; }
+        .eingereicht-text { font-size: 8pt; color: #666; }
         .section { margin-bottom: 10px; }
         .section-title { font-weight: bold; font-size: 10pt; margin-bottom: 4px; padding-bottom: 2px; border-bottom: 1px solid #dee2e6; }
         .two-cols-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
@@ -242,11 +241,7 @@ $html = '<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Anwesenheitsliste</h1>
-        <div class="sub">' . htmlspecialchars(date('d.m.Y', strtotime($liste['datum']))) . ' – ' . htmlspecialchars($titel) . ' (' . htmlspecialchars($typ_label) . ')</div>
-        <div class="sub">Eingereicht am ' . format_datetime_berlin($liste['created_at'], 'd.m.Y H:i') . ' von ' . htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt') . '</div>
-    </div>';
+    <div class="header">' . get_pdf_logo_html() . '</div>';
 
 $einsatzbericht_display = 'A' . (trim($liste['einsatzbericht_nummer'] ?? '') !== '' ? $liste['einsatzbericht_nummer'] : '');
 $alarmierung = _al_val($liste, 'alarmierung_durch', $custom_data);
@@ -322,10 +317,12 @@ $html .= '</tbody></table></td></tr></table></div>';
 
 $leiter_label = $is_uebungsdienst_pdf ? 'Übungsleiter' : 'Einsatzleiter';
 $unterschrift_label = $is_uebungsdienst_pdf ? 'Unterschrift Übungsleiter' : 'Unterschrift Einsatzleiter';
+$eingereicht_str = 'Eingereicht am ' . format_datetime_berlin($liste['created_at'], 'd.m.Y H:i') . ' von ' . htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt');
 $html .= '
     <div class="bottom-row">
         <div class="einsatzleiter-cell">
-            <strong>' . htmlspecialchars($leiter_label) . ':</strong> ' . htmlspecialchars($einsatzleiter_name ?: '-') . '
+            <strong>' . htmlspecialchars($leiter_label) . ':</strong> ' . htmlspecialchars($einsatzleiter_name ?: '-') . '<br>
+            <span class="eingereicht-text">' . $eingereicht_str . '</span>
         </div>
         <div class="signature-cell">
             <div class="signature-line"></div>

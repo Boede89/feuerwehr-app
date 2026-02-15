@@ -14,6 +14,35 @@ if (file_exists($gc_api_path)) {
 }
 
 /**
+ * Logo-HTML für PDF-Formulare (Anwesenheitsliste etc.).
+ * Liest app_logo aus settings und gibt img-Tag mit Base64 zurück.
+ */
+function get_pdf_logo_html() {
+    global $db;
+    $logo_path = '';
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_logo'");
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row && !empty(trim($row['setting_value'] ?? ''))) {
+            $logo_path = dirname(__DIR__) . '/' . trim($row['setting_value']);
+        }
+    } catch (Exception $e) {}
+    if ($logo_path === '' || !file_exists($logo_path) || !is_readable($logo_path)) {
+        return '';
+    }
+    $data = @file_get_contents($logo_path);
+    if ($data === false) return '';
+    $mime = 'image/png';
+    $ext = strtolower(pathinfo($logo_path, PATHINFO_EXTENSION));
+    if ($ext === 'jpg' || $ext === 'jpeg') $mime = 'image/jpeg';
+    elseif ($ext === 'gif') $mime = 'image/gif';
+    elseif ($ext === 'webp') $mime = 'image/webp';
+    $b64 = base64_encode($data);
+    return '<img src="data:' . $mime . ';base64,' . $b64 . '" alt="" style="max-height: 50px; max-width: 180px; display: block; margin-bottom: 10px;">';
+}
+
+/**
  * Sanitize Input
  */
 function sanitize_input($data) {
