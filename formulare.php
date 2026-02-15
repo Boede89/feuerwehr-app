@@ -88,6 +88,12 @@ try {
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
                 <?php endif; ?>
+                <?php if (isset($_GET['message']) && $_GET['message'] === 'geraetewartmitteilung_erfolg'): ?>
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check-circle me-2"></i>Gerätewartmitteilung wurde erfolgreich gespeichert.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                <?php endif; ?>
                 <div class="card shadow">
                     <div class="card-header">
                         <h3 class="mb-0"><i class="fas fa-file-alt"></i> Formulare</h3>
@@ -132,7 +138,7 @@ try {
                                                 <i class="fas fa-wrench text-info"></i>
                                             </div>
                                             <h5 class="card-title">Gerätewartmitteilung</h5>
-                                            <p class="card-text text-muted small">Mitteilungen zur Gerätewartung erfassen.</p>
+                                            <p class="card-text text-muted small">Eingesetzte Fahrzeuge und Geräte bei Einsatz oder Übung erfassen.</p>
                                         </div>
                                     </div>
                                 </a>
