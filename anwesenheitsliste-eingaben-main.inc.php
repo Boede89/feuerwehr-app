@@ -366,7 +366,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         $error = 'Bitte füllen Sie alle Pflichtfelder aus: ' . implode(', ', $pflichtfehler) . '. Sie können den Bericht später fortsetzen.';
     }
 
-    if (empty($error)) try {
+    if (empty($error)) {
         try {
             $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN einsatzstichwort VARCHAR(100) NULL");
         } catch (Exception $e) { /* ignore */ }
