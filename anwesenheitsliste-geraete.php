@@ -411,7 +411,7 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Verbleib</label>
-                        <input type="text" class="form-control" id="mangelModalVerbleib" placeholder="Wird bei Auswahl vorbelegt (Fahrzeug), bearbeitbar">
+                        <input type="text" class="form-control" id="mangelModalVerbleib" placeholder="Standard: Gerätehaus, bearbeitbar">
                     </div>
                 </div>
                 <div class="mb-3">
@@ -597,20 +597,16 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
         });
     }
 
+    var verbleibDefault = 'Gerätehaus';
+
     matSelect.addEventListener('change', function() {
         var opt = this.options[this.selectedIndex];
         if (this.value === '__anderes__') {
             bezeichnungInput.value = '';
-            var vname = berichterstellerVehicle || '';
-            if (currentMangelVehicleId) {
-                var btn = document.querySelector('.btn-mangel-melden[data-vid="' + currentMangelVehicleId + '"]');
-                var card = btn ? btn.closest('.card') : null;
-                if (card && card.querySelector('.card-header')) vname = (card.querySelector('.card-header').textContent || '').trim() || vname;
-            }
-            verbleibInput.value = vname;
+            verbleibInput.value = verbleibDefault;
         } else if (opt && opt.dataset) {
             bezeichnungInput.value = opt.dataset.bezeichnung || this.value;
-            verbleibInput.value = opt.dataset.fahrzeug || '';
+            verbleibInput.value = verbleibDefault;
         }
     });
 
@@ -681,7 +677,7 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
         bezeichnungInput.value = '';
         mangelBeschr.value = '';
         ursacheInput.value = '';
-        verbleibInput.value = '';
+        verbleibInput.value = verbleibDefault;
         if (!keepAufgenommen) {
             aufgenommenDisplay.value = berichterstellerDisplay || '';
             aufgenommenHidden.value = berichterstellerId || '';
