@@ -421,6 +421,7 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
 $personal_url = 'anwesenheitsliste-personal.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 $geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+$maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -576,7 +577,7 @@ $geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&au
                             ?>
                             <div class="row g-3 mb-4">
                                 <div class="col-md-6">
-                                    <a href="<?php echo htmlspecialchars($personal_url); ?>" class="btn btn-primary w-100 anwesenheits-option-btn anwesenheits-save-before-nav">
+                                    <a href="<?php echo htmlspecialchars($personal_url); ?>" class="btn btn-primary w-100 anwesenheits-option-btn anwesenheits-save-before-nav text-white">
                                         <i class="fas fa-users fa-2x mb-2"></i><span>Personal</span>
                                         <small class="d-block mt-1 opacity-90">Anwesende auswählen, Fahrzeug zuordnen</small>
                                         <?php if (!empty($draft['members'])): ?>
@@ -585,15 +586,21 @@ $geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&au
                                     </a>
                                 </div>
                                 <div class="col-md-6">
-                                    <a href="<?php echo htmlspecialchars($fahrzeuge_url); ?>" class="btn btn-outline-primary w-100 anwesenheits-option-btn anwesenheits-save-before-nav">
+                                    <a href="<?php echo htmlspecialchars($fahrzeuge_url); ?>" class="btn btn-success w-100 anwesenheits-option-btn anwesenheits-save-before-nav text-white">
                                         <i class="fas fa-truck fa-2x mb-2"></i><span>Fahrzeuge</span>
                                         <small class="d-block mt-1 opacity-90">Eingesetzte Fahrzeuge, Maschinist & Einheitsführer</small>
                                     </a>
                                 </div>
                                 <div class="col-md-6">
-                                    <a href="<?php echo htmlspecialchars($geraete_url); ?>" class="btn btn-outline-secondary w-100 anwesenheits-option-btn anwesenheits-save-before-nav">
+                                    <a href="<?php echo htmlspecialchars($geraete_url); ?>" class="btn btn-info w-100 anwesenheits-option-btn anwesenheits-save-before-nav text-white">
                                         <i class="fas fa-tools fa-2x mb-2"></i><span>Geräte</span>
                                         <small class="d-block mt-1 opacity-90">Eingesetzte Gerätschaften pro Fahrzeug</small>
+                                    </a>
+                                </div>
+                                <div class="col-md-6">
+                                    <a href="<?php echo htmlspecialchars($maengel_url); ?>" class="btn btn-warning w-100 anwesenheits-option-btn anwesenheits-save-before-nav text-dark">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-2"></i><span>Mängel</span>
+                                        <small class="d-block mt-1 opacity-90">Mängel festhalten</small>
                                     </a>
                                 </div>
                             </div>
