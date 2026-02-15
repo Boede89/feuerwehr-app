@@ -411,7 +411,7 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Verbleib</label>
-                        <input type="text" class="form-control" id="mangelModalVerbleib" placeholder="Standard: Gerätehaus, bearbeitbar">
+                        <input type="text" class="form-control" id="mangelModalVerbleib" value="Gerätehaus" placeholder="Standard: Gerätehaus, bearbeitbar">
                     </div>
                 </div>
                 <div class="mb-3">
@@ -591,7 +591,6 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
             var opt = document.createElement('option');
             opt.value = o.bezeichnung;
             opt.dataset.bezeichnung = o.bezeichnung;
-            opt.dataset.fahrzeug = o.fahrzeug || '';
             opt.textContent = o.label;
             matSelect.insertBefore(opt, matSelect.options[matSelect.options.length - 1]);
         });
@@ -687,6 +686,9 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
     if (modal) {
         modal.addEventListener('show.bs.modal', function() {
             resetMangelModal(false);
+        });
+        modal.addEventListener('shown.bs.modal', function() {
+            verbleibInput.value = verbleibDefault;
         });
     }
 
