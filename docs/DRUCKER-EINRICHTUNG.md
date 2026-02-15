@@ -58,11 +58,11 @@ Damit der Container den CUPS-Server des Hosts nutzen kann:
 sudo sed -i 's/Listen localhost:631/Listen 0.0.0.0:631/' /etc/cups/cupsd.conf
 
 # 2. Docker-Netzwerk Zugriff erlauben (sonst: "lpstat: Forbidden")
-# In /etc/cups/cupsd.conf bei <Location /> und <Location /printers> ergänzen:
+# In /etc/cups/cupsd.conf beim Abschnitt <Location /> ergänzen:
 #   Allow from 127.0.0.1
 #   Allow from 172.17.0.0/16
 sudo nano /etc/cups/cupsd.conf
-# Nach jeder "Allow from 127.0.0.1" eine Zeile "Allow from 172.17.0.0/16" einfügen
+# Im Block <Location /> nach "Allow from 127.0.0.1" die Zeile "Allow from 172.17.0.0/16" einfügen
 
 sudo systemctl restart cups
 ```
@@ -125,7 +125,7 @@ Im `Dockerfile` zusätzlich `cups` (nicht nur `cups-client`) installieren und de
 
 ### „lpstat: Forbidden“ / Zugriff verweigert
 
-- CUPS blockiert den Zugriff vom Container. In `/etc/cups/cupsd.conf` bei `<Location />` und `<Location /printers>` die Zeile `Allow from 172.17.0.0/16` ergänzen (nach `Allow from 127.0.0.1`), dann `sudo systemctl restart cups`.
+- CUPS blockiert den Zugriff vom Container. In `/etc/cups/cupsd.conf` beim Abschnitt `<Location />` die Zeile `Allow from 172.17.0.0/16` ergänzen (nach `Allow from 127.0.0.1`), dann `sudo systemctl restart cups`.
 
 ### „Unable to connect“ / „Connection refused“
 
