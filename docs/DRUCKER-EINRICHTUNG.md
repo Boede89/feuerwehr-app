@@ -54,8 +54,16 @@ Sie sollten `printer workplacepure` sehen.
 Damit der Container den CUPS-Server des Hosts nutzen kann:
 
 ```bash
-# CUPS auf allen Interfaces hören lassen (nur für lokalen Zugriff)
+# 1. CUPS auf allen Interfaces hören lassen
 sudo sed -i 's/Listen localhost:631/Listen 0.0.0.0:631/' /etc/cups/cupsd.conf
+
+# 2. Docker-Netzwerk Zugriff erlauben (sonst: "lpstat: Forbidden")
+# In /etc/cups/cupsd.conf bei <Location /> und <Location /printers> ergänzen:
+#   Allow from 127.0.0.1
+#   Allow from 172.17.0.0/16
+sudo nano /etc/cups/cupsd.conf
+# Nach jeder "Allow from 127.0.0.1" eine Zeile "Allow from 172.17.0.0/16" einfügen
+
 sudo systemctl restart cups
 ```
 
@@ -115,6 +123,10 @@ Im `Dockerfile` zusätzlich `cups` (nicht nur `cups-client`) installieren und de
 - **CUPS-Server (Docker)** in den globalen Einstellungen setzen: `172.17.0.1` oder die Host-IP. Damit wird der Host-CUPS explizit angesprochen.
 - Test im Container: `docker compose exec web sh -c 'CUPS_SERVER=172.17.0.1 lpstat -p'` – sollten Drucker erscheinen
 
+### „lpstat: Forbidden“ / Zugriff verweigert
+
+- CUPS blockiert den Zugriff vom Container. In `/etc/cups/cupsd.conf` bei `<Location />` und `<Location /printers>` die Zeile `Allow from 172.17.0.0/16` ergänzen (nach `Allow from 127.0.0.1`), dann `sudo systemctl restart cups`.
+
 ### „Unable to connect“ / „Connection refused“
 
 - `CUPS_SERVER` in docker-compose prüfen oder **CUPS-Server** in den App-Einstellungen setzen
@@ -133,6 +145,7 @@ Im `Dockerfile` zusätzlich `cups` (nicht nur `cups-client`) installieren und de
 - [ ] CUPS auf dem Host installiert und gestartet
 - [ ] Drucker mit `lpadmin` angelegt (Name: `workplacepure`)
 - [ ] `lpstat -p` zeigt den Drucker
+- [ ] CUPS hört auf 0.0.0.0:631 und erlaubt 172.17.0.0/16 (Schritt 4)
 - [ ] `CUPS_SERVER=172.17.0.1` in docker-compose gesetzt
 - [ ] Container neu gestartet
-- [ ] In der App: Druckername `workplacepure` eingetragen und gespeichert
+- [ ] In der App: Druckername `workplacepure` und ggf. CUPS-Server eingetragen

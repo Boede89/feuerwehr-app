@@ -50,6 +50,11 @@ if ($ret !== 0) {
         echo json_encode(['success' => false, 'printers' => [], 'message' => 'Keine Verbindung zum CUPS-Server. ' . $hint, 'raw' => $raw]);
         exit;
     }
+    if (stripos($err, 'Forbidden') !== false) {
+        $hint = 'CUPS blockiert den Zugriff vom Container. Auf dem Host in /etc/cups/cupsd.conf bei <Location /> und <Location /printers> „Allow from 172.17.0.0/16“ ergänzen, dann: sudo systemctl restart cups';
+        echo json_encode(['success' => false, 'printers' => [], 'message' => 'Zugriff verweigert (Forbidden). ' . $hint, 'raw' => $raw]);
+        exit;
+    }
     echo json_encode(['success' => false, 'printers' => [], 'message' => 'lpstat Fehler: ' . $err, 'raw' => $raw]);
     exit;
 }
