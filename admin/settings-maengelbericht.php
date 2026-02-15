@@ -41,8 +41,11 @@ $email_auto = ($settings[$form_key . '_email_auto'] ?? '0') === '1';
 $email_recipients = json_decode($settings[$form_key . '_email_recipients'] ?? '[]', true) ?: [];
 $email_manual = trim($settings[$form_key . '_email_manual'] ?? '');
 $standort_options = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
+$mangel_an_options = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
 $standort_default = trim($settings[$form_key . '_standort_default'] ?? '');
 if (!in_array($standort_default, $standort_options)) $standort_default = $standort_options[0];
+$mangel_an_default = trim($settings[$form_key . '_mangel_an_default'] ?? '');
+if (!in_array($mangel_an_default, $mangel_an_options)) $mangel_an_default = $mangel_an_options[0];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -58,10 +61,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $standortDef = trim($_POST['standort_default'] ?? '');
             if (!in_array($standortDef, ['GH Amern', 'GH Hehler', 'GH Waldniel'])) $standortDef = 'GH Amern';
             $stmt->execute([$form_key . '_standort_default', $standortDef]);
+            $mangelAnDef = trim($_POST['mangel_an_default'] ?? '');
+            if (!in_array($mangelAnDef, ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'])) $mangelAnDef = 'Gebäude';
+            $stmt->execute([$form_key . '_mangel_an_default', $mangelAnDef]);
             $email_auto = isset($_POST['email_auto']);
             $email_recipients = $recipients;
             $email_manual = $manual;
             $standort_default = $standortDef;
+            $mangel_an_default = $mangelAnDef;
             $message = 'Einstellungen gespeichert.';
         } catch (Exception $e) {
             $error = 'Fehler: ' . $e->getMessage();
@@ -115,6 +122,15 @@ $back_target = $return_formularcenter ? ' target="_parent"' : '';
                 <select class="form-select" name="standort_default" id="standort_default">
                     <?php foreach ($standort_options as $opt): ?>
                     <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo $opt === $standort_default ? 'selected' : ''; ?>><?php echo htmlspecialchars($opt); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <small class="text-muted">Wird beim Ausfüllen des Mängelberichts vorausgewählt.</small>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="mangel_an_default">Standard Mangel/Wartung an</label>
+                <select class="form-select" name="mangel_an_default" id="mangel_an_default">
+                    <?php foreach ($mangel_an_options as $opt): ?>
+                    <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo $opt === $mangel_an_default ? 'selected' : ''; ?>><?php echo htmlspecialchars($opt); ?></option>
                     <?php endforeach; ?>
                 </select>
                 <small class="text-muted">Wird beim Ausfüllen des Mängelberichts vorausgewählt.</small>

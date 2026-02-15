@@ -46,7 +46,7 @@ $mangel_an_options = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
 
 $settings = [];
 try {
-    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('maengelbericht_standort_default')");
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('maengelbericht_standort_default', 'maengelbericht_mangel_an_default')");
     $stmt->execute();
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $settings[$r['setting_key']] = $r['setting_value'];
@@ -54,6 +54,8 @@ try {
 } catch (Exception $e) {}
 $standort_default = trim($settings['maengelbericht_standort_default'] ?? '');
 if (!in_array($standort_default, $standort_options)) $standort_default = $standort_options[0];
+$mangel_an_default = trim($settings['maengelbericht_mangel_an_default'] ?? '');
+if (!in_array($mangel_an_default, $mangel_an_options)) $mangel_an_default = $mangel_an_options[0];
 
 $members_list = [];
 try {
@@ -153,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                             <label for="mangel_an" class="form-label">Mangel/Wartung an</label>
                             <select class="form-select" id="mangel_an" name="mangel_an" required>
                                 <?php foreach ($mangel_an_options as $opt): ?>
-                                <option value="<?php echo htmlspecialchars($opt); ?>"><?php echo htmlspecialchars($opt); ?></option>
+                                <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo $opt === $mangel_an_default ? 'selected' : ''; ?>><?php echo htmlspecialchars($opt); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
