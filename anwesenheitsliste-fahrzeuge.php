@@ -411,7 +411,7 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Verbleib</label>
-                                <input type="text" class="form-control" id="mangelModalVerbleib" placeholder="Wird bei Auswahl vorbelegt, bearbeitbar">
+                                <input type="text" class="form-control" id="mangelModalVerbleib" placeholder="Standard: Gerätehaus (bei Fahrzeugen)">
                             </div>
                         </div>
                         <div class="mb-3">
@@ -516,15 +516,17 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
             });
         }
 
+        var verbleibDefault = 'Gerätehaus';
+
         matSelect.addEventListener('change', function() {
+            var val = this.value;
             var opt = this.options[this.selectedIndex];
-            if (this.value === '__anderes__') {
+            if (val === '__anderes__') {
                 bezeichnungInput.value = '';
-                verbleibInput.value = berichterstellerVehicle || '';
-            } else if (opt && opt.dataset) {
-                bezeichnungInput.value = opt.dataset.bezeichnung || this.value;
-                verbleibInput.value = opt.dataset.fahrzeug || '';
+            } else if (val && opt) {
+                bezeichnungInput.value = (opt.dataset && opt.dataset.bezeichnung) ? opt.dataset.bezeichnung : val;
             }
+            verbleibInput.value = verbleibDefault;
         });
 
         function getExistingMaengel() {
@@ -594,7 +596,7 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
             bezeichnungInput.value = '';
             mangelBeschr.value = '';
             ursacheInput.value = '';
-            verbleibInput.value = '';
+            verbleibInput.value = verbleibDefault;
             if (!keepAufgenommen) {
                 aufgenommenDisplay.value = berichterstellerDisplay || '';
                 aufgenommenHidden.value = berichterstellerId || '';
