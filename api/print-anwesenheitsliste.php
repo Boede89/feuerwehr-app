@@ -56,28 +56,21 @@ if (!$has_printer) {
     exit;
 }
 
-$app_url = trim($settings['app_url'] ?? '');
-if ($app_url !== '') {
-    $base_url = rtrim($app_url, '/');
-} else {
-    $base_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname($_SERVER['SCRIPT_NAME'], 2), '/');
-}
-$pdf_url = $base_url . '/api/anwesenheitsliste-pdf.php?id=' . $id;
+$GLOBALS['_al_pdf_content'] = null;
 if ($alle) {
-    $params = array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]);
-    $pdf_url = $base_url . '/api/anwesenheitsliste-pdf-alle.php' . (empty($params) ? '' : '?' . http_build_query($params));
+    $_GET['_return'] = '1';
+    $_GET['filter_typ'] = $filter_typ;
+    $_GET['filter_datum_von'] = $filter_datum_von;
+    $_GET['filter_datum_bis'] = $filter_datum_bis;
+    require __DIR__ . '/anwesenheitsliste-pdf-alle.php';
+} else {
+    $_GET['_return'] = '1';
+    $_GET['id'] = $id;
+    require __DIR__ . '/anwesenheitsliste-pdf.php';
 }
+$pdf_content = $GLOBALS['_al_pdf_content'] ?? null;
 
-$opts = [
-    'http' => [
-        'header' => 'Cookie: PHPSESSID=' . session_id() . "\r\n",
-        'timeout' => 60,
-    ],
-];
-$ctx = stream_context_create($opts);
-$pdf_content = @file_get_contents($pdf_url, false, $ctx);
-
-if ($pdf_content === false || strlen($pdf_content) < 100) {
+if ($pdf_content === null || strlen($pdf_content) < 100) {
     echo json_encode(['success' => false, 'message' => 'PDF konnte nicht erzeugt werden. Prüfen Sie wkhtmltopdf, Dompdf oder TCPDF.']);
     exit;
 }

@@ -23,6 +23,7 @@ $filter_typ = trim($_GET['filter_typ'] ?? '');
 $filter_datum_von = trim($_GET['filter_datum_von'] ?? '');
 $filter_datum_bis = trim($_GET['filter_datum_bis'] ?? '');
 $for_print = !empty($_GET['print']);
+$return_mode = !empty($_GET['_return']);
 
 $sql = "
     SELECT a.id, a.datum, a.bezeichnung, a.typ, a.created_at, a.*,
@@ -304,12 +305,14 @@ if ($wkhtmltopdfPath) {
     $cmd = escapeshellarg($wkhtmltopdfPath) . ' --page-size A4 --margin-top 12mm --margin-right 12mm --margin-bottom 12mm --margin-left 12mm --encoding UTF-8 --print-media-type ' . escapeshellarg($htmlPath) . ' ' . escapeshellarg($pdfPath);
     shell_exec($cmd . ' 2>&1');
     if (file_exists($pdfPath) && filesize($pdfPath) > 0) {
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
-        header('Content-Length: ' . filesize($pdfPath));
-        readfile($pdfPath);
+        $pdf_content = file_get_contents($pdfPath);
         @unlink($pdfPath);
         @unlink($htmlPath);
+        if ($return_mode) { $GLOBALS['_al_pdf_content'] = $pdf_content; return; }
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
+        header('Content-Length: ' . strlen($pdf_content));
+        echo $pdf_content;
         exit;
     }
     @unlink($pdfPath);
@@ -324,9 +327,11 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
             $dompdf->loadHtml($html, 'UTF-8');
             $dompdf->setPaper('A4', 'portrait');
             $dompdf->render();
+            $pdf_content = $dompdf->output();
+            if ($return_mode) { $GLOBALS['_al_pdf_content'] = $pdf_content; return; }
             header('Content-Type: application/pdf');
             header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
-            echo $dompdf->output();
+            echo $pdf_content;
             exit;
         } catch (Exception $e) {
             error_log('Dompdf Fehler: ' . $e->getMessage());
@@ -348,9 +353,11 @@ if (file_exists($tcpdfPath)) {
             $pdf->AddPage();
             $pdf->SetFont('helvetica', '', 10);
             $pdf->writeHTML($html, true, false, true, false, '');
+            $pdf_content = $pdf->Output('', 'S');
+            if ($return_mode) { $GLOBALS['_al_pdf_content'] = $pdf_content; return; }
             header('Content-Type: application/pdf');
             header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
-            echo $pdf->Output('', 'S');
+            echo $pdf_content;
             exit;
         } catch (Exception $e) {
             error_log('TCPDF Fehler: ' . $e->getMessage());
@@ -358,6 +365,10 @@ if (file_exists($tcpdfPath)) {
     }
 }
 
+if ($return_mode) {
+    $GLOBALS['_al_pdf_content'] = null;
+    return;
+}
 header('Content-Type: text/html; charset=UTF-8');
 header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . str_replace('.pdf', '.html', $filename) . '"');
 echo $html;
