@@ -40,7 +40,7 @@ function get_pdf_logo_html() {
     elseif ($ext === 'gif') $mime = 'image/gif';
     elseif ($ext === 'webp') $mime = 'image/webp';
     $b64 = base64_encode($data);
-    return '<img src="data:' . $mime . ';base64,' . $b64 . '" alt="" style="max-height: 50px; max-width: 180px; display: block; margin-bottom: 10px;">';
+    return '<img src="data:' . $mime . ';base64,' . $b64 . '" alt="" style="max-height: 85px; max-width: 260px; display: block; margin-bottom: 4px;">';
 }
 
 /**
