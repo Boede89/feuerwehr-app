@@ -466,8 +466,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                     } else {
                         $auf_text = $auf_durch !== '' ? $auf_durch : null;
                     }
-                    $auf_am = $m['aufgenommen_am'] ?? $draft['datum'];
-                    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $auf_am)) $auf_am = $draft['datum'];
+                    $auf_am = date('Y-m-d');
                     $stmt_mb->execute([$standort, $mangel_an, $bezeichnung, $mangel_beschreibung, $ursache, $verbleib, $auf_text, $auf_member_id, $auf_am, $_SESSION['user_id']]);
                 }
             } catch (Exception $e) {

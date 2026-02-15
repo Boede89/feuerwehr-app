@@ -72,8 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengel_draft'])
             $ursache = trim($m['ursache'] ?? '');
             $verbleib = trim($m['verbleib'] ?? '');
             $aufgenommen_durch = trim($m['aufgenommen_durch'] ?? '');
-            $aufgenommen_am = trim($m['aufgenommen_am'] ?? '');
-            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $aufgenommen_am)) $aufgenommen_am = $datum;
             if (!in_array($standort, $standort_options)) $standort = $standort_options[0];
             if (!in_array($mangel_an, $mangel_an_options)) $mangel_an = $mangel_an_options[0];
             if ($bezeichnung !== '' || $mangel_beschreibung !== '' || $ursache !== '' || $verbleib !== '' || $aufgenommen_durch !== '') {
@@ -85,7 +83,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengel_draft'])
                     'ursache' => $ursache ?: null,
                     'verbleib' => $verbleib ?: null,
                     'aufgenommen_durch' => $aufgenommen_durch ?: null,
-                    'aufgenommen_am' => $aufgenommen_am,
                 ];
             }
         }
@@ -111,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengel_draft'])
 
 $maengel_draft = $draft['maengel'];
 if (empty($maengel_draft)) {
-    $maengel_draft = [['standort' => $standort_default, 'mangel_an' => $mangel_an_default, 'bezeichnung' => '', 'mangel_beschreibung' => '', 'ursache' => '', 'verbleib' => '', 'aufgenommen_durch' => '', 'aufgenommen_am' => $datum]];
+    $maengel_draft = [['standort' => $standort_default, 'mangel_an' => $mangel_an_default, 'bezeichnung' => '', 'mangel_beschreibung' => '', 'ursache' => '', 'verbleib' => '', 'aufgenommen_durch' => '']];
 }
 
 $members_json = json_encode(array_map(function($m) {
@@ -224,10 +221,6 @@ $members_json = json_encode(array_map(function($m) {
                                                 <div class="list-group position-absolute w-100 mt-1 shadow aufgenommen-suggestions" style="z-index: 1050; max-height: 180px; overflow-y: auto; display: none;"></div>
                                             </div>
                                         </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label">Aufgenommen am</label>
-                                            <input type="date" class="form-control" name="maengel[<?php echo (int)$idx; ?>][aufgenommen_am]" value="<?php echo htmlspecialchars($m['aufgenommen_am'] ?? $datum); ?>">
-                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -319,7 +312,6 @@ $members_json = json_encode(array_map(function($m) {
             '<input type="text" class="form-control aufgenommen-durch-display" placeholder="Buchstaben eingeben zum Filtern" autocomplete="off">' +
             '<input type="hidden" class="aufgenommen-durch-hidden" name="maengel[' + idx + '][aufgenommen_durch]">' +
             '<div class="list-group position-absolute w-100 mt-1 shadow aufgenommen-suggestions" style="z-index:1050;max-height:180px;overflow-y:auto;display:none;"></div></div></div>' +
-            '<div class="col-md-6"><label class="form-label">Aufgenommen am</label><input type="date" class="form-control" name="maengel[' + idx + '][aufgenommen_am]" value="' + datum + '"></div>' +
             '</div></div></div>';
         var div = document.createElement('div');
         div.innerHTML = html;
