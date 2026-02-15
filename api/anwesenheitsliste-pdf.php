@@ -282,8 +282,8 @@ $html .= '<div class="section"><table class="two-cols-table" width="100%"><tr><t
 foreach ($liste_members as $lm) {
     $name = trim($lm['last_name'] . ', ' . $lm['first_name']);
     $vehicle = $lm['vehicle_name'] ?? '-';
-    $pa_cross = isset($member_pa_ids[(int)$lm['member_id']]) ? '✓' : '';
-    $html .= '<tr><td>' . htmlspecialchars($name) . '</td><td class="col-fahrzeug">' . htmlspecialchars($vehicle) . '</td><td class="col-pa" style="text-align:center;">' . htmlspecialchars($pa_cross) . '</td></tr>';
+    $pa_cross = isset($member_pa_ids[(int)$lm['member_id']]) ? '<span style="font-size:1.4em;font-weight:bold;">X</span>' : '';
+    $html .= '<tr><td>' . htmlspecialchars($name) . '</td><td class="col-fahrzeug">' . htmlspecialchars($vehicle) . '</td><td class="col-pa" style="text-align:center;">' . $pa_cross . '</td></tr>';
 }
 if (empty($liste_members)) $html .= '<tr><td colspan="3">Keine Einträge</td></tr>';
 $html .= '<tr><td colspan="3" class="label-cell"><strong>Anzahl Personal: ' . count($liste_members) . '</strong></td></tr>';

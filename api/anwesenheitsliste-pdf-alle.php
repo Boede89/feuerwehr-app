@@ -244,8 +244,8 @@ foreach ($listen as $idx => $liste) {
 
     $part .= '<div class="section"><table class="two-cols-table" width="100%"><tr><td><div class="section-title">Personal</div><table width="100%"><thead><tr><th>Name</th><th class="col-fahrzeug">Fzg</th><th class="col-pa" style="width:28px;text-align:center;">PA</th></tr></thead><tbody>';
     foreach ($liste_members as $lm) {
-        $pa_cross = isset($member_pa_ids[(int)$lm['member_id']]) ? '✓' : '';
-        $part .= '<tr><td>' . htmlspecialchars(trim($lm['last_name'] . ', ' . $lm['first_name'])) . '</td><td class="col-fahrzeug">' . htmlspecialchars($lm['vehicle_name'] ?? '-') . '</td><td class="col-pa" style="text-align:center;">' . htmlspecialchars($pa_cross) . '</td></tr>';
+        $pa_cross = isset($member_pa_ids[(int)$lm['member_id']]) ? '<span style="font-size:1.4em;font-weight:bold;">X</span>' : '';
+        $part .= '<tr><td>' . htmlspecialchars(trim($lm['last_name'] . ', ' . $lm['first_name'])) . '</td><td class="col-fahrzeug">' . htmlspecialchars($lm['vehicle_name'] ?? '-') . '</td><td class="col-pa" style="text-align:center;">' . $pa_cross . '</td></tr>';
     }
     if (empty($liste_members)) $part .= '<tr><td colspan="3">Keine Einträge</td></tr>';
     $part .= '<tr><td colspan="3" class="label-cell"><strong>Anzahl Personal: ' . count($liste_members) . '</strong></td></tr>';
