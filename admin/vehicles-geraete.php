@@ -51,6 +51,18 @@ try {
 } catch (Exception $e) {
     error_log('vehicle_equipment: ' . $e->getMessage());
 }
+try {
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS vehicle_equipment_sonstiges_ignored (
+            vehicle_id INT NOT NULL,
+            name VARCHAR(191) NOT NULL,
+            PRIMARY KEY (vehicle_id, name),
+            FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+} catch (Exception $e) {
+    error_log('vehicle_equipment_sonstiges_ignored: ' . $e->getMessage());
+}
 
 $vehicle = null;
 try {
@@ -147,6 +159,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = 'Alle Geräte dieses Fahrzeugs wurden entfernt.';
             } catch (Exception $e) {
                 $error = 'Fehler: ' . $e->getMessage();
+            }
+        } elseif ($action === 'add_from_sonstiges') {
+            $name = trim($_POST['sonstiges_name'] ?? '');
+            $category_id = !empty($_POST['category_id']) ? (int)$_POST['category_id'] : null;
+            if ($name !== '') {
+                try {
+                    if ($category_id > 0) {
+                        $stmt = $db->prepare("SELECT vehicle_id FROM vehicle_equipment_category WHERE id = ? AND vehicle_id = ?");
+                        $stmt->execute([$category_id, $vehicle_id]);
+                        if (!$stmt->fetch()) $category_id = null;
+                    } else {
+                        $category_id = null;
+                    }
+                    $stmt = $db->prepare("SELECT id FROM vehicle_equipment WHERE vehicle_id = ? AND name = ? AND (category_id <=> ?)");
+                    $stmt->execute([$vehicle_id, $name, $category_id]);
+                    if ($stmt->fetch()) {
+                        $message = 'Dieses Gerät existiert bereits in der Liste.';
+                    } else {
+                        $stmt = $db->prepare("INSERT INTO vehicle_equipment (vehicle_id, name, category_id, sort_order) VALUES (?, ?, ?, 0)");
+                        $stmt->execute([$vehicle_id, $name, $category_id]);
+                        $message = 'Gerät zur Liste hinzugefügt.';
+                    }
+                } catch (Exception $e) {
+                    $error = 'Fehler: ' . $e->getMessage();
+                }
+            }
+        } elseif ($action === 'ignore_sonstiges') {
+            $name = trim($_POST['sonstiges_name'] ?? '');
+            if ($name !== '') {
+                try {
+                    $stmt = $db->prepare("INSERT IGNORE INTO vehicle_equipment_sonstiges_ignored (vehicle_id, name) VALUES (?, ?)");
+                    $stmt->execute([$vehicle_id, $name]);
+                    $message = 'Eintrag wird nicht mehr angezeigt.';
+                } catch (Exception $e) {
+                    $error = 'Fehler: ' . $e->getMessage();
+                }
             }
         } elseif ($action === 'update_category') {
             $eq_id = (int)($_POST['equipment_id'] ?? 0);
@@ -305,6 +353,33 @@ if ($source_vehicle_id > 0 && $source_vehicle_id !== $vehicle_id) {
         }
     } catch (Exception $e) {}
 }
+
+$sonstiges_from_anwesenheit = [];
+try {
+    $stmt = $db->query("SELECT custom_data FROM anwesenheitslisten WHERE custom_data IS NOT NULL AND custom_data != ''");
+    $existing_names = [];
+    foreach ($equipment as $eq) {
+        $existing_names[strtolower(trim($eq['name']))] = true;
+    }
+    $stmt_ignored = $db->prepare("SELECT id FROM vehicle_equipment_sonstiges_ignored WHERE vehicle_id = ? AND name = ?");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $dec = json_decode($row['custom_data'] ?? '', true);
+        if (!is_array($dec)) continue;
+        $sonst = $dec['vehicle_equipment_sonstiges'] ?? [];
+        if (!is_array($sonst)) continue;
+        foreach ($sonst as $vid => $txt) {
+            if ((int)$vid !== $vehicle_id) continue;
+            $txt = trim((string)$txt);
+            if ($txt === '') continue;
+            $key = strtolower($txt);
+            if (isset($existing_names[$key])) continue;
+            $stmt_ignored->execute([$vehicle_id, $txt]);
+            if ($stmt_ignored->fetch()) continue;
+            $sonstiges_from_anwesenheit[$key] = $txt;
+        }
+    }
+    $sonstiges_from_anwesenheit = array_values(array_unique($sonstiges_from_anwesenheit));
+} catch (Exception $e) {}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -417,6 +492,44 @@ if ($source_vehicle_id > 0 && $source_vehicle_id !== $vehicle_id) {
             </form>
         </div>
     </div>
+
+    <?php if (!empty($sonstiges_from_anwesenheit)): ?>
+    <div class="card mb-4">
+        <div class="card-header"><i class="fas fa-list-alt"></i> Aus Anwesenheitslisten (Sonstiges)</div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">Diese Geräte wurden bei Anwesenheitslisten unter „Sonstiges“ eingegeben. Sie können sie zur Auswahlliste hinzufügen oder verwerfen.</p>
+            <ul class="list-group list-group-flush">
+                <?php foreach ($sonstiges_from_anwesenheit as $txt): ?>
+                <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <span><?php echo htmlspecialchars($txt); ?></span>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <form method="post" class="d-inline-flex flex-wrap gap-1 align-items-center">
+                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <input type="hidden" name="vehicle_id" value="<?php echo (int)$vehicle_id; ?>">
+                            <input type="hidden" name="action" value="add_from_sonstiges">
+                            <input type="hidden" name="sonstiges_name" value="<?php echo htmlspecialchars($txt); ?>">
+                            <select class="form-select form-select-sm" name="category_id" style="width:auto; min-width:120px">
+                                <option value="">— keine Kategorie —</option>
+                                <?php foreach ($categories as $cat): ?>
+                                <option value="<?php echo (int)$cat['id']; ?>"><?php echo htmlspecialchars($cat['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-success"><i class="fas fa-plus"></i> Zur Liste hinzufügen</button>
+                        </form>
+                        <form method="post" class="d-inline" onsubmit="return confirm('Eintrag verwerfen? Er wird nicht mehr angezeigt.');">
+                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <input type="hidden" name="vehicle_id" value="<?php echo (int)$vehicle_id; ?>">
+                            <input type="hidden" name="action" value="ignore_sonstiges">
+                            <input type="hidden" name="sonstiges_name" value="<?php echo htmlspecialchars($txt); ?>">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary" title="Nicht mehr anzeigen"><i class="fas fa-times"></i> Verwerfen</button>
+                        </form>
+                    </div>
+                </li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <div class="card mb-4">
         <div class="card-header">Kategorien (optional – zum Sortieren der Geräte)</div>
