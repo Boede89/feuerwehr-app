@@ -44,9 +44,14 @@ if ($ret !== 0) {
         exit;
     }
     if (strpos($err, 'Unable to connect') !== false || strpos($err, 'Connection refused') !== false) {
-        echo json_encode(['success' => false, 'printers' => [], 'message' => 'Keine Verbindung zum CUPS-Server. Setzen Sie CUPS_SERVER in docker-compose (z.B. host.docker.internal oder Host-IP).', 'raw' => $raw]);
+        $hint = $printer_cups_server !== ''
+            ? 'CUPS-Server ' . $printer_cups_server . ' nicht erreichbar. Prüfen Sie: CUPS auf Host läuft, hört auf 0.0.0.0:631, Firewall.'
+            : 'Bei Docker: „CUPS-Server (Docker)“ in den Einstellungen auf 172.17.0.1 setzen, oder CUPS_SERVER in docker-compose.';
+        echo json_encode(['success' => false, 'printers' => [], 'message' => 'Keine Verbindung zum CUPS-Server. ' . $hint, 'raw' => $raw]);
         exit;
     }
+    echo json_encode(['success' => false, 'printers' => [], 'message' => 'lpstat Fehler: ' . $err, 'raw' => $raw]);
+    exit;
 }
 
 foreach ($lines as $line) {
@@ -64,10 +69,20 @@ foreach ($def_lines as $line) {
     }
 }
 
+$empty_msg = '';
+if (empty($printers)) {
+    if ($printer_cups_server !== '') {
+        $empty_msg = 'Keine Drucker gefunden. Der Host-CUPS (' . $printer_cups_server . ') hat keine Drucker. Prüfen Sie auf dem Host: lpstat -p';
+    } else {
+        $empty_msg = 'Keine Drucker gefunden. Bei Docker: Tragen Sie unter „CUPS-Server (Docker)“ die Host-IP ein (z.B. 172.17.0.1) und speichern Sie. Oder setzen Sie CUPS_SERVER in docker-compose.';
+    }
+}
+
 echo json_encode([
     'success' => true,
     'printers' => $printers,
     'default_printer' => $default_printer,
     'raw' => $raw,
-    'message' => empty($printers) ? 'Keine Drucker gefunden. CUPS-Server konfigurieren (CUPS_SERVER) und Drucker hinzufügen.' : ''
+    'cups_server_used' => $printer_cups_server ?: '(Standard/Umgebung)',
+    'message' => $empty_msg
 ]);
