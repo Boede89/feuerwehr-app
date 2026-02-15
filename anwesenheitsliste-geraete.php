@@ -171,8 +171,7 @@ try {
 } catch (Exception $e) {}
 $standort_default = trim($settings['maengelbericht_standort_default'] ?? '');
 if (!in_array($standort_default, $standort_options)) $standort_default = $standort_options[0];
-$mangel_an_default = trim($settings['maengelbericht_mangel_an_default'] ?? '');
-if (!in_array($mangel_an_default, $mangel_an_options)) $mangel_an_default = $mangel_an_options[0];
+$mangel_an_default = 'Gerät';
 
 $members_list = [];
 try {

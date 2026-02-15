@@ -6,6 +6,7 @@
 session_start();
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/anwesenheitsliste-helper.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -103,9 +104,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
+        $maengel = [];
+        if (!empty($_POST['maengel']) && is_array($_POST['maengel'])) {
+            $standort_opts = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
+            $mangel_an_opts = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
+            foreach ($_POST['maengel'] as $m) {
+                $standort = in_array(trim($m['standort'] ?? ''), $standort_opts) ? trim($m['standort']) : $standort_opts[0];
+                $mangel_an = in_array(trim($m['mangel_an'] ?? ''), $mangel_an_opts) ? trim($m['mangel_an']) : $mangel_an_opts[0];
+                $bezeichnung = trim($m['bezeichnung'] ?? '');
+                $mangel_beschreibung = trim($m['mangel_beschreibung'] ?? '');
+                $ursache = trim($m['ursache'] ?? '');
+                $verbleib = trim($m['verbleib'] ?? '');
+                $aufgenommen_durch = trim($m['aufgenommen_durch'] ?? '');
+                if ($bezeichnung !== '' || $mangel_beschreibung !== '' || $ursache !== '' || $verbleib !== '' || $aufgenommen_durch !== '') {
+                    $maengel[] = ['standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung ?: null, 'mangel_beschreibung' => $mangel_beschreibung ?: null, 'ursache' => $ursache ?: null, 'verbleib' => $verbleib ?: null, 'aufgenommen_durch' => $aufgenommen_durch ?: null];
+                }
+            }
+        }
+        $draft['maengel'] = $maengel;
+        anwesenheitsliste_draft_persist($db, $draft, (int)$_SESSION['user_id']);
     }
     header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
     exit;
+}
+
+if (!isset($draft['maengel']) || !is_array($draft['maengel'])) $draft['maengel'] = [];
+
+$standort_options = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
+$mangel_an_options = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
+$settings = [];
+try {
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('maengelbericht_standort_default', 'maengelbericht_mangel_an_default')");
+    $stmt->execute();
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) { $settings[$r['setting_key']] = $r['setting_value']; }
+} catch (Exception $e) {}
+$standort_default = trim($settings['maengelbericht_standort_default'] ?? '');
+if (!in_array($standort_default, $standort_options)) $standort_default = $standort_options[0];
+$mangel_an_default = 'Fahrzeug';
+
+$members_list = $members;
+$berichtersteller = $draft['berichtersteller'] ?? null;
+$berichtersteller_vehicle = '';
+if ($berichtersteller !== '' && $berichtersteller !== null && preg_match('/^\d+$/', (string)$berichtersteller)) {
+    $ber_vid = $draft['member_vehicle'][(int)$berichtersteller] ?? null;
+    if ($ber_vid) {
+        foreach ($vehicles as $v) {
+            if ((int)$v['id'] === (int)$ber_vid) {
+                $berichtersteller_vehicle = $v['name'] ?? '';
+                break;
+            }
+        }
+        if ($berichtersteller_vehicle === '') {
+            try {
+                $stmt = $db->prepare("SELECT name FROM vehicles WHERE id = ?");
+                $stmt->execute([(int)$ber_vid]);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($row) $berichtersteller_vehicle = $row['name'];
+            } catch (Exception $e) {}
+        }
+    }
+}
+$berichtersteller_display = '';
+if ($berichtersteller !== '' && $berichtersteller !== null) {
+    if (preg_match('/^\d+$/', (string)$berichtersteller)) {
+        foreach ($members_list as $m) {
+            if ((int)$m['id'] === (int)$berichtersteller) {
+                $berichtersteller_display = trim($m['last_name'] . ', ' . $m['first_name']);
+                break;
+            }
+        }
+    }
+    if ($berichtersteller_display === '') $berichtersteller_display = (string)$berichtersteller;
 }
 
 $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
@@ -255,8 +324,20 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                                     </table>
                                 </div>
                             <?php endif; ?>
-                            <div class="d-flex flex-wrap gap-2 mt-3">
+                            <div id="maengelHiddenContainer">
+                                <?php foreach ($draft['maengel'] as $idx => $m): ?>
+                                <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][standort]" value="<?php echo htmlspecialchars($m['standort'] ?? $standort_default); ?>">
+                                <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][mangel_an]" value="<?php echo htmlspecialchars($m['mangel_an'] ?? $mangel_an_default); ?>">
+                                <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][bezeichnung]" value="<?php echo htmlspecialchars($m['bezeichnung'] ?? ''); ?>">
+                                <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][mangel_beschreibung]" value="<?php echo htmlspecialchars($m['mangel_beschreibung'] ?? ''); ?>">
+                                <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][ursache]" value="<?php echo htmlspecialchars($m['ursache'] ?? ''); ?>">
+                                <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][verbleib]" value="<?php echo htmlspecialchars($m['verbleib'] ?? ''); ?>">
+                                <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][aufgenommen_durch]" value="<?php echo htmlspecialchars($m['aufgenommen_durch'] ?? ''); ?>">
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
                                 <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Übernehmen und zurück</button>
+                                <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#mangelMeldenModal"><i class="fas fa-exclamation-triangle"></i> Mangel melden</button>
                                 <a href="<?php echo htmlspecialchars($back_url); ?>" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Zurück (ohne Speichern)</a>
                             </div>
                         </form>
@@ -294,6 +375,62 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                 </div>
             </div>
         </div>
+
+        <!-- Modal Mangel melden -->
+        <div class="modal fade" id="mangelMeldenModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-exclamation-triangle text-warning"></i> Mangel melden</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="mangelModalBereitsErfasst" class="mb-3" style="display: none;">
+                            <label class="form-label">Bereits erfasste Mängel</label>
+                            <ul id="mangelModalBereitsListe" class="list-group list-group-flush small"></ul>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Fahrzeug mit Mangel</label>
+                            <select class="form-select" id="mangelModalMaterial">
+                                <option value="">-- Bitte wählen --</option>
+                                <option value="__anderes__">Anderes Fahrzeug</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Bezeichnung, ggf. Gerätenummer</label>
+                            <input type="text" class="form-control" id="mangelModalBezeichnung" placeholder="Wird bei Auswahl vorbelegt, bearbeitbar">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Mangel Beschreibung <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="mangelModalMangelBeschreibung" rows="2" required></textarea>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Ursache</label>
+                                <input type="text" class="form-control" id="mangelModalUrsache">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Verbleib</label>
+                                <input type="text" class="form-control" id="mangelModalVerbleib" placeholder="Wird bei Auswahl vorbelegt, bearbeitbar">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Aufgenommen durch <span class="text-danger">*</span></label>
+                            <div class="position-relative">
+                                <input type="text" class="form-control" id="mangelModalAufgenommenDisplay" placeholder="Buchstaben eingeben zum Filtern" autocomplete="off">
+                                <input type="hidden" id="mangelModalAufgenommenHidden">
+                                <div class="list-group position-absolute w-100 mt-1 shadow" id="mangelModalAufgenommenSuggestions" style="z-index: 1055; max-height: 180px; overflow-y: auto; display: none;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                        <button type="button" class="btn btn-warning text-dark" id="mangelModalHinzufuegen"><i class="fas fa-save"></i> Speichern</button>
+                        <button type="button" class="btn btn-outline-warning text-dark" id="mangelModalWeiterer"><i class="fas fa-plus-circle"></i> Weiterer Mangel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <footer class="bg-light mt-5 py-4">
@@ -303,6 +440,204 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+    (function() {
+        var membersData = <?php echo json_encode(array_map(function($m) { return ['id' => (int)$m['id'], 'label' => trim($m['last_name'] . ', ' . $m['first_name'])]; }, $members_list)); ?>;
+        var standortDefault = <?php echo json_encode($standort_default); ?>;
+        var mangelAnDefault = <?php echo json_encode($mangel_an_default); ?>;
+        var maengelIndex = <?php echo count($draft['maengel']); ?>;
+        var berichterstellerDisplay = <?php echo json_encode($berichtersteller_display); ?>;
+        var berichterstellerId = <?php echo json_encode($berichtersteller); ?>;
+        var berichterstellerVehicle = <?php echo json_encode($berichtersteller_vehicle); ?>;
+
+        var matSelect = document.getElementById('mangelModalMaterial');
+        var bezeichnungInput = document.getElementById('mangelModalBezeichnung');
+        var mangelBeschr = document.getElementById('mangelModalMangelBeschreibung');
+        var ursacheInput = document.getElementById('mangelModalUrsache');
+        var verbleibInput = document.getElementById('mangelModalVerbleib');
+        var aufgenommenDisplay = document.getElementById('mangelModalAufgenommenDisplay');
+        var aufgenommenHidden = document.getElementById('mangelModalAufgenommenHidden');
+        var aufgenommenSuggestions = document.getElementById('mangelModalAufgenommenSuggestions');
+        var modal = document.getElementById('mangelMeldenModal');
+        var hinzufuegenBtn = document.getElementById('mangelModalHinzufuegen');
+        var weitererBtn = document.getElementById('mangelModalWeiterer');
+        var bereitsWrap = document.getElementById('mangelModalBereitsErfasst');
+        var bereitsListe = document.getElementById('mangelModalBereitsListe');
+
+        function filterMembers(q) {
+            q = (q || '').toLowerCase().trim();
+            if (q === '') return membersData;
+            return membersData.filter(function(m) { return (m.label || '').toLowerCase().indexOf(q) >= 0; });
+        }
+        function renderSuggestions(items) {
+            aufgenommenSuggestions.innerHTML = '';
+            items.forEach(function(item) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'list-group-item list-group-item-action list-group-item-light text-start';
+                btn.textContent = item.label;
+                btn.dataset.id = item.id;
+                btn.dataset.label = item.label;
+                btn.addEventListener('click', function() {
+                    aufgenommenDisplay.value = this.dataset.label;
+                    aufgenommenHidden.value = this.dataset.id;
+                    aufgenommenSuggestions.style.display = 'none';
+                });
+                aufgenommenSuggestions.appendChild(btn);
+            });
+            aufgenommenSuggestions.style.display = items.length > 0 ? 'block' : 'none';
+        }
+        aufgenommenDisplay.addEventListener('input', function() {
+            aufgenommenHidden.value = '';
+            renderSuggestions(filterMembers(aufgenommenDisplay.value.trim()));
+        });
+        aufgenommenDisplay.addEventListener('focus', function() { renderSuggestions(filterMembers(aufgenommenDisplay.value.trim())); });
+        aufgenommenDisplay.addEventListener('blur', function() { setTimeout(function() { aufgenommenSuggestions.style.display = 'none'; }, 200); });
+
+        function buildVehicleOptions() {
+            var options = [];
+            document.querySelectorAll('.anw-row.selected').forEach(function(row) {
+                var nameCell = row.querySelector('.name-cell span');
+                var vname = nameCell ? (nameCell.textContent || '').trim() : '';
+                if (vname) options.push({ bezeichnung: vname, label: vname, fahrzeug: vname });
+            });
+            return options;
+        }
+
+        function populateMaterialSelect() {
+            var opts = buildVehicleOptions();
+            while (matSelect.options.length > 2) matSelect.remove(2);
+            opts.forEach(function(o) {
+                var opt = document.createElement('option');
+                opt.value = o.bezeichnung;
+                opt.dataset.bezeichnung = o.bezeichnung;
+                opt.dataset.fahrzeug = o.fahrzeug || '';
+                opt.textContent = o.label;
+                matSelect.insertBefore(opt, matSelect.options[matSelect.options.length - 1]);
+            });
+        }
+
+        matSelect.addEventListener('change', function() {
+            var opt = this.options[this.selectedIndex];
+            if (this.value === '__anderes__') {
+                bezeichnungInput.value = '';
+                verbleibInput.value = berichterstellerVehicle || '';
+            } else if (opt && opt.dataset) {
+                bezeichnungInput.value = opt.dataset.bezeichnung || this.value;
+                verbleibInput.value = opt.dataset.fahrzeug || '';
+            }
+        });
+
+        function getExistingMaengel() {
+            var container = document.getElementById('maengelHiddenContainer');
+            if (!container) return [];
+            var items = [];
+            var bezeichnungen = container.querySelectorAll('input[name$="[bezeichnung]"]');
+            var beschreibungen = container.querySelectorAll('input[name$="[mangel_beschreibung]"]');
+            for (var i = 0; i < Math.max(bezeichnungen.length, beschreibungen.length); i++) {
+                var bezInp = bezeichnungen[i];
+                var beschrInp = beschreibungen[i];
+                var idx = null;
+                if (bezInp && bezInp.name) {
+                    var m = bezInp.name.match(/^maengel\[(\d+)\]/);
+                    if (m) idx = m[1];
+                } else if (beschrInp && beschrInp.name) {
+                    var m2 = beschrInp.name.match(/^maengel\[(\d+)\]/);
+                    if (m2) idx = m2[1];
+                }
+                var bez = bezInp ? bezInp.value : '';
+                var beschr = beschrInp ? beschrInp.value : '';
+                if (bez || beschr) items.push({ bezeichnung: bez, beschreibung: beschr, index: idx });
+            }
+            return items;
+        }
+
+        function removeMangel(index) {
+            var container = document.getElementById('maengelHiddenContainer');
+            if (!container) return;
+            var idxStr = String(index);
+            Array.from(container.querySelectorAll('input[name^="maengel["]')).forEach(function(inp) {
+                var m = inp.name.match(/^maengel\[(\d+)\]/);
+                if (m && m[1] === idxStr) inp.remove();
+            });
+            renderBereitsErfasst();
+        }
+
+        function renderBereitsErfasst() {
+            var items = getExistingMaengel();
+            bereitsListe.innerHTML = '';
+            if (items.length === 0) {
+                bereitsWrap.style.display = 'none';
+                return;
+            }
+            bereitsWrap.style.display = 'block';
+            items.forEach(function(m) {
+                var li = document.createElement('li');
+                li.className = 'list-group-item py-2 d-flex justify-content-between align-items-center';
+                var span = document.createElement('span');
+                span.textContent = (m.bezeichnung ? m.bezeichnung + ': ' : '') + (m.beschreibung || '');
+                if (span.textContent.length > 80) span.textContent = span.textContent.substring(0, 77) + '...';
+                li.appendChild(span);
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-sm btn-outline-danger';
+                btn.title = 'Mangel entfernen';
+                btn.innerHTML = '<i class="fas fa-trash"></i>';
+                btn.addEventListener('click', function() { removeMangel(m.index); });
+                li.appendChild(btn);
+                bereitsListe.appendChild(li);
+            });
+        }
+
+        function resetMangelModal(keepAufgenommen) {
+            populateMaterialSelect();
+            matSelect.value = '';
+            bezeichnungInput.value = '';
+            mangelBeschr.value = '';
+            ursacheInput.value = '';
+            verbleibInput.value = '';
+            if (!keepAufgenommen) {
+                aufgenommenDisplay.value = berichterstellerDisplay || '';
+                aufgenommenHidden.value = berichterstellerId || '';
+            }
+            renderBereitsErfasst();
+        }
+        if (modal) {
+            modal.addEventListener('show.bs.modal', function() { resetMangelModal(false); });
+        }
+
+        function doAddMangel(closeAfter) {
+            var bezeichnung = bezeichnungInput.value.trim();
+            var mangelBeschrVal = mangelBeschr.value.trim();
+            var ursache = ursacheInput.value.trim();
+            var verbleib = verbleibInput.value.trim();
+            var aufgenommen = aufgenommenHidden.value.trim() || aufgenommenDisplay.value.trim();
+            if (!mangelBeschrVal || !aufgenommen) {
+                alert('Bitte füllen Sie Mangel Beschreibung und Aufgenommen durch aus.');
+                return;
+            }
+            var idx = maengelIndex++;
+            var container = document.getElementById('maengelHiddenContainer');
+            if (!container) return;
+            var frag = document.createDocumentFragment();
+            ['standort','mangel_an','bezeichnung','mangel_beschreibung','ursache','verbleib','aufgenommen_durch'].forEach(function(k) {
+                var inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = 'maengel[' + idx + '][' + k + ']';
+                inp.value = k === 'standort' ? standortDefault : k === 'mangel_an' ? mangelAnDefault : k === 'bezeichnung' ? bezeichnung : k === 'mangel_beschreibung' ? mangelBeschrVal : k === 'ursache' ? ursache : k === 'verbleib' ? verbleib : aufgenommen;
+                frag.appendChild(inp);
+            });
+            container.appendChild(frag);
+            if (closeAfter) {
+                var bsModal = bootstrap.Modal.getInstance(modal);
+                if (bsModal) bsModal.hide();
+            } else {
+                resetMangelModal(true);
+            }
+        }
+
+        hinzufuegenBtn.addEventListener('click', function() { doAddMangel(true); });
+        if (weitererBtn) weitererBtn.addEventListener('click', function() { doAddMangel(false); });
+    })();
     window.addEventListener('beforeunload', function() {
         var form = document.getElementById('fahrzeugeForm');
         if (form) {
@@ -318,6 +653,12 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                     if (einhSelect) fd.append('einheitsfuehrer[' + vidInput.value + ']', einhSelect.value);
                 }
             });
+            var maengelContainer = document.getElementById('maengelHiddenContainer');
+            if (maengelContainer) {
+                maengelContainer.querySelectorAll('input').forEach(function(inp) {
+                    fd.append(inp.name, inp.value);
+                });
+            }
             navigator.sendBeacon('api/save-anwesenheit-draft.php', fd);
         } else {
             navigator.sendBeacon('api/save-anwesenheit-draft.php', '');
