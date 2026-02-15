@@ -81,6 +81,7 @@ if (file_put_contents($pdfPath, $pdf_content) === false) {
     exit;
 }
 
+$lp_bin = (file_exists('/usr/bin/lp') && is_executable('/usr/bin/lp')) ? '/usr/bin/lp' : 'lp';
 $lp_cmd = '';
 if ($printer_type === 'ipp' && $printer_ipp_url !== '') {
     $dest = $printer_ipp_url;
@@ -92,12 +93,12 @@ if ($printer_type === 'ipp' && $printer_ipp_url !== '') {
         $port = $parsed['port'] ?? ($scheme === 'ipps' ? 443 : 631);
         $dest = $scheme . '://' . rawurlencode($printer_username) . ':' . rawurlencode($printer_password) . '@' . $host . ($port ? ':' . $port : '') . $path;
     }
-    $lp_cmd = 'lp -d ' . escapeshellarg($dest) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
+    $lp_cmd = escapeshellarg($lp_bin) . ' -d ' . escapeshellarg($dest) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
 } else {
     if ($printer_destination !== '') {
-        $lp_cmd = 'lp -d ' . escapeshellarg($printer_destination) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
+        $lp_cmd = escapeshellarg($lp_bin) . ' -d ' . escapeshellarg($printer_destination) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
     } else {
-        $lp_cmd = 'lp ' . escapeshellarg($pdfPath) . ' 2>&1';
+        $lp_cmd = escapeshellarg($lp_bin) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
     }
 }
 
