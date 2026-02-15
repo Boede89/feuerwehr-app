@@ -355,7 +355,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         if (empty(trim((string)($draft['uhrzeit_bis'] ?? '')))) $pflichtfehler[] = 'Uhrzeit bis';
         if (empty(trim((string)($draft['einsatzstichwort'] ?? '')))) $pflichtfehler[] = 'Einsatzstichwort';
         if (empty(trim((string)($draft['einsatzstelle'] ?? '')))) $pflichtfehler[] = 'Einsatzstelle';
-        $has_el = (!empty($draft['einsatzleiter_member_id']) || !empty(trim((string)($draft['einsatzleiter_freitext'] ?? '')));
+        $el_freitext = trim((string)($draft['einsatzleiter_freitext'] ?? ''));
+        $has_el = !empty($draft['einsatzleiter_member_id']) || !empty($el_freitext);
         if (!$has_el) $pflichtfehler[] = 'Einsatzleiter';
     } else {
         // Normaler Dienst (z.B. Wachdienst): nur Uhrzeiten
