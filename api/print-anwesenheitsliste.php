@@ -110,7 +110,13 @@ exec($lp_cmd, $output, $return_var);
 if ($return_var !== 0) {
     $err = implode(' ', $output);
     error_log('print-anwesenheitsliste lp error: ' . $err);
-    echo json_encode(['success' => false, 'message' => 'Druckauftrag fehlgeschlagen. Stellen Sie sicher, dass CUPS (lp) installiert ist und der Drucker erreichbar ist. Fehler: ' . $err]);
+    $hint = '';
+    if (stripos($err, 'does not exist') !== false || stripos($err, 'printer or class') !== false) {
+        $hint = ' Der Drucker existiert nicht in CUPS. Prüfen Sie in den globalen Einstellungen unter „Verfügbare Drucker“ oder setzen Sie CUPS_SERVER in docker-compose, damit der Container den CUPS-Server des Hosts nutzt.';
+    } elseif (stripos($err, 'Unable to connect') !== false || stripos($err, 'Connection refused') !== false) {
+        $hint = ' Keine Verbindung zum CUPS-Server. Setzen Sie CUPS_SERVER in docker-compose (z.B. host.docker.internal oder die IP des Hosts).';
+    }
+    echo json_encode(['success' => false, 'message' => 'Druckauftrag fehlgeschlagen.' . $hint . ' Fehler: ' . $err]);
     exit;
 }
 

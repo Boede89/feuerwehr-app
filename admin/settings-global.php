@@ -226,7 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="card h-100">
                     <div class="card-header"><i class="fas fa-print"></i> Drucker</div>
                     <div class="card-body">
-                        <p class="text-muted small mb-3">Für den Druck-Button: Anwesenheitslisten werden als PDF erzeugt und per CUPS (lp) an den konfigurierten Drucker gesendet. Im Linux-Container muss CUPS installiert sein.</p>
+                        <p class="text-muted small mb-3">Anwesenheitslisten werden als PDF erzeugt und per CUPS (lp) gesendet. <strong>Wichtig:</strong> Im Docker-Container muss <code>CUPS_SERVER</code> in docker-compose gesetzt sein (z.B. <code>host.docker.internal</code> oder Host-IP), damit der Container den CUPS-Server des Hosts nutzt.</p>
                         <div class="mb-3">
                             <label class="form-label">Druckertyp</label>
                             <select class="form-select" name="printer_type" id="printer_type">
@@ -236,9 +236,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="mb-3" id="printer_local_wrap">
                             <label class="form-label">Druckername (lokal)</label>
-                            <input class="form-control" name="printer_destination" placeholder="z.B. HP_LaserJet oder leer für Standarddrucker (lpstat -p zeigt verfügbare Drucker)" value="<?php echo htmlspecialchars($settings['printer_destination'] ?? ''); ?>">
+                            <div class="input-group">
+                                <input class="form-control" name="printer_destination" id="printer_destination" placeholder="z.B. HP_LaserJet oder leer für Standarddrucker" value="<?php echo htmlspecialchars($settings['printer_destination'] ?? ''); ?>">
+                                <button type="button" class="btn btn-outline-secondary" id="btn_list_printers" title="Verfügbare Drucker anzeigen"><i class="fas fa-list"></i> Verfügbare Drucker</button>
+                            </div>
+                            <div id="printers_list" class="mt-2 small text-muted" style="display:none;"></div>
                         </div>
                         <div id="printer_ipp_wrap" style="display: <?php echo ($settings['printer_type'] ?? 'local') === 'ipp' ? 'block' : 'none'; ?>;">
+                            <p class="text-muted small mb-2">Für IPP: Drucker muss zuerst in CUPS angelegt werden (z.B. auf dem Host: <code>lpadmin -p feuerwehr_ipp -E -v ipp://host/ipp/print -m everywhere</code>). Dann „Lokaler Drucker“ wählen und den Namen (z.B. feuerwehr_ipp) eintragen.</p>
                             <div class="mb-3">
                                 <label class="form-label">IPP-URL / Freigabelink</label>
                                 <input class="form-control" name="printer_ipp_url" placeholder="z.B. ipp://drucker.example.com/ipp/print" value="<?php echo htmlspecialchars($settings['printer_ipp_url'] ?? ''); ?>">
@@ -271,6 +276,38 @@ document.getElementById('printer_type')?.addEventListener('change', function() {
     var isIpp = this.value === 'ipp';
     document.getElementById('printer_local_wrap').style.display = isIpp ? 'none' : 'block';
     document.getElementById('printer_ipp_wrap').style.display = isIpp ? 'block' : 'none';
+});
+document.getElementById('btn_list_printers')?.addEventListener('click', function() {
+    var btn = this;
+    var out = document.getElementById('printers_list');
+    out.style.display = 'block';
+    out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Drucker...</span>';
+    btn.disabled = true;
+    fetch('../api/list-printers.php')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            if (data.success && data.printers && data.printers.length > 0) {
+                var html = '<strong>Verfügbare Drucker:</strong> ';
+                data.printers.forEach(function(p) {
+                    var def = (data.default_printer === p.name) ? ' (Standard)' : '';
+                    var safe = p.name.replace(/"/g, '&quot;');
+                    html += '<span class="badge bg-secondary me-1" style="cursor:pointer" data-name="' + safe + '" role="button">' + p.name + def + '</span> ';
+                });
+                out.innerHTML = html;
+                out.querySelectorAll('[data-name]').forEach(function(el) {
+                    el.addEventListener('click', function() {
+                        document.getElementById('printer_destination').value = this.getAttribute('data-name');
+                    });
+                });
+            } else {
+                out.innerHTML = '<span class="text-warning">' + (data.message || 'Keine Drucker gefunden. CUPS_SERVER in docker-compose setzen?') + '</span>';
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            out.innerHTML = '<span class="text-danger">Fehler beim Laden.</span>';
+        });
 });
 </script>
 </body>

@@ -56,8 +56,8 @@ services:
       - feuerwehr_network
     environment:
       - APACHE_DOCUMENT_ROOT=/var/www/html
-      # CUPS-Server für Druckfunktion (optional): Host-IP wenn CUPS auf dem Host läuft, z.B. host.docker.internal oder 192.168.1.100
-      # - CUPS_SERVER=host.docker.internal
+      # CUPS-Server für Druckfunktion: Host mit CUPS (lpstat -p zeigt Drucker). Linux: 172.17.0.1 oder Host-IP; Windows/Mac: host.docker.internal
+      # - CUPS_SERVER=172.17.0.1
 
 volumes:
   mysql_data:
