@@ -128,6 +128,21 @@ try {
     }
     try {
         $db->exec("
+            CREATE TABLE IF NOT EXISTS vehicle_equipment (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                vehicle_id INT NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
+                KEY idx_vehicle (vehicle_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+    } catch (Exception $e2) {
+        error_log('vehicle_equipment Tabelle: ' . $e2->getMessage());
+    }
+    try {
+        $db->exec("
             CREATE TABLE IF NOT EXISTS anwesenheitsliste_fahrzeuge (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 anwesenheitsliste_id INT NOT NULL,

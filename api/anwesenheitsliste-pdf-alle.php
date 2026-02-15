@@ -142,6 +142,34 @@ foreach ($listen as $idx => $liste) {
     $vehicle_ids = array_filter(array_map('intval', $vehicle_ids));
     $vehicle_roles = [];
     foreach ($liste_vehicles as $lv) $vehicle_roles[$lv['vehicle_id']] = ['maschinist' => trim($lv['masch_first'] . ' ' . $lv['masch_last']), 'einheitsfuehrer' => trim($lv['einh_first'] . ' ' . $lv['einh_last'])];
+    $vehicle_equipment_data = $custom_data_pdf['vehicle_equipment'] ?? [];
+    $vehicle_equipment_names = [];
+    if (!empty($vehicle_equipment_data)) {
+        $all_eq_ids = [];
+        foreach ($vehicle_equipment_data as $eq_ids) {
+            if (is_array($eq_ids)) $all_eq_ids = array_merge($all_eq_ids, array_map('intval', $eq_ids));
+        }
+        $all_eq_ids = array_unique(array_filter($all_eq_ids));
+        if (!empty($all_eq_ids)) {
+            try {
+                $ph = implode(',', array_fill(0, count($all_eq_ids), '?'));
+                $stmt = $db->prepare("SELECT id, name FROM vehicle_equipment WHERE id IN ($ph)");
+                $stmt->execute(array_values($all_eq_ids));
+                $eq_map = [];
+                foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                    $eq_map[(int)$r['id']] = $r['name'];
+                }
+                foreach ($vehicle_equipment_data as $vid => $eq_ids) {
+                    if (!is_array($eq_ids)) continue;
+                    $names = [];
+                    foreach (array_map('intval', $eq_ids) as $eid) {
+                        if ($eid > 0 && isset($eq_map[$eid])) $names[] = $eq_map[$eid];
+                    }
+                    $vehicle_equipment_names[(int)$vid] = implode(', ', $names);
+                }
+            } catch (Exception $e) {}
+        }
+    }
 
     $titel = $liste['bezeichnung'] ?? $liste['dienst_bezeichnung'] ?? 'Anwesenheit';
     $typ_label = ($liste['typ'] ?? '') === 'einsatz' ? 'Einsatz' : (($liste['typ'] ?? '') === 'manuell' ? 'Manuell' : get_dienstplan_typ_label($liste['dienst_typ'] ?? 'uebungsdienst'));
@@ -193,7 +221,7 @@ foreach ($listen as $idx => $liste) {
         $part .= '<tr><td>' . htmlspecialchars(trim($lm['last_name'] . ', ' . $lm['first_name'])) . '</td><td class="col-fahrzeug">' . htmlspecialchars($lm['vehicle_name'] ?? '-') . '</td></tr>';
     }
     if (empty($liste_members)) $part .= '<tr><td colspan="2">Keine Einträge</td></tr>';
-    $part .= '</tbody></table></td><td><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer)</div><table width="100%"><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th></tr></thead><tbody>';
+    $part .= '</tbody></table></td><td><div class="section-title">Fahrzeuge (Maschinist / Einheitsführer / Geräte)</div><table width="100%"><thead><tr><th>Fahrzeug</th><th>Maschinist</th><th>Einheitsführer</th><th class="col-staerke">Stärke</th><th>Geräte</th></tr></thead><tbody>';
     foreach ($vehicle_ids as $vid) {
         if ($vid <= 0) continue;
         $vname = '';
@@ -205,9 +233,10 @@ foreach ($listen as $idx => $liste) {
         $roles = $vehicle_roles[$vid] ?? ['maschinist' => '-', 'einheitsfuehrer' => '-'];
         $crew_ids = array_column(array_filter($liste_members, fn($m) => (int)$m['vehicle_id'] === $vid), 'member_id');
         $besatzungsstaerke = get_besatzungsstaerke($crew_ids, $db);
-        $part .= '<tr><td>' . htmlspecialchars($vname) . '</td><td>' . htmlspecialchars(trim($roles['maschinist']) ?: '-') . '</td><td>' . htmlspecialchars(trim($roles['einheitsfuehrer']) ?: '-') . '</td><td class="col-staerke">' . htmlspecialchars($besatzungsstaerke) . '</td></tr>';
+        $geraete_str = $vehicle_equipment_names[$vid] ?? '-';
+        $part .= '<tr><td>' . htmlspecialchars($vname) . '</td><td>' . htmlspecialchars(trim($roles['maschinist']) ?: '-') . '</td><td>' . htmlspecialchars(trim($roles['einheitsfuehrer']) ?: '-') . '</td><td class="col-staerke">' . htmlspecialchars($besatzungsstaerke) . '</td><td>' . htmlspecialchars($geraete_str) . '</td></tr>';
     }
-    if (empty($vehicle_ids) || (count($vehicle_ids) === 1 && in_array(0, $vehicle_ids))) $part .= '<tr><td colspan="4">Keine Fahrzeuge zugeordnet</td></tr>';
+    if (empty($vehicle_ids) || (count($vehicle_ids) === 1 && in_array(0, $vehicle_ids))) $part .= '<tr><td colspan="5">Keine Fahrzeuge zugeordnet</td></tr>';
     $part .= '</tbody></table></td></tr></table></div>';
 
     $leiter_label = $is_uebungsdienst_pdf ? 'Übungsleiter' : 'Einsatzleiter';

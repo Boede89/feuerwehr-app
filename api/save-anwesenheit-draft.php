@@ -47,6 +47,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
             if ($vid > 0 && $role === 'maschinist') $draft['vehicle_maschinist'][$vid] = $mid;
             if ($vid > 0 && $role === 'einheitsfuehrer') $draft['vehicle_einheitsfuehrer'][$vid] = $mid;
         }
+    } elseif ($form_type === 'geraete') {
+        $draft['vehicle_equipment'] = [];
+        if (!empty($_POST['equipment']) && is_array($_POST['equipment'])) {
+            foreach ($_POST['equipment'] as $vid => $ids) {
+                $vid = (int)$vid;
+                if ($vid > 0 && is_array($ids)) {
+                    $ids = array_filter(array_map('intval', $ids), function($x) { return $x > 0; });
+                    if (!empty($ids)) {
+                        $draft['vehicle_equipment'][$vid] = array_values($ids);
+                    }
+                }
+            }
+        }
     } elseif ($form_type === 'fahrzeuge') {
         $draft['vehicles'] = [];
         $draft['vehicle_maschinist'] = $draft['vehicle_maschinist'] ?? [];
@@ -107,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
     // Custom-Felder
     if (!isset($draft['custom_data'])) $draft['custom_data'] = [];
     foreach ($_POST as $k => $v) {
-        if (!in_array($k, array_merge($builtin, ['einsatzleiter', 'einsatzleiter_freitext', 'uebungsleiter', 'typ_sonstige', 'typ_sonstige_freitext', 'thema_neu', 'save_final', 'form_type']), true) && !preg_match('/^(member_id|vehicle|role|vehicle_id|maschinist|einheitsfuehrer)\b/', $k)) {
+        if (!in_array($k, array_merge($builtin, ['einsatzleiter', 'einsatzleiter_freitext', 'uebungsleiter', 'typ_sonstige', 'typ_sonstige_freitext', 'thema_neu', 'save_final', 'form_type', 'equipment']), true) && !preg_match('/^(member_id|vehicle|role|vehicle_id|maschinist|einheitsfuehrer)\b/', $k)) {
             $draft['custom_data'][$k] = trim((string)$v);
         }
     }
@@ -156,7 +169,8 @@ if (!empty($draft['custom_data']) && is_array($draft['custom_data'])) {
         if (!empty(trim((string)$v))) { $has_custom = true; break; }
     }
 }
-$draft_has_content = $has_members || $has_vehicles || $has_text || $has_einsatzleiter || $has_custom;
+$has_vehicle_equipment = !empty($draft['vehicle_equipment']) && is_array($draft['vehicle_equipment']);
+$draft_has_content = $has_members || $has_vehicles || $has_text || $has_einsatzleiter || $has_custom || $has_vehicle_equipment;
 
 $draft_data = json_encode($draft);
 $datum = $draft['datum'] ?? date('Y-m-d');

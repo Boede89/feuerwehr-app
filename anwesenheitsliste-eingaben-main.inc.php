@@ -107,6 +107,7 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'vehicles' => [],
         'vehicle_maschinist' => [],
         'vehicle_einheitsfuehrer' => [],
+        'vehicle_equipment' => [],
         'uhrzeit_von' => $uhrzeit_von_init,
         'uhrzeit_bis' => '',
         'alarmierung_durch' => '',
@@ -179,6 +180,7 @@ if (!is_array($draft['member_vehicle'])) $draft['member_vehicle'] = [];
 if (!is_array($draft['vehicles'])) $draft['vehicles'] = [];
 if (!is_array($draft['vehicle_maschinist'])) $draft['vehicle_maschinist'] = [];
 if (!is_array($draft['vehicle_einheitsfuehrer'])) $draft['vehicle_einheitsfuehrer'] = [];
+if (!is_array($draft['vehicle_equipment'])) $draft['vehicle_equipment'] = [];
 if (!is_array($draft['custom_data'])) $draft['custom_data'] = [];
 
 // Sicherstellen, dass anwesenheitslisten alle Spalten hat (falls Nutzer direkt diese Seite aufruft)
@@ -338,6 +340,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         if (!empty($draft['uebungsleiter_member_ids'])) {
             $custom_data_for_save['uebungsleiter_member_ids'] = $draft['uebungsleiter_member_ids'];
         }
+        if (!empty($draft['vehicle_equipment'])) {
+            $custom_data_for_save['vehicle_equipment'] = $draft['vehicle_equipment'];
+        }
         $custom_data_json = !empty($custom_data_for_save) ? json_encode($custom_data_for_save) : null;
         $einsatzstichwort_save = ($typ_save === 'einsatz' && !empty($draft['einsatzstichwort'])) ? $draft['einsatzstichwort'] : null;
         $divera_id_save = !empty($draft['divera_id']) ? (int)$draft['divera_id'] : null;
@@ -396,6 +401,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
 $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 $personal_url = 'anwesenheitsliste-personal.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+$geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -546,6 +552,12 @@ $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . 
                                     <a href="<?php echo htmlspecialchars($fahrzeuge_url); ?>" class="btn btn-outline-primary w-100 anwesenheits-option-btn anwesenheits-save-before-nav">
                                         <i class="fas fa-truck fa-2x mb-2"></i><span>Fahrzeuge</span>
                                         <small class="d-block mt-1 opacity-90">Eingesetzte Fahrzeuge, Maschinist & Einheitsführer</small>
+                                    </a>
+                                </div>
+                                <div class="col-md-6">
+                                    <a href="<?php echo htmlspecialchars($geraete_url); ?>" class="btn btn-outline-secondary w-100 anwesenheits-option-btn anwesenheits-save-before-nav">
+                                        <i class="fas fa-tools fa-2x mb-2"></i><span>Geräte</span>
+                                        <small class="d-block mt-1 opacity-90">Eingesetzte Gerätschaften pro Fahrzeug</small>
                                     </a>
                                 </div>
                             </div>

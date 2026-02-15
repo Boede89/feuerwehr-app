@@ -175,6 +175,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             } else {
                 $custom_post['uebungsleiter_member_ids'] = [];
             }
+            $custom_post['vehicle_equipment'] = [];
+            if (!empty($_POST['equipment']) && is_array($_POST['equipment'])) {
+                foreach ($_POST['equipment'] as $vid => $ids) {
+                    $vid = (int)$vid;
+                    if ($vid > 0 && is_array($ids)) {
+                        $ids = array_filter(array_map('intval', $ids), function($x) { return $x > 0; });
+                        if (!empty($ids)) {
+                            $custom_post['vehicle_equipment'][$vid] = array_values($ids);
+                        }
+                    }
+                }
+            }
             $updates[] = 'custom_data = ?';
             $params[] = !empty($custom_post) ? json_encode($custom_post) : null;
             $params[] = $id;
@@ -422,6 +434,23 @@ function _al_val($liste, $key, $custom_data = []) {
                 foreach ($liste_vehicles as $lv) {
                     $vehicle_roles[$lv['vehicle_id']] = ['maschinist' => $lv['maschinist_member_id'], 'einheitsfuehrer' => $lv['einheitsfuehrer_member_id']];
                 }
+                $saved_vehicle_equipment = $custom_data['vehicle_equipment'] ?? [];
+                if (!is_array($saved_vehicle_equipment)) $saved_vehicle_equipment = [];
+                $vehicles_with_equipment = [];
+                if (!empty($vehicle_ids)) {
+                    try {
+                        foreach ($vehicle_ids as $vid) {
+                            if ($vid <= 0) continue;
+                            $vname = '';
+                            foreach ($vehicles_list as $v) { if ((int)$v['id'] === $vid) { $vname = $v['name']; break; } }
+                            if ($vname === '') $vname = 'Fahrzeug ' . $vid;
+                            $stmt = $db->prepare("SELECT id, name FROM vehicle_equipment WHERE vehicle_id = ? ORDER BY sort_order, name");
+                            $stmt->execute([$vid]);
+                            $equipment = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                            $vehicles_with_equipment[$vid] = ['name' => $vname, 'equipment' => $equipment];
+                        }
+                    } catch (Exception $e) {}
+                }
                 foreach ($vehicle_ids as $vid):
                     if ($vid <= 0) continue;
                     $vname = '';
@@ -458,6 +487,36 @@ function _al_val($liste, $key, $custom_data = []) {
                 <?php endif; ?>
             </div>
         </div>
+
+        <?php if (!empty($vehicles_with_equipment)): ?>
+        <div class="card mb-4">
+            <div class="card-header"><i class="fas fa-tools"></i> Geräte – eingesetzte Gerätschaften pro Fahrzeug</div>
+            <div class="card-body">
+                <p class="text-muted small">Markieren Sie die Geräte, die pro Fahrzeug eingesetzt wurden.</p>
+                <?php foreach ($vehicles_with_equipment as $vid => $data): ?>
+                <div class="card mb-3">
+                    <div class="card-header py-2"><strong><?php echo htmlspecialchars($data['name']); ?></strong></div>
+                    <div class="card-body py-3">
+                        <?php if (empty($data['equipment'])): ?>
+                        <p class="text-muted small mb-0">Keine Geräte hinterlegt. <a href="vehicles-geraete.php?vehicle_id=<?php echo (int)$vid; ?>">Geräte in Fahrzeug-Einstellungen verwalten</a></p>
+                        <?php else: ?>
+                        <div class="d-flex flex-wrap gap-3">
+                            <?php foreach ($data['equipment'] as $eq):
+                                $checked = isset($saved_vehicle_equipment[$vid]) && in_array((int)$eq['id'], array_map('intval', $saved_vehicle_equipment[$vid]));
+                            ?>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="equipment[<?php echo (int)$vid; ?>][]" value="<?php echo (int)$eq['id']; ?>" id="eq_<?php echo (int)$vid; ?>_<?php echo (int)$eq['id']; ?>"<?php echo $checked ? ' checked' : ''; ?>>
+                                <label class="form-check-label" for="eq_<?php echo (int)$vid; ?>_<?php echo (int)$eq['id']; ?>"><?php echo htmlspecialchars($eq['name']); ?></label>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <div class="mb-4">
             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>

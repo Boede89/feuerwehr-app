@@ -248,8 +248,11 @@ if (isset($_GET['edit'])) {
                                             <td><?php echo format_date($vehicle['created_at']); ?></td>
                                             <td>
                                                 <div class="btn-group" role="group">
+                                                    <a href="vehicles-geraete.php?vehicle_id=<?php echo (int)$vehicle['id']; ?>" class="btn btn-outline-secondary btn-sm" title="Geräte verwalten">
+                                                        <i class="fas fa-tools"></i>
+                                                    </a>
                                                     <button type="button" class="btn btn-outline-primary btn-sm" 
-                                                            onclick="editVehicle(<?php echo $vehicle['id']; ?>, '<?php echo htmlspecialchars($vehicle['name']); ?>', '<?php echo htmlspecialchars($vehicle['description']); ?>', <?php echo $vehicle['sort_order'] ?? 0; ?>, <?php echo $vehicle['is_active']; ?>)">
+                                                            onclick="editVehicle(<?php echo $vehicle['id']; ?>, '<?php echo htmlspecialchars($vehicle['name'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars($vehicle['description'], ENT_QUOTES, 'UTF-8'); ?>', <?php echo $vehicle['sort_order'] ?? 0; ?>, <?php echo $vehicle['is_active']; ?>)">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
                                                     <a href="?delete=<?php echo $vehicle['id']; ?>" 
