@@ -7,6 +7,7 @@
 session_start();
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/anwesenheitsliste-helper.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -130,6 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $draft['vehicle_equipment_sonstiges'][$vid] = array_values(array_unique($sonstiges_list));
         }
     }
+    anwesenheitsliste_draft_persist($db, $draft, (int)$_SESSION['user_id']);
     header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
     exit;
 }

@@ -362,24 +362,26 @@ foreach ($equipment as $eq) {
 try {
     $stmt_ignored = $db->prepare("SELECT id FROM vehicle_equipment_sonstiges_ignored WHERE vehicle_id = ? AND name = ?");
     $sources = [];
-    $stmt = $db->query("SELECT custom_data FROM anwesenheitslisten WHERE custom_data IS NOT NULL AND custom_data != ''");
+    $stmt = $db->query("SELECT custom_data FROM anwesenheitslisten WHERE custom_data IS NOT NULL AND custom_data != '' AND custom_data != 'null'");
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $sources[] = $row['custom_data'];
+        $raw = $row['custom_data'];
+        $sources[] = is_array($raw) ? $raw : (is_string($raw) ? $raw : '');
     }
     try {
-        $stmt2 = $db->query("SELECT draft_data FROM anwesenheitsliste_drafts WHERE draft_data IS NOT NULL AND draft_data != ''");
+        $stmt2 = $db->query("SELECT draft_data FROM anwesenheitsliste_drafts WHERE draft_data IS NOT NULL AND draft_data != '' AND draft_data != 'null'");
         while ($row = $stmt2->fetch(PDO::FETCH_ASSOC)) {
-            $sources[] = $row['draft_data'];
+            $raw = $row['draft_data'];
+            $sources[] = is_array($raw) ? $raw : (is_string($raw) ? $raw : '');
         }
     } catch (Exception $e) {}
     foreach ($sources as $json_str) {
-        $dec = json_decode($json_str ?? '', true);
+        $dec = is_array($json_str) ? $json_str : (is_string($json_str) ? json_decode($json_str, true) : null);
         if (!is_array($dec)) continue;
         $sonst = $dec['vehicle_equipment_sonstiges'] ?? [];
         if (!is_array($sonst)) continue;
         foreach ($sonst as $vid => $txt) {
-            if ((int)$vid !== $vehicle_id) continue;
-            $items = is_array($txt) ? $txt : ($txt !== '' ? [trim((string)$txt)] : []);
+            if ((int)$vid != (int)$vehicle_id) continue;
+            $items = is_array($txt) ? $txt : ($txt !== '' && $txt !== null ? [trim((string)$txt)] : []);
             foreach ($items as $item) {
                 $item = trim((string)$item);
                 if ($item === '') continue;

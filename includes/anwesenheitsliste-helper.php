@@ -111,3 +111,77 @@ function anwesenheitsliste_felder_laden($settings = null) {
     }
     return $std;
 }
+
+/**
+ * Speichert den Anwesenheitsliste-Entwurf in die Datenbank (anwesenheitsliste_drafts).
+ * Wird z. B. nach dem Absenden der Geräte-Seite aufgerufen, damit Sonstiges-Geräte
+ * sofort in der Fahrzeug-Geräteverwaltung sichtbar sind.
+ *
+ * @param PDO $db Datenbankverbindung
+ * @param array $draft Der Draft aus $_SESSION['anwesenheit_draft']
+ * @param int $user_id Benutzer-ID
+ * @return bool true bei Erfolg
+ */
+function anwesenheitsliste_draft_persist($db, $draft, $user_id) {
+    if (!is_array($draft) || empty($draft)) return false;
+    if (!function_exists('get_dienstplan_typen_auswahl')) {
+        require_once __DIR__ . '/dienstplan-typen.php';
+    }
+    $has_members = !empty($draft['members']);
+    $has_vehicles = !empty($draft['vehicles']);
+    $text_fields = ['alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzleiter_freitext'];
+    $has_text = false;
+    foreach ($text_fields as $f) {
+        if (!empty(trim((string)($draft[$f] ?? '')))) { $has_text = true; break; }
+    }
+    $bez = trim((string)($draft['bezeichnung_sonstige'] ?? ''));
+    if ($bez !== '' && !in_array($bez, array_values(get_dienstplan_typen_auswahl()), true)) $has_text = true;
+    $has_einsatzleiter = !empty($draft['einsatzleiter_member_id']) || !empty($draft['uebungsleiter_member_ids']);
+    $has_custom = false;
+    if (!empty($draft['custom_data']) && is_array($draft['custom_data'])) {
+        foreach ($draft['custom_data'] as $v) {
+            if (!empty(trim((string)$v))) { $has_custom = true; break; }
+        }
+    }
+    $has_vehicle_equipment = (!empty($draft['vehicle_equipment']) && is_array($draft['vehicle_equipment'])) || (!empty($draft['vehicle_equipment_sonstiges']) && is_array($draft['vehicle_equipment_sonstiges']));
+    if (!$has_members && !$has_vehicles && !$has_text && !$has_einsatzleiter && !$has_custom && !$has_vehicle_equipment) {
+        try {
+            $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?")->execute([$draft['datum'] ?? '', $draft['auswahl'] ?? '']);
+        } catch (Exception $e) {}
+        return true;
+    }
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS anwesenheitsliste_drafts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NULL,
+                datum DATE NOT NULL,
+                auswahl VARCHAR(50) NOT NULL,
+                dienstplan_id INT NULL,
+                typ VARCHAR(50) NOT NULL DEFAULT 'dienst',
+                bezeichnung VARCHAR(255) NULL,
+                draft_data JSON NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_datum_auswahl (datum, auswahl)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+    } catch (Exception $e) { /* ignore */ }
+    try {
+        $draft_data = json_encode($draft);
+        $datum = $draft['datum'] ?? date('Y-m-d');
+        $auswahl = $draft['auswahl'] ?? '';
+        $dienstplan_id = isset($draft['dienstplan_id']) ? ($draft['dienstplan_id'] ?: null) : null;
+        $typ = $draft['typ'] ?? 'dienst';
+        $bezeichnung = $draft['bezeichnung_sonstige'] ?? null;
+        $stmt = $db->prepare("
+            INSERT INTO anwesenheitsliste_drafts (user_id, datum, auswahl, dienstplan_id, typ, bezeichnung, draft_data)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), dienstplan_id = VALUES(dienstplan_id), typ = VALUES(typ), bezeichnung = VALUES(bezeichnung), draft_data = VALUES(draft_data), updated_at = CURRENT_TIMESTAMP
+        ");
+        $stmt->execute([(int)$user_id, $datum, $auswahl, $dienstplan_id, $typ, $bezeichnung, $draft_data]);
+        return true;
+    } catch (Exception $e) {
+        error_log('anwesenheitsliste_draft_persist: ' . $e->getMessage());
+        return false;
+    }
+}
