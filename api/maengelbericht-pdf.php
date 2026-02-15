@@ -78,13 +78,16 @@ $html = '<!DOCTYPE html>
         .value-cell { padding: 4px 8px; border: 1px solid #ddd; }
         .geraetewart-section { margin-top: 20px; padding-top: 12px; border-top: 2px solid #333; }
         .geraetewart-title { font-weight: bold; font-size: 11pt; margin-bottom: 10px; }
-        .line-field { display: flex; align-items: baseline; margin-bottom: 6px; }
-        .line-field label { min-width: 140px; font-weight: bold; }
-        .line-field .line { flex: 1; border-bottom: 1px solid #333; margin-left: 8px; min-height: 18px; }
-        .prioritaet-row { display: flex; align-items: center; margin: 8px 0; }
+        .line-field { display: flex; align-items: flex-end; margin-bottom: 14px; min-height: 36px; }
+        .line-field label { min-width: 140px; font-weight: bold; padding-bottom: 4px; }
+        .line-field .line { flex: 1; border-bottom: 1px solid #333; margin-left: 8px; min-height: 28px; padding-top: 8px; }
+        .prioritaet-row { display: flex; align-items: center; margin: 12px 0; }
         .prioritaet-row .box { width: 14px; height: 14px; border: 1px solid #333; margin-right: 4px; display: inline-block; }
         .prioritaet-row span { margin-right: 20px; }
-        .veranlassung-line { border-bottom: 1px solid #333; min-height: 16px; margin: 4px 0; }
+        .veranlassung-line { border-bottom: 1px solid #333; min-height: 28px; margin: 10px 0; padding-top: 8px; }
+        .signature-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid #333; }
+        .signature-line { border-bottom: 1px solid #333; width: 180px; min-height: 32px; margin-top: 24px; }
+        .signature-label { font-size: 8pt; color: #666; margin-top: 4px; }
         @media print { .section { page-break-inside: avoid; } }
     </style>
 </head>
@@ -133,6 +136,10 @@ $html = '<!DOCTYPE html>
         <div class="line-field">
             <label>ggf. Dauer:</label>
             <div class="line"></div>
+        </div>
+        <div class="signature-section">
+            <div class="signature-line"></div>
+            <div class="signature-label">Unterschrift Gerätewart</div>
         </div>
     </div>
 </body>
