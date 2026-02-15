@@ -99,8 +99,6 @@ $back_target = $return_formularcenter ? ' target="_parent"' : '';
     <?php if ($message) echo show_success($message); ?>
     <?php if ($error) echo show_error($error); ?>
 
-    <p class="text-muted mb-4">Die Formularfelder für die Gerätewartmitteilung werden in Kürze ergänzt.</p>
-
     <form method="POST" class="card mb-4">
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
         <div class="card-header"><i class="fas fa-envelope"></i> E-Mail-Versand nach Absenden</div>

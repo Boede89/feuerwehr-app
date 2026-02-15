@@ -285,6 +285,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
             }
         }
     }
+    if ($action === 'delete_geraetewartmitteilung' && !$error) {
+        $id = (int)($_POST['geraetewartmitteilung_id'] ?? 0);
+        if ($id) {
+            try {
+                $db->prepare("DELETE FROM geraetewartmitteilungen WHERE id = ?")->execute([$id]);
+                $msg = urlencode('Gerätewartmitteilung wurde gelöscht.');
+                $redir = 'formularcenter.php?tab=submissions&message=' . $msg;
+                if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
+                if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
+                if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
+                header('Location: ' . $redir);
+                exit;
+            } catch (Exception $e) {
+                $error = 'Löschen fehlgeschlagen.';
+            }
+        }
+    }
 }
 
 // Formulare laden
@@ -392,7 +409,36 @@ try {
     // Tabelle kann fehlen
 }
 
-$submissions_total = count($submissions) + count($anwesenheitslisten) + count($maengelberichte);
+// Gerätewartmitteilungen laden
+$geraetewartmitteilungen = [];
+try {
+    $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilungen (id INT AUTO_INCREMENT PRIMARY KEY, typ VARCHAR(20) NOT NULL, einsatz_uebungsart VARCHAR(50) NOT NULL, datum DATE NOT NULL, einsatzbereitschaft VARCHAR(30) NOT NULL, mangel_beschreibung TEXT NULL, einsatzleiter_member_id INT NULL, einsatzleiter_freitext VARCHAR(255) NULL, user_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, KEY idx_datum (datum), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilung_fahrzeuge (id INT AUTO_INCREMENT PRIMARY KEY, geraetewartmitteilung_id INT NOT NULL, vehicle_id INT NOT NULL, maschinist_member_id INT NULL, einheitsfuehrer_member_id INT NULL, equipment_used JSON NULL, defective_equipment JSON NULL, defective_freitext TEXT NULL, defective_mangel TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (geraetewartmitteilung_id) REFERENCES geraetewartmitteilungen(id) ON DELETE CASCADE, FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE, UNIQUE KEY unique_gwm_vehicle (geraetewartmitteilung_id, vehicle_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $sql = "
+        SELECT g.id, g.typ, g.einsatz_uebungsart, g.datum, g.created_at,
+               COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name
+        FROM geraetewartmitteilungen g
+        LEFT JOIN users u ON u.id = g.user_id
+        WHERE 1=1
+    ";
+    $params = [];
+    if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
+        $sql .= " AND g.datum >= ?";
+        $params[] = $filter_datum_von;
+    }
+    if ($filter_datum_bis !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_bis)) {
+        $sql .= " AND g.datum <= ?";
+        $params[] = $filter_datum_bis;
+    }
+    $sql .= " ORDER BY g.created_at DESC";
+    $stmt = $params ? $db->prepare($sql) : $db->query($sql);
+    if ($params) $stmt->execute($params);
+    $geraetewartmitteilungen = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Tabelle kann fehlen
+}
+
+$submissions_total = count($submissions) + count($anwesenheitslisten) + count($maengelberichte) + count($geraetewartmitteilungen);
 
 // Zähler für Formular-Buttons (vor Filterung)
 $form_counts_for_buttons = [];
@@ -405,19 +451,27 @@ foreach ($submissions as $s) {
 }
 $anwesenheitslisten_count = count($anwesenheitslisten);
 $maengelberichte_count = count($maengelberichte);
+$geraetewartmitteilungen_count = count($geraetewartmitteilungen);
 
 // Nach Formulartyp filtern (Buttons: Anwesenheitsliste, Mängelbericht, etc.)
 if ($filter_formular === 'anwesenheitsliste') {
     $submissions = [];
     $maengelberichte = [];
+    $geraetewartmitteilungen = [];
 } elseif ($filter_formular === 'maengelbericht') {
     $submissions = [];
     $anwesenheitslisten = [];
+    $geraetewartmitteilungen = [];
+} elseif ($filter_formular === 'geraetewartmitteilung') {
+    $submissions = [];
+    $anwesenheitslisten = [];
+    $maengelberichte = [];
 } elseif (preg_match('/^form_(\d+)$/', $filter_formular, $fm)) {
     $form_id_filter = (int)$fm[1];
     $submissions = array_filter($submissions, fn($s) => (int)($s['form_id'] ?? 0) === $form_id_filter);
     $anwesenheitslisten = [];
     $maengelberichte = [];
+    $geraetewartmitteilungen = [];
 }
 
 // Dienstplan-Einträge und Themen für Dropdown
@@ -625,6 +679,10 @@ try {
                     <a href="../api/maengelbericht-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-outline-success btn-sm" download title="Alle Mängelberichte als PDF herunterladen"><i class="fas fa-file-pdf"></i> Alle Mängelberichte als PDF</a>
                     <button type="button" class="btn btn-outline-secondary btn-sm" title="Alle Mängelberichte drucken" onclick="druckenMaengelberichtAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print"></i> Alle Mängelberichte drucken</button>
                     <?php endif; ?>
+                    <?php if (!empty($geraetewartmitteilungen)): ?>
+                    <a href="../api/geraetewartmitteilung-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-outline-success btn-sm" download title="Alle Gerätewartmitteilungen als PDF herunterladen"><i class="fas fa-file-pdf"></i> Alle Gerätewartmitteilungen als PDF</a>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" title="Alle Gerätewartmitteilungen drucken" onclick="druckenGeraetewartmitteilungAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print"></i> Alle Gerätewartmitteilungen drucken</button>
+                    <?php endif; ?>
                     <form method="get" class="d-flex flex-wrap align-items-center gap-2">
                         <input type="hidden" name="tab" value="submissions">
                         <input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>">
@@ -668,6 +726,11 @@ try {
                             $p['filter_formular'] = 'maengelbericht';
                         ?>
                         <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'maengelbericht' ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1"><i class="fas fa-exclamation-triangle me-1"></i> Mängelbericht (<?php echo $maengelberichte_count; ?>)</a>
+                        <?php
+                            $p = $base_params;
+                            $p['filter_formular'] = 'geraetewartmitteilung';
+                        ?>
+                        <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'geraetewartmitteilung' ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1"><i class="fas fa-wrench me-1"></i> Gerätewartmitteilung (<?php echo $geraetewartmitteilungen_count; ?>)</a>
                         <?php foreach ($forms as $f):
                             $cnt = $form_counts_for_buttons[(int)$f['id']] ?? 0;
                             $p = $base_params;
@@ -676,7 +739,7 @@ try {
                         <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'form_' . $f['id'] ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1"><?php echo htmlspecialchars($f['title']); ?> (<?php echo $cnt; ?>)</a>
                         <?php endforeach; ?>
                     </div>
-                    <?php if (empty($submissions) && empty($anwesenheitslisten) && empty($maengelberichte)): ?>
+                    <?php if (empty($submissions) && empty($anwesenheitslisten) && empty($maengelberichte) && empty($geraetewartmitteilungen)): ?>
                         <p class="text-muted mb-0">Noch keine ausgefüllten Formulare, Anwesenheitslisten oder Mängelberichte vorhanden.<?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== ''): ?> Versuchen Sie, die Filter zu ändern.<?php endif; ?></p>
                     <?php else: ?>
                         <div class="table-responsive">
@@ -751,6 +814,30 @@ try {
                                                 <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
                                                 <input type="hidden" name="action" value="delete_maengelbericht">
                                                 <input type="hidden" name="maengelbericht_id" value="<?php echo (int)$m['id']; ?>">
+                                                <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
+                                                <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
+                                                <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="fas fa-trash"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                    <?php foreach ($geraetewartmitteilungen as $g):
+                                        $titel = date('d.m.Y', strtotime($g['datum'])) . ' – ' . ($g['typ'] === 'einsatz' ? 'Einsatz' : 'Übung') . ' – ' . htmlspecialchars($g['einsatz_uebungsart']);
+                                    ?>
+                                    <tr>
+                                        <td><i class="fas fa-wrench text-info me-1"></i> <?php echo $titel; ?></td>
+                                        <td><span class="badge bg-info"><?php echo $g['typ'] === 'einsatz' ? 'Einsatz' : 'Übung'; ?></span></td>
+                                        <td><?php echo htmlspecialchars(trim($g['user_first_name'] . ' ' . $g['user_last_name']) ?: 'Unbekannt'); ?></td>
+                                        <td><?php echo format_datetime_berlin($g['created_at']); ?></td>
+                                        <td>
+                                            <a href="geraetewartmitteilung-bearbeiten.php?id=<?php echo (int)$g['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
+                                            <a href="../api/geraetewartmitteilung-pdf.php?id=<?php echo (int)$g['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" download><i class="fas fa-file-pdf"></i> PDF</a>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" title="Drucken" onclick="druckenGeraetewartmitteilung(<?php echo (int)$g['id']; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
+                                            <form method="post" class="d-inline" onsubmit="return confirm('Gerätewartmitteilung wirklich löschen?');">
+                                                <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
+                                                <input type="hidden" name="action" value="delete_geraetewartmitteilung">
+                                                <input type="hidden" name="geraetewartmitteilung_id" value="<?php echo (int)$g['id']; ?>">
                                                 <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
                                                 <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
                                                 <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
@@ -1350,6 +1437,31 @@ try {
                 })
                 .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
                 .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Alle Mängelberichte drucken'; } });
+        }
+        function druckenGeraetewartmitteilung(id, btn) {
+            btn = btn || (event && event.target ? event.target.closest('button') : null);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Drucken...'; }
+            fetch('../api/print-geraetewartmitteilung.php?id=' + id)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) alert('Druckauftrag wurde an den Drucker gesendet.');
+                    else alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+                })
+                .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
+                .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Drucken'; } });
+        }
+        function druckenGeraetewartmitteilungAlle(query, btn) {
+            btn = btn || (event && event.target ? event.target.closest('button') : null);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Drucken...'; }
+            var url = '../api/print-geraetewartmitteilung.php?alle=1' + (query ? '&' + query : '');
+            fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) alert('Druckauftrag wurde an den Drucker gesendet.');
+                    else alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+                })
+                .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
+                .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Alle Gerätewartmitteilungen drucken'; } });
         }
     </script>
 </body>
