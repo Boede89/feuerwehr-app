@@ -522,8 +522,8 @@ function _al_val($liste, $key, $custom_data = []) {
         <div class="card mb-4">
             <div class="card-header"><i class="fas fa-tools"></i> Geräte – eingesetzte Gerätschaften pro Fahrzeug</div>
             <div class="card-body">
-                <p class="text-muted small">Klicken Sie auf die Geräte zur Auswahl (farbliche Markierung). Bei „Sonstiges“ öffnet sich ein Textfeld.</p>
-                <style>.geraete-item-edit{cursor:pointer;padding:0.5rem 0.75rem;border-radius:6px;border:2px solid #e9ecef;transition:all 0.2s;display:inline-block;margin:0.2rem}.geraete-item-edit:hover{background:#f8f9fa}.geraete-item-edit-selected{background:#0d6efd!important;color:#fff!important;border-color:#0d6efd!important}.geraete-cat-edit{font-size:0.85rem;color:#6c757d;margin-bottom:0.3rem}</style>
+                <p class="text-muted small">Klicken Sie auf eine Kategorie, um die Geräte anzuzeigen. Dann klicken Sie auf die Geräte zur Auswahl.</p>
+                <style>.geraete-item-edit{cursor:pointer;padding:0.5rem 0.75rem;border-radius:6px;border:2px solid #e9ecef;transition:all 0.2s;display:inline-block;margin:0.2rem}.geraete-item-edit:hover{background:#f8f9fa}.geraete-item-edit-selected{background:#0d6efd!important;color:#fff!important;border-color:#0d6efd!important}.geraete-cat-header-edit{cursor:pointer;padding:0.5rem 0.75rem;border-radius:6px;border:2px solid #dee2e6;background:#f8f9fa;margin-bottom:0.5rem;display:flex;align-items:center;justify-content:space-between}.geraete-cat-header-edit:hover{background:#e9ecef}.geraete-cat-header-edit .fa-chevron-down{transition:transform 0.2s}.geraete-cat-header-edit.expanded .fa-chevron-down{transform:rotate(180deg)}.geraete-cat-content-edit{display:none;padding-left:0.5rem;margin-bottom:0.75rem}.geraete-cat-content-edit.expanded{display:block}</style>
                 <?php foreach ($vehicles_with_equipment as $vid => $data): ?>
                 <div class="card mb-3">
                     <div class="card-header py-2"><strong><?php echo htmlspecialchars($data['name']); ?></strong></div>
@@ -532,14 +532,20 @@ function _al_val($liste, $key, $custom_data = []) {
                         <p class="text-muted small mb-2">Keine Geräte hinterlegt. <a href="vehicles-geraete.php?vehicle_id=<?php echo (int)$vid; ?>">Geräte verwalten</a></p>
                         <?php else: ?>
                         <?php foreach ($data['equipment_by_category'] as $cat_name => $items): ?>
-                        <div class="mb-3">
-                            <?php if ($cat_name !== ''): ?><div class="geraete-cat-edit"><?php echo htmlspecialchars($cat_name); ?></div><?php endif; ?>
-                            <div class="d-flex flex-wrap">
-                                <?php foreach ($items as $eq):
-                                    $checked = isset($saved_vehicle_equipment[$vid]) && in_array((int)$eq['id'], array_map('intval', $saved_vehicle_equipment[$vid]));
-                                ?>
-                                <div class="geraete-item-edit geraete-equipment-edit <?php echo $checked ? 'geraete-item-edit-selected' : ''; ?>" data-vid="<?php echo (int)$vid; ?>" data-eq-id="<?php echo (int)$eq['id']; ?>" role="button" tabindex="0"><?php echo htmlspecialchars($eq['name']); ?></div>
-                                <?php endforeach; ?>
+                        <?php $cat_label = $cat_name !== '' ? $cat_name : 'Ohne Kategorie'; $cat_id_attr = 'cat_edit_' . (int)$vid . '_' . md5($cat_label); ?>
+                        <div class="geraete-cat-block-edit mb-2">
+                            <div class="geraete-cat-header-edit" data-target="<?php echo htmlspecialchars($cat_id_attr); ?>" role="button" tabindex="0">
+                                <span><?php echo htmlspecialchars($cat_label); ?></span>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                            <div class="geraete-cat-content-edit" id="<?php echo htmlspecialchars($cat_id_attr); ?>">
+                                <div class="d-flex flex-wrap">
+                                    <?php foreach ($items as $eq):
+                                        $checked = isset($saved_vehicle_equipment[$vid]) && in_array((int)$eq['id'], array_map('intval', $saved_vehicle_equipment[$vid]));
+                                    ?>
+                                    <div class="geraete-item-edit geraete-equipment-edit <?php echo $checked ? 'geraete-item-edit-selected' : ''; ?>" data-vid="<?php echo (int)$vid; ?>" data-eq-id="<?php echo (int)$eq['id']; ?>" role="button" tabindex="0"><?php echo htmlspecialchars($eq['name']); ?></div>
+                                    <?php endforeach; ?>
+                                </div>
                             </div>
                         </div>
                         <?php endforeach; ?>
@@ -562,6 +568,14 @@ function _al_val($liste, $key, $custom_data = []) {
         </div>
         <script>
         (function(){
+            document.querySelectorAll('.geraete-cat-header-edit').forEach(function(header){
+                header.onclick=function(){
+                    var targetId=this.getAttribute('data-target');
+                    var content=document.getElementById(targetId);
+                    if(content){content.classList.toggle('expanded');this.classList.toggle('expanded');}
+                };
+                header.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this.click();}};
+            });
             function syncEdit(vid){
                 var c=document.querySelector('.geraete-hidden-inputs-edit[data-vid="'+vid+'"]');
                 if(!c)return;

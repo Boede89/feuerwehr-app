@@ -213,35 +213,6 @@ if (isset($equipment_by_category[0])) {
     <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
     <div class="card mb-4">
-        <div class="card-header">Kategorien (optional – zum Sortieren der Geräte)</div>
-        <div class="card-body">
-            <form method="post" class="d-flex gap-2 mb-3">
-                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                <input type="hidden" name="vehicle_id" value="<?php echo (int)$vehicle_id; ?>">
-                <input type="hidden" name="action" value="add_category">
-                <input type="text" class="form-control" name="category_name" placeholder="z.B. Hydraulik, Stromerzeuger">
-                <button type="submit" class="btn btn-outline-primary"><i class="fas fa-plus"></i> Kategorie hinzufügen</button>
-            </form>
-            <?php if (!empty($categories)): ?>
-            <div class="d-flex flex-wrap gap-2">
-                <?php foreach ($categories as $cat): ?>
-                <span class="badge bg-secondary d-inline-flex align-items-center gap-1">
-                    <?php echo htmlspecialchars($cat['name']); ?>
-                    <form method="post" class="d-inline" onsubmit="return confirm('Kategorie wirklich entfernen?');">
-                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                        <input type="hidden" name="vehicle_id" value="<?php echo (int)$vehicle_id; ?>">
-                        <input type="hidden" name="action" value="delete_category">
-                        <input type="hidden" name="category_id" value="<?php echo (int)$cat['id']; ?>">
-                        <button type="submit" class="btn btn-link p-0 text-white" style="font-size:0.9em"><i class="fas fa-times"></i></button>
-                    </form>
-                </span>
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <div class="card mb-4">
         <div class="card-header">Gerät hinzufügen</div>
         <div class="card-body">
             <form method="post" class="d-flex flex-wrap gap-2 align-items-end">
@@ -263,6 +234,35 @@ if (isset($equipment_by_category[0])) {
                 </div>
                 <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Hinzufügen</button>
             </form>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">Kategorien (optional – zum Sortieren der Geräte)</div>
+        <div class="card-body">
+            <form method="post" class="d-flex gap-2 mb-3 align-items-center">
+                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                <input type="hidden" name="vehicle_id" value="<?php echo (int)$vehicle_id; ?>">
+                <input type="hidden" name="action" value="add_category">
+                <input type="text" class="form-control form-control-sm" name="category_name" placeholder="z.B. Hydraulik" style="max-width:180px">
+                <button type="submit" class="btn btn-sm btn-outline-primary"><i class="fas fa-plus"></i> Kategorie hinzufügen</button>
+            </form>
+            <?php if (!empty($categories)): ?>
+            <div class="d-flex flex-wrap gap-2">
+                <?php foreach ($categories as $cat): ?>
+                <span class="badge bg-secondary d-inline-flex align-items-center gap-1">
+                    <?php echo htmlspecialchars($cat['name']); ?>
+                    <form method="post" class="d-inline" onsubmit="return confirm('Kategorie wirklich entfernen?');">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <input type="hidden" name="vehicle_id" value="<?php echo (int)$vehicle_id; ?>">
+                        <input type="hidden" name="action" value="delete_category">
+                        <input type="hidden" name="category_id" value="<?php echo (int)$cat['id']; ?>">
+                        <button type="submit" class="btn btn-link p-0 text-white" style="font-size:0.9em"><i class="fas fa-times"></i></button>
+                    </form>
+                </span>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 

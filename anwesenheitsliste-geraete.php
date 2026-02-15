@@ -141,7 +141,12 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
         .geraete-item { cursor: pointer; padding: 0.5rem 0.75rem; border-radius: 6px; border: 2px solid #e9ecef; transition: all 0.2s; display: inline-block; margin: 0.2rem; }
         .geraete-item:hover { background: #f8f9fa; border-color: #dee2e6; }
         .geraete-item-selected { background: #0d6efd !important; color: #fff !important; border-color: #0d6efd !important; }
-        .geraete-category { font-size: 0.85rem; color: #6c757d; margin-bottom: 0.3rem; }
+        .geraete-cat-header { cursor: pointer; padding: 0.5rem 0.75rem; border-radius: 6px; border: 2px solid #dee2e6; background: #f8f9fa; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: space-between; }
+        .geraete-cat-header:hover { background: #e9ecef; }
+        .geraete-cat-header .fa-chevron-down { transition: transform 0.2s; }
+        .geraete-cat-header.expanded .fa-chevron-down { transform: rotate(180deg); }
+        .geraete-cat-content { display: none; padding-left: 0.5rem; margin-bottom: 0.75rem; }
+        .geraete-cat-content.expanded { display: block; }
     </style>
 </head>
 <body>
@@ -189,7 +194,7 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                         <a href="<?php echo htmlspecialchars($back_url); ?>" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
                     <?php else: ?>
                     <form method="post" id="geraeteForm">
-                        <p class="text-muted small">Klicken Sie auf die Geräte, die bei diesem Einsatz/Dienst pro Fahrzeug eingesetzt wurden. Bei „Sonstiges“ öffnet sich ein Textfeld für manuelle Eingabe.</p>
+                        <p class="text-muted small">Klicken Sie auf eine Kategorie, um die Geräte anzuzeigen. Dann klicken Sie auf die Geräte zur Auswahl. Bei „Sonstiges“ öffnet sich ein Textfeld.</p>
                         <?php foreach ($vehicles_with_equipment as $vid => $data): ?>
                         <div class="card mb-3">
                             <div class="card-header py-2"><strong><?php echo htmlspecialchars($data['name']); ?></strong></div>
@@ -198,18 +203,22 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                                     <p class="text-muted small mb-2">Keine Geräte hinterlegt. <a href="admin/vehicles-geraete.php?vehicle_id=<?php echo (int)$vid; ?>">Geräte verwalten</a></p>
                                 <?php else: ?>
                                     <?php foreach ($data['equipment_by_category'] as $cat_name => $items): ?>
-                                    <div class="mb-3">
-                                        <?php if ($cat_name !== ''): ?>
-                                        <div class="geraete-category"><?php echo htmlspecialchars($cat_name); ?></div>
-                                        <?php endif; ?>
-                                        <div class="d-flex flex-wrap">
-                                            <?php foreach ($items as $eq):
-                                                $checked = isset($saved_selection[$vid]) && in_array((int)$eq['id'], $saved_selection[$vid]);
-                                            ?>
-                                            <div class="geraete-item geraete-equipment <?php echo $checked ? 'geraete-item-selected' : ''; ?>" data-vid="<?php echo (int)$vid; ?>" data-eq-id="<?php echo (int)$eq['id']; ?>" role="button" tabindex="0">
-                                                <?php echo htmlspecialchars($eq['name']); ?>
+                                    <?php $cat_label = $cat_name !== '' ? $cat_name : 'Ohne Kategorie'; $cat_id_attr = 'cat_' . (int)$vid . '_' . md5($cat_label); ?>
+                                    <div class="geraete-cat-block mb-2">
+                                        <div class="geraete-cat-header" data-target="<?php echo htmlspecialchars($cat_id_attr); ?>" role="button" tabindex="0">
+                                            <span><?php echo htmlspecialchars($cat_label); ?></span>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                        <div class="geraete-cat-content" id="<?php echo htmlspecialchars($cat_id_attr); ?>">
+                                            <div class="d-flex flex-wrap">
+                                                <?php foreach ($items as $eq):
+                                                    $checked = isset($saved_selection[$vid]) && in_array((int)$eq['id'], $saved_selection[$vid]);
+                                                ?>
+                                                <div class="geraete-item geraete-equipment <?php echo $checked ? 'geraete-item-selected' : ''; ?>" data-vid="<?php echo (int)$vid; ?>" data-eq-id="<?php echo (int)$eq['id']; ?>" role="button" tabindex="0">
+                                                    <?php echo htmlspecialchars($eq['name']); ?>
+                                                </div>
+                                                <?php endforeach; ?>
                                             </div>
-                                            <?php endforeach; ?>
                                         </div>
                                     </div>
                                     <?php endforeach; ?>
@@ -250,6 +259,19 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 (function() {
+    document.querySelectorAll('.geraete-cat-header').forEach(function(header) {
+        header.addEventListener('click', function() {
+            var targetId = this.getAttribute('data-target');
+            var content = document.getElementById(targetId);
+            if (content) {
+                content.classList.toggle('expanded');
+                this.classList.toggle('expanded');
+            }
+        });
+        header.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
+        });
+    });
     function syncHiddenInputs(vid) {
         var container = document.querySelector('.geraete-hidden-inputs[data-vid="' + vid + '"]');
         if (!container) return;
