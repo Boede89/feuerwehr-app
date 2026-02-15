@@ -195,7 +195,8 @@ if (!empty($draft['custom_data']) && is_array($draft['custom_data'])) {
     }
 }
 $has_vehicle_equipment = (!empty($draft['vehicle_equipment']) && is_array($draft['vehicle_equipment'])) || (!empty($draft['vehicle_equipment_sonstiges']) && is_array($draft['vehicle_equipment_sonstiges']));
-$draft_has_content = $has_members || $has_vehicles || $has_text || $has_einsatzleiter || $has_custom || $has_vehicle_equipment;
+$has_maengel = !empty($draft['maengel']) && is_array($draft['maengel']);
+$draft_has_content = $has_members || $has_vehicles || $has_text || $has_einsatzleiter || $has_custom || $has_vehicle_equipment || $has_maengel;
 
 $draft_data = json_encode($draft);
 $datum = $draft['datum'] ?? date('Y-m-d');

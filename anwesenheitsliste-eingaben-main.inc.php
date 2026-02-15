@@ -139,10 +139,14 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'einsatzleiter_member_id' => null,
         'einsatzleiter_freitext' => '',
         'custom_data' => [],
+        'maengel' => [],
     ];
     }
 }
 $draft = &$_SESSION[$draft_key];
+if (!isset($draft['maengel']) || !is_array($draft['maengel'])) {
+    $draft['maengel'] = [];
+}
 
 // Divera-Einsatz: Daten aus Divera übernehmen (wenn divera_id übergeben)
 $divera_id = isset($_GET['divera_id']) ? (int)$_GET['divera_id'] : 0;
@@ -439,6 +443,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 $stmt->execute([$list_id, $vid, $masch, $einh]);
             } catch (Exception $e) {
                 // Tabelle evtl. nicht vorhanden
+            }
+        }
+        // Mängel aus Draft: Mängelberichte automatisch erstellen
+        $maengel_list = $draft['maengel'] ?? [];
+        if (!empty($maengel_list) && is_array($maengel_list)) {
+            try {
+                $db->exec("CREATE TABLE IF NOT EXISTS maengelberichte (id INT AUTO_INCREMENT PRIMARY KEY, standort VARCHAR(100) NOT NULL, mangel_an VARCHAR(50) NOT NULL, bezeichnung VARCHAR(255) NULL, mangel_beschreibung TEXT NULL, ursache TEXT NULL, verbleib TEXT NULL, aufgenommen_durch_text VARCHAR(255) NULL, aufgenommen_durch_member_id INT NULL, aufgenommen_am DATE NOT NULL, user_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, KEY idx_aufgenommen_am (aufgenommen_am), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $stmt_mb = $db->prepare("INSERT INTO maengelberichte (standort, mangel_an, bezeichnung, mangel_beschreibung, ursache, verbleib, aufgenommen_durch_text, aufgenommen_durch_member_id, aufgenommen_am, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                foreach ($maengel_list as $m) {
+                    $standort = $m['standort'] ?? 'GH Amern';
+                    $mangel_an = $m['mangel_an'] ?? 'Gebäude';
+                    $bezeichnung = $m['bezeichnung'] ?? null;
+                    $mangel_beschreibung = $m['mangel_beschreibung'] ?? null;
+                    $ursache = $m['ursache'] ?? null;
+                    $verbleib = $m['verbleib'] ?? null;
+                    $auf_durch = trim($m['aufgenommen_durch'] ?? '');
+                    $auf_member_id = null;
+                    $auf_text = null;
+                    if (preg_match('/^\d+$/', $auf_durch)) {
+                        $auf_member_id = (int)$auf_durch;
+                    } else {
+                        $auf_text = $auf_durch !== '' ? $auf_durch : null;
+                    }
+                    $auf_am = $m['aufgenommen_am'] ?? $draft['datum'];
+                    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $auf_am)) $auf_am = $draft['datum'];
+                    $stmt_mb->execute([$standort, $mangel_an, $bezeichnung, $mangel_beschreibung, $ursache, $verbleib, $auf_text, $auf_member_id, $auf_am, $_SESSION['user_id']]);
+                }
+            } catch (Exception $e) {
+                error_log('Anwesenheitsliste Mängelberichte: ' . $e->getMessage());
             }
         }
         // PA-Checkbox: Automatische Atemschutzeinträge für PA-Träger erstellen (Status pending, Genehmigung erforderlich)
@@ -761,7 +794,10 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                                 <div class="col-md-6">
                                     <a href="<?php echo htmlspecialchars($maengel_url); ?>" class="btn btn-warning w-100 anwesenheits-option-btn anwesenheits-save-before-nav text-dark">
                                         <i class="fas fa-exclamation-triangle fa-2x mb-2"></i><span>Mängel</span>
-                                        <small class="d-block mt-1 opacity-90">Mängel festhalten</small>
+                                        <small class="d-block mt-1 opacity-90">Mängel festhalten (werden als Mängelberichte gespeichert)</small>
+                                        <?php if (!empty($draft['maengel'])): ?>
+                                        <span class="badge bg-dark mt-1"><?php echo count($draft['maengel']); ?> erfasst</span>
+                                        <?php endif; ?>
                                     </a>
                                 </div>
                             </div>
