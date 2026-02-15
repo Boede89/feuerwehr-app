@@ -51,7 +51,7 @@ if ($ret !== 0) {
         exit;
     }
     if (stripos($err, 'Forbidden') !== false) {
-        $hint = 'CUPS blockiert den Zugriff vom Container. Auf dem Host in /etc/cups/cupsd.conf bei <Location /> die Zeile „Allow from 172.17.0.0/16“ ergänzen (nach Allow from 127.0.0.1), dann: sudo systemctl restart cups';
+        $hint = 'CUPS blockiert den Zugriff vom Container. Auf dem Host: In /etc/cups/cupsd.conf im Abschnitt „Location /“ die Zeile „Allow from 172.17.0.0/16“ nach „Allow from 127.0.0.1“ einfügen, dann: sudo systemctl restart cups';
         echo json_encode(['success' => false, 'printers' => [], 'message' => 'Zugriff verweigert (Forbidden). ' . $hint, 'raw' => $raw]);
         exit;
     }
