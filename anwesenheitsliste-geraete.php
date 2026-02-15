@@ -426,7 +426,7 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
-                <button type="button" class="btn btn-warning text-dark" id="mangelModalHinzufuegen"><i class="fas fa-plus"></i> Mangel hinzufügen</button>
+                <button type="button" class="btn btn-warning text-dark" id="mangelModalHinzufuegen"><i class="fas fa-save"></i> Speichern</button>
                 <button type="button" class="btn btn-outline-warning text-dark" id="mangelModalWeiterer"><i class="fas fa-plus-circle"></i> Weiterer Mangel</button>
             </div>
         </div>
@@ -622,11 +622,32 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
         var bezeichnungen = container.querySelectorAll('input[name$="[bezeichnung]"]');
         var beschreibungen = container.querySelectorAll('input[name$="[mangel_beschreibung]"]');
         for (var i = 0; i < Math.max(bezeichnungen.length, beschreibungen.length); i++) {
-            var bez = bezeichnungen[i] ? bezeichnungen[i].value : '';
-            var beschr = beschreibungen[i] ? beschreibungen[i].value : '';
-            if (bez || beschr) items.push({ bezeichnung: bez, beschreibung: beschr });
+            var bezInp = bezeichnungen[i];
+            var beschrInp = beschreibungen[i];
+            var idx = null;
+            if (bezInp && bezInp.name) {
+                var m = bezInp.name.match(/^maengel\[(\d+)\]/);
+                if (m) idx = m[1];
+            } else if (beschrInp && beschrInp.name) {
+                var m2 = beschrInp.name.match(/^maengel\[(\d+)\]/);
+                if (m2) idx = m2[1];
+            }
+            var bez = bezInp ? bezInp.value : '';
+            var beschr = beschrInp ? beschrInp.value : '';
+            if (bez || beschr) items.push({ bezeichnung: bez, beschreibung: beschr, index: idx });
         }
         return items;
+    }
+
+    function removeMangel(index) {
+        var container = document.getElementById('maengelHiddenContainer');
+        if (!container) return;
+        var idxStr = String(index);
+        Array.from(container.querySelectorAll('input[name^="maengel["]')).forEach(function(inp) {
+            var m = inp.name.match(/^maengel\[(\d+)\]/);
+            if (m && m[1] === idxStr) inp.remove();
+        });
+        renderBereitsErfasst();
     }
 
     function renderBereitsErfasst() {
@@ -639,9 +660,18 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
         bereitsWrap.style.display = 'block';
         items.forEach(function(m) {
             var li = document.createElement('li');
-            li.className = 'list-group-item py-2';
-            li.textContent = (m.bezeichnung ? m.bezeichnung + ': ' : '') + (m.beschreibung || '');
-            if (li.textContent.length > 80) li.textContent = li.textContent.substring(0, 77) + '...';
+            li.className = 'list-group-item py-2 d-flex justify-content-between align-items-center';
+            var span = document.createElement('span');
+            span.textContent = (m.bezeichnung ? m.bezeichnung + ': ' : '') + (m.beschreibung || '');
+            if (span.textContent.length > 80) span.textContent = span.textContent.substring(0, 77) + '...';
+            li.appendChild(span);
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-outline-danger';
+            btn.title = 'Mangel entfernen';
+            btn.innerHTML = '<i class="fas fa-trash"></i>';
+            btn.addEventListener('click', function() { removeMangel(m.index); });
+            li.appendChild(btn);
             bereitsListe.appendChild(li);
         });
     }
