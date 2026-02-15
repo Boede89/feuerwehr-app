@@ -88,7 +88,7 @@ try {
 
 $message = isset($_GET['message']) ? trim($_GET['message']) : '';
 $error = '';
-$active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'forms';
+$active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'submissions';
 $dienstplan_jahr = isset($_GET['jahr']) ? (int)$_GET['jahr'] : (int)date('Y');
 $filter_typ = isset($_GET['filter_typ']) ? trim($_GET['filter_typ']) : '';
 $filter_datum_von = isset($_GET['filter_datum_von']) ? trim($_GET['filter_datum_von']) : '';
@@ -542,9 +542,26 @@ try {
                 <div class="card-body">
                     <?php if (empty($submissions) && empty($anwesenheitslisten)): ?>
                         <p class="text-muted mb-0">Noch keine ausgefüllten Formulare oder Anwesenheitslisten vorhanden.<?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== ''): ?> Versuchen Sie, die Filter zu ändern.<?php endif; ?></p>
-                    <?php else: ?>
+                    <?php else:
+                        $groups = [];
+                        foreach ($submissions as $s) {
+                            $s['created_at_display'] = format_datetime_berlin($s['created_at']);
+                            $key = trim($s['form_title'] ?? 'Formular');
+                            if (!isset($groups[$key])) $groups[$key] = ['type' => 'form', 'items' => []];
+                            $groups[$key]['items'][] = $s;
+                        }
+                        foreach ($anwesenheitslisten as $a) {
+                            $typ_label = ($a['typ'] ?? '') === 'einsatz' ? 'Einsatz' : (($a['typ'] ?? '') === 'manuell' ? 'Manuell' : get_dienstplan_typ_label($a['dienst_typ'] ?? 'uebungsdienst'));
+                            $key = 'Anwesenheitsliste – ' . $typ_label;
+                            if (!isset($groups[$key])) $groups[$key] = ['type' => 'anwesenheit', 'items' => []];
+                            $groups[$key]['items'][] = $a;
+                        }
+                        ksort($groups);
+                    ?>
                         <div class="table-responsive">
-                            <table class="table table-hover">
+                            <?php foreach ($groups as $group_label => $group): ?>
+                            <h6 class="mt-3 mb-2 text-muted"><?php echo htmlspecialchars($group_label); ?> (<?php echo count($group['items']); ?>)</h6>
+                            <table class="table table-hover mb-4">
                                 <thead>
                                     <tr>
                                         <th>Formular / Anwesenheitsliste</th>
@@ -555,8 +572,9 @@ try {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($submissions as $s):
-                                        $s['created_at_display'] = format_datetime_berlin($s['created_at']);
+                                    <?php foreach ($group['items'] as $item):
+                                        if ($group['type'] === 'form'):
+                                            $s = $item;
                                     ?>
                                     <tr>
                                         <td><i class="fas fa-file-alt text-muted me-1"></i> <?php echo htmlspecialchars($s['form_title']); ?></td>
@@ -576,14 +594,14 @@ try {
                                             </form>
                                         </td>
                                     </tr>
-                                    <?php endforeach; ?>
-                                    <?php foreach ($anwesenheitslisten as $a):
-                                        $bez = $a['bezeichnung'] ?? $a['dienst_bezeichnung'] ?? 'Anwesenheit';
-                                        $titel = date('d.m.Y', strtotime($a['datum'])) . ' – ' . $bez;
-                                        if (!empty($a['einsatzstichwort']) && ($a['typ'] ?? '') === 'einsatz') {
-                                            $titel .= ' – ' . $a['einsatzstichwort'];
-                                        }
-                                        $typ_label = ($a['typ'] ?? '') === 'einsatz' ? 'Einsatz' : (($a['typ'] ?? '') === 'manuell' ? 'Manuell' : htmlspecialchars(get_dienstplan_typ_label($a['dienst_typ'] ?? 'uebungsdienst')));
+                                    <?php else:
+                                            $a = $item;
+                                            $bez = $a['bezeichnung'] ?? $a['dienst_bezeichnung'] ?? 'Anwesenheit';
+                                            $titel = date('d.m.Y', strtotime($a['datum'])) . ' – ' . $bez;
+                                            if (!empty($a['einsatzstichwort']) && ($a['typ'] ?? '') === 'einsatz') {
+                                                $titel .= ' – ' . $a['einsatzstichwort'];
+                                            }
+                                            $typ_label = ($a['typ'] ?? '') === 'einsatz' ? 'Einsatz' : (($a['typ'] ?? '') === 'manuell' ? 'Manuell' : htmlspecialchars(get_dienstplan_typ_label($a['dienst_typ'] ?? 'uebungsdienst')));
                                     ?>
                                     <tr>
                                         <td><i class="fas fa-clipboard-list text-muted me-1"></i> <?php echo htmlspecialchars($titel); ?></td>
@@ -596,9 +614,10 @@ try {
                                             <button type="button" class="btn btn-outline-secondary btn-sm" title="Drucken" onclick="druckenAnwesenheitsliste(<?php echo (int)$a['id']; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
                                         </td>
                                     </tr>
-                                    <?php endforeach; ?>
+                                    <?php endif; endforeach; ?>
                                 </tbody>
                             </table>
+                            <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
                 </div>
