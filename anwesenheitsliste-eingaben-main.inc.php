@@ -579,6 +579,7 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                 <div class="card shadow">
                     <div class="card-header"><h3 class="mb-0"><i class="fas fa-clipboard-list"></i> Anwesenheitsliste – Personal & Fahrzeuge</h3></div>
                     <div class="card-body p-4">
+                        <div id="validationError" class="alert alert-danger" style="display: none;" role="alert"></div>
                         <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
                         <div class="alert alert-light border mb-4">
                             <strong>Gewählt:</strong><br>
@@ -840,8 +841,53 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
         var cbPrint = document.getElementById('cbPrintAfterSave');
         var inputPrint = document.getElementById('print_after_save');
         var form = document.getElementById('mainForm');
+        var validationEl = document.getElementById('validationError');
+        var isEinsatz = <?php echo $is_einsatz ? 'true' : 'false'; ?>;
+        var dienstTyp = <?php echo isset($dienst) ? json_encode($dienst['typ'] ?? '') : '""'; ?>;
+        function validateForm() {
+            var fehler = [];
+            var uhrzeitVon = (document.querySelector('[name="uhrzeit_von"]') || form.querySelector('[name="uhrzeit_von"]') || {}).value || '';
+            var uhrzeitBis = (document.querySelector('[name="uhrzeit_bis"]') || form.querySelector('[name="uhrzeit_bis"]') || {}).value || '';
+            if (!uhrzeitVon.trim()) fehler.push('Uhrzeit von');
+            if (!uhrzeitBis.trim()) fehler.push('Uhrzeit bis');
+            var typSonstige = (form.querySelector('[name="typ_sonstige"]') || {}).value || '';
+            var isUebungsdienst = (isEinsatz && (typSonstige === 'uebungsdienst' || typSonstige === 'jahreshauptversammlung')) || (!isEinsatz && (dienstTyp === 'uebungsdienst' || dienstTyp === 'jahreshauptversammlung'));
+            var typSave = isEinsatz ? (typSonstige === 'einsatz' ? 'einsatz' : 'manuell') : 'dienst';
+            if (isUebungsdienst) {
+                var themaSel = form.querySelector('[name="thema"]');
+                var themaNeu = form.querySelector('[name="thema_neu"]');
+                var themaVal = themaSel ? themaSel.value : '';
+                var thema = (themaVal === '__neu__' && themaNeu) ? (themaNeu.value || '').trim() : (themaVal || '').trim();
+                if (!thema) fehler.push('Thema');
+                var uebChecked = form.querySelectorAll('.uebungsleiter-item-selected').length;
+                if (uebChecked === 0) fehler.push('Übungsleiter');
+            } else if (typSave === 'einsatz') {
+                var einsatzstichwort = (form.querySelector('[name="einsatzstichwort"]') || {}).value || '';
+                if (!einsatzstichwort.trim()) fehler.push('Einsatzstichwort');
+                var einsatzstelle = (form.querySelector('[name="einsatzstelle"]') || {}).value || '';
+                if (!einsatzstelle.trim()) fehler.push('Einsatzstelle');
+                var einsatzleiter = (form.querySelector('[name="einsatzleiter"]') || {}).value || '';
+                var einsatzleiterFreitext = (form.querySelector('[name="einsatzleiter_freitext"]') || {}).value || '';
+                var hasEl = (einsatzleiter && einsatzleiter !== '') || (einsatzleiterFreitext && einsatzleiterFreitext.trim() !== '');
+                if (!hasEl) fehler.push('Einsatzleiter');
+            }
+            return fehler;
+        }
         if (btnSave && modal && form) {
             btnSave.addEventListener('click', function() {
+                var fehler = validateForm();
+                if (validationEl) {
+                    validationEl.style.display = 'none';
+                    validationEl.innerHTML = '';
+                }
+                if (fehler.length > 0) {
+                    if (validationEl) {
+                        validationEl.textContent = 'Bitte füllen Sie alle Pflichtfelder aus: ' + fehler.join(', ') + '. Sie können den Bericht später fortsetzen.';
+                        validationEl.style.display = 'block';
+                        validationEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                    return;
+                }
                 new bootstrap.Modal(modal).show();
             });
             document.getElementById('btnConfirmSave').addEventListener('click', function() {
