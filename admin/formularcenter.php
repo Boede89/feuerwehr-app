@@ -85,6 +85,29 @@ try {
 } catch (Exception $e) {
     error_log('Dienstplan Tabelle: ' . $e->getMessage());
 }
+try {
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS maengelberichte (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            standort VARCHAR(100) NOT NULL,
+            mangel_an VARCHAR(50) NOT NULL,
+            bezeichnung VARCHAR(255) NULL,
+            mangel_beschreibung TEXT NULL,
+            ursache TEXT NULL,
+            verbleib TEXT NULL,
+            aufgenommen_durch_text VARCHAR(255) NULL,
+            aufgenommen_durch_member_id INT NULL,
+            aufgenommen_am DATE NOT NULL,
+            user_id INT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            KEY idx_aufgenommen_am (aufgenommen_am),
+            KEY idx_created_at (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+} catch (Exception $e) {
+    error_log('maengelberichte Tabelle: ' . $e->getMessage());
+}
 
 $message = isset($_GET['message']) ? trim($_GET['message']) : '';
 $error = '';
@@ -239,6 +262,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
             }
         }
     }
+    if ($action === 'delete_maengelbericht' && !$error) {
+        $id = (int)($_POST['maengelbericht_id'] ?? 0);
+        if ($id) {
+            try {
+                $db->prepare("DELETE FROM maengelberichte WHERE id = ?")->execute([$id]);
+                $msg = urlencode('Mängelbericht wurde gelöscht.');
+                $redir = 'formularcenter.php?tab=submissions&message=' . $msg;
+                if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
+                if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
+                if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
+                header('Location: ' . $redir);
+                exit;
+            } catch (Exception $e) {
+                $error = 'Löschen fehlgeschlagen.';
+            }
+        }
+    }
 }
 
 // Formulare laden
@@ -319,7 +359,34 @@ try {
     // Tabelle kann fehlen
 }
 
-$submissions_total = count($submissions) + count($anwesenheitslisten);
+// Mängelberichte laden
+$maengelberichte = [];
+try {
+    $sql = "
+        SELECT m.id, m.standort, m.mangel_an, m.bezeichnung, m.aufgenommen_am, m.created_at,
+               COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name
+        FROM maengelberichte m
+        LEFT JOIN users u ON u.id = m.user_id
+        WHERE 1=1
+    ";
+    $params = [];
+    if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
+        $sql .= " AND m.aufgenommen_am >= ?";
+        $params[] = $filter_datum_von;
+    }
+    if ($filter_datum_bis !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_bis)) {
+        $sql .= " AND m.aufgenommen_am <= ?";
+        $params[] = $filter_datum_bis;
+    }
+    $sql .= " ORDER BY m.created_at DESC";
+    $stmt = $params ? $db->prepare($sql) : $db->query($sql);
+    if ($params) $stmt->execute($params);
+    $maengelberichte = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Tabelle kann fehlen
+}
+
+$submissions_total = count($submissions) + count($anwesenheitslisten) + count($maengelberichte);
 
 // Zähler für Formular-Buttons (vor Filterung)
 $form_counts_for_buttons = [];
@@ -331,14 +398,20 @@ foreach ($submissions as $s) {
     }
 }
 $anwesenheitslisten_count = count($anwesenheitslisten);
+$maengelberichte_count = count($maengelberichte);
 
 // Nach Formulartyp filtern (Buttons: Anwesenheitsliste, Mängelbericht, etc.)
 if ($filter_formular === 'anwesenheitsliste') {
     $submissions = [];
+    $maengelberichte = [];
+} elseif ($filter_formular === 'maengelbericht') {
+    $submissions = [];
+    $anwesenheitslisten = [];
 } elseif (preg_match('/^form_(\d+)$/', $filter_formular, $fm)) {
     $form_id_filter = (int)$fm[1];
     $submissions = array_filter($submissions, fn($s) => (int)($s['form_id'] ?? 0) === $form_id_filter);
     $anwesenheitslisten = [];
+    $maengelberichte = [];
 }
 
 // Dienstplan-Einträge und Themen für Dropdown
@@ -542,6 +615,10 @@ try {
                     <a href="../api/anwesenheitsliste-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-outline-success btn-sm" download title="Alle Anwesenheitslisten als PDF herunterladen"><i class="fas fa-file-pdf"></i> Alle Berichte als PDF</a>
                     <button type="button" class="btn btn-outline-secondary btn-sm" title="Alle Anwesenheitslisten drucken" onclick="druckenAnwesenheitslisteAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print"></i> Alle drucken</button>
                     <?php endif; ?>
+                    <?php if (!empty($maengelberichte)): ?>
+                    <a href="../api/maengelbericht-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-outline-success btn-sm" download title="Alle Mängelberichte als PDF herunterladen"><i class="fas fa-file-pdf"></i> Alle Mängelberichte als PDF</a>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" title="Alle Mängelberichte drucken" onclick="druckenMaengelberichtAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print"></i> Alle Mängelberichte drucken</button>
+                    <?php endif; ?>
                     <form method="get" class="d-flex flex-wrap align-items-center gap-2">
                         <input type="hidden" name="tab" value="submissions">
                         <input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>">
@@ -580,6 +657,11 @@ try {
                             $p['filter_formular'] = 'anwesenheitsliste';
                         ?>
                         <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'anwesenheitsliste' ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1"><i class="fas fa-clipboard-list me-1"></i> Anwesenheitsliste (<?php echo $anwesenheitslisten_count; ?>)</a>
+                        <?php
+                            $p = $base_params;
+                            $p['filter_formular'] = 'maengelbericht';
+                        ?>
+                        <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'maengelbericht' ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1"><i class="fas fa-exclamation-triangle me-1"></i> Mängelbericht (<?php echo $maengelberichte_count; ?>)</a>
                         <?php foreach ($forms as $f):
                             $cnt = $form_counts_for_buttons[(int)$f['id']] ?? 0;
                             $p = $base_params;
@@ -588,8 +670,8 @@ try {
                         <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'form_' . $f['id'] ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1"><?php echo htmlspecialchars($f['title']); ?> (<?php echo $cnt; ?>)</a>
                         <?php endforeach; ?>
                     </div>
-                    <?php if (empty($submissions) && empty($anwesenheitslisten)): ?>
-                        <p class="text-muted mb-0">Noch keine ausgefüllten Formulare oder Anwesenheitslisten vorhanden.<?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== ''): ?> Versuchen Sie, die Filter zu ändern.<?php endif; ?></p>
+                    <?php if (empty($submissions) && empty($anwesenheitslisten) && empty($maengelberichte)): ?>
+                        <p class="text-muted mb-0">Noch keine ausgefüllten Formulare, Anwesenheitslisten oder Mängelberichte vorhanden.<?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== ''): ?> Versuchen Sie, die Filter zu ändern.<?php endif; ?></p>
                     <?php else: ?>
                         <div class="table-responsive">
                             <table class="table table-hover">
@@ -643,6 +725,31 @@ try {
                                             <a href="anwesenheitsliste-bearbeiten.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
                                             <a href="../api/anwesenheitsliste-pdf.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" download><i class="fas fa-file-pdf"></i> PDF</a>
                                             <button type="button" class="btn btn-outline-secondary btn-sm" title="Drucken" onclick="druckenAnwesenheitsliste(<?php echo (int)$a['id']; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                    <?php foreach ($maengelberichte as $m):
+                                        $titel = date('d.m.Y', strtotime($m['aufgenommen_am'])) . ' – ' . htmlspecialchars($m['standort']) . ' – ' . htmlspecialchars($m['mangel_an']);
+                                        if (!empty($m['bezeichnung'])) $titel .= ' – ' . htmlspecialchars($m['bezeichnung']);
+                                    ?>
+                                    <tr>
+                                        <td><i class="fas fa-exclamation-triangle text-warning me-1"></i> <?php echo $titel; ?></td>
+                                        <td><span class="badge bg-warning text-dark">Mängelbericht</span></td>
+                                        <td><?php echo htmlspecialchars(trim($m['user_first_name'] . ' ' . $m['user_last_name']) ?: 'Unbekannt'); ?></td>
+                                        <td><?php echo format_datetime_berlin($m['created_at']); ?></td>
+                                        <td>
+                                            <a href="maengelbericht-bearbeiten.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
+                                            <a href="../api/maengelbericht-pdf.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" download><i class="fas fa-file-pdf"></i> PDF</a>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" title="Drucken" onclick="druckenMaengelbericht(<?php echo (int)$m['id']; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
+                                            <form method="post" class="d-inline" onsubmit="return confirm('Mängelbericht wirklich löschen?');">
+                                                <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
+                                                <input type="hidden" name="action" value="delete_maengelbericht">
+                                                <input type="hidden" name="maengelbericht_id" value="<?php echo (int)$m['id']; ?>">
+                                                <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
+                                                <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
+                                                <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="fas fa-trash"></i></button>
+                                            </form>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
@@ -1212,6 +1319,31 @@ try {
                 })
                 .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
                 .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Alle drucken'; } });
+        }
+        function druckenMaengelbericht(id, btn) {
+            btn = btn || (event && event.target ? event.target.closest('button') : null);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Drucken...'; }
+            fetch('../api/print-maengelbericht.php?id=' + id)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) alert('Druckauftrag wurde an den Drucker gesendet.');
+                    else alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+                })
+                .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
+                .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Drucken'; } });
+        }
+        function druckenMaengelberichtAlle(query, btn) {
+            btn = btn || (event && event.target ? event.target.closest('button') : null);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Drucken...'; }
+            var url = '../api/print-maengelbericht.php?alle=1' + (query ? '&' + query : '');
+            fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) alert('Druckauftrag wurde an den Drucker gesendet.');
+                    else alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+                })
+                .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
+                .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Alle Mängelberichte drucken'; } });
         }
     </script>
 </body>

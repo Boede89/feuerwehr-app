@@ -40,6 +40,9 @@ try {
 $email_auto = ($settings[$form_key . '_email_auto'] ?? '0') === '1';
 $email_recipients = json_decode($settings[$form_key . '_email_recipients'] ?? '[]', true) ?: [];
 $email_manual = trim($settings[$form_key . '_email_manual'] ?? '');
+$standort_options = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
+$standort_default = trim($settings[$form_key . '_standort_default'] ?? '');
+if (!in_array($standort_default, $standort_options)) $standort_default = $standort_options[0];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -52,9 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$form_key . '_email_recipients', json_encode(array_values($recipients))]);
             $manual = trim($_POST['email_manual'] ?? '');
             $stmt->execute([$form_key . '_email_manual', $manual]);
+            $standortDef = trim($_POST['standort_default'] ?? '');
+            if (!in_array($standortDef, ['GH Amern', 'GH Hehler', 'GH Waldniel'])) $standortDef = 'GH Amern';
+            $stmt->execute([$form_key . '_standort_default', $standortDef]);
             $email_auto = isset($_POST['email_auto']);
             $email_recipients = $recipients;
             $email_manual = $manual;
+            $standort_default = $standortDef;
             $message = 'Einstellungen gespeichert.';
         } catch (Exception $e) {
             $error = 'Fehler: ' . $e->getMessage();
@@ -99,10 +106,20 @@ $back_target = $return_formularcenter ? ' target="_parent"' : '';
     <?php if ($message) echo show_success($message); ?>
     <?php if ($error) echo show_error($error); ?>
 
-    <p class="text-muted mb-4">Die Formularfelder für den Mängelbericht werden in Kürze ergänzt.</p>
-
-    <form method="POST" class="card mb-4">
+    <form method="POST" class="card mb-4" id="settingsForm">
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+        <div class="card-header"><i class="fas fa-cog"></i> Mängelbericht – Standardwerte</div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label" for="standort_default">Standard-Standort</label>
+                <select class="form-select" name="standort_default" id="standort_default">
+                    <?php foreach ($standort_options as $opt): ?>
+                    <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo $opt === $standort_default ? 'selected' : ''; ?>><?php echo htmlspecialchars($opt); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <small class="text-muted">Wird beim Ausfüllen des Mängelberichts vorausgewählt.</small>
+            </div>
+        </div>
         <div class="card-header"><i class="fas fa-envelope"></i> E-Mail-Versand nach Absenden</div>
         <div class="card-body">
             <div class="form-check form-switch mb-3">

@@ -82,6 +82,12 @@ try {
     <main class="container mt-4">
         <div class="row justify-content-center">
             <div class="col-lg-10">
+                <?php if (isset($_GET['message']) && $_GET['message'] === 'maengelbericht_erfolg'): ?>
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check-circle me-2"></i>Mängelbericht wurde erfolgreich gespeichert.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                <?php endif; ?>
                 <div class="card shadow">
                     <div class="card-header">
                         <h3 class="mb-0"><i class="fas fa-file-alt"></i> Formulare</h3>
@@ -169,5 +175,29 @@ try {
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (function() {
+        var m = /[?&]print_maengelbericht=(\d+)/.exec(window.location.search);
+        if (m && m[1]) {
+            var id = m[1];
+            fetch('api/print-maengelbericht.php?id=' + id, { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        var msg = document.querySelector('.alert-success');
+                        if (msg) msg.textContent = (msg.textContent || '').replace('gespeichert.', 'gespeichert. Druckauftrag wurde gesendet.');
+                    } else {
+                        alert('Druck fehlgeschlagen: ' + (data.message || 'Unbekannter Fehler'));
+                    }
+                })
+                .catch(function() { alert('Druck fehlgeschlagen.'); })
+                .finally(function() {
+                    var q = window.location.search.replace(/[?&]print_maengelbericht=\d+/g, '').replace(/^&/, '?').replace(/&$/, '');
+                    if (q === '?') q = '';
+                    history.replaceState(null, '', window.location.pathname + q);
+                });
+        }
+    })();
+    </script>
 </body>
 </html>
