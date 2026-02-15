@@ -358,15 +358,8 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                     <label class="form-label">Material mit Mangel</label>
                     <select class="form-select" id="mangelModalMaterial">
                         <option value="">-- Bitte wählen --</option>
-                        <?php foreach ($selected_equipment_for_modal as $eq): ?>
-                        <option value="<?php echo htmlspecialchars($eq['bezeichnung']); ?>" data-bezeichnung="<?php echo htmlspecialchars($eq['bezeichnung']); ?>"><?php echo htmlspecialchars($eq['name']); ?></option>
-                        <?php endforeach; ?>
                         <option value="__anderes__">Anderes Material</option>
                     </select>
-                </div>
-                <div class="mb-3" id="mangelModalAnderesWrap" style="display:none">
-                    <label class="form-label">Bezeichnung (anderes Material)</label>
-                    <input type="text" class="form-control" id="mangelModalAnderes" placeholder="Material eingeben">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Bezeichnung, ggf. Gerätenummer</label>
@@ -378,12 +371,12 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                 </div>
                 <div class="row g-2 mb-3">
                     <div class="col-md-6">
-                        <label class="form-label">Ursache <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="mangelModalUrsache" required>
+                        <label class="form-label">Ursache</label>
+                        <input type="text" class="form-control" id="mangelModalUrsache">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Verbleib <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="mangelModalVerbleib" required>
+                        <label class="form-label">Verbleib</label>
+                        <input type="text" class="form-control" id="mangelModalVerbleib" placeholder="Wird bei Auswahl vorbelegt (Fahrzeug), bearbeitbar">
                     </div>
                 </div>
                 <div class="mb-3">
@@ -471,8 +464,6 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
     var maengelIndex = <?php echo count($draft['maengel']); ?>;
 
     var matSelect = document.getElementById('mangelModalMaterial');
-    var anderesWrap = document.getElementById('mangelModalAnderesWrap');
-    var anderesInput = document.getElementById('mangelModalAnderes');
     var bezeichnungInput = document.getElementById('mangelModalBezeichnung');
     var mangelBeschr = document.getElementById('mangelModalMangelBeschreibung');
     var ursacheInput = document.getElementById('mangelModalUrsache');
@@ -513,24 +504,61 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
     aufgenommenDisplay.addEventListener('focus', function() { renderSuggestions(filterMembers(aufgenommenDisplay.value.trim())); });
     aufgenommenDisplay.addEventListener('blur', function() { setTimeout(function() { aufgenommenSuggestions.style.display = 'none'; }, 200); });
 
+    function buildMaterialOptions() {
+        var options = [];
+        var seen = {};
+        document.querySelectorAll('.geraete-equipment.geraete-item-selected').forEach(function(el) {
+            var eqName = (el.textContent || '').trim();
+            var card = el.closest('.card');
+            var vname = card && card.querySelector('.card-header') ? (card.querySelector('.card-header').textContent || '').trim() : '';
+            var key = 'eq_' + (el.getAttribute('data-eq-id') || '') + '_' + (el.getAttribute('data-vid') || '');
+            if (eqName && !seen[key]) {
+                seen[key] = true;
+                options.push({ bezeichnung: eqName, label: eqName + (vname ? ' (' + vname + ')' : ''), fahrzeug: vname });
+            }
+        });
+        document.querySelectorAll('textarea[name^="equipment_sonstiges"]').forEach(function(ta) {
+            var lines = (ta.value || '').split(/\r?\n/).map(function(s) { return s.trim(); }).filter(Boolean);
+            var card = ta.closest('.card');
+            var vname = card && card.querySelector('.card-header') ? (card.querySelector('.card-header').textContent || '').trim() : '';
+            lines.forEach(function(line) {
+                var key = 'sonst_' + line;
+                if (!seen[key]) {
+                    seen[key] = true;
+                    options.push({ bezeichnung: line, label: 'Sonstiges: ' + line + (vname ? ' (' + vname + ')' : ''), fahrzeug: vname });
+                }
+            });
+        });
+        return options;
+    }
+
+    function populateMaterialSelect() {
+        var opts = buildMaterialOptions();
+        while (matSelect.options.length > 2) matSelect.remove(2);
+        opts.forEach(function(o) {
+            var opt = document.createElement('option');
+            opt.value = o.bezeichnung;
+            opt.dataset.bezeichnung = o.bezeichnung;
+            opt.dataset.fahrzeug = o.fahrzeug || '';
+            opt.textContent = o.label;
+            matSelect.insertBefore(opt, matSelect.options[matSelect.options.length - 1]);
+        });
+    }
+
     matSelect.addEventListener('change', function() {
-        var val = this.value;
-        if (val === '__anderes__') {
-            anderesWrap.style.display = 'block';
-            bezeichnungInput.value = anderesInput.value.trim();
-        } else {
-            anderesWrap.style.display = 'none';
-            bezeichnungInput.value = val;
+        var opt = this.options[this.selectedIndex];
+        if (this.value === '__anderes__') {
+            bezeichnungInput.value = '';
+            verbleibInput.value = '';
+        } else if (opt && opt.dataset) {
+            bezeichnungInput.value = opt.dataset.bezeichnung || this.value;
+            verbleibInput.value = opt.dataset.fahrzeug || '';
         }
-    });
-    anderesInput.addEventListener('input', function() {
-        if (matSelect.value === '__anderes__') bezeichnungInput.value = this.value.trim();
     });
 
     function resetMangelModal() {
+        populateMaterialSelect();
         matSelect.value = '';
-        anderesWrap.style.display = 'none';
-        anderesInput.value = '';
         bezeichnungInput.value = '';
         mangelBeschr.value = '';
         ursacheInput.value = '';
@@ -544,13 +572,12 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
 
     hinzufuegenBtn.addEventListener('click', function() {
         var bezeichnung = bezeichnungInput.value.trim();
-        if (matSelect.value === '__anderes__') bezeichnung = anderesInput.value.trim() || bezeichnung;
         var mangelBeschrVal = mangelBeschr.value.trim();
         var ursache = ursacheInput.value.trim();
         var verbleib = verbleibInput.value.trim();
         var aufgenommen = aufgenommenHidden.value.trim() || aufgenommenDisplay.value.trim();
-        if (!mangelBeschrVal || !ursache || !verbleib || !aufgenommen) {
-            alert('Bitte füllen Sie Mangel Beschreibung, Ursache, Verbleib und Aufgenommen durch aus.');
+        if (!mangelBeschrVal || !aufgenommen) {
+            alert('Bitte füllen Sie Mangel Beschreibung und Aufgenommen durch aus.');
             return;
         }
         var idx = maengelIndex++;
