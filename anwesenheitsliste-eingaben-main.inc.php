@@ -381,6 +381,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         } catch (Exception $e) {
             // ignore
         }
+        try {
         $custom_data_for_save = $draft['custom_data'] ?? [];
         if (!empty($draft['uebungsleiter_member_ids'])) {
             $custom_data_for_save['uebungsleiter_member_ids'] = $draft['uebungsleiter_member_ids'];
