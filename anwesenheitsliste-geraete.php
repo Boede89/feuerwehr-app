@@ -200,6 +200,38 @@ foreach ($vehicles_with_equipment as $vid => $vdata) {
     }
 }
 
+$berichtersteller = $draft['berichtersteller'] ?? null;
+$berichtersteller_vehicle = '';
+if ($berichtersteller !== '' && $berichtersteller !== null && preg_match('/^\d+$/', (string)$berichtersteller)) {
+    $ber_vid = $draft['member_vehicle'][(int)$berichtersteller] ?? null;
+    if ($ber_vid && isset($vehicles_with_equipment[$ber_vid])) {
+        $berichtersteller_vehicle = $vehicles_with_equipment[$ber_vid]['name'] ?? '';
+    } elseif ($ber_vid) {
+        try {
+            $stmt = $db->prepare("SELECT name FROM vehicles WHERE id = ?");
+            $stmt->execute([(int)$ber_vid]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) $berichtersteller_vehicle = $row['name'];
+        } catch (Exception $e) {}
+    }
+}
+if ($berichtersteller_vehicle === '' && !empty($vehicles_with_equipment)) {
+    $first = reset($vehicles_with_equipment);
+    $berichtersteller_vehicle = $first['name'] ?? '';
+}
+$berichtersteller_display = '';
+if ($berichtersteller !== '' && $berichtersteller !== null) {
+    if (preg_match('/^\d+$/', (string)$berichtersteller)) {
+        foreach ($members_list as $m) {
+            if ((int)$m['id'] === (int)$berichtersteller) {
+                $berichtersteller_display = trim($m['last_name'] . ', ' . $m['first_name']);
+                break;
+            }
+        }
+    }
+    if ($berichtersteller_display === '') $berichtersteller_display = (string)$berichtersteller;
+}
+
 $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 ?>
 <!DOCTYPE html>
@@ -354,6 +386,10 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div id="mangelModalBereitsErfasst" class="mb-3" style="display: none;">
+                    <label class="form-label">Bereits erfasste Mängel</label>
+                    <ul id="mangelModalBereitsListe" class="list-group list-group-flush small"></ul>
+                </div>
                 <div class="mb-3">
                     <label class="form-label">Material mit Mangel</label>
                     <select class="form-select" id="mangelModalMaterial">
@@ -389,8 +425,9 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
                 <button type="button" class="btn btn-warning text-dark" id="mangelModalHinzufuegen"><i class="fas fa-plus"></i> Mangel hinzufügen</button>
+                <button type="button" class="btn btn-outline-warning text-dark" id="mangelModalWeiterer"><i class="fas fa-plus-circle"></i> Weiterer Mangel</button>
             </div>
         </div>
     </div>
@@ -462,6 +499,9 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
     var standortDefault = <?php echo json_encode($standort_default); ?>;
     var mangelAnDefault = <?php echo json_encode($mangel_an_default); ?>;
     var maengelIndex = <?php echo count($draft['maengel']); ?>;
+    var berichterstellerDisplay = <?php echo json_encode($berichtersteller_display); ?>;
+    var berichterstellerId = <?php echo json_encode($berichtersteller); ?>;
+    var berichterstellerVehicle = <?php echo json_encode($berichtersteller_vehicle); ?>;
 
     var matSelect = document.getElementById('mangelModalMaterial');
     var bezeichnungInput = document.getElementById('mangelModalBezeichnung');
@@ -473,6 +513,9 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
     var aufgenommenSuggestions = document.getElementById('mangelModalAufgenommenSuggestions');
     var modal = document.getElementById('mangelMeldenModal');
     var hinzufuegenBtn = document.getElementById('mangelModalHinzufuegen');
+    var weitererBtn = document.getElementById('mangelModalWeiterer');
+    var bereitsWrap = document.getElementById('mangelModalBereitsErfasst');
+    var bereitsListe = document.getElementById('mangelModalBereitsListe');
 
     function filterMembers(q) {
         q = (q || '').toLowerCase().trim();
@@ -549,28 +592,64 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
         var opt = this.options[this.selectedIndex];
         if (this.value === '__anderes__') {
             bezeichnungInput.value = '';
-            verbleibInput.value = '';
+            verbleibInput.value = berichterstellerVehicle || '';
         } else if (opt && opt.dataset) {
             bezeichnungInput.value = opt.dataset.bezeichnung || this.value;
             verbleibInput.value = opt.dataset.fahrzeug || '';
         }
     });
 
-    function resetMangelModal() {
+    function getExistingMaengel() {
+        var container = document.getElementById('maengelHiddenContainer');
+        if (!container) return [];
+        var items = [];
+        var bezeichnungen = container.querySelectorAll('input[name$="[bezeichnung]"]');
+        var beschreibungen = container.querySelectorAll('input[name$="[mangel_beschreibung]"]');
+        for (var i = 0; i < Math.max(bezeichnungen.length, beschreibungen.length); i++) {
+            var bez = bezeichnungen[i] ? bezeichnungen[i].value : '';
+            var beschr = beschreibungen[i] ? beschreibungen[i].value : '';
+            if (bez || beschr) items.push({ bezeichnung: bez, beschreibung: beschr });
+        }
+        return items;
+    }
+
+    function renderBereitsErfasst() {
+        var items = getExistingMaengel();
+        bereitsListe.innerHTML = '';
+        if (items.length === 0) {
+            bereitsWrap.style.display = 'none';
+            return;
+        }
+        bereitsWrap.style.display = 'block';
+        items.forEach(function(m) {
+            var li = document.createElement('li');
+            li.className = 'list-group-item py-2';
+            li.textContent = (m.bezeichnung ? m.bezeichnung + ': ' : '') + (m.beschreibung || '');
+            if (li.textContent.length > 80) li.textContent = li.textContent.substring(0, 77) + '...';
+            bereitsListe.appendChild(li);
+        });
+    }
+
+    function resetMangelModal(keepAufgenommen) {
         populateMaterialSelect();
         matSelect.value = '';
         bezeichnungInput.value = '';
         mangelBeschr.value = '';
         ursacheInput.value = '';
         verbleibInput.value = '';
-        aufgenommenDisplay.value = '';
-        aufgenommenHidden.value = '';
+        if (!keepAufgenommen) {
+            aufgenommenDisplay.value = berichterstellerDisplay || '';
+            aufgenommenHidden.value = berichterstellerId || '';
+        }
+        renderBereitsErfasst();
     }
     if (modal) {
-        modal.addEventListener('show.bs.modal', resetMangelModal);
+        modal.addEventListener('show.bs.modal', function() {
+            resetMangelModal(false);
+        });
     }
 
-    hinzufuegenBtn.addEventListener('click', function() {
+    function doAddMangel(closeAfter) {
         var bezeichnung = bezeichnungInput.value.trim();
         var mangelBeschrVal = mangelBeschr.value.trim();
         var ursache = ursacheInput.value.trim();
@@ -592,10 +671,16 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
             frag.appendChild(inp);
         });
         container.appendChild(frag);
-        var bsModal = bootstrap.Modal.getInstance(modal);
-        if (bsModal) bsModal.hide();
-        resetMangelModal();
-    });
+        if (closeAfter) {
+            var bsModal = bootstrap.Modal.getInstance(modal);
+            if (bsModal) bsModal.hide();
+        } else {
+            resetMangelModal(true);
+        }
+    }
+
+    hinzufuegenBtn.addEventListener('click', function() { doAddMangel(true); });
+    if (weitererBtn) weitererBtn.addEventListener('click', function() { doAddMangel(false); });
 })();
 window.addEventListener('beforeunload', function() {
     var form = document.getElementById('geraeteForm');

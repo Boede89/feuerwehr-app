@@ -160,10 +160,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
             $draft['bezeichnung_sonstige'] = $typen[$ts] ?? 'Einsatz';
         }
     }
+    if (isset($_POST['berichtersteller'])) {
+        $draft['berichtersteller'] = trim((string)$_POST['berichtersteller']) ?: null;
+    }
     // Custom-Felder
     if (!isset($draft['custom_data'])) $draft['custom_data'] = [];
     foreach ($_POST as $k => $v) {
-        if (!in_array($k, array_merge($builtin, ['einsatzleiter', 'einsatzleiter_freitext', 'uebungsleiter', 'typ_sonstige', 'typ_sonstige_freitext', 'thema_neu', 'save_final', 'form_type', 'equipment', 'equipment_sonstiges']), true) && !preg_match('/^(member_id|vehicle|role|vehicle_id|maschinist|einheitsfuehrer)\b/', $k)) {
+        if (!in_array($k, array_merge($builtin, ['einsatzleiter', 'einsatzleiter_freitext', 'uebungsleiter', 'typ_sonstige', 'typ_sonstige_freitext', 'thema_neu', 'save_final', 'form_type', 'equipment', 'equipment_sonstiges', 'berichtersteller', 'berichtersteller_display']), true) && !preg_match('/^(member_id|vehicle|role|vehicle_id|maschinist|einheitsfuehrer)\b/', $k)) {
             $draft['custom_data'][$k] = trim((string)$v);
         }
     }

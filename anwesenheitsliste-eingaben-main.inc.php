@@ -138,6 +138,7 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'brandwache' => '',
         'einsatzleiter_member_id' => null,
         'einsatzleiter_freitext' => '',
+        'berichtersteller' => null,
         'custom_data' => [],
         'maengel' => [],
     ];
@@ -186,7 +187,7 @@ $draft_defaults = [
     'uhrzeit_von' => '', 'uhrzeit_bis' => $draft['uhrzeit_bis'] ?? date('H:i'),
     'alarmierung_durch' => '', 'einsatzstelle' => '', 'objekt' => '', 'eigentuemer' => '', 'geschaedigter' => '',
     'klassifizierung' => '', 'kostenpflichtiger_einsatz' => '', 'personenschaeden' => '', 'brandwache' => '',
-    'einsatzleiter_member_id' => null, 'einsatzleiter_freitext' => '',
+    'einsatzleiter_member_id' => null, 'einsatzleiter_freitext' => '', 'berichtersteller' => null,
     'einsatzstichwort' => '', 'thema' => '', 'divera_id' => null,
 ];
 foreach ($draft_defaults as $k => $v) {
@@ -222,6 +223,26 @@ foreach ($extra_columns as $colDef) {
 
 // Mitglieder für Einsatzleiter/Übungsleiter (Personal zuerst, dann nach Qualifikation: Zugführer > Gruppenführer > Truppführer > Mannschaft)
 $members_for_einsatzleiter = anwesenheitsliste_members_for_leiter($db, $draft['members'] ?? []);
+
+// Mitglieder für Berichtersteller (alle Mitglieder)
+$members_all = [];
+try {
+    $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    $members_all = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+$berichtersteller_val = $draft['berichtersteller'] ?? '';
+$berichtersteller_display = '';
+if ($berichtersteller_val !== '' && $berichtersteller_val !== null) {
+    if (preg_match('/^\d+$/', (string)$berichtersteller_val)) {
+        foreach ($members_all as $m) {
+            if ((int)$m['id'] === (int)$berichtersteller_val) {
+                $berichtersteller_display = trim($m['last_name'] . ', ' . $m['first_name']);
+                break;
+            }
+        }
+    }
+    if ($berichtersteller_display === '') $berichtersteller_display = (string)$berichtersteller_val;
+}
 
 $message = '';
 $error = '';
@@ -284,6 +305,7 @@ function _anwesenheitsliste_draft_value($id, $draft) {
 
 // Speichern (nur auf dieser Seite): Liste anlegen + Personal/Fahrzeuge aus Session
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
+    $draft['berichtersteller'] = trim($_POST['berichtersteller'] ?? '') ?: null;
     $typ_sonstige = trim($_POST['typ_sonstige'] ?? '');
     $typ_sonstige_freitext = trim($_POST['typ_sonstige_freitext'] ?? '');
     foreach ($anwesenheitsliste_felder as $f) {
@@ -760,6 +782,15 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                                 </div>
                             </div>
                             <?php endif; ?>
+                            <div class="mb-4">
+                                <label class="form-label">Berichtersteller</label>
+                                <div class="position-relative">
+                                    <input type="text" class="form-control" id="berichtersteller_display" name="berichtersteller_display" placeholder="Buchstaben eingeben zum Filtern der Mitglieder" autocomplete="off" value="<?php echo htmlspecialchars($berichtersteller_display); ?>">
+                                    <input type="hidden" name="berichtersteller" id="berichtersteller" value="<?php echo htmlspecialchars($berichtersteller_val ?? ''); ?>">
+                                    <div class="list-group position-absolute w-100 mt-1 shadow" id="berichtersteller_suggestions" style="z-index: 1050; max-height: 200px; overflow-y: auto; display: none;"></div>
+                                </div>
+                                <small class="text-muted">Wird als Vorbelegung für „Aufgenommen durch“ bei Mängeln verwendet</small>
+                            </div>
                             <?php
                             $is_uebungsdienst = ($is_einsatz && in_array($draft['bezeichnung_sonstige'] ?? '', ['Übungsdienst', 'Jahreshauptversammlung'])) || (!$is_einsatz && isset($dienst) && in_array($dienst['typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung']));
                             $uebungsdienst_hide_ids = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
@@ -1009,6 +1040,22 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
         (function(){var input=document.getElementById('einsatzstelle');var suggestionsEl=document.getElementById('einsatzstelle_suggestions');if(!input||!suggestionsEl)return;var debounceTimer;input.addEventListener('input',function(){clearTimeout(debounceTimer);var q=input.value.trim();if(q.length<3){suggestionsEl.style.display='none';suggestionsEl.innerHTML='';return;}debounceTimer=setTimeout(function(){fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(q)+'&countrycodes=de,at,ch&limit=5&addressdetails=1',{headers:{'Accept':'application/json'}}).then(function(r){return r.json();}).then(function(data){suggestionsEl.innerHTML='';if(!data||data.length===0){suggestionsEl.style.display='none';return;}data.forEach(function(item){var addr=item.address||{};var strasse=addr.road||'';var hausnummer=addr.house_number||'';var plz=addr.postcode||'';var ort=addr.city||addr.town||addr.village||addr.municipality||'';var zeile1=[strasse,hausnummer].filter(Boolean).join(' ');var zeile2=[plz,ort].filter(Boolean).join(' ');var display=[zeile1,zeile2].filter(Boolean).join(', ');if(!display)display=item.display_name||item.name||'';var a=document.createElement('button');a.type='button';a.className='list-group-item list-group-item-action list-group-item-light text-start';a.textContent=display;a.addEventListener('click',function(){input.value=display;suggestionsEl.style.display='none';suggestionsEl.innerHTML='';});suggestionsEl.appendChild(a);});suggestionsEl.style.display='block';}).catch(function(){suggestionsEl.style.display='none';});},400);});input.addEventListener('blur',function(){setTimeout(function(){suggestionsEl.style.display='none';},200);});document.addEventListener('click',function(e){if(!input.contains(e.target)&&!suggestionsEl.contains(e.target))suggestionsEl.style.display='none';});})();
     </script>
     <script>var el=document.getElementById('einsatzleiter');if(el)el.addEventListener('change',function(){var w=document.getElementById('einsatzleiter_freitext_wrap');if(w)w.style.display=this.value==='__freitext__'?'block':'none';});</script>
+    <script>
+    (function(){
+        var membersData=<?php echo json_encode(array_map(function($m){return['id'=>(int)$m['id'],'label'=>trim($m['last_name'].', '.$m['first_name'])];},$members_all)); ?>;
+        var display=document.getElementById('berichtersteller_display');
+        var hidden=document.getElementById('berichtersteller');
+        var suggestions=document.getElementById('berichtersteller_suggestions');
+        if(!display||!suggestions)return;
+        function filterMembers(q){q=(q||'').toLowerCase().trim();if(q==='')return membersData;return membersData.filter(function(m){return(m.label||'').toLowerCase().indexOf(q)>=0;});}
+        function render(items){suggestions.innerHTML='';items.forEach(function(item){var btn=document.createElement('button');btn.type='button';btn.className='list-group-item list-group-item-action list-group-item-light text-start';btn.textContent=item.label;btn.dataset.id=item.id;btn.dataset.label=item.label;btn.addEventListener('click',function(){display.value=this.dataset.label;if(hidden)hidden.value=this.dataset.id;suggestions.style.display='none';});suggestions.appendChild(btn);});suggestions.style.display=items.length>0?'block':'none';}
+        display.addEventListener('input',function(){if(hidden)hidden.value='';render(filterMembers(display.value.trim()));});
+        display.addEventListener('focus',function(){render(filterMembers(display.value.trim()));});
+        display.addEventListener('blur',function(){setTimeout(function(){suggestions.style.display='none';},200);});
+        document.addEventListener('click',function(e){if(!display.contains(e.target)&&!suggestions.contains(e.target))suggestions.style.display='none';});
+        document.getElementById('mainForm').addEventListener('submit',function(){var idVal=hidden?hidden.value.trim():'';if(!idVal&&display.value.trim())hidden.value=display.value.trim();});
+    })();
+    </script>
     <style>.uebungsleiter-item:hover{background:#f8f9fa}.uebungsleiter-item-selected{background:#0d6efd!important;color:#fff!important;border-color:#0d6efd!important}</style>
     <script>
     document.querySelectorAll('.uebungsleiter-item').forEach(function(el){
