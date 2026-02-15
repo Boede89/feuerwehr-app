@@ -344,7 +344,7 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                                         <small class="text-muted">Ein Gerät pro Zeile</small>
                                     </div>
                                     </div>
-                                    <button type="button" class="btn btn-outline-warning btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#mangelMeldenModal"><i class="fas fa-exclamation-triangle"></i> Mangel melden</button>
+                                    <button type="button" class="btn btn-outline-warning btn-sm ms-auto btn-mangel-melden" data-bs-toggle="modal" data-bs-target="#mangelMeldenModal" data-vid="<?php echo (int)$vid; ?>"><i class="fas fa-exclamation-triangle"></i> Mangel melden</button>
                                 </div>
                                 <div class="geraete-hidden-inputs" data-vid="<?php echo (int)$vid; ?>">
                                     <?php if (isset($saved_selection[$vid])): foreach ($saved_selection[$vid] as $eqid): ?>
@@ -547,10 +547,19 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
     aufgenommenDisplay.addEventListener('focus', function() { renderSuggestions(filterMembers(aufgenommenDisplay.value.trim())); });
     aufgenommenDisplay.addEventListener('blur', function() { setTimeout(function() { aufgenommenSuggestions.style.display = 'none'; }, 200); });
 
-    function buildMaterialOptions() {
+    var currentMangelVehicleId = null;
+
+    document.querySelectorAll('.btn-mangel-melden').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            currentMangelVehicleId = this.getAttribute('data-vid') || null;
+        });
+    });
+
+    function buildMaterialOptions(vid) {
         var options = [];
         var seen = {};
-        document.querySelectorAll('.geraete-equipment.geraete-item-selected').forEach(function(el) {
+        var selector = vid ? '.geraete-equipment.geraete-item-selected[data-vid="' + vid + '"]' : '.geraete-equipment.geraete-item-selected';
+        document.querySelectorAll(selector).forEach(function(el) {
             var eqName = (el.textContent || '').trim();
             var card = el.closest('.card');
             var vname = card && card.querySelector('.card-header') ? (card.querySelector('.card-header').textContent || '').trim() : '';
@@ -560,12 +569,13 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                 options.push({ bezeichnung: eqName, label: eqName + (vname ? ' (' + vname + ')' : ''), fahrzeug: vname });
             }
         });
-        document.querySelectorAll('textarea[name^="equipment_sonstiges"]').forEach(function(ta) {
+        var taSelector = vid ? 'textarea[name="equipment_sonstiges[' + vid + ']"]' : 'textarea[name^="equipment_sonstiges"]';
+        document.querySelectorAll(taSelector).forEach(function(ta) {
             var lines = (ta.value || '').split(/\r?\n/).map(function(s) { return s.trim(); }).filter(Boolean);
             var card = ta.closest('.card');
             var vname = card && card.querySelector('.card-header') ? (card.querySelector('.card-header').textContent || '').trim() : '';
             lines.forEach(function(line) {
-                var key = 'sonst_' + line;
+                var key = 'sonst_' + line + '_' + (vid || '');
                 if (!seen[key]) {
                     seen[key] = true;
                     options.push({ bezeichnung: line, label: 'Sonstiges: ' + line + (vname ? ' (' + vname + ')' : ''), fahrzeug: vname });
@@ -576,7 +586,7 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
     }
 
     function populateMaterialSelect() {
-        var opts = buildMaterialOptions();
+        var opts = buildMaterialOptions(currentMangelVehicleId);
         while (matSelect.options.length > 2) matSelect.remove(2);
         opts.forEach(function(o) {
             var opt = document.createElement('option');
@@ -592,7 +602,13 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
         var opt = this.options[this.selectedIndex];
         if (this.value === '__anderes__') {
             bezeichnungInput.value = '';
-            verbleibInput.value = berichterstellerVehicle || '';
+            var vname = berichterstellerVehicle || '';
+            if (currentMangelVehicleId) {
+                var btn = document.querySelector('.btn-mangel-melden[data-vid="' + currentMangelVehicleId + '"]');
+                var card = btn ? btn.closest('.card') : null;
+                if (card && card.querySelector('.card-header')) vname = (card.querySelector('.card-header').textContent || '').trim() || vname;
+            }
+            verbleibInput.value = vname;
         } else if (opt && opt.dataset) {
             bezeichnungInput.value = opt.dataset.bezeichnung || this.value;
             verbleibInput.value = opt.dataset.fahrzeug || '';
