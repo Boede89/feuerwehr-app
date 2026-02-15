@@ -25,7 +25,8 @@ function get_pdf_logo_html() {
         $stmt->execute();
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($row && !empty(trim($row['setting_value'] ?? ''))) {
-            $logo_path = dirname(__DIR__) . '/' . trim($row['setting_value']);
+            $rel = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, trim($row['setting_value']));
+            $logo_path = dirname(__DIR__) . DIRECTORY_SEPARATOR . $rel;
         }
     } catch (Exception $e) {}
     if ($logo_path === '' || !file_exists($logo_path) || !is_readable($logo_path)) {

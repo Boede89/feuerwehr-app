@@ -54,7 +54,8 @@ cache/
 *.cache
 
 # Uploads (if any)
-uploads/
+uploads/*
+!uploads/.gitkeep
 files/
 
 # Sensitive configuration

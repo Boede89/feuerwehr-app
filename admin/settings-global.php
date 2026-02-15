@@ -73,23 +73,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'app_name' => sanitize_input($_POST['app_name'] ?? ''),
                 'app_url' => sanitize_input($_POST['app_url'] ?? ''),
             ];
-            if (!empty($_FILES['app_logo']['tmp_name']) && is_uploaded_file($_FILES['app_logo']['tmp_name'])) {
-                $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-                $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                $mime = finfo_file($finfo, $_FILES['app_logo']['tmp_name']);
-                finfo_close($finfo);
+            $upload_err = $_FILES['app_logo']['error'] ?? UPLOAD_ERR_NO_FILE;
+            $logo_upload_error = '';
+            if ($upload_err === UPLOAD_ERR_OK && !empty($_FILES['app_logo']['tmp_name']) && is_uploaded_file($_FILES['app_logo']['tmp_name'])) {
+                $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/pjpeg'];
+                $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+                $mime = $finfo ? @finfo_file($finfo, $_FILES['app_logo']['tmp_name']) : '';
+                if ($finfo) finfo_close($finfo);
                 if (in_array($mime, $allowed)) {
-                    $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'][$mime];
-                    $upload_dir = dirname(__DIR__) . '/uploads';
-                    if (!is_dir($upload_dir)) @mkdir($upload_dir, 0755, true);
-                    $logo_path = $upload_dir . '/logo.' . $ext;
-                    if (move_uploaded_file($_FILES['app_logo']['tmp_name'], $logo_path)) {
-                        $app['app_logo'] = 'uploads/logo.' . $ext;
+                    $ext = ['image/jpeg' => 'jpg', 'image/pjpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'][$mime] ?? 'png';
+                    $upload_dir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
+                    if (!is_dir($upload_dir)) {
+                        if (!@mkdir($upload_dir, 0755, true)) {
+                            $logo_upload_error = 'Upload-Ordner konnte nicht erstellt werden. Bitte uploads/ manuell anlegen.';
+                        }
                     }
+                    if (empty($logo_upload_error) && !is_writable($upload_dir)) {
+                        $logo_upload_error = 'Upload-Ordner uploads/ ist nicht beschreibbar. Schreibrechte prüfen (z.B. chmod 755).';
+                    }
+                    if (empty($logo_upload_error)) {
+                        $logo_path = $upload_dir . DIRECTORY_SEPARATOR . 'logo.' . $ext;
+                        if (move_uploaded_file($_FILES['app_logo']['tmp_name'], $logo_path)) {
+                            $app['app_logo'] = 'uploads/logo.' . $ext;
+                        } else {
+                            $logo_upload_error = 'Logo konnte nicht gespeichert werden. Schreibrechte für uploads/ prüfen (Docker: Volume-Mount).';
+                        }
+                    }
+                } else {
+                    $logo_upload_error = 'Ungültiges Bildformat. Erlaubt: JPG, PNG, GIF, WebP. Erkannt: ' . ($mime ?: 'unbekannt');
                 }
+            } elseif ($upload_err !== UPLOAD_ERR_NO_FILE && $upload_err !== UPLOAD_ERR_OK) {
+                $err_msg = [UPLOAD_ERR_INI_SIZE => 'Datei zu groß (upload_max_filesize)', UPLOAD_ERR_FORM_SIZE => 'Datei zu groß (post_max_size)', UPLOAD_ERR_PARTIAL => 'Upload unvollständig', UPLOAD_ERR_NO_TMP_DIR => 'Temporärer Ordner fehlt', UPLOAD_ERR_CANT_WRITE => 'Speichern fehlgeschlagen', UPLOAD_ERR_EXTENSION => 'Upload blockiert'];
+                $logo_upload_error = $err_msg[$upload_err] ?? 'Upload-Fehler (Code ' . $upload_err . ')';
             }
             if (empty($app['app_logo'])) {
                 $app['app_logo'] = $settings['app_logo'] ?? '';
+            }
+            if ($logo_upload_error !== '') {
+                $error = $logo_upload_error;
             }
 
             // Drucker (lokal oder IPP/Cloud)
@@ -114,6 +135,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $db->commit();
             $message = 'Globale Einstellungen gespeichert.';
+            if (!empty($error)) {
+                $message .= ' Hinweis: ' . $error;
+                $error = '';
+            }
+            $settings = array_merge($settings, $all);
         } catch (Exception $e) {
             $db->rollBack();
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
@@ -240,9 +266,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="form-label">Logo für Formulare</label>
                             <input class="form-control" type="file" name="app_logo" accept="image/jpeg,image/png,image/gif,image/webp">
                             <small class="text-muted">Wird auf allen PDF-Formularen (Anwesenheitsliste etc.) oben angezeigt. Empfohlen: PNG oder JPG, max. 500 KB.</small>
-                            <?php if (!empty($settings['app_logo']) && file_exists(dirname(__DIR__) . '/' . $settings['app_logo'])): ?>
+                            <?php
+                            $ud = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
+                            $ud_ok = is_dir($ud) && is_writable($ud);
+                            if (!$ud_ok): ?>
+                            <div class="alert alert-warning mt-2 py-2 small mb-0">Ordner <code>uploads/</code> fehlt oder ist nicht beschreibbar. Logo-Upload funktioniert erst nach Behebung.</div>
+                            <?php endif; ?>
+                            <?php
+                            $logo_full = dirname(__DIR__) . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $settings['app_logo'] ?? '');
+                            if (!empty($settings['app_logo']) && file_exists($logo_full)): ?>
                             <div class="mt-2">
-                                <img src="../<?php echo htmlspecialchars($settings['app_logo']); ?>?v=<?php echo filemtime(dirname(__DIR__) . '/' . $settings['app_logo']); ?>" alt="Logo" style="max-height: 60px; max-width: 200px;">
+                                <img src="../<?php echo htmlspecialchars(str_replace('\\', '/', $settings['app_logo'])); ?>?v=<?php echo filemtime($logo_full); ?>" alt="Logo" style="max-height: 60px; max-width: 200px;">
                             </div>
                             <?php endif; ?>
                         </div>
