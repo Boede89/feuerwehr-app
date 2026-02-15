@@ -101,6 +101,18 @@ if (empty($felder)) {
 
 $typ_options = ['text' => 'Text', 'textarea' => 'Mehrzeiliger Text', 'time' => 'Uhrzeit', 'select' => 'Auswahlliste', 'radio' => 'Radio (Ja/Nein)', 'einsatzleiter' => 'Einsatzleiter (Mitglieder)', 'einsatzstelle' => 'Einsatzstelle (mit Adress-Suche)'];
 
+// Benutzer laden für E-Mail-Empfänger
+$users_for_email = [];
+try {
+    $stmt = $db->query("SELECT id, first_name, last_name, email FROM users WHERE is_active = 1 AND email IS NOT NULL AND email != '' ORDER BY first_name, last_name");
+    $users_for_email = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
+$form_key = 'anwesenheitsliste';
+$email_auto = ($settings['anwesenheitsliste_email_auto'] ?? '0') === '1';
+$email_recipients = json_decode($settings['anwesenheitsliste_email_recipients'] ?? '[]', true) ?: [];
+$email_manual = trim($settings['anwesenheitsliste_email_manual'] ?? '');
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
@@ -164,6 +176,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
             $stmt->execute(['anwesenheitsliste_felder', json_encode($felder)]);
+            // E-Mail-Einstellungen (speichern wenn Felder im POST – felderForm wurde abgeschickt)
+            if (array_key_exists('email_auto', $_POST) || array_key_exists('email_recipients', $_POST)) {
+                $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+                $stmt->execute(['anwesenheitsliste_email_auto', isset($_POST['email_auto']) ? '1' : '0']);
+                $recipients = array_filter(array_map('intval', $_POST['email_recipients'] ?? []));
+                $stmt->execute(['anwesenheitsliste_email_recipients', json_encode(array_values($recipients))]);
+                $manual = trim($_POST['email_manual'] ?? '');
+                $stmt->execute(['anwesenheitsliste_email_manual', $manual]);
+                $email_auto = isset($_POST['email_auto']);
+                $email_recipients = $recipients;
+                $email_manual = $manual;
+            }
         } catch (Exception $e) {
             $error = 'Fehler: ' . $e->getMessage();
         }
@@ -204,7 +228,7 @@ function opt($arr) {
         <h1 class="h3 mb-0"><i class="fas fa-clipboard-list"></i> Anwesenheitsliste – Felder verwalten</h1>
         <?php
         $return_formularcenter = isset($_GET['return']) && $_GET['return'] === 'formularcenter';
-        $back_url = $return_formularcenter ? 'settings-formularcenter.php?tab=anwesenheitsliste' : 'settings.php';
+        $back_url = $return_formularcenter ? 'settings-formularcenter.php?tab=forms' : 'settings.php';
         $back_label = $return_formularcenter ? 'Zurück zu Formularcenter' : 'Zurück';
         $back_target = $return_formularcenter ? ' target="_parent"' : '';
         ?>
@@ -317,11 +341,41 @@ function opt($arr) {
                 <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Änderungen speichern</button>
             </div>
         </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="fas fa-envelope"></i> E-Mail-Versand nach Absenden</div>
+            <div class="card-body">
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" name="email_auto" id="email_auto" value="1" <?php echo $email_auto ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="email_auto">Automatischer E-Mail-Versand aktiv – Bericht wird nach dem Absenden als PDF per E-Mail gesendet</label>
+                </div>
+                <div id="email_recipients_wrap" style="display: <?php echo $email_auto ? 'block' : 'none'; ?>;">
+                    <label class="form-label">Empfänger (Personen auswählen)</label>
+                    <select class="form-select" name="email_recipients[]" multiple size="6">
+                        <?php foreach ($users_for_email as $u): ?>
+                        <option value="<?php echo (int)$u['id']; ?>" <?php echo in_array((int)$u['id'], $email_recipients) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($u['first_name'] . ' ' . $u['last_name'] . ' (' . $u['email'] . ')'); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted d-block mt-1">Strg+Klick für Mehrfachauswahl</small>
+                    <label class="form-label mt-3">Zusätzliche E-Mail-Adressen (manuell)</label>
+                    <textarea class="form-control" name="email_manual" rows="2" placeholder="email1@beispiel.de&#10;email2@beispiel.de"><?php echo htmlspecialchars($email_manual); ?></textarea>
+                    <small class="text-muted d-block mt-1">Eine Adresse pro Zeile</small>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Änderungen speichern</button>
+            </div>
+        </div>
     </form>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+document.getElementById('email_auto').addEventListener('change', function() {
+    document.getElementById('email_recipients_wrap').style.display = this.checked ? 'block' : 'none';
+});
 document.querySelectorAll('.btn-delete-field').forEach(function(btn) {
     btn.addEventListener('click', function() {
         if (!confirm('Feld wirklich löschen?')) return;

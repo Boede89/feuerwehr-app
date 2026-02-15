@@ -16,7 +16,7 @@ if (!hasAdminPermission()) {
 }
 
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'forms';
-if (!in_array($active_tab, ['forms', 'dienstplan', 'anwesenheitsliste'])) {
+if (!in_array($active_tab, ['forms', 'dienstplan'])) {
     $active_tab = 'forms';
 }
 ?>
@@ -62,11 +62,6 @@ if (!in_array($active_tab, ['forms', 'dienstplan', 'anwesenheitsliste'])) {
                 <i class="fas fa-calendar-alt"></i> Dienstplan
             </a>
         </li>
-        <li class="nav-item" role="presentation">
-            <a class="nav-link <?php echo $active_tab === 'anwesenheitsliste' ? 'active' : ''; ?>" href="?tab=anwesenheitsliste">
-                <i class="fas fa-clipboard-list"></i> Anwesenheitsliste
-            </a>
-        </li>
     </ul>
 
     <div class="tab-content">
@@ -75,9 +70,6 @@ if (!in_array($active_tab, ['forms', 'dienstplan', 'anwesenheitsliste'])) {
         </div>
         <div class="tab-pane fade <?php echo $active_tab === 'dienstplan' ? 'show active' : ''; ?>" id="tab-dienstplan">
             <iframe src="settings-dienstplan.php?return=formularcenter" class="border-0 w-100" style="min-height: 500px;" title="Dienstplan-Einstellungen"></iframe>
-        </div>
-        <div class="tab-pane fade <?php echo $active_tab === 'anwesenheitsliste' ? 'show active' : ''; ?>" id="tab-anwesenheitsliste">
-            <iframe src="settings-anwesenheitsliste.php?return=formularcenter" class="border-0 w-100" style="min-height: 700px;" title="Anwesenheitsliste-Einstellungen"></iframe>
         </div>
     </div>
 </div>
