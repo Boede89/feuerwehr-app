@@ -246,7 +246,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     <div class="card-body text-center">
                         <i class="fas fa-truck fa-3x text-warning mb-2"></i>
                         <h5 class="card-title">Fahrzeuge</h5>
-                        <p class="card-text text-muted small">Einsätze/Übungen, Besatzungsstärke, Häufigste Maschinisten/EF</p>
+                        <p class="card-text text-muted small">Einsätze/Übungen, Besatzungsstärke, Maschinisten, Einheitsführer, Top Besatzung</p>
                     </div>
                 </div>
             </a>
@@ -1007,6 +1007,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
     elseif ($bereich === 'fahrzeuge'):
         $fahrzeug_stats = [];
         $fahrzeug_besatzung = [];
+        $fahrzeug_besatzung_top = [];
         $fahrzeug_maschinist = [];
         $fahrzeug_ef = [];
         try {
@@ -1052,11 +1053,48 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 }
                 $fahrzeug_besatzung[$vid] = count($liste_ids) > 0 ? $anz / count($liste_ids) : 0;
             }
+            $sql_besatz = "SELECT am.vehicle_id, am.member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ, JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) AS typ_sonstige FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0";
+            $params_besatz = [$von, $bis];
+            $sql_besatz .= get_zeit_filter_sql($params_besatz) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_besatz) . get_thema_filter_sql($params_besatz);
+            if ($vehicle_id > 0) {
+                $sql_besatz .= " AND am.vehicle_id = ?";
+                $params_besatz[] = $vehicle_id;
+            }
+            $stmt = $db->prepare($sql_besatz);
+            $stmt->execute($params_besatz);
+            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $einsatz = ($r['liste_typ'] === 'einsatz') || ($r['liste_typ'] === 'dienst' && ($r['dienst_typ'] ?? '') === 'einsatz');
+                $jhv = ist_jhv_sonstiges($r);
+                if ($typ_filter === 'einsaetze' && !$einsatz) continue;
+                if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
+                if ($typ_filter === 'beides' && $jhv) continue;
+                if ($typ_filter === 'jhv' && !ist_jhv($r)) continue;
+                if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
+                $vid = (int)$r['vehicle_id'];
+                $mid = (int)$r['member_id'];
+                if (!isset($fahrzeug_stats[$vid])) continue;
+                $fahrzeug_besatzung_top[$vid][$mid] = ($fahrzeug_besatzung_top[$vid][$mid] ?? 0) + 1;
+            }
         } catch (Exception $e) {}
         $vehicle_map = [];
         foreach ($vehicles as $v) $vehicle_map[(int)$v['id']] = $v['name'];
         $member_map = [];
         foreach ($members as $m) $member_map[(int)$m['id']] = $m['last_name'] . ', ' . $m['first_name'];
+        $all_mids = array_unique(array_merge(
+            array_reduce($fahrzeug_maschinist, fn($a,$v) => array_merge($a, array_keys($v ?? [])), []),
+            array_reduce($fahrzeug_ef, fn($a,$v) => array_merge($a, array_keys($v ?? [])), []),
+            array_reduce($fahrzeug_besatzung_top ?? [], fn($a,$v) => array_merge($a, array_keys($v ?? [])), [])
+        ));
+        foreach ($all_mids as $mid) {
+            if ($mid > 0 && !isset($member_map[$mid])) {
+                try {
+                    $st = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
+                    $st->execute([$mid]);
+                    $row = $st->fetch(PDO::FETCH_ASSOC);
+                    if ($row) $member_map[$mid] = $row['last_name'] . ', ' . $row['first_name'];
+                } catch (Exception $e) {}
+            }
+        }
         $sorted_vids = array_keys($fahrzeug_stats);
         usort($sorted_vids, function($a,$b) use ($fahrzeug_stats) {
             $ta = ($fahrzeug_stats[$a]['einsaetze'] ?? 0) + ($fahrzeug_stats[$a]['uebungen'] ?? 0);
@@ -1112,6 +1150,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     <th class="text-end">Durchschn. Besatzung</th>
                     <th>Häufigste Maschinisten</th>
                     <th>Häufigste Einheitsführer</th>
+                    <th>Top Besatzung</th>
                 </tr>
             </thead>
             <tbody>
@@ -1122,8 +1161,10 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     $besatz = $fahrzeug_besatzung[$vid] ?? 0;
                     $masch_list = $fahrzeug_maschinist[$vid] ?? [];
                     $ef_list = $fahrzeug_ef[$vid] ?? [];
+                    $besatz_list = $fahrzeug_besatzung_top[$vid] ?? [];
                     arsort($masch_list);
                     arsort($ef_list);
+                    arsort($besatz_list);
                     $masch_str = [];
                     foreach (array_slice($masch_list, 0, 3) as $mid => $cnt) {
                         $masch_str[] = ($member_map[$mid] ?? 'ID'.$mid) . ' (' . $cnt . ')';
@@ -1131,6 +1172,10 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     $ef_str = [];
                     foreach (array_slice($ef_list, 0, 3) as $mid => $cnt) {
                         $ef_str[] = ($member_map[$mid] ?? 'ID'.$mid) . ' (' . $cnt . ')';
+                    }
+                    $besatz_str = [];
+                    foreach (array_slice($besatz_list, 0, 9) as $mid => $cnt) {
+                        $besatz_str[] = ($member_map[$mid] ?? 'ID'.$mid) . ' (' . $cnt . ')';
                     }
                 ?>
                 <tr>
@@ -1142,6 +1187,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     <td class="text-end"><?php echo number_format($besatz, 1, ',', '.'); ?></td>
                     <td><?php echo htmlspecialchars(implode(', ', $masch_str) ?: '-'); ?></td>
                     <td><?php echo htmlspecialchars(implode(', ', $ef_str) ?: '-'); ?></td>
+                    <td><?php echo htmlspecialchars(implode(', ', $besatz_str) ?: '-'); ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
