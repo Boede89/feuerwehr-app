@@ -430,7 +430,7 @@ function _al_val($liste, $key, $custom_data = []) {
                         if (empty($f['visible'])) continue;
                         $fid = $f['id'] ?? '';
                         if ($is_uebungsdienst_edit && in_array($fid, $uebungsdienst_hide_ids)) continue;
-                        if ($fid === 'einsatzstichwort' && $is_uebungsdienst_edit) {
+                        if ($fid === 'einsatzstichwort' && ($is_uebungsdienst_edit || $is_jhv_sonstiges_edit)) {
                             if ($is_jhv_sonstiges_edit) {
                                 $fid = 'beschreibung';
                                 $label = 'Beschreibung';

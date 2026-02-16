@@ -528,7 +528,13 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                                 <div class="card-body text-center">
                                     <p class="text-muted mb-0 small">Gesamt-Teilnahmen</p>
                                     <p class="h2 mb-0 text-primary"><?php echo $gesamt; ?></p>
-                                    <p class="small mb-0"><?php echo $s['einsaetze']; ?> Einsätze, <?php echo $s['uebungen']; ?> Übungen<?php if (($s['jhv_sonstiges'] ?? 0) > 0): ?>, <?php echo $s['jhv_sonstiges']; ?> JHV/Sonstiges<?php endif; ?></p>
+                                    <p class="small mb-0"><?php
+                                        if ($typ_filter === 'einsaetze') echo (int)$s['einsaetze'] . ' Einsätze';
+                                        elseif ($typ_filter === 'uebungen') echo (int)$s['uebungen'] . ' Übungen';
+                                        elseif ($typ_filter === 'jhv') echo (int)($s['jhv'] ?? 0) . ' JHV';
+                                        elseif ($typ_filter === 'sonstiges') echo (int)($s['sonstiges'] ?? 0) . ' Sonstiges';
+                                        else { echo (int)$s['einsaetze'] . ' Einsätze, ' . (int)$s['uebungen'] . ' Übungen'; if (($s['jhv_sonstiges'] ?? 0) > 0) echo ', ' . (int)$s['jhv_sonstiges'] . ' JHV/Sonstiges'; }
+                                    ?></p>
                                 </div>
                             </div>
                         </div>
@@ -631,7 +637,13 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 <div class="card-body py-3">
                     <h6 class="card-title mb-1"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></h6>
                     <p class="mb-0 small text-muted"><?php echo $t; ?> Teilnahmen <span class="text-primary">(<?php echo $prozent; ?>%)</span></p>
-                    <p class="mb-0 small"><?php echo $s['einsaetze']; ?> E / <?php echo $s['uebungen']; ?> Ü<?php if (($s['jhv_sonstiges'] ?? 0) > 0): ?> / <?php echo $s['jhv_sonstiges']; ?> JHV<?php endif; ?> · <?php echo number_format($s['stunden'], 1, ',', '.'); ?> h</p>
+                    <p class="mb-0 small"><?php
+                        if ($typ_filter === 'einsaetze') echo (int)$s['einsaetze'] . ' E';
+                        elseif ($typ_filter === 'uebungen') echo (int)$s['uebungen'] . ' Ü';
+                        elseif ($typ_filter === 'jhv') echo (int)($s['jhv'] ?? 0) . ' JHV';
+                        elseif ($typ_filter === 'sonstiges') echo (int)($s['sonstiges'] ?? 0) . ' Sonstiges';
+                        else echo (int)$s['einsaetze'] . ' E / ' . (int)$s['uebungen'] . ' Ü';
+                        ?> · <?php echo number_format($s['stunden'], 1, ',', '.'); ?> h</p>
                 </div>
             </div>
         </div>
