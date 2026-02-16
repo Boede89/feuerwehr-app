@@ -1104,6 +1104,20 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                 </div>
                 <div class="modal-body">
                     <p>Möchten Sie den Bericht wirklich absenden?</p>
+                    <div class="mb-3 p-2 bg-light rounded">
+                        <label class="form-label fw-bold mb-2">Uhrzeiten korrekt?</label>
+                        <p class="text-muted small mb-2">Bitte prüfen Sie die Zeiten und passen Sie diese bei Bedarf an:</p>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label small mb-0">Uhrzeit von</label>
+                                <input type="time" class="form-control form-control-sm" id="modal_uhrzeit_von" value="<?php echo htmlspecialchars(strlen($draft['uhrzeit_von'] ?? '') >= 5 ? substr($draft['uhrzeit_von'], 0, 5) : ($draft['uhrzeit_von'] ?? '')); ?>">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small mb-0">Uhrzeit bis</label>
+                                <input type="time" class="form-control form-control-sm" id="modal_uhrzeit_bis" value="<?php echo htmlspecialchars(strlen($draft['uhrzeit_bis'] ?? '') >= 5 ? substr($draft['uhrzeit_bis'], 0, 5) : ($draft['uhrzeit_bis'] ?? date('H:i'))); ?>">
+                            </div>
+                        </div>
+                    </div>
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" checked>
                         <label class="form-check-label" for="cbPrintAfterSave">Anwesenheitsliste drucken</label>
@@ -1200,9 +1214,21 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                     }
                     return;
                 }
+                var modalVon = document.getElementById('modal_uhrzeit_von');
+                var modalBis = document.getElementById('modal_uhrzeit_bis');
+                var formVon = form.querySelector('[name="uhrzeit_von"]');
+                var formBis = form.querySelector('[name="uhrzeit_bis"]');
+                if (modalVon && formVon) modalVon.value = formVon.value || '';
+                if (modalBis && formBis) modalBis.value = formBis.value || (modalBis.value || '');
                 new bootstrap.Modal(modal).show();
             });
             document.getElementById('btnConfirmSave').addEventListener('click', function() {
+                var modalVon = document.getElementById('modal_uhrzeit_von');
+                var modalBis = document.getElementById('modal_uhrzeit_bis');
+                var formVon = form.querySelector('[name="uhrzeit_von"]');
+                var formBis = form.querySelector('[name="uhrzeit_bis"]');
+                if (modalVon && formVon) formVon.value = modalVon.value || '';
+                if (modalBis && formBis) formBis.value = modalBis.value || '';
                 if (inputPrint) inputPrint.value = cbPrint && cbPrint.checked ? '1' : '0';
                 if (inputPrintMaengel) inputPrintMaengel.value = cbPrintMaengel && cbPrintMaengel.checked ? '1' : '0';
                 if (inputPrintGwm) inputPrintGwm.value = cbPrintGwm && cbPrintGwm.checked ? '1' : '0';
