@@ -101,12 +101,12 @@ foreach ($fahrzeuge as $f) {
     if (!empty($f['defective_freitext'])) $def_names[] = $f['defective_freitext'];
     $def_str = '';
     if (!empty($def_names)) {
-        $def_str = 'Gerät(e): ' . implode(', ', $def_names);
+        $def_str = implode(', ', $def_names);
         if (!empty($f['defective_mangel'])) {
-            $def_str .= ' – Defekt: ' . $f['defective_mangel'];
+            $def_str .= ' – ' . $f['defective_mangel'];
         }
     } elseif (!empty($f['defective_mangel'])) {
-        $def_str = 'Defekt: ' . $f['defective_mangel'];
+        $def_str = $f['defective_mangel'];
     }
 
     $fahrzeuge_html .= '<tr><td class="label-cell">' . htmlspecialchars($f['vehicle_name'] ?? '-') . '</td><td class="value-cell">' . htmlspecialchars($masch ?: '-') . '</td><td class="value-cell">' . htmlspecialchars($einh ?: '-') . '</td><td class="value-cell">' . htmlspecialchars(implode(', ', $eq_names) ?: '-') . '</td><td class="value-cell">' . htmlspecialchars($def_str ?: '-') . '</td></tr>';
