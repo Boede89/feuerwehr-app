@@ -99,7 +99,22 @@ $member_pa_ids = array_flip($custom_data['member_pa'] ?? []);
 $is_uebungsdienst_edit = !empty($uebungsleiter_ids)
     || (($liste['typ'] ?? '') === 'dienst' && in_array($liste['dienst_typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung']))
     || (($liste['typ'] ?? '') === 'manuell' && in_array($liste['bezeichnung'] ?? '', ['Übungsdienst', 'Jahreshauptversammlung']));
+$is_jhv_sonstiges_edit = (($liste['typ'] ?? '') === 'dienst' && in_array($liste['dienst_typ'] ?? '', ['jahreshauptversammlung', 'sonstiges']))
+    || (($liste['typ'] ?? '') === 'manuell' && in_array($liste['bezeichnung'] ?? '', ['Jahreshauptversammlung', 'Sonstiges']));
 $uebungsdienst_hide_ids = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
+$berichtersteller_val = $custom_data['berichtersteller'] ?? '';
+$berichtersteller_display = '';
+if ($berichtersteller_val !== '' && $berichtersteller_val !== null) {
+    if (preg_match('/^\d+$/', (string)$berichtersteller_val)) {
+        foreach ($members_list as $m) {
+            if ((int)$m['id'] === (int)$berichtersteller_val) {
+                $berichtersteller_display = trim($m['last_name'] . ', ' . $m['first_name']);
+                break;
+            }
+        }
+    }
+    if ($berichtersteller_display === '') $berichtersteller_display = (string)$berichtersteller_val;
+}
 
 $message = '';
 $error = '';
@@ -159,8 +174,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             $updates[] = 'einsatzbericht_nummer = ?';
             $params[] = $einsatzbericht_nummer;
             if ($is_uebungsdienst_edit) {
+                $thema_beschreibung = trim($_POST['thema'] ?? $_POST['beschreibung'] ?? '');
                 $updates[] = 'bezeichnung = ?';
-                $params[] = trim($_POST['thema'] ?? '') !== '' ? trim($_POST['thema']) : null;
+                $params[] = $thema_beschreibung !== '' ? $thema_beschreibung : null;
             }
             $custom_post = [];
             foreach ($anwesenheitsliste_felder as $f) {
@@ -195,6 +211,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
                         }
                     }
                 }
+            }
+            $ber_val = trim($_POST['berichtersteller'] ?? '');
+            if ($ber_val === '__freitext__') {
+                $ber_val = trim($_POST['berichtersteller_freitext'] ?? '');
+            }
+            if ($ber_val !== '') {
+                $custom_post['berichtersteller'] = $ber_val;
+                $berichtersteller_text = $ber_val;
+                if (ctype_digit($ber_val)) {
+                    try {
+                        $stmt_m = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
+                        $stmt_m->execute([(int)$ber_val]);
+                        $m = $stmt_m->fetch(PDO::FETCH_ASSOC);
+                        if ($m) $custom_post['berichtersteller_text'] = trim($m['last_name'] . ', ' . $m['first_name']);
+                    } catch (Exception $e) {}
+                }
+            }
+            if ($is_jhv_sonstiges_edit) {
+                $beschr = trim($_POST['beschreibung'] ?? '');
+                if ($beschr !== '') $custom_post['beschreibung'] = $beschr;
+                if (isset($custom_data['typ_sonstige'])) $custom_post['typ_sonstige'] = $custom_data['typ_sonstige'];
             }
             if (!empty($_POST['equipment_sonstiges']) && is_array($_POST['equipment_sonstiges'])) {
                 foreach ($_POST['equipment_sonstiges'] as $vid => $txt) {
@@ -379,9 +416,15 @@ function _al_val($liste, $key, $custom_data = []) {
                         $fid = $f['id'] ?? '';
                         if ($is_uebungsdienst_edit && in_array($fid, $uebungsdienst_hide_ids)) continue;
                         if ($fid === 'einsatzstichwort' && $is_uebungsdienst_edit) {
-                            $fid = 'thema';
-                            $label = 'Thema';
-                            $val = trim((string)($liste['bezeichnung'] ?? ''));
+                            if ($is_jhv_sonstiges_edit) {
+                                $fid = 'beschreibung';
+                                $label = 'Beschreibung';
+                                $val = trim((string)($custom_data['beschreibung'] ?? $liste['bezeichnung'] ?? ''));
+                            } else {
+                                $fid = 'thema';
+                                $label = 'Thema';
+                                $val = trim((string)($liste['bezeichnung'] ?? ''));
+                            }
                         } else {
                             $label = $f['label'] ?? $fid;
                             $val = '';
@@ -447,6 +490,17 @@ function _al_val($liste, $key, $custom_data = []) {
                         <?php endif; ?>
                     </div>
                     <?php endforeach; ?>
+                    <div class="col-12">
+                        <label class="form-label">Berichtersteller <span class="text-danger">*</span></label>
+                        <select class="form-select" name="berichtersteller">
+                            <option value="">— auswählen —</option>
+                            <?php foreach ($members_list as $m): ?>
+                            <option value="<?php echo (int)$m['id']; ?>" <?php echo $berichtersteller_val === (string)$m['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></option>
+                            <?php endforeach; ?>
+                            <option value="__freitext__" <?php echo $berichtersteller_val !== '' && !preg_match('/^\d+$/', (string)$berichtersteller_val) ? 'selected' : ''; ?>>— Freitext —</option>
+                        </select>
+                        <input type="text" class="form-control mt-2" name="berichtersteller_freitext" id="berichtersteller_freitext" placeholder="Name (wenn Freitext)" value="<?php echo $berichtersteller_val !== '' && !preg_match('/^\d+$/', (string)$berichtersteller_val) ? htmlspecialchars($berichtersteller_val) : ''; ?>" style="<?php echo $berichtersteller_val !== '' && !preg_match('/^\d+$/', (string)$berichtersteller_val) ? '' : 'display:none'; ?>">
+                    </div>
                 </div>
             </div>
         </div>
@@ -683,6 +737,17 @@ function _al_val($liste, $key, $custom_data = []) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <style>.uebungsleiter-item:hover{background:#f8f9fa}.uebungsleiter-item-selected{background:#0d6efd!important;color:#fff!important;border-color:#0d6efd!important}</style>
 <script>
+(function(){
+    var sel = document.querySelector('select[name="berichtersteller"]');
+    var txt = document.getElementById('berichtersteller_freitext');
+    if (sel && txt) {
+        function toggle() {
+            txt.style.display = sel.value === '__freitext__' ? 'block' : 'none';
+            if (sel.value !== '__freitext__') txt.value = '';
+        }
+        sel.addEventListener('change', toggle);
+    }
+})();
 document.querySelectorAll('.uebungsleiter-item').forEach(function(el){
     el.addEventListener('click',function(){
         var cb=this.querySelector('input[type=checkbox]');
