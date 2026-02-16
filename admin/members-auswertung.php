@@ -31,7 +31,7 @@ $vehicle_id = isset($_GET['vehicle_id']) ? (int)$_GET['vehicle_id'] : 0;
 $ansicht = isset($_GET['ansicht']) ? trim($_GET['ansicht']) : 'alle';
 $typ_filter = isset($_GET['typ']) ? trim($_GET['typ']) : 'beides';
 if (!in_array($ansicht, ['tabelle', 'diagramme', 'karten', 'alle'])) $ansicht = 'alle';
-if (!in_array($typ_filter, ['einsaetze', 'uebungen', 'beides'])) $typ_filter = 'beides';
+if (!in_array($typ_filter, ['einsaetze', 'uebungen', 'beides', 'jhv_sonstiges'])) $typ_filter = 'beides';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $von)) $von = $jahr . '-01-01';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bis)) $bis = date('Y-m-d');
 
@@ -48,10 +48,15 @@ try {
 
 // Hilfsfunktion: Ist Anwesenheit Einsatz oder Übung?
 // Übungsdienste und Dienste aus dem Dienstplan (dienst_typ 'uebungsdienst', 'dienst', 'uebung') werden alle als Übung gewertet.
+// JHV und Sonstiges sind NICHT in der Hauptstatistik, sondern separat auswertbar.
 function ist_einsatz($row) {
     if ($row['liste_typ'] === 'einsatz') return true;
     if ($row['liste_typ'] === 'dienst' && !empty($row['dienst_typ']) && $row['dienst_typ'] === 'einsatz') return true;
     return false;
+}
+function ist_jhv_sonstiges($row) {
+    $dt = $row['dienst_typ'] ?? '';
+    return $dt === 'jahreshauptversammlung' || $dt === 'sonstiges';
 }
 
 $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => $member_id, 'vehicle_id' => $vehicle_id, 'ansicht' => $ansicht, 'typ' => $typ_filter];
@@ -158,9 +163,10 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
                 <div class="col-md-2">
                     <label class="form-label">Typ</label>
                     <select name="typ" class="form-select">
-                        <option value="beides" <?php echo $typ_filter === 'beides' ? 'selected' : ''; ?>>Beides</option>
+                        <option value="beides" <?php echo $typ_filter === 'beides' ? 'selected' : ''; ?>>Einsätze + Übungen</option>
                         <option value="einsaetze" <?php echo $typ_filter === 'einsaetze' ? 'selected' : ''; ?>>Nur Einsätze</option>
                         <option value="uebungen" <?php echo $typ_filter === 'uebungen' ? 'selected' : ''; ?>>Nur Übungen</option>
+                        <option value="jhv_sonstiges" <?php echo $typ_filter === 'jhv_sonstiges' ? 'selected' : ''; ?>>JHV / Sonstiges</option>
                     </select>
                 </div>
                 <?php if ($bereich === 'personen'): ?>
@@ -212,6 +218,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
         $personen_letzte = [];
         $anzahl_einsaetze = 0;
         $anzahl_uebungen = 0;
+        $anzahl_jhv_sonstiges = 0;
         try {
             $stmt = $db->prepare("
                 SELECT a.id, a.typ AS liste_typ, d.typ AS dienst_typ
@@ -221,7 +228,9 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             ");
             $stmt->execute([$von, $bis]);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                if (ist_einsatz($r)) $anzahl_einsaetze++; else $anzahl_uebungen++;
+                if (ist_einsatz($r)) $anzahl_einsaetze++;
+                elseif (ist_jhv_sonstiges($r)) $anzahl_jhv_sonstiges++;
+                else $anzahl_uebungen++;
             }
             $anzahl_gesamt = $anzahl_einsaetze + $anzahl_uebungen;
             $sql = "
@@ -242,10 +251,14 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $mid = (int)$r['member_id'];
                 $einsatz = ist_einsatz($r);
+                $jhv = ist_jhv_sonstiges($r);
                 if ($typ_filter === 'einsaetze' && !$einsatz) continue;
-                if ($typ_filter === 'uebungen' && $einsatz) continue;
-                $personen_stats[$mid] = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'fahrzeuge' => [], 'stunden' => 0];
+                if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
+                if ($typ_filter === 'beides' && $jhv) continue;
+                if ($typ_filter === 'jhv_sonstiges' && !$jhv) continue;
+                $personen_stats[$mid] = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0, 'fahrzeuge' => [], 'stunden' => 0];
                 if ($einsatz) $personen_stats[$mid]['einsaetze']++;
+                elseif ($jhv) $personen_stats[$mid]['jhv_sonstiges']++;
                 else $personen_stats[$mid]['uebungen']++;
                 if (!empty($r['vehicle_id'])) {
                     $vid = (int)$r['vehicle_id'];
@@ -269,8 +282,11 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             $stmt->execute([$von, $bis]);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $einsatz = ist_einsatz($r);
+                $jhv = ist_jhv_sonstiges($r);
                 if ($typ_filter === 'einsaetze' && !$einsatz) continue;
-                if ($typ_filter === 'uebungen' && $einsatz) continue;
+                if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
+                if ($typ_filter === 'beides' && $jhv) continue;
+                if ($typ_filter === 'jhv_sonstiges' && !$jhv) continue;
                 if (!empty($r['maschinist_member_id'])) {
                     $mid = (int)$r['maschinist_member_id'];
                     $personen_maschinist[$mid] = ($personen_maschinist[$mid] ?? 0) + 1;
@@ -285,27 +301,34 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
         foreach ($members as $m) $member_map[(int)$m['id']] = $m;
         $vehicle_map = [];
         foreach ($vehicles as $v) $vehicle_map[(int)$v['id']] = $v['name'];
-        usort($members, function($a,$b) use ($personen_stats) {
-            $ta = (($personen_stats[(int)$a['id']]['einsaetze'] ?? 0) + ($personen_stats[(int)$a['id']]['uebungen'] ?? 0));
-            $tb = (($personen_stats[(int)$b['id']]['einsaetze'] ?? 0) + ($personen_stats[(int)$b['id']]['uebungen'] ?? 0));
-            return $tb - $ta;
+        $get_teilnahme_count = function($m) use ($personen_stats, $typ_filter) {
+            $s = $personen_stats[(int)$m['id']] ?? [];
+            if ($typ_filter === 'einsaetze') return $s['einsaetze'] ?? 0;
+            if ($typ_filter === 'uebungen') return $s['uebungen'] ?? 0;
+            if ($typ_filter === 'jhv_sonstiges') return $s['jhv_sonstiges'] ?? 0;
+            return ($s['einsaetze'] ?? 0) + ($s['uebungen'] ?? 0);
+        };
+        usort($members, function($a,$b) use ($get_teilnahme_count) {
+            return $get_teilnahme_count($b) - $get_teilnahme_count($a);
         });
         if ($member_id > 0) {
             $members = array_values(array_filter($members, fn($m) => (int)$m['id'] === $member_id));
         }
-        $members_mit_teilnahme = array_values(array_filter($members, fn($m) => (($personen_stats[(int)$m['id']]['einsaetze'] ?? 0) + ($personen_stats[(int)$m['id']]['uebungen'] ?? 0)) > 0));
-        $basis_fuer_prozent = $typ_filter === 'einsaetze' ? $anzahl_einsaetze : ($typ_filter === 'uebungen' ? $anzahl_uebungen : $anzahl_gesamt);
+        $members_mit_teilnahme = array_values(array_filter($members, fn($m) => $get_teilnahme_count($m) > 0));
+        $basis_fuer_prozent = $typ_filter === 'einsaetze' ? $anzahl_einsaetze : ($typ_filter === 'uebungen' ? $anzahl_uebungen : ($typ_filter === 'jhv_sonstiges' ? $anzahl_jhv_sonstiges : $anzahl_gesamt));
         $chart_person_fahrzeuge = [];
         $chart_person_rollen = [];
         $chart_personen_top = [];
         $chart_personen_einsatz_uebung = ['Einsätze' => 0, 'Übungen' => 0];
         foreach ($members_mit_teilnahme as $m) {
             $mid = (int)$m['id'];
-            $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0];
-            $t = $s['einsaetze'] + $s['uebungen'];
+            $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0];
+            $t = $get_teilnahme_count($m);
             $chart_personen_top[] = ['label' => $m['last_name'] . ', ' . $m['first_name'], 'count' => $t];
-            $chart_personen_einsatz_uebung['Einsätze'] += $s['einsaetze'];
-            $chart_personen_einsatz_uebung['Übungen'] += $s['uebungen'];
+            if ($typ_filter !== 'jhv_sonstiges') {
+                $chart_personen_einsatz_uebung['Einsätze'] += $s['einsaetze'];
+                $chart_personen_einsatz_uebung['Übungen'] += $s['uebungen'];
+            }
         }
         usort($chart_personen_top, fn($a,$b) => $b['count'] - $a['count']);
         $chart_personen_top = array_slice($chart_personen_top, 0, 10);
@@ -320,8 +343,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
     $chart_person_fahrzeuge = [];
     $chart_person_rollen = [];
     $mid = (int)$m['id'];
-    $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'fahrzeuge' => [], 'stunden' => 0];
-    $gesamt = $s['einsaetze'] + $s['uebungen'];
+    $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0, 'fahrzeuge' => [], 'stunden' => 0];
+    $gesamt = $typ_filter === 'jhv_sonstiges' ? ($s['jhv_sonstiges'] ?? 0) : ($s['einsaetze'] + $s['uebungen']);
     $masch = $personen_maschinist[$mid] ?? 0;
     $ef = $personen_einheitsfuehrer[$mid] ?? 0;
     $letzte = $personen_letzte[$mid] ?? '-';
@@ -350,7 +373,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
                                 <div class="card-body text-center">
                                     <p class="text-muted mb-0 small">Gesamt-Teilnahmen</p>
                                     <p class="h2 mb-0 text-primary"><?php echo $gesamt; ?></p>
-                                    <p class="small mb-0"><?php echo $s['einsaetze']; ?> Einsätze, <?php echo $s['uebungen']; ?> Übungen</p>
+                                    <p class="small mb-0"><?php echo $s['einsaetze']; ?> Einsätze, <?php echo $s['uebungen']; ?> Übungen<?php if (($s['jhv_sonstiges'] ?? 0) > 0): ?>, <?php echo $s['jhv_sonstiges']; ?> JHV/Sonstiges<?php endif; ?></p>
                                 </div>
                             </div>
                         </div>
@@ -443,9 +466,9 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
     <div class="row mb-4">
         <?php foreach (array_slice($members_mit_teilnahme, 0, 12) as $m):
             $mid = (int)$m['id'];
-            $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'stunden' => 0];
-            $t = $s['einsaetze'] + $s['uebungen'];
-            $person_count = $typ_filter === 'einsaetze' ? $s['einsaetze'] : ($typ_filter === 'uebungen' ? $s['uebungen'] : $t);
+            $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0, 'stunden' => 0];
+            $t = $typ_filter === 'jhv_sonstiges' ? ($s['jhv_sonstiges'] ?? 0) : ($s['einsaetze'] + $s['uebungen']);
+            $person_count = $typ_filter === 'einsaetze' ? $s['einsaetze'] : ($typ_filter === 'uebungen' ? $s['uebungen'] : ($typ_filter === 'jhv_sonstiges' ? ($s['jhv_sonstiges'] ?? 0) : $t));
             $prozent = $basis_fuer_prozent > 0 ? round($person_count / $basis_fuer_prozent * 100, 1) : 0;
         ?>
         <div class="col-md-4 col-lg-3 mb-3">
@@ -453,7 +476,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
                 <div class="card-body py-3">
                     <h6 class="card-title mb-1"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></h6>
                     <p class="mb-0 small text-muted"><?php echo $t; ?> Teilnahmen <span class="text-primary">(<?php echo $prozent; ?>%)</span></p>
-                    <p class="mb-0 small"><?php echo $s['einsaetze']; ?> E / <?php echo $s['uebungen']; ?> Ü · <?php echo number_format($s['stunden'], 1, ',', '.'); ?> h</p>
+                    <p class="mb-0 small"><?php echo $s['einsaetze']; ?> E / <?php echo $s['uebungen']; ?> Ü<?php if (($s['jhv_sonstiges'] ?? 0) > 0): ?> / <?php echo $s['jhv_sonstiges']; ?> JHV<?php endif; ?> · <?php echo number_format($s['stunden'], 1, ',', '.'); ?> h</p>
                 </div>
             </div>
         </div>
@@ -463,15 +486,19 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
 
     <?php if ($ansicht === 'tabelle' || $ansicht === 'alle'): ?>
     <?php if ($basis_fuer_prozent > 0): ?>
-    <p class="text-muted small mb-2"><i class="fas fa-info-circle"></i> Anteil: 100% = Teilnahme an allen <?php echo $basis_fuer_prozent; ?> <?php echo $typ_filter === 'einsaetze' ? 'Einsätzen' : ($typ_filter === 'uebungen' ? 'Übungen' : 'Einsätzen/Übungen'); ?> im Zeitraum</p>
+    <p class="text-muted small mb-2"><i class="fas fa-info-circle"></i> Anteil: 100% = Teilnahme an allen <?php echo $basis_fuer_prozent; ?> <?php echo $typ_filter === 'einsaetze' ? 'Einsätzen' : ($typ_filter === 'uebungen' ? 'Übungen' : ($typ_filter === 'jhv_sonstiges' ? 'JHV/Sonstiges' : 'Einsätzen/Übungen')); ?> im Zeitraum</p>
     <?php endif; ?>
     <div class="table-responsive">
         <table class="table table-sm table-hover">
             <thead>
                 <tr>
                     <th>Mitglied</th>
+                    <?php if ($typ_filter !== 'jhv_sonstiges'): ?>
                     <th class="text-end">Einsätze</th>
                     <th class="text-end">Übungen</th>
+                    <?php else: ?>
+                    <th class="text-end">JHV/Sonstiges</th>
+                    <?php endif; ?>
                     <th class="text-end">Gesamt</th>
                     <th class="text-end">Anteil</th>
                     <th class="text-end">Als Maschinist</th>
@@ -484,9 +511,9 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             <tbody>
                 <?php foreach ($members_mit_teilnahme as $m):
                     $mid = (int)$m['id'];
-                    $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'fahrzeuge' => [], 'stunden' => 0];
-                    $gesamt = $s['einsaetze'] + $s['uebungen'];
-                    $person_count = $typ_filter === 'einsaetze' ? $s['einsaetze'] : ($typ_filter === 'uebungen' ? $s['uebungen'] : $gesamt);
+                    $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0, 'fahrzeuge' => [], 'stunden' => 0];
+                    $gesamt = $typ_filter === 'jhv_sonstiges' ? ($s['jhv_sonstiges'] ?? 0) : ($s['einsaetze'] + $s['uebungen']);
+                    $person_count = $typ_filter === 'einsaetze' ? $s['einsaetze'] : ($typ_filter === 'uebungen' ? $s['uebungen'] : ($typ_filter === 'jhv_sonstiges' ? ($s['jhv_sonstiges'] ?? 0) : $gesamt));
                     $prozent = $basis_fuer_prozent > 0 ? number_format($person_count / $basis_fuer_prozent * 100, 1, ',', '.') : '0';
                     $masch = $personen_maschinist[$mid] ?? 0;
                     $ef = $personen_einheitsfuehrer[$mid] ?? 0;
@@ -500,8 +527,12 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
                 ?>
                 <tr>
                     <td><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></td>
+                    <?php if ($typ_filter !== 'jhv_sonstiges'): ?>
                     <td class="text-end"><?php echo (int)$s['einsaetze']; ?></td>
                     <td class="text-end"><?php echo (int)$s['uebungen']; ?></td>
+                    <?php else: ?>
+                    <td class="text-end"><?php echo (int)($s['jhv_sonstiges'] ?? 0); ?></td>
+                    <?php endif; ?>
                     <td class="text-end"><strong><?php echo $gesamt; ?></strong></td>
                     <td class="text-end"><span class="badge bg-primary"><?php echo $prozent; ?>%</span></td>
                     <td class="text-end"><?php echo $masch; ?></td>
@@ -537,8 +568,11 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             $listen = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($listen as $a) {
                 $einsatz = ($a['liste_typ'] === 'einsatz') || ($a['liste_typ'] === 'dienst' && ($a['dienst_typ'] ?? '') === 'einsatz');
+                $jhv = ($a['dienst_typ'] ?? '') === 'jahreshauptversammlung' || ($a['dienst_typ'] ?? '') === 'sonstiges';
                 if ($typ_filter === 'einsaetze' && !$einsatz) continue;
-                if ($typ_filter === 'uebungen' && $einsatz) continue;
+                if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
+                if ($typ_filter === 'beides' && $jhv) continue;
+                if ($typ_filter === 'jhv_sonstiges' && !$jhv) continue;
                 if ($einsatz) {
                     $k = trim($a['klassifizierung'] ?? '') ?: '-';
                     $klassifizierung[$k] = ($klassifizierung[$k] ?? 0) + 1;
@@ -555,8 +589,11 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             }
             $listen = array_filter($listen, function($a) use ($typ_filter) {
                 $einsatz = ($a['liste_typ'] === 'einsatz') || ($a['liste_typ'] === 'dienst' && ($a['dienst_typ'] ?? '') === 'einsatz');
+                $jhv = ($a['dienst_typ'] ?? '') === 'jahreshauptversammlung' || ($a['dienst_typ'] ?? '') === 'sonstiges';
                 if ($typ_filter === 'einsaetze' && !$einsatz) return false;
-                if ($typ_filter === 'uebungen' && $einsatz) return false;
+                if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) return false;
+                if ($typ_filter === 'beides' && $jhv) return false;
+                if ($typ_filter === 'jhv_sonstiges' && !$jhv) return false;
                 return true;
             });
         } catch (Exception $e) {}
@@ -697,7 +734,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
         </div>
     </div>
     <div class="card mb-4">
-        <div class="card-header">Top-Themen bei Übungsdiensten</div>
+        <div class="card-header">Top-Themen <?php echo $typ_filter === 'jhv_sonstiges' ? '(JHV/Sonstiges)' : 'bei Übungsdiensten'; ?></div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-sm mb-0">
@@ -739,8 +776,11 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             $stmt->execute($params_f);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $einsatz = ($r['liste_typ'] === 'einsatz') || ($r['liste_typ'] === 'dienst' && ($r['dienst_typ'] ?? '') === 'einsatz');
+                $jhv = ist_jhv_sonstiges($r);
                 if ($typ_filter === 'einsaetze' && !$einsatz) continue;
-                if ($typ_filter === 'uebungen' && $einsatz) continue;
+                if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
+                if ($typ_filter === 'beides' && $jhv) continue;
+                if ($typ_filter === 'jhv_sonstiges' && !$jhv) continue;
                 $vid = (int)$r['vehicle_id'];
                 $fahrzeug_stats[$vid] = $fahrzeug_stats[$vid] ?? ['einsaetze' => 0, 'uebungen' => 0];
                 if ($einsatz) $fahrzeug_stats[$vid]['einsaetze']++;
@@ -871,8 +911,11 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             $stmt->execute([$von, $bis]);
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $einsatz = ($row['liste_typ'] ?? '') === 'einsatz' || (($row['dienst_typ'] ?? '') === 'einsatz');
+                $jhv = ($row['dienst_typ'] ?? '') === 'jahreshauptversammlung' || ($row['dienst_typ'] ?? '') === 'sonstiges';
                 if ($typ_filter === 'einsaetze' && !$einsatz) continue;
-                if ($typ_filter === 'uebungen' && $einsatz) continue;
+                if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
+                if ($typ_filter === 'beides' && $jhv) continue;
+                if ($typ_filter === 'jhv_sonstiges' && !$jhv) continue;
                 $dec = is_string($row['custom_data']) ? json_decode($row['custom_data'], true) : $row['custom_data'];
                 if (!is_array($dec)) continue;
                 $veq = $dec['vehicle_equipment'] ?? [];
