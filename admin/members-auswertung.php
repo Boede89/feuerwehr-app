@@ -29,7 +29,9 @@ $bis = isset($_GET['bis']) ? trim($_GET['bis']) : date('Y-m-d');
 $member_id = isset($_GET['member_id']) ? (int)$_GET['member_id'] : 0;
 $vehicle_id = isset($_GET['vehicle_id']) ? (int)$_GET['vehicle_id'] : 0;
 $ansicht = isset($_GET['ansicht']) ? trim($_GET['ansicht']) : 'alle';
+$typ_filter = isset($_GET['typ']) ? trim($_GET['typ']) : 'beides';
 if (!in_array($ansicht, ['tabelle', 'diagramme', 'karten', 'alle'])) $ansicht = 'alle';
+if (!in_array($typ_filter, ['einsaetze', 'uebungen', 'beides'])) $typ_filter = 'beides';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $von)) $von = $jahr . '-01-01';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bis)) $bis = date('Y-m-d');
 
@@ -51,7 +53,7 @@ function ist_einsatz($row) {
     return false;
 }
 
-$filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => $member_id, 'vehicle_id' => $vehicle_id, 'ansicht' => $ansicht];
+$filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => $member_id, 'vehicle_id' => $vehicle_id, 'ansicht' => $ansicht, 'typ' => $typ_filter];
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -152,6 +154,14 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
                     <label class="form-label">Bis</label>
                     <input type="date" name="bis" class="form-control" value="<?php echo htmlspecialchars($bis); ?>">
                 </div>
+                <div class="col-md-2">
+                    <label class="form-label">Typ</label>
+                    <select name="typ" class="form-select">
+                        <option value="beides" <?php echo $typ_filter === 'beides' ? 'selected' : ''; ?>>Beides</option>
+                        <option value="einsaetze" <?php echo $typ_filter === 'einsaetze' ? 'selected' : ''; ?>>Nur Einsätze</option>
+                        <option value="uebungen" <?php echo $typ_filter === 'uebungen' ? 'selected' : ''; ?>>Nur Übungen</option>
+                    </select>
+                </div>
                 <?php if ($bereich === 'personen'): ?>
                 <div class="col-md-2">
                     <label class="form-label">Mitglied</label>
@@ -199,7 +209,20 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
         $personen_maschinist = [];
         $personen_einheitsfuehrer = [];
         $personen_letzte = [];
+        $anzahl_einsaetze = 0;
+        $anzahl_uebungen = 0;
         try {
+            $stmt = $db->prepare("
+                SELECT a.id, a.typ AS liste_typ, d.typ AS dienst_typ
+                FROM anwesenheitslisten a
+                LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
+                WHERE a.datum BETWEEN ? AND ?
+            ");
+            $stmt->execute([$von, $bis]);
+            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                if (ist_einsatz($r)) $anzahl_einsaetze++; else $anzahl_uebungen++;
+            }
+            $anzahl_gesamt = $anzahl_einsaetze + $anzahl_uebungen;
             $sql = "
                 SELECT am.member_id, am.vehicle_id, a.id AS liste_id, a.datum, a.typ AS liste_typ, a.uhrzeit_von, a.uhrzeit_bis,
                        d.typ AS dienst_typ
@@ -218,6 +241,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $mid = (int)$r['member_id'];
                 $einsatz = ist_einsatz($r);
+                if ($typ_filter === 'einsaetze' && !$einsatz) continue;
+                if ($typ_filter === 'uebungen' && $einsatz) continue;
                 $personen_stats[$mid] = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'fahrzeuge' => [], 'stunden' => 0];
                 if ($einsatz) $personen_stats[$mid]['einsaetze']++;
                 else $personen_stats[$mid]['uebungen']++;
@@ -234,13 +259,17 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
                 $personen_letzte[$mid] = max($personen_letzte[$mid] ?? '', $r['datum']);
             }
             $stmt = $db->prepare("
-                SELECT af.maschinist_member_id, af.einheitsfuehrer_member_id, a.datum
+                SELECT af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, d.typ AS dienst_typ
                 FROM anwesenheitsliste_fahrzeuge af
                 JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id
+                LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
                 WHERE a.datum BETWEEN ? AND ?
             ");
             $stmt->execute([$von, $bis]);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $einsatz = ist_einsatz($r);
+                if ($typ_filter === 'einsaetze' && !$einsatz) continue;
+                if ($typ_filter === 'uebungen' && $einsatz) continue;
                 if (!empty($r['maschinist_member_id'])) {
                     $mid = (int)$r['maschinist_member_id'];
                     $personen_maschinist[$mid] = ($personen_maschinist[$mid] ?? 0) + 1;
@@ -264,7 +293,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             $members = array_values(array_filter($members, fn($m) => (int)$m['id'] === $member_id));
         }
         $members_mit_teilnahme = array_values(array_filter($members, fn($m) => (($personen_stats[(int)$m['id']]['einsaetze'] ?? 0) + ($personen_stats[(int)$m['id']]['uebungen'] ?? 0)) > 0));
-        $gesamt_teilnahmen = array_sum(array_map(fn($m) => ($personen_stats[(int)$m['id']]['einsaetze'] ?? 0) + ($personen_stats[(int)$m['id']]['uebungen'] ?? 0), $members_mit_teilnahme));
+        $basis_fuer_prozent = $typ_filter === 'einsaetze' ? $anzahl_einsaetze : ($typ_filter === 'uebungen' ? $anzahl_uebungen : $anzahl_gesamt);
         $chart_person_fahrzeuge = [];
         $chart_person_rollen = [];
         $chart_personen_top = [];
@@ -278,7 +307,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             $chart_personen_einsatz_uebung['Übungen'] += $s['uebungen'];
         }
         usort($chart_personen_top, fn($a,$b) => $b['count'] - $a['count']);
-        $chart_personen_top = array_slice($chart_personen_top, 0, 15);
+        $chart_personen_top = array_slice($chart_personen_top, 0, 10);
         $chart_personen_einsatz_uebung = array_filter($chart_personen_einsatz_uebung);
     ?>
     <h2 class="h5 mb-3"><i class="fas fa-users"></i> Personen</h2>
@@ -401,8 +430,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
         <?php if (!empty($chart_personen_top)): ?>
         <div class="col-md-6">
             <div class="card">
-                <div class="card-header">Top 15 Teilnehmer</div>
-                <div class="card-body"><canvas id="chartPersonenTop" height="220"></canvas></div>
+                <div class="card-header">Top 10 Teilnehmer</div>
+                <div class="card-body" style="min-height: 380px;"><canvas id="chartPersonenTop" height="360"></canvas></div>
             </div>
         </div>
         <?php endif; ?>
@@ -415,7 +444,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             $mid = (int)$m['id'];
             $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'stunden' => 0];
             $t = $s['einsaetze'] + $s['uebungen'];
-            $prozent = $gesamt_teilnahmen > 0 ? round($t / $gesamt_teilnahmen * 100, 1) : 0;
+            $person_count = $typ_filter === 'einsaetze' ? $s['einsaetze'] : ($typ_filter === 'uebungen' ? $s['uebungen'] : $t);
+            $prozent = $basis_fuer_prozent > 0 ? round($person_count / $basis_fuer_prozent * 100, 1) : 0;
         ?>
         <div class="col-md-4 col-lg-3 mb-3">
             <div class="card h-100 auswertung-karte">
@@ -431,6 +461,9 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
     <?php endif; ?>
 
     <?php if ($ansicht === 'tabelle' || $ansicht === 'alle'): ?>
+    <?php if ($basis_fuer_prozent > 0): ?>
+    <p class="text-muted small mb-2"><i class="fas fa-info-circle"></i> Anteil: 100% = Teilnahme an allen <?php echo $basis_fuer_prozent; ?> <?php echo $typ_filter === 'einsaetze' ? 'Einsätzen' : ($typ_filter === 'uebungen' ? 'Übungen' : 'Einsätzen/Übungen'); ?> im Zeitraum</p>
+    <?php endif; ?>
     <div class="table-responsive">
         <table class="table table-sm table-hover">
             <thead>
@@ -452,7 +485,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
                     $mid = (int)$m['id'];
                     $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'fahrzeuge' => [], 'stunden' => 0];
                     $gesamt = $s['einsaetze'] + $s['uebungen'];
-                    $prozent = $gesamt_teilnahmen > 0 ? number_format($gesamt / $gesamt_teilnahmen * 100, 1, ',', '.') : '0';
+                    $person_count = $typ_filter === 'einsaetze' ? $s['einsaetze'] : ($typ_filter === 'uebungen' ? $s['uebungen'] : $gesamt);
+                    $prozent = $basis_fuer_prozent > 0 ? number_format($person_count / $basis_fuer_prozent * 100, 1, ',', '.') : '0';
                     $masch = $personen_maschinist[$mid] ?? 0;
                     $ef = $personen_einheitsfuehrer[$mid] ?? 0;
                     $letzte = $personen_letzte[$mid] ?? '-';
@@ -502,6 +536,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             $listen = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($listen as $a) {
                 $einsatz = ($a['liste_typ'] === 'einsatz') || ($a['liste_typ'] === 'dienst' && ($a['dienst_typ'] ?? '') === 'einsatz');
+                if ($typ_filter === 'einsaetze' && !$einsatz) continue;
+                if ($typ_filter === 'uebungen' && $einsatz) continue;
                 if ($einsatz) {
                     $k = trim($a['klassifizierung'] ?? '') ?: '-';
                     $klassifizierung[$k] = ($klassifizierung[$k] ?? 0) + 1;
@@ -516,6 +552,12 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
                     if ($s > 0) $dauern[] = $s / 3600;
                 }
             }
+            $listen = array_filter($listen, function($a) use ($typ_filter) {
+                $einsatz = ($a['liste_typ'] === 'einsatz') || ($a['liste_typ'] === 'dienst' && ($a['dienst_typ'] ?? '') === 'einsatz');
+                if ($typ_filter === 'einsaetze' && !$einsatz) return false;
+                if ($typ_filter === 'uebungen' && $einsatz) return false;
+                return true;
+            });
         } catch (Exception $e) {}
         $personen_pro_liste = [];
         $gf_zf_pro_liste = [];
@@ -695,8 +737,10 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             $stmt = $db->prepare($sql_f);
             $stmt->execute($params_f);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $vid = (int)$r['vehicle_id'];
                 $einsatz = ($r['liste_typ'] === 'einsatz') || ($r['liste_typ'] === 'dienst' && ($r['dienst_typ'] ?? '') === 'einsatz');
+                if ($typ_filter === 'einsaetze' && !$einsatz) continue;
+                if ($typ_filter === 'uebungen' && $einsatz) continue;
+                $vid = (int)$r['vehicle_id'];
                 $fahrzeug_stats[$vid] = $fahrzeug_stats[$vid] ?? ['einsaetze' => 0, 'uebungen' => 0];
                 if ($einsatz) $fahrzeug_stats[$vid]['einsaetze']++;
                 else $fahrzeug_stats[$vid]['uebungen']++;
@@ -822,9 +866,12 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
     elseif ($bereich === 'geraete'):
         $geraete_count = [];
         try {
-            $stmt = $db->prepare("SELECT id, custom_data FROM anwesenheitslisten WHERE datum BETWEEN ? AND ? AND custom_data IS NOT NULL AND custom_data != '' AND custom_data != 'null'");
+            $stmt = $db->prepare("SELECT a.id, a.typ AS liste_typ, a.custom_data, d.typ AS dienst_typ FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND a.custom_data IS NOT NULL AND a.custom_data != '' AND a.custom_data != 'null'");
             $stmt->execute([$von, $bis]);
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $einsatz = ($row['liste_typ'] ?? '') === 'einsatz' || (($row['dienst_typ'] ?? '') === 'einsatz');
+                if ($typ_filter === 'einsaetze' && !$einsatz) continue;
+                if ($typ_filter === 'uebungen' && $einsatz) continue;
                 $dec = is_string($row['custom_data']) ? json_decode($row['custom_data'], true) : $row['custom_data'];
                 if (!is_array($dec)) continue;
                 $veq = $dec['vehicle_equipment'] ?? [];
@@ -933,19 +980,24 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
         });
     }
-    function makeBar(canvasId, labels, data, horizontal) {
+    function makeBar(canvasId, labels, data, horizontal, opts) {
+        opts = opts || {};
         var el = document.getElementById(canvasId);
         if (!el || !labels.length) return;
+        var ds = { label: 'Anzahl', data: data, backgroundColor: labels.map(function(_,i){ return getColor(i); }) };
+        if (opts.barThickness) ds.barThickness = opts.barThickness;
+        var scales = horizontal ? {
+            x: { beginAtZero: true },
+            y: { ticks: { font: { size: 11 }, maxRotation: 0, autoSkip: false } }
+        } : { y: { beginAtZero: true } };
         new Chart(el, {
             type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{ label: 'Anzahl', data: data, backgroundColor: labels.map(function(_,i){ return getColor(i); }) }]
-            },
+            data: { labels: labels, datasets: [ds] },
             options: {
                 indexAxis: horizontal ? 'y' : 'x',
                 responsive: true, maintainAspectRatio: false,
-                scales: (horizontal ? { x: { beginAtZero: true } } : { y: { beginAtZero: true } })
+                scales: scales,
+                plugins: { legend: { display: false } }
             }
         });
     }
@@ -961,7 +1013,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
     makeDoughnut('chartPersonenEinsatzUebung', <?php echo json_encode(array_keys($chart_personen_einsatz_uebung)); ?>, <?php echo json_encode(array_values($chart_personen_einsatz_uebung)); ?>);
     <?php endif; ?>
     <?php if ($member_id === 0 && !empty($chart_personen_top)): ?>
-    makeBar('chartPersonenTop', <?php echo json_encode(array_column($chart_personen_top, 'label')); ?>, <?php echo json_encode(array_column($chart_personen_top, 'count')); ?>, true);
+    makeBar('chartPersonenTop', <?php echo json_encode(array_column($chart_personen_top, 'label')); ?>, <?php echo json_encode(array_column($chart_personen_top, 'count')); ?>, true, { barThickness: 28 });
     <?php endif; ?>
     <?php endif; ?>
 
