@@ -181,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             $einsatzbericht_nummer = $is_uebungsdienst_edit ? null : (trim($_POST['einsatzbericht_nummer'] ?? '') !== '' ? trim($_POST['einsatzbericht_nummer']) : null);
             $updates[] = 'einsatzbericht_nummer = ?';
             $params[] = $einsatzbericht_nummer;
-            if ($is_uebungsdienst_edit) {
+            if ($is_uebungsdienst_edit || $is_jhv_sonstiges_edit) {
                 $thema_beschreibung = trim($_POST['thema'] ?? $_POST['beschreibung'] ?? '');
                 $updates[] = 'bezeichnung = ?';
                 $params[] = $thema_beschreibung !== '' ? $thema_beschreibung : null;
