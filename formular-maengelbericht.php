@@ -46,6 +46,11 @@ try {
 } catch (Exception $e) {
     /* Spalte existiert ggf. bereits */
 }
+try {
+    $db->exec("ALTER TABLE maengelberichte ADD COLUMN vehicle_id INT NULL");
+} catch (Exception $e) {
+    /* Spalte existiert ggf. bereits */
+}
 
 $standort_options = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
 $mangel_an_options = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
@@ -67,6 +72,12 @@ $members_list = [];
 try {
     $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
     $members_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
+$vehicles_list = [];
+try {
+    $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name");
+    $vehicles_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 
 $message = '';
@@ -91,12 +102,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $aufgenommen_am)) $aufgenommen_am = date('Y-m-d');
     if (!in_array($standort, $standort_options)) $standort = $standort_options[0];
     if (!in_array($mangel_an, $mangel_an_options)) $mangel_an = $mangel_an_options[0];
+    $vehicle_id = isset($_POST['vehicle_id']) && preg_match('/^\d+$/', (string)$_POST['vehicle_id']) ? (int)$_POST['vehicle_id'] : null;
     try {
         $stmt = $db->prepare("
-            INSERT INTO maengelberichte (standort, mangel_an, bezeichnung, mangel_beschreibung, ursache, verbleib, aufgenommen_durch_text, aufgenommen_durch_member_id, aufgenommen_am, user_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO maengelberichte (standort, mangel_an, bezeichnung, mangel_beschreibung, ursache, verbleib, aufgenommen_durch_text, aufgenommen_durch_member_id, aufgenommen_am, vehicle_id, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$standort, $mangel_an, $bezeichnung ?: null, $mangel_beschreibung ?: null, $ursache ?: null, $verbleib ?: null, $aufgenommen_durch_text, $aufgenommen_durch_member_id, $aufgenommen_am, $_SESSION['user_id']]);
+        $stmt->execute([$standort, $mangel_an, $bezeichnung ?: null, $mangel_beschreibung ?: null, $ursache ?: null, $verbleib ?: null, $aufgenommen_durch_text, $aufgenommen_durch_member_id, $aufgenommen_am, $vehicle_id, $_SESSION['user_id']]);
         $id = $db->lastInsertId();
 
         // Automatischer E-Mail-Versand (wenn in Einstellungen aktiviert)
@@ -224,6 +236,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                         <div class="mb-3">
                             <label for="bezeichnung" class="form-label">Bezeichnung, ggf. Gerätenummer</label>
                             <input type="text" class="form-control" id="bezeichnung" name="bezeichnung" placeholder="z.B. TLF 16/25, Gerätenummer 123">
+                        </div>
+                        <div class="mb-3">
+                            <label for="vehicle_id" class="form-label">Fahrzeug (auf dem sich das Gerät befindet)</label>
+                            <select class="form-select" id="vehicle_id" name="vehicle_id">
+                                <option value="">— kein Fahrzeug / nicht zutreffend —</option>
+                                <?php foreach ($vehicles_list as $v): ?>
+                                <option value="<?php echo (int)$v['id']; ?>"><?php echo htmlspecialchars($v['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="text-muted">Wichtig, da Geräte auf mehreren Fahrzeugen existieren können</small>
                         </div>
                         <div class="mb-3">
                             <label for="mangel_beschreibung" class="form-label">Mangel Beschreibung</label>

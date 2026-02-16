@@ -114,6 +114,11 @@ try {
 } catch (Exception $e) {
     /* Spalte existiert ggf. bereits */
 }
+try {
+    $db->exec("ALTER TABLE maengelberichte ADD COLUMN vehicle_id INT NULL");
+} catch (Exception $e) {
+    /* Spalte existiert ggf. bereits */
+}
 
 $message = isset($_GET['message']) ? trim($_GET['message']) : '';
 $error = '';

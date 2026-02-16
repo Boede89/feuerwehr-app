@@ -52,6 +52,12 @@ try {
     $members_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 
+$vehicles_list = [];
+try {
+    $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name");
+    $vehicles_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
 $aufgenommen_durch_display = '';
 if (!empty($bericht['aufgenommen_durch_member_id'])) {
     try {
@@ -99,18 +105,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $aufgenommen_am)) $aufgenommen_am = $bericht['aufgenommen_am'];
         if (!in_array($standort, $standort_options)) $standort = $standort_options[0];
         if (!in_array($mangel_an, $mangel_an_options)) $mangel_an = $mangel_an_options[0];
+        $vehicle_id = isset($_POST['vehicle_id']) && preg_match('/^\d+$/', (string)$_POST['vehicle_id']) ? (int)$_POST['vehicle_id'] : null;
         try {
             $stmt = $db->prepare("
                 UPDATE maengelberichte SET standort=?, mangel_an=?, bezeichnung=?, mangel_beschreibung=?, ursache=?, verbleib=?,
-                    aufgenommen_durch_text=?, aufgenommen_durch_member_id=?, aufgenommen_am=?
+                    aufgenommen_durch_text=?, aufgenommen_durch_member_id=?, aufgenommen_am=?, vehicle_id=?
                 WHERE id=?
             ");
-            $stmt->execute([$standort, $mangel_an, $bezeichnung ?: null, $mangel_beschreibung ?: null, $ursache ?: null, $verbleib ?: null, $aufgenommen_durch_text, $aufgenommen_durch_member_id, $aufgenommen_am, $id]);
+            $stmt->execute([$standort, $mangel_an, $bezeichnung ?: null, $mangel_beschreibung ?: null, $ursache ?: null, $verbleib ?: null, $aufgenommen_durch_text, $aufgenommen_durch_member_id, $aufgenommen_am, $vehicle_id, $id]);
             $bericht = array_merge($bericht, [
                 'standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung,
                 'mangel_beschreibung' => $mangel_beschreibung, 'ursache' => $ursache, 'verbleib' => $verbleib,
                 'aufgenommen_durch_text' => $aufgenommen_durch_text, 'aufgenommen_durch_member_id' => $aufgenommen_durch_member_id,
-                'aufgenommen_am' => $aufgenommen_am
+                'aufgenommen_am' => $aufgenommen_am, 'vehicle_id' => $vehicle_id
             ]);
             if ($aufgenommen_durch_member_id) {
                 $stmt = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
@@ -183,6 +190,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     <div class="col-12">
                         <label class="form-label">Bezeichnung, ggf. Gerätenummer</label>
                         <input type="text" class="form-control" name="bezeichnung" value="<?php echo htmlspecialchars($bericht['bezeichnung'] ?? ''); ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Fahrzeug (auf dem sich das Gerät befindet)</label>
+                        <select class="form-select" name="vehicle_id">
+                            <option value="">— kein Fahrzeug —</option>
+                            <?php foreach ($vehicles_list as $v): ?>
+                            <option value="<?php echo (int)$v['id']; ?>" <?php echo (isset($bericht['vehicle_id']) && (int)($bericht['vehicle_id'] ?? 0) === (int)$v['id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="col-12">
                         <label class="form-label">Mangel Beschreibung</label>

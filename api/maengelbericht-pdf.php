@@ -61,6 +61,15 @@ if ($aufgenommen_durch === '' && !empty($bericht['aufgenommen_durch_text'])) {
 
 $aufgenommen_am_display = !empty($bericht['aufgenommen_am']) ? date('d.m.Y', strtotime($bericht['aufgenommen_am'])) : '-';
 
+$vehicle_name = '';
+if (!empty($bericht['vehicle_id'])) {
+    try {
+        $stmt = $db->prepare("SELECT name FROM vehicles WHERE id = ?");
+        $stmt->execute([$bericht['vehicle_id']]);
+        $vehicle_name = $stmt->fetchColumn() ?: '';
+    } catch (Exception $e) {}
+}
+
 $html = '<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -99,6 +108,7 @@ $html = '<!DOCTYPE html>
             <tr><td class="label-cell">Standort</td><td class="value-cell">' . htmlspecialchars($bericht['standort'] ?? '-') . '</td></tr>
             <tr><td class="label-cell">Mangel/Wartung an</td><td class="value-cell">' . htmlspecialchars($bericht['mangel_an'] ?? '-') . '</td></tr>
             <tr><td class="label-cell">Bezeichnung, ggf. Gerätenummer</td><td class="value-cell">' . htmlspecialchars($bericht['bezeichnung'] ?? '-') . '</td></tr>
+            <tr><td class="label-cell">Fahrzeug</td><td class="value-cell">' . htmlspecialchars($vehicle_name ?: '-') . '</td></tr>
             <tr><td class="label-cell">Mangel Beschreibung</td><td class="value-cell">' . nl2br(htmlspecialchars($bericht['mangel_beschreibung'] ?? '-')) . '</td></tr>
             <tr><td class="label-cell">Ursache</td><td class="value-cell">' . htmlspecialchars($bericht['ursache'] ?? '-') . '</td></tr>
             <tr><td class="label-cell">Verbleib</td><td class="value-cell">' . htmlspecialchars($bericht['verbleib'] ?? '-') . '</td></tr>

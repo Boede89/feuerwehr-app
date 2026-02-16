@@ -116,8 +116,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ursache = trim($m['ursache'] ?? '');
                 $verbleib = trim($m['verbleib'] ?? '');
                 $aufgenommen_durch = trim($m['aufgenommen_durch'] ?? '');
+                $vehicle_id = isset($m['vehicle_id']) && preg_match('/^\d+$/', (string)$m['vehicle_id']) ? (int)$m['vehicle_id'] : null;
                 if ($bezeichnung !== '' || $mangel_beschreibung !== '' || $ursache !== '' || $verbleib !== '' || $aufgenommen_durch !== '') {
-                    $maengel[] = ['standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung ?: null, 'mangel_beschreibung' => $mangel_beschreibung ?: null, 'ursache' => $ursache ?: null, 'verbleib' => $verbleib ?: null, 'aufgenommen_durch' => $aufgenommen_durch ?: null];
+                    $maengel[] = ['standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung ?: null, 'mangel_beschreibung' => $mangel_beschreibung ?: null, 'ursache' => $ursache ?: null, 'verbleib' => $verbleib ?: null, 'aufgenommen_durch' => $aufgenommen_durch ?: null, 'vehicle_id' => $vehicle_id];
                 }
             }
         }
@@ -333,6 +334,7 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                                 <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][ursache]" value="<?php echo htmlspecialchars($m['ursache'] ?? ''); ?>">
                                 <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][verbleib]" value="<?php echo htmlspecialchars($m['verbleib'] ?? ''); ?>">
                                 <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][aufgenommen_durch]" value="<?php echo htmlspecialchars($m['aufgenommen_durch'] ?? ''); ?>">
+                                <input type="hidden" name="maengel[<?php echo (int)$idx; ?>][vehicle_id]" value="<?php echo htmlspecialchars($m['vehicle_id'] ?? ''); ?>">
                                 <?php endforeach; ?>
                             </div>
                             <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
@@ -496,9 +498,10 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
         function buildVehicleOptions() {
             var options = [];
             document.querySelectorAll('.anw-row.selected').forEach(function(row) {
+                var vid = row.getAttribute('data-vehicle-id') || '';
                 var nameCell = row.querySelector('.name-cell span');
                 var vname = nameCell ? (nameCell.textContent || '').trim() : '';
-                if (vname) options.push({ bezeichnung: vname, label: vname, fahrzeug: vname });
+                if (vname) options.push({ bezeichnung: vname, label: vname, fahrzeug: vname, vehicle_id: vid });
             });
             return options;
         }
@@ -511,6 +514,7 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                 opt.value = o.bezeichnung;
                 opt.dataset.bezeichnung = o.bezeichnung;
                 opt.dataset.fahrzeug = o.fahrzeug || '';
+                opt.dataset.vehicleId = o.vehicle_id || '';
                 opt.textContent = o.label;
                 matSelect.insertBefore(opt, matSelect.options[matSelect.options.length - 1]);
             });
@@ -613,6 +617,9 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
             var ursache = ursacheInput.value.trim();
             var verbleib = verbleibInput.value.trim();
             var aufgenommen = aufgenommenHidden.value.trim() || aufgenommenDisplay.value.trim();
+            var vehicleId = '';
+            var opt = matSelect.options[matSelect.selectedIndex];
+            if (opt && opt.dataset && opt.dataset.vehicleId) vehicleId = opt.dataset.vehicleId;
             if (!mangelBeschrVal || !aufgenommen) {
                 alert('Bitte füllen Sie Mangel Beschreibung und Aufgenommen durch aus.');
                 return;
@@ -621,11 +628,11 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
             var container = document.getElementById('maengelHiddenContainer');
             if (!container) return;
             var frag = document.createDocumentFragment();
-            ['standort','mangel_an','bezeichnung','mangel_beschreibung','ursache','verbleib','aufgenommen_durch'].forEach(function(k) {
+            ['standort','mangel_an','bezeichnung','mangel_beschreibung','ursache','verbleib','aufgenommen_durch','vehicle_id'].forEach(function(k) {
                 var inp = document.createElement('input');
                 inp.type = 'hidden';
                 inp.name = 'maengel[' + idx + '][' + k + ']';
-                inp.value = k === 'standort' ? standortDefault : k === 'mangel_an' ? mangelAnDefault : k === 'bezeichnung' ? bezeichnung : k === 'mangel_beschreibung' ? mangelBeschrVal : k === 'ursache' ? ursache : k === 'verbleib' ? verbleib : aufgenommen;
+                inp.value = k === 'standort' ? standortDefault : k === 'mangel_an' ? mangelAnDefault : k === 'bezeichnung' ? bezeichnung : k === 'mangel_beschreibung' ? mangelBeschrVal : k === 'ursache' ? ursache : k === 'verbleib' ? verbleib : k === 'aufgenommen_durch' ? aufgenommen : vehicleId;
                 frag.appendChild(inp);
             });
             container.appendChild(frag);

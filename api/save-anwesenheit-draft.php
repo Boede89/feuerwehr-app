@@ -85,6 +85,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
                 }
             }
         }
+        $draft['vehicle_defective_equipment'] = [];
+        $draft['vehicle_defective_freitext'] = [];
+        $draft['vehicle_defective_mangel'] = [];
+        if (!empty($_POST['defective_equipment']) && is_array($_POST['defective_equipment'])) {
+            foreach ($_POST['defective_equipment'] as $vid => $ids) {
+                $vid = (int)$vid;
+                if ($vid > 0 && is_array($ids)) {
+                    $ids = array_values(array_filter(array_map('intval', $ids), fn($x) => $x > 0));
+                    if (!empty($ids)) {
+                        $draft['vehicle_defective_equipment'][$vid] = $ids;
+                    }
+                }
+            }
+        }
+        if (!empty($_POST['defective_freitext']) && is_array($_POST['defective_freitext'])) {
+            foreach ($_POST['defective_freitext'] as $vid => $txt) {
+                $vid = (int)$vid;
+                if ($vid > 0 && trim((string)$txt) !== '') {
+                    $draft['vehicle_defective_freitext'][$vid] = trim($txt);
+                }
+            }
+        }
+        if (!empty($_POST['defective_mangel']) && is_array($_POST['defective_mangel'])) {
+            foreach ($_POST['defective_mangel'] as $vid => $txt) {
+                $vid = (int)$vid;
+                if ($vid > 0 && trim((string)$txt) !== '') {
+                    $draft['vehicle_defective_mangel'][$vid] = trim($txt);
+                }
+            }
+        }
         $maengel = [];
         if (!empty($_POST['maengel']) && is_array($_POST['maengel'])) {
             $standort_opts = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
@@ -97,8 +127,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
                 $ursache = trim($m['ursache'] ?? '');
                 $verbleib = trim($m['verbleib'] ?? '');
                 $aufgenommen_durch = trim($m['aufgenommen_durch'] ?? '');
+                $vehicle_id = isset($m['vehicle_id']) && preg_match('/^\d+$/', (string)$m['vehicle_id']) ? (int)$m['vehicle_id'] : null;
                 if ($bezeichnung !== '' || $mangel_beschreibung !== '' || $ursache !== '' || $verbleib !== '' || $aufgenommen_durch !== '') {
-                    $maengel[] = ['standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung ?: null, 'mangel_beschreibung' => $mangel_beschreibung ?: null, 'ursache' => $ursache ?: null, 'verbleib' => $verbleib ?: null, 'aufgenommen_durch' => $aufgenommen_durch ?: null];
+                    $maengel[] = ['standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung ?: null, 'mangel_beschreibung' => $mangel_beschreibung ?: null, 'ursache' => $ursache ?: null, 'verbleib' => $verbleib ?: null, 'aufgenommen_durch' => $aufgenommen_durch ?: null, 'vehicle_id' => $vehicle_id];
                 }
             }
         }
@@ -139,8 +170,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
                 $ursache = trim($m['ursache'] ?? '');
                 $verbleib = trim($m['verbleib'] ?? '');
                 $aufgenommen_durch = trim($m['aufgenommen_durch'] ?? '');
+                $vehicle_id = isset($m['vehicle_id']) && preg_match('/^\d+$/', (string)$m['vehicle_id']) ? (int)$m['vehicle_id'] : null;
                 if ($bezeichnung !== '' || $mangel_beschreibung !== '' || $ursache !== '' || $verbleib !== '' || $aufgenommen_durch !== '') {
-                    $maengel[] = ['standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung ?: null, 'mangel_beschreibung' => $mangel_beschreibung ?: null, 'ursache' => $ursache ?: null, 'verbleib' => $verbleib ?: null, 'aufgenommen_durch' => $aufgenommen_durch ?: null];
+                    $maengel[] = ['standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung ?: null, 'mangel_beschreibung' => $mangel_beschreibung ?: null, 'ursache' => $ursache ?: null, 'verbleib' => $verbleib ?: null, 'aufgenommen_durch' => $aufgenommen_durch ?: null, 'vehicle_id' => $vehicle_id];
                 }
             }
         }

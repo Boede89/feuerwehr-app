@@ -56,6 +56,12 @@ try {
     $members_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 
+$vehicles_list = [];
+try {
+    $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name");
+    $vehicles_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
 $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 $message = '';
 $error = '';
@@ -72,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengel_draft'])
             $ursache = trim($m['ursache'] ?? '');
             $verbleib = trim($m['verbleib'] ?? '');
             $aufgenommen_durch = trim($m['aufgenommen_durch'] ?? '');
+            $vehicle_id = isset($m['vehicle_id']) && preg_match('/^\d+$/', (string)$m['vehicle_id']) ? (int)$m['vehicle_id'] : null;
             if (!in_array($standort, $standort_options)) $standort = $standort_options[0];
             if (!in_array($mangel_an, $mangel_an_options)) $mangel_an = $mangel_an_options[0];
             if ($bezeichnung !== '' || $mangel_beschreibung !== '' || $ursache !== '' || $verbleib !== '' || $aufgenommen_durch !== '') {
@@ -83,6 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengel_draft'])
                     'ursache' => $ursache ?: null,
                     'verbleib' => $verbleib ?: null,
                     'aufgenommen_durch' => $aufgenommen_durch ?: null,
+                    'vehicle_id' => $vehicle_id,
                 ];
             }
         }
@@ -108,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengel_draft'])
 
 $maengel_draft = $draft['maengel'];
 if (empty($maengel_draft)) {
-    $maengel_draft = [['standort' => $standort_default, 'mangel_an' => $mangel_an_default, 'bezeichnung' => '', 'mangel_beschreibung' => '', 'ursache' => '', 'verbleib' => '', 'aufgenommen_durch' => '']];
+    $maengel_draft = [['standort' => $standort_default, 'mangel_an' => $mangel_an_default, 'bezeichnung' => '', 'mangel_beschreibung' => '', 'ursache' => '', 'verbleib' => '', 'aufgenommen_durch' => '', 'vehicle_id' => '']];
 }
 
 $members_json = json_encode(array_map(function($m) {
@@ -201,6 +209,15 @@ $members_json = json_encode(array_map(function($m) {
                                             <label class="form-label">Bezeichnung, ggf. Gerätenummer</label>
                                             <input type="text" class="form-control" name="maengel[<?php echo (int)$idx; ?>][bezeichnung]" value="<?php echo htmlspecialchars($m['bezeichnung'] ?? ''); ?>" placeholder="z.B. TLF 16/25">
                                         </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Fahrzeug (auf dem sich das Gerät befindet)</label>
+                                            <select class="form-select" name="maengel[<?php echo (int)$idx; ?>][vehicle_id]">
+                                                <option value="">— kein Fahrzeug —</option>
+                                                <?php foreach ($vehicles_list as $v): ?>
+                                                <option value="<?php echo (int)$v['id']; ?>" <?php echo (isset($m['vehicle_id']) && (int)($m['vehicle_id'] ?? 0) === (int)$v['id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['name']); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
                                         <div class="col-12">
                                             <label class="form-label">Mangel Beschreibung</label>
                                             <textarea class="form-control" name="maengel[<?php echo (int)$idx; ?>][mangel_beschreibung]" rows="2"><?php echo htmlspecialchars($m['mangel_beschreibung'] ?? ''); ?></textarea>
@@ -247,6 +264,7 @@ $members_json = json_encode(array_map(function($m) {
     var nextIndex = <?php echo count($maengel_draft); ?>;
     var standortOpts = <?php echo json_encode($standort_options); ?>;
     var mangelAnOpts = <?php echo json_encode($mangel_an_options); ?>;
+    var vehiclesList = <?php echo json_encode(array_map(function($v) { return ['id' => (int)$v['id'], 'name' => $v['name']]; }, $vehicles_list)); ?>;
     var datum = <?php echo json_encode($datum); ?>;
 
     function filterMembers(q) {
@@ -305,6 +323,9 @@ $members_json = json_encode(array_map(function($m) {
             mangelAnOpts.map(function(o){ return '<option value="' + o + '">' + o + '</option>'; }).join('') +
             '</select></div>' +
             '<div class="col-12"><label class="form-label">Bezeichnung, ggf. Gerätenummer</label><input type="text" class="form-control" name="maengel[' + idx + '][bezeichnung]"></div>' +
+            '<div class="col-md-6"><label class="form-label">Fahrzeug (auf dem sich das Gerät befindet)</label><select class="form-select" name="maengel[' + idx + '][vehicle_id]"><option value="">— kein Fahrzeug —</option>' +
+            (vehiclesList || []).map(function(v){ return '<option value="' + v.id + '">' + (v.name || '').replace(/</g,'&lt;') + '</option>'; }).join('') +
+            '</select></div>' +
             '<div class="col-12"><label class="form-label">Mangel Beschreibung</label><textarea class="form-control" name="maengel[' + idx + '][mangel_beschreibung]" rows="2"></textarea></div>' +
             '<div class="col-md-6"><label class="form-label">Ursache</label><input type="text" class="form-control" name="maengel[' + idx + '][ursache]"></div>' +
             '<div class="col-md-6"><label class="form-label">Verbleib</label><input type="text" class="form-control" name="maengel[' + idx + '][verbleib]"></div>' +

@@ -500,12 +500,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 $stmt_gwm = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id) VALUES (?, ?, ?, 'hergestellt', ?, ?, ?, ?)");
                 $stmt_gwm->execute([$gwm_typ, $gwm_art, $draft['datum'], $gwm_mangel, $gwm_el_mid, $gwm_el_txt, $_SESSION['user_id']]);
                 $gwm_id = (int)$db->lastInsertId();
-                $stmt_gwm_f = $db->prepare("INSERT INTO geraetewartmitteilung_fahrzeuge (geraetewartmitteilung_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id, equipment_used, defective_equipment, defective_freitext, defective_mangel) VALUES (?, ?, ?, ?, ?, '[]', NULL, NULL)");
+                $stmt_gwm_f = $db->prepare("INSERT INTO geraetewartmitteilung_fahrzeuge (geraetewartmitteilung_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id, equipment_used, defective_equipment, defective_freitext, defective_mangel) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                 foreach ($all_vehicle_ids as $vid) {
                     $masch = isset($draft['vehicle_maschinist'][$vid]) && preg_match('/^\d+$/', (string)$draft['vehicle_maschinist'][$vid]) ? (int)$draft['vehicle_maschinist'][$vid] : null;
                     $einh = isset($draft['vehicle_einheitsfuehrer'][$vid]) && preg_match('/^\d+$/', (string)$draft['vehicle_einheitsfuehrer'][$vid]) ? (int)$draft['vehicle_einheitsfuehrer'][$vid] : null;
                     $eq_used = isset($draft['vehicle_equipment'][$vid]) && is_array($draft['vehicle_equipment'][$vid]) ? array_values(array_filter(array_map('intval', $draft['vehicle_equipment'][$vid]), fn($x) => $x > 0)) : [];
-                    $stmt_gwm_f->execute([$gwm_id, $vid, $masch, $einh, json_encode($eq_used)]);
+                    $defective = isset($draft['vehicle_defective_equipment'][$vid]) && is_array($draft['vehicle_defective_equipment'][$vid]) ? array_values(array_filter(array_map('intval', $draft['vehicle_defective_equipment'][$vid]), fn($x) => $x > 0)) : [];
+                    $defective_freitext = !empty(trim((string)($draft['vehicle_defective_freitext'][$vid] ?? ''))) ? trim($draft['vehicle_defective_freitext'][$vid]) : null;
+                    $defective_mangel = !empty(trim((string)($draft['vehicle_defective_mangel'][$vid] ?? ''))) ? trim($draft['vehicle_defective_mangel'][$vid]) : null;
+                    $stmt_gwm_f->execute([$gwm_id, $vid, $masch, $einh, json_encode($eq_used), json_encode($defective), $defective_freitext, $defective_mangel]);
                 }
             } catch (Exception $e) {
                 error_log('Anwesenheitsliste Gerätewartmitteilung: ' . $e->getMessage());
@@ -517,9 +520,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         $maengel_list = $draft['maengel'] ?? [];
         if (!empty($maengel_list) && is_array($maengel_list)) {
             try {
-                $db->exec("CREATE TABLE IF NOT EXISTS maengelberichte (id INT AUTO_INCREMENT PRIMARY KEY, standort VARCHAR(100) NOT NULL, mangel_an VARCHAR(50) NOT NULL, bezeichnung VARCHAR(255) NULL, mangel_beschreibung TEXT NULL, ursache TEXT NULL, verbleib TEXT NULL, aufgenommen_durch_text VARCHAR(255) NULL, aufgenommen_durch_member_id INT NULL, aufgenommen_am DATE NOT NULL, user_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, email_sent_at DATETIME NULL, KEY idx_aufgenommen_am (aufgenommen_am), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $db->exec("CREATE TABLE IF NOT EXISTS maengelberichte (id INT AUTO_INCREMENT PRIMARY KEY, standort VARCHAR(100) NOT NULL, mangel_an VARCHAR(50) NOT NULL, bezeichnung VARCHAR(255) NULL, mangel_beschreibung TEXT NULL, ursache TEXT NULL, verbleib TEXT NULL, aufgenommen_durch_text VARCHAR(255) NULL, aufgenommen_durch_member_id INT NULL, aufgenommen_am DATE NOT NULL, vehicle_id INT NULL, user_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, email_sent_at DATETIME NULL, KEY idx_aufgenommen_am (aufgenommen_am), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
                 try { $db->exec("ALTER TABLE maengelberichte ADD COLUMN email_sent_at DATETIME NULL"); } catch (Exception $e) { /* Spalte existiert ggf. bereits */ }
-                $stmt_mb = $db->prepare("INSERT INTO maengelberichte (standort, mangel_an, bezeichnung, mangel_beschreibung, ursache, verbleib, aufgenommen_durch_text, aufgenommen_durch_member_id, aufgenommen_am, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                try { $db->exec("ALTER TABLE maengelberichte ADD COLUMN vehicle_id INT NULL"); } catch (Exception $e) { /* Spalte existiert ggf. bereits */ }
+                $stmt_mb = $db->prepare("INSERT INTO maengelberichte (standort, mangel_an, bezeichnung, mangel_beschreibung, ursache, verbleib, aufgenommen_durch_text, aufgenommen_durch_member_id, aufgenommen_am, vehicle_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 foreach ($maengel_list as $m) {
                     $standort = $m['standort'] ?? 'GH Amern';
                     $mangel_an = $m['mangel_an'] ?? 'Gebäude';
@@ -535,8 +539,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                     } else {
                         $auf_text = $auf_durch !== '' ? $auf_durch : null;
                     }
+                    $vehicle_id = isset($m['vehicle_id']) && preg_match('/^\d+$/', (string)$m['vehicle_id']) ? (int)$m['vehicle_id'] : null;
                     $auf_am = date('Y-m-d');
-                    $stmt_mb->execute([$standort, $mangel_an, $bezeichnung, $mangel_beschreibung, $ursache, $verbleib, $auf_text, $auf_member_id, $auf_am, $_SESSION['user_id']]);
+                    $stmt_mb->execute([$standort, $mangel_an, $bezeichnung, $mangel_beschreibung, $ursache, $verbleib, $auf_text, $auf_member_id, $auf_am, $vehicle_id, $_SESSION['user_id']]);
                     $maengelbericht_ids[] = $db->lastInsertId();
                 }
             } catch (Exception $e) {
