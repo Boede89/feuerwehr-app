@@ -30,10 +30,15 @@ $member_id = isset($_GET['member_id']) ? (int)$_GET['member_id'] : 0;
 $vehicle_id = isset($_GET['vehicle_id']) ? (int)$_GET['vehicle_id'] : 0;
 $ansicht = isset($_GET['ansicht']) ? trim($_GET['ansicht']) : 'alle';
 $typ_filter = isset($_GET['typ']) ? trim($_GET['typ']) : 'beides';
+$zeit_von = isset($_GET['zeit_von']) ? trim($_GET['zeit_von']) : '';
+$zeit_bis = isset($_GET['zeit_bis']) ? trim($_GET['zeit_bis']) : '';
 if (!in_array($ansicht, ['tabelle', 'diagramme', 'karten', 'alle'])) $ansicht = 'alle';
 if (!in_array($typ_filter, ['einsaetze', 'uebungen', 'beides', 'jhv_sonstiges'])) $typ_filter = 'beides';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $von)) $von = $jahr . '-01-01';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bis)) $bis = date('Y-m-d');
+if (!preg_match('/^\d{1,2}:\d{2}$/', $zeit_von)) $zeit_von = '';
+if (!preg_match('/^\d{1,2}:\d{2}$/', $zeit_bis)) $zeit_bis = '';
+$zeit_filter_aktiv = $zeit_von !== '' || $zeit_bis !== '';
 
 $members = [];
 $vehicles = [];
@@ -59,7 +64,17 @@ function ist_jhv_sonstiges($row) {
     return $dt === 'jahreshauptversammlung' || $dt === 'sonstiges';
 }
 
-$filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => $member_id, 'vehicle_id' => $vehicle_id, 'ansicht' => $ansicht, 'typ' => $typ_filter];
+function get_zeit_filter_sql(&$params) {
+    global $zeit_von, $zeit_bis, $zeit_filter_aktiv;
+    if (!$zeit_filter_aktiv) return '';
+    $conds = [];
+    if ($zeit_von !== '') { $conds[] = 'a.uhrzeit_von >= ?'; $params[] = $zeit_von; }
+    if ($zeit_bis !== '') { $conds[] = 'a.uhrzeit_von <= ?'; $params[] = $zeit_bis; }
+    if (empty($conds)) return '';
+    return ' AND a.uhrzeit_von IS NOT NULL AND ' . implode(' AND ', $conds);
+}
+
+$filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $zeit_von, 'zeit_bis' => $zeit_bis, 'member_id' => $member_id, 'vehicle_id' => $vehicle_id, 'ansicht' => $ansicht, 'typ' => $typ_filter];
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -161,6 +176,14 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
                     <input type="date" name="bis" class="form-control" value="<?php echo htmlspecialchars($bis); ?>">
                 </div>
                 <div class="col-md-2">
+                    <label class="form-label" title="Optional: nur Dienste, die in diesem Zeitraum begonnen haben">Zeit von</label>
+                    <input type="time" name="zeit_von" class="form-control" value="<?php echo htmlspecialchars($zeit_von); ?>" title="Optional: Filter nach Tageszeit (Beginn)">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" title="Optional: nur Dienste, die in diesem Zeitraum begonnen haben">Zeit bis</label>
+                    <input type="time" name="zeit_bis" class="form-control" value="<?php echo htmlspecialchars($zeit_bis); ?>" title="Optional: Filter nach Tageszeit (Beginn)">
+                </div>
+                <div class="col-md-2">
                     <label class="form-label">Typ</label>
                     <select name="typ" class="form-select">
                         <option value="beides" <?php echo $typ_filter === 'beides' ? 'selected' : ''; ?>>Einsätze + Übungen</option>
@@ -205,6 +228,11 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Anwenden</button>
                 </div>
+                <?php if ($zeit_filter_aktiv): ?>
+                <div class="col-12">
+                    <span class="badge bg-secondary"><i class="fas fa-clock"></i> Zeitfilter aktiv: <?php echo $zeit_von !== '' ? htmlspecialchars($zeit_von) : '00:00'; ?> – <?php echo $zeit_bis !== '' ? htmlspecialchars($zeit_bis) : '24:00'; ?> (nach Beginn)</span>
+                </div>
+                <?php endif; ?>
             </form>
         </div>
     </div>
@@ -220,32 +248,20 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
         $anzahl_uebungen = 0;
         $anzahl_jhv_sonstiges = 0;
         try {
-            $stmt = $db->prepare("
-                SELECT a.id, a.typ AS liste_typ, d.typ AS dienst_typ
-                FROM anwesenheitslisten a
-                LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
-                WHERE a.datum BETWEEN ? AND ?
-            ");
-            $stmt->execute([$von, $bis]);
+            $params_anz = [$von, $bis];
+            $sql_anz = "SELECT a.id, a.typ AS liste_typ, d.typ AS dienst_typ FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?" . get_zeit_filter_sql($params_anz);
+            $stmt = $db->prepare($sql_anz);
+            $stmt->execute($params_anz);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 if (ist_einsatz($r)) $anzahl_einsaetze++;
                 elseif (ist_jhv_sonstiges($r)) $anzahl_jhv_sonstiges++;
                 else $anzahl_uebungen++;
             }
             $anzahl_gesamt = $anzahl_einsaetze + $anzahl_uebungen;
-            $sql = "
-                SELECT am.member_id, am.vehicle_id, a.id AS liste_id, a.datum, a.typ AS liste_typ, a.uhrzeit_von, a.uhrzeit_bis,
-                       d.typ AS dienst_typ
-                FROM anwesenheitsliste_mitglieder am
-                JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
-                LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
-                WHERE a.datum BETWEEN ? AND ?
-            ";
+            $sql = "SELECT am.member_id, am.vehicle_id, a.id AS liste_id, a.datum, a.typ AS liste_typ, a.uhrzeit_von, a.uhrzeit_bis, d.typ AS dienst_typ FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?";
             $params = [$von, $bis];
-            if ($member_id > 0) {
-                $sql .= " AND am.member_id = ?";
-                $params[] = $member_id;
-            }
+            $sql .= get_zeit_filter_sql($params);
+            if ($member_id > 0) { $sql .= " AND am.member_id = ?"; $params[] = $member_id; }
             $stmt = $db->prepare($sql);
             $stmt->execute($params);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -272,14 +288,10 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
                 }
                 $personen_letzte[$mid] = max($personen_letzte[$mid] ?? '', $r['datum']);
             }
-            $stmt = $db->prepare("
-                SELECT af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, d.typ AS dienst_typ
-                FROM anwesenheitsliste_fahrzeuge af
-                JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id
-                LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
-                WHERE a.datum BETWEEN ? AND ?
-            ");
-            $stmt->execute([$von, $bis]);
+            $params_af = [$von, $bis];
+            $sql_af = "SELECT af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?" . get_zeit_filter_sql($params_af);
+            $stmt = $db->prepare($sql_af);
+            $stmt->execute($params_af);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $einsatz = ist_einsatz($r);
                 $jhv = ist_jhv_sonstiges($r);
@@ -557,14 +569,10 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
         $themen = [];
         $dauern = [];
         try {
-            $stmt = $db->prepare("
-                SELECT a.id, a.datum, a.typ AS liste_typ, a.bezeichnung, a.uhrzeit_von, a.uhrzeit_bis,
-                       a.klassifizierung, a.einsatzstichwort, d.typ AS dienst_typ, d.bezeichnung AS dienst_bezeichnung
-                FROM anwesenheitslisten a
-                LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
-                WHERE a.datum BETWEEN ? AND ?
-            ");
-            $stmt->execute([$von, $bis]);
+            $params_listen = [$von, $bis];
+            $sql_listen = "SELECT a.id, a.datum, a.typ AS liste_typ, a.bezeichnung, a.uhrzeit_von, a.uhrzeit_bis, a.klassifizierung, a.einsatzstichwort, d.typ AS dienst_typ, d.bezeichnung AS dienst_bezeichnung FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?" . get_zeit_filter_sql($params_listen);
+            $stmt = $db->prepare($sql_listen);
+            $stmt->execute($params_listen);
             $listen = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($listen as $a) {
                 $einsatz = ($a['liste_typ'] === 'einsatz') || ($a['liste_typ'] === 'dienst' && ($a['dienst_typ'] ?? '') === 'einsatz');
@@ -759,15 +767,9 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
         $fahrzeug_maschinist = [];
         $fahrzeug_ef = [];
         try {
-            $sql_f = "
-                SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.id AS liste_id, a.typ AS liste_typ,
-                       d.typ AS dienst_typ
-                FROM anwesenheitsliste_fahrzeuge af
-                JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id
-                LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
-                WHERE a.datum BETWEEN ? AND ?
-            ";
+            $sql_f = "SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.id AS liste_id, a.typ AS liste_typ, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?";
             $params_f = [$von, $bis];
+            $sql_f .= get_zeit_filter_sql($params_f);
             if ($vehicle_id > 0) {
                 $sql_f .= " AND af.vehicle_id = ?";
                 $params_f[] = $vehicle_id;
@@ -907,8 +909,10 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => 
     elseif ($bereich === 'geraete'):
         $geraete_count = [];
         try {
-            $stmt = $db->prepare("SELECT a.id, a.typ AS liste_typ, a.custom_data, d.typ AS dienst_typ FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND a.custom_data IS NOT NULL AND a.custom_data != '' AND a.custom_data != 'null'");
-            $stmt->execute([$von, $bis]);
+            $params_ger = [$von, $bis];
+            $sql_ger = "SELECT a.id, a.typ AS liste_typ, a.custom_data, d.typ AS dienst_typ FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND a.custom_data IS NOT NULL AND a.custom_data != '' AND a.custom_data != 'null'" . get_zeit_filter_sql($params_ger);
+            $stmt = $db->prepare($sql_ger);
+            $stmt->execute($params_ger);
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $einsatz = ($row['liste_typ'] ?? '') === 'einsatz' || (($row['dienst_typ'] ?? '') === 'einsatz');
                 $jhv = ($row['dienst_typ'] ?? '') === 'jahreshauptversammlung' || ($row['dienst_typ'] ?? '') === 'sonstiges';
