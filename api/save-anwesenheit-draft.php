@@ -85,36 +85,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
                 }
             }
         }
-        $draft['vehicle_defective_equipment'] = [];
-        $draft['vehicle_defective_freitext'] = [];
-        $draft['vehicle_defective_mangel'] = [];
-        if (!empty($_POST['defective_equipment']) && is_array($_POST['defective_equipment'])) {
-            foreach ($_POST['defective_equipment'] as $vid => $ids) {
-                $vid = (int)$vid;
-                if ($vid > 0 && is_array($ids)) {
-                    $ids = array_values(array_filter(array_map('intval', $ids), fn($x) => $x > 0));
-                    if (!empty($ids)) {
-                        $draft['vehicle_defective_equipment'][$vid] = $ids;
-                    }
-                }
-            }
-        }
-        if (!empty($_POST['defective_freitext']) && is_array($_POST['defective_freitext'])) {
-            foreach ($_POST['defective_freitext'] as $vid => $txt) {
-                $vid = (int)$vid;
-                if ($vid > 0 && trim((string)$txt) !== '') {
-                    $draft['vehicle_defective_freitext'][$vid] = trim($txt);
-                }
-            }
-        }
-        if (!empty($_POST['defective_mangel']) && is_array($_POST['defective_mangel'])) {
-            foreach ($_POST['defective_mangel'] as $vid => $txt) {
-                $vid = (int)$vid;
-                if ($vid > 0 && trim((string)$txt) !== '') {
-                    $draft['vehicle_defective_mangel'][$vid] = trim($txt);
-                }
-            }
-        }
         $maengel = [];
         if (!empty($_POST['maengel']) && is_array($_POST['maengel'])) {
             $standort_opts = ['GH Amern', 'GH Hehler', 'GH Waldniel'];

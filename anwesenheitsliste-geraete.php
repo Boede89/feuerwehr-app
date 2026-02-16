@@ -106,29 +106,12 @@ if ($vehicle_equipment_table_exists && !empty($selected_vehicle_ids)) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $draft['vehicle_equipment'] = [];
     $draft['vehicle_equipment_sonstiges'] = [];
-    $draft['vehicle_defective_equipment'] = [];
-    $draft['vehicle_defective_freitext'] = [];
-    $draft['vehicle_defective_mangel'] = [];
     foreach ($selected_vehicle_ids as $vid) {
         $selected = isset($_POST['equipment'][$vid]) && is_array($_POST['equipment'][$vid])
             ? array_map('intval', array_filter($_POST['equipment'][$vid], function($x) { return $x !== '' && ctype_digit((string)$x); }))
             : [];
         if (!empty($selected)) {
             $draft['vehicle_equipment'][$vid] = array_values(array_filter($selected, function($x) { return $x > 0; }));
-        }
-        $defective = isset($_POST['defective_equipment'][$vid]) && is_array($_POST['defective_equipment'][$vid])
-            ? array_values(array_filter(array_map('intval', $_POST['defective_equipment'][$vid]), fn($x) => $x > 0))
-            : [];
-        if (!empty($defective)) {
-            $draft['vehicle_defective_equipment'][$vid] = $defective;
-        }
-        $def_freitext = trim($_POST['defective_freitext'][$vid] ?? '');
-        if ($def_freitext !== '') {
-            $draft['vehicle_defective_freitext'][$vid] = $def_freitext;
-        }
-        $def_mangel = trim($_POST['defective_mangel'][$vid] ?? '');
-        if ($def_mangel !== '') {
-            $draft['vehicle_defective_mangel'][$vid] = $def_mangel;
         }
         $sonstiges_raw = $_POST['equipment_sonstiges'][$vid] ?? '';
         $sonstiges_list = [];
@@ -346,27 +329,6 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
                                     </div>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
-                                <div class="mt-3 p-2 border rounded bg-light">
-                                    <label class="form-label small fw-bold mb-1"><i class="fas fa-exclamation-triangle text-warning"></i> Defekte Geräte (optional)</label>
-                                    <div class="mb-2">
-                                        <?php
-                                        $saved_defective = $draft['vehicle_defective_equipment'][$vid] ?? [];
-                                        $saved_defective = is_array($saved_defective) ? $saved_defective : [];
-                                        foreach ($data['equipment_by_category'] ?? [] as $items):
-                                            foreach ($items as $eq):
-                                                $def_checked = in_array((int)$eq['id'], $saved_defective);
-                                        ?>
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="checkbox" name="defective_equipment[<?php echo (int)$vid; ?>][]" value="<?php echo (int)$eq['id']; ?>" id="def_<?php echo (int)$vid; ?>_<?php echo (int)$eq['id']; ?>" <?php echo $def_checked ? 'checked' : ''; ?>>
-                                            <label class="form-check-label small" for="def_<?php echo (int)$vid; ?>_<?php echo (int)$eq['id']; ?>"><?php echo htmlspecialchars($eq['name']); ?></label>
-                                        </div>
-                                        <?php endforeach; endforeach; ?>
-                                    </div>
-                                    <div class="mb-2">
-                                        <input type="text" class="form-control form-control-sm" name="defective_freitext[<?php echo (int)$vid; ?>]" placeholder="Freitext (defektes Gerät)" value="<?php echo htmlspecialchars($draft['vehicle_defective_freitext'][$vid] ?? ''); ?>">
-                                    </div>
-                                    <textarea class="form-control form-control-sm" name="defective_mangel[<?php echo (int)$vid; ?>]" rows="2" placeholder="Defekt beschreiben (z.B. Schlauch undicht)"><?php echo htmlspecialchars($draft['vehicle_defective_mangel'][$vid] ?? ''); ?></textarea>
-                                </div>
                                 <div class="mt-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
                                     <div>
                                         <div class="geraete-item geraete-sonstiges-trigger <?php echo !empty($saved_sonstiges[$vid]) ? 'geraete-item-selected' : ''; ?>" data-vid="<?php echo (int)$vid; ?>" role="button" tabindex="0">

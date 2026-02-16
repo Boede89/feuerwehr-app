@@ -500,15 +500,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 $stmt_gwm = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id) VALUES (?, ?, ?, 'hergestellt', ?, ?, ?, ?)");
                 $stmt_gwm->execute([$gwm_typ, $gwm_art, $draft['datum'], $gwm_mangel, $gwm_el_mid, $gwm_el_txt, $_SESSION['user_id']]);
                 $gwm_id = (int)$db->lastInsertId();
-                $stmt_gwm_f = $db->prepare("INSERT INTO geraetewartmitteilung_fahrzeuge (geraetewartmitteilung_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id, equipment_used, defective_equipment, defective_freitext, defective_mangel) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt_gwm_f = $db->prepare("INSERT INTO geraetewartmitteilung_fahrzeuge (geraetewartmitteilung_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id, equipment_used, defective_equipment, defective_freitext, defective_mangel) VALUES (?, ?, ?, ?, ?, '[]', NULL, NULL)");
                 foreach ($all_vehicle_ids as $vid) {
                     $masch = isset($draft['vehicle_maschinist'][$vid]) && preg_match('/^\d+$/', (string)$draft['vehicle_maschinist'][$vid]) ? (int)$draft['vehicle_maschinist'][$vid] : null;
                     $einh = isset($draft['vehicle_einheitsfuehrer'][$vid]) && preg_match('/^\d+$/', (string)$draft['vehicle_einheitsfuehrer'][$vid]) ? (int)$draft['vehicle_einheitsfuehrer'][$vid] : null;
                     $eq_used = isset($draft['vehicle_equipment'][$vid]) && is_array($draft['vehicle_equipment'][$vid]) ? array_values(array_filter(array_map('intval', $draft['vehicle_equipment'][$vid]), fn($x) => $x > 0)) : [];
-                    $defective = isset($draft['vehicle_defective_equipment'][$vid]) && is_array($draft['vehicle_defective_equipment'][$vid]) ? array_values(array_filter(array_map('intval', $draft['vehicle_defective_equipment'][$vid]), fn($x) => $x > 0)) : [];
-                    $defective_freitext = !empty(trim((string)($draft['vehicle_defective_freitext'][$vid] ?? ''))) ? trim($draft['vehicle_defective_freitext'][$vid]) : null;
-                    $defective_mangel = !empty(trim((string)($draft['vehicle_defective_mangel'][$vid] ?? ''))) ? trim($draft['vehicle_defective_mangel'][$vid]) : null;
-                    $stmt_gwm_f->execute([$gwm_id, $vid, $masch, $einh, json_encode($eq_used), json_encode($defective), $defective_freitext, $defective_mangel]);
+                    $stmt_gwm_f->execute([$gwm_id, $vid, $masch, $einh, json_encode($eq_used)]);
                 }
             } catch (Exception $e) {
                 error_log('Anwesenheitsliste Gerätewartmitteilung: ' . $e->getMessage());
