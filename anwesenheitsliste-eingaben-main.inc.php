@@ -141,6 +141,7 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'berichtersteller' => null,
         'custom_data' => [],
         'maengel' => [],
+        'beschreibung' => '',
     ];
     }
 }
@@ -358,22 +359,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         $thema_neu = trim($_POST['thema_neu'] ?? '');
         $draft['thema'] = ($thema_val === '__neu__' ? $thema_neu : $thema_val);
     }
+    $draft['beschreibung'] = trim($_POST['beschreibung'] ?? '');
     $dp_id = $draft['dienstplan_id'];
     $typ_save = $draft['typ'];
     if ($draft['typ'] === 'einsatz') {
         $typ_save = ($typ_sonstige ?? 'einsatz') === 'einsatz' ? 'einsatz' : 'manuell';
         $draft['typ'] = $typ_save;
     }
+    $is_jhv_sonstiges = ($typ_save === 'manuell' && in_array(trim($draft['bezeichnung_sonstige'] ?? ''), ['Jahreshauptversammlung', 'Sonstiges'], true))
+        || ($typ_save === 'dienst' && isset($dienst) && in_array($dienst['typ'] ?? '', ['jahreshauptversammlung', 'sonstiges'], true));
     $bezeichnung_save = $typ_save === 'einsatz' ? $draft['bezeichnung_sonstige'] : ($typ_save === 'manuell' ? ($draft['thema'] ?? $draft['bezeichnung_sonstige']) : (($typ_save === 'dienst' && trim((string)($draft['thema'] ?? '')) !== '') ? trim($draft['thema']) : null));
+    if ($is_jhv_sonstiges) {
+        $beschreibung = trim((string)($draft['beschreibung'] ?? ''));
+        $bezeichnung_save = $beschreibung !== '' ? $beschreibung : ($typ_save === 'dienst' && isset($dienst) ? ($dienst['bezeichnung'] ?? null) : (isset($dienst) ? get_dienstplan_typ_label($dienst['typ'] ?? '') : ''));
+    }
     $uhrzeit_von_save = $draft['uhrzeit_von'] !== '' ? $draft['uhrzeit_von'] : null;
     $uhrzeit_bis_save = $draft['uhrzeit_bis'] !== '' ? $draft['uhrzeit_bis'] : null;
 
     // Pflichtfelder prüfen – Bericht darf nicht abgeschlossen werden, wenn fehlend
-    $is_uebungsdienst = ($typ_save === 'manuell' && in_array(trim($draft['bezeichnung_sonstige'] ?? ''), ['Übungsdienst', 'Jahreshauptversammlung'], true))
-        || ($typ_save === 'dienst' && isset($dienst) && in_array($dienst['typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung'], true));
+    $is_uebungsdienst = ($typ_save === 'manuell' && trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst')
+        || ($typ_save === 'dienst' && isset($dienst) && ($dienst['typ'] ?? '') === 'uebungsdienst');
     $pflichtfehler = [];
-    if ($is_uebungsdienst) {
-        // Übungsdienst: Datum (immer gesetzt), Uhrzeiten, Thema, Übungsleiter
+    if ($is_jhv_sonstiges) {
+        // JHV/Sonstiges: nur Uhrzeiten, Berichtersteller – Thema und Übungsleiter nicht erforderlich
+        if (empty(trim((string)($draft['uhrzeit_von'] ?? '')))) $pflichtfehler[] = 'Uhrzeit von';
+        if (empty(trim((string)($draft['uhrzeit_bis'] ?? '')))) $pflichtfehler[] = 'Uhrzeit bis';
+    } elseif ($is_uebungsdienst) {
+        // Übungsdienst: Datum, Uhrzeiten, Thema, Übungsleiter
         if (empty(trim((string)($draft['uhrzeit_von'] ?? '')))) $pflichtfehler[] = 'Uhrzeit von';
         if (empty(trim((string)($draft['uhrzeit_bis'] ?? '')))) $pflichtfehler[] = 'Uhrzeit bis';
         if (empty(trim((string)($draft['thema'] ?? '')))) $pflichtfehler[] = 'Thema';
@@ -418,6 +430,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         $custom_data_for_save = $draft['custom_data'] ?? [];
         if (!empty($draft['uebungsleiter_member_ids'])) {
             $custom_data_for_save['uebungsleiter_member_ids'] = $draft['uebungsleiter_member_ids'];
+        }
+        if ($is_jhv_sonstiges && trim((string)($draft['beschreibung'] ?? '')) !== '') {
+            $custom_data_for_save['beschreibung'] = trim($draft['beschreibung']);
         }
         if (!empty($draft['vehicle_equipment'])) {
             $custom_data_for_save['vehicle_equipment'] = $draft['vehicle_equipment'];
@@ -876,10 +891,14 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                                 <div class="mt-2" id="typ_sonstige_freitext_wrap" style="display: none;">
                                     <input type="text" class="form-control" id="typ_sonstige_freitext" name="typ_sonstige_freitext" placeholder="Typ eingeben">
                                 </div>
-                                <?php $bez = $draft['bezeichnung_sonstige'] ?? ''; $show_einsatzstichwort = $bez !== 'Übungsdienst'; $show_thema = $bez === 'Übungsdienst'; ?>
+                                <?php $bez = $draft['bezeichnung_sonstige'] ?? ''; $show_einsatzstichwort = $bez !== 'Übungsdienst' && $bez !== 'Jahreshauptversammlung' && $bez !== 'Sonstiges'; $show_thema = $bez === 'Übungsdienst'; $show_beschreibung = $bez === 'Jahreshauptversammlung' || $bez === 'Sonstiges'; ?>
                                 <div class="mt-3" id="einsatzstichwort_wrap" style="display: <?php echo $show_einsatzstichwort ? 'block' : 'none'; ?>;">
                                     <label for="einsatzstichwort" class="form-label">Einsatzstichwort</label>
                                     <input type="text" class="form-control" id="einsatzstichwort" name="einsatzstichwort" placeholder="z.B. FEUER3, THL" value="<?php echo htmlspecialchars($draft['einsatzstichwort'] ?? ''); ?>">
+                                </div>
+                                <div class="mt-3" id="beschreibung_sonstige_wrap" style="display: <?php echo $show_beschreibung ? 'block' : 'none'; ?>;">
+                                    <label for="beschreibung_sonstige" class="form-label">Beschreibung</label>
+                                    <input type="text" class="form-control" id="beschreibung_sonstige" name="beschreibung" placeholder="Freitext z.B. Jahresrückblick, Mitgliederversammlung" value="<?php echo htmlspecialchars($draft['beschreibung'] ?? ''); ?>">
                                 </div>
                                 <div class="mt-3" id="thema_wrap" style="display: <?php echo $show_thema ? 'block' : 'none'; ?>;">
                                     <label for="thema" class="form-label">Thema</label>
@@ -897,6 +916,8 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                             </div>
                             <?php endif; ?>
                             <?php if (!$is_einsatz && isset($dienst)):
+                                $dienst_typ = $dienst['typ'] ?? '';
+                                $is_jhv_sonstiges_dienst = in_array($dienst_typ, ['jahreshauptversammlung', 'sonstiges']);
                                 $dienstplan_themen = [];
                                 try {
                                     $stmt = $db->query("SELECT DISTINCT bezeichnung FROM dienstplan ORDER BY bezeichnung");
@@ -904,6 +925,12 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                                 } catch (Exception $e) { /* ignore */ }
                                 $thema_dienst = trim((string)($draft['thema'] ?? $dienst['bezeichnung'] ?? ''));
                             ?>
+                            <?php if ($is_jhv_sonstiges_dienst): ?>
+                            <div class="mb-4">
+                                <label for="beschreibung_dienst" class="form-label">Beschreibung</label>
+                                <input type="text" class="form-control" id="beschreibung_dienst" name="beschreibung" placeholder="Freitext z.B. Jahresrückblick, Mitgliederversammlung" value="<?php echo htmlspecialchars($draft['beschreibung'] ?? ''); ?>">
+                            </div>
+                            <?php else: ?>
                             <div class="mb-4">
                                 <label for="thema_dienst" class="form-label">Thema</label>
                                 <select class="form-select" id="thema_dienst" name="thema">
@@ -918,6 +945,7 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                                 </div>
                             </div>
                             <?php endif; ?>
+                            <?php endif; ?>
                             <div class="mb-4">
                                 <label class="form-label">Berichtersteller <span class="text-danger">*</span></label>
                                 <div class="position-relative">
@@ -928,7 +956,8 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                                 <small class="text-muted">Wird als Vorbelegung für „Aufgenommen durch“ bei Mängeln verwendet</small>
                             </div>
                             <?php
-                            $is_uebungsdienst = ($is_einsatz && in_array($draft['bezeichnung_sonstige'] ?? '', ['Übungsdienst', 'Jahreshauptversammlung'])) || (!$is_einsatz && isset($dienst) && in_array($dienst['typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung']));
+                            $is_uebungsdienst_display = ($is_einsatz && trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst') || (!$is_einsatz && isset($dienst) && ($dienst['typ'] ?? '') === 'uebungsdienst');
+                            $is_jhv_sonstiges_display = ($is_einsatz && in_array(trim($draft['bezeichnung_sonstige'] ?? ''), ['Jahreshauptversammlung', 'Sonstiges'], true)) || (!$is_einsatz && isset($dienst) && in_array($dienst['typ'] ?? '', ['jahreshauptversammlung', 'sonstiges'], true));
                             $uebungsdienst_hide_ids = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
                             ?>
                             <p class="form-label mb-2">Personal und Fahrzeuge erfassen:</p>
@@ -970,7 +999,7 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                             <?php foreach ($anwesenheitsliste_felder as $f):
                                 if (empty($f['visible']) || ($f['type'] ?? '') === 'time') continue;
                                 $id = $f['id'] ?? '';
-                                if ($is_uebungsdienst && in_array($id, $uebungsdienst_hide_ids)) continue;
+                                if (($is_uebungsdienst_display || $is_jhv_sonstiges_display) && in_array($id, $uebungsdienst_hide_ids)) continue;
                                 $label = $f['label'] ?? $id;
                                 $type = $f['type'] ?? 'text';
                                 $opts = $f['options'] ?? [];
@@ -980,13 +1009,13 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                                 $feld_uebungsdienst_hide = in_array($id, $uebungsdienst_hide_ids);
                                 $feld_einsatzleiter = ($type === 'einsatzleiter');
                                 $div_style = '';
-                                if ($is_einsatz && $feld_uebungsdienst_hide && $is_uebungsdienst) $div_style = 'display:none';
-                                if ($is_einsatz && $feld_einsatzleiter) $div_style = $is_uebungsdienst ? 'display:none' : '';
+                                if ($is_einsatz && $feld_uebungsdienst_hide && ($is_uebungsdienst_display || $is_jhv_sonstiges_display)) $div_style = 'display:none';
+                                if ($is_einsatz && $feld_einsatzleiter) $div_style = ($is_uebungsdienst_display || $is_jhv_sonstiges_display) ? 'display:none' : '';
                             ?>
                             <div class="mb-3<?php echo $type === 'textarea' ? ' mb-4' : ''; ?> feld-uebungsdienst-toggle" data-feld="<?php echo htmlspecialchars($id); ?>" data-hide-uebungsdienst="<?php echo $feld_uebungsdienst_hide ? '1' : '0'; ?>" data-einsatzleiter="<?php echo $feld_einsatzleiter ? '1' : '0'; ?>"<?php echo $div_style !== '' ? ' style="' . $div_style . '"' : ''; ?>>
                                 <?php if ($type === 'einsatzleiter'): ?>
-                                <?php if (!$is_uebungsdienst || $is_einsatz): ?>
-                                <div id="einsatzleiter_wrap" style="<?php echo $is_einsatz && $is_uebungsdienst ? 'display:none' : ''; ?>">
+                                <?php if (!$is_uebungsdienst_display || $is_einsatz): ?>
+                                <div id="einsatzleiter_wrap" style="<?php echo $is_einsatz && ($is_uebungsdienst_display || $is_jhv_sonstiges_display) ? 'display:none' : ''; ?>">
                                 <label for="einsatzleiter" class="form-label"><?php echo htmlspecialchars($label); ?></label>
                                 <select class="form-select" id="einsatzleiter" name="einsatzleiter">
                                     <option value="">— keine Auswahl —</option>
@@ -1003,8 +1032,8 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                                 </div>
                                 </div>
                                 <?php endif; ?>
-                                <?php if ($is_uebungsdienst || $is_einsatz): ?>
-                                <div id="uebungsleiter_wrap" class="feld-uebungsdienst-toggle" data-einsatzleiter="1" style="<?php echo $is_einsatz && !$is_uebungsdienst ? 'display:none' : ''; ?>">
+                                <?php if ($is_uebungsdienst_display): ?>
+                                <div id="uebungsleiter_wrap" class="feld-uebungsdienst-toggle" data-einsatzleiter="1" style="<?php echo $is_einsatz && !$is_uebungsdienst_display ? 'display:none' : ''; ?>">
                                 <label class="form-label">Übungsleiter <span id="uebungsleiter_count" class="badge bg-secondary ms-1">0 ausgewählt</span></label>
                                 <div class="uebungsleiter-list border rounded p-2" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem;">
                                     <?php $uebungs_ids = $draft['uebungsleiter_member_ids'] ?? []; if (!is_array($uebungs_ids)) $uebungs_ids = []; ?>
@@ -1123,9 +1152,11 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
             if (!uhrzeitVon.trim()) fehler.push('Uhrzeit von');
             if (!uhrzeitBis.trim()) fehler.push('Uhrzeit bis');
             var typSonstige = (form.querySelector('[name="typ_sonstige"]') || {}).value || '';
-            var isUebungsdienst = (isEinsatz && (typSonstige === 'uebungsdienst' || typSonstige === 'jahreshauptversammlung')) || (!isEinsatz && (dienstTyp === 'uebungsdienst' || dienstTyp === 'jahreshauptversammlung'));
+            var isJhvSonstiges = (isEinsatz && (typSonstige === 'jahreshauptversammlung' || typSonstige === 'sonstiges')) || (!isEinsatz && (dienstTyp === 'jahreshauptversammlung' || dienstTyp === 'sonstiges'));
+            var isUebungsdienst = (isEinsatz && typSonstige === 'uebungsdienst') || (!isEinsatz && dienstTyp === 'uebungsdienst');
             var typSave = isEinsatz ? (typSonstige === 'einsatz' ? 'einsatz' : 'manuell') : 'dienst';
-            if (isUebungsdienst) {
+            if (isJhvSonstiges) {
+            } else if (isUebungsdienst) {
                 var themaSel = form.querySelector('[name="thema"]');
                 var themaNeu = form.querySelector('[name="thema_neu"]');
                 var themaVal = themaSel ? themaSel.value : '';
@@ -1234,14 +1265,22 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
     document.getElementById('typ_sonstige').addEventListener('change',function(){
         var v=this.value;
         document.getElementById('typ_sonstige_freitext_wrap').style.display=v==='__custom__'?'block':'none';
-        document.getElementById('einsatzstichwort_wrap').style.display=v==='einsatz'?'block':'none';
-        document.getElementById('thema_wrap').style.display=(v==='uebungsdienst')?'block':'none';
-        var isUeb= v==='uebungsdienst'||v==='jahreshauptversammlung';
+        var showEinsatzstichwort=v==='einsatz';
+        var showThema=v==='uebungsdienst';
+        var showBeschreibung=v==='jahreshauptversammlung'||v==='sonstiges';
+        var elEinsatz=document.getElementById('einsatzstichwort_wrap');
+        var elThema=document.getElementById('thema_wrap');
+        var elBeschr=document.getElementById('beschreibung_sonstige_wrap');
+        if(elEinsatz)elEinsatz.style.display=showEinsatzstichwort?'block':'none';
+        if(elThema)elThema.style.display=showThema?'block':'none';
+        if(elBeschr)elBeschr.style.display=showBeschreibung?'block':'none';
+        var isUeb= v==='uebungsdienst'||v==='jahreshauptversammlung'||v==='sonstiges';
+        var isUebungsdienstOnly= v==='uebungsdienst';
         document.querySelectorAll('.feld-uebungsdienst-toggle[data-hide-uebungsdienst="1"]').forEach(function(el){el.style.display=isUeb?'none':'block';});
         var elWrap=document.getElementById('einsatzleiter_wrap');
         var uebWrap=document.getElementById('uebungsleiter_wrap');
         if(elWrap)elWrap.style.display=isUeb?'none':'block';
-        if(uebWrap)uebWrap.style.display=isUeb?'block':'none';
+        if(uebWrap)uebWrap.style.display=isUebungsdienstOnly?'block':'none';
     });
     document.getElementById('thema').addEventListener('change',function(){
         document.getElementById('thema_neu_wrap').style.display=this.value==='__neu__'?'block':'none';
