@@ -1011,7 +1011,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
         $fahrzeug_maschinist = [];
         $fahrzeug_ef = [];
         try {
-            $sql_f = "SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.id AS liste_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?";
+            $sql_f = "SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.id AS liste_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0";
             $params_f = [$von, $bis];
             $sql_f .= get_zeit_filter_sql($params_f) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_f) . get_thema_filter_sql($params_f);
             if ($vehicle_id > 0) {
@@ -1057,7 +1057,12 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 }
                 $fahrzeug_besatzung[$vid] = count($liste_ids) > 0 ? $anz / count($liste_ids) : 0;
             }
-            $sql_besatz = "SELECT am.vehicle_id, am.member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ, JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) AS typ_sonstige FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0";
+            $sql_besatz = "SELECT am.vehicle_id, am.member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ, JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) AS typ_sonstige
+                FROM anwesenheitsliste_mitglieder am
+                JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
+                LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
+                JOIN anwesenheitsliste_fahrzeuge af ON af.anwesenheitsliste_id = am.anwesenheitsliste_id AND af.vehicle_id = am.vehicle_id
+                WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0 AND am.member_id > 0";
             $params_besatz = [$von, $bis];
             $sql_besatz .= get_zeit_filter_sql($params_besatz) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_besatz) . get_thema_filter_sql($params_besatz);
             if ($vehicle_id > 0) {
@@ -1076,7 +1081,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
                 $vid = (int)$r['vehicle_id'];
                 $mid = (int)$r['member_id'];
-                if (!isset($fahrzeug_stats[$vid])) continue;
+                if ($mid <= 0 || !isset($fahrzeug_stats[$vid])) continue;
                 $fahrzeug_besatzung_top[$vid][$mid] = ($fahrzeug_besatzung_top[$vid][$mid] ?? 0) + 1;
             }
         } catch (Exception $e) {}
@@ -1152,9 +1157,9 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     <th class="text-end">Gesamt</th>
                     <th class="text-end">Anteil</th>
                     <th class="text-end">Durchschn. Besatzung</th>
-                    <th>Häufigste Maschinisten</th>
-                    <th>Häufigste Einheitsführer</th>
-                    <th>Top Besatzung</th>
+                    <th title="Nur Personen, die explizit als Maschinist eingetragen wurden">Häufigste Maschinisten</th>
+                    <th title="Nur Personen, die explizit als Einheitsführer eingetragen wurden">Häufigste Einheitsführer</th>
+                    <th title="Personen, die diesem Fahrzeug auf der Anwesenheitsliste zugeordnet waren (nur wenn das Fahrzeug im Einsatz war)">Top Besatzung</th>
                 </tr>
             </thead>
             <tbody>
@@ -1170,15 +1175,15 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     arsort($ef_list);
                     arsort($besatz_list);
                     $masch_str = [];
-                    foreach (array_slice($masch_list, 0, 3) as $mid => $cnt) {
+                    foreach (array_slice(array_filter($masch_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 3) as $mid => $cnt) {
                         $masch_str[] = ($member_map[$mid] ?? 'ID'.$mid) . ' (' . $cnt . ')';
                     }
                     $ef_str = [];
-                    foreach (array_slice($ef_list, 0, 3) as $mid => $cnt) {
+                    foreach (array_slice(array_filter($ef_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 3) as $mid => $cnt) {
                         $ef_str[] = ($member_map[$mid] ?? 'ID'.$mid) . ' (' . $cnt . ')';
                     }
                     $besatz_str = [];
-                    foreach (array_slice($besatz_list, 0, 9) as $mid => $cnt) {
+                    foreach (array_slice(array_filter($besatz_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 9) as $mid => $cnt) {
                         $besatz_str[] = ($member_map[$mid] ?? 'ID'.$mid) . ' (' . $cnt . ')';
                     }
                 ?>
@@ -1197,6 +1202,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
             </tbody>
         </table>
     </div>
+    <p class="text-muted small mt-2"><i class="fas fa-info-circle"></i> <strong>Häufigste Maschinisten/Einheitsführer:</strong> Nur explizit im Formular ausgewählte Personen. <strong>Top Besatzung:</strong> Nur Personen, die dem Fahrzeug auf der Anwesenheitsliste zugeordnet waren (und das Fahrzeug im Einsatz war). Ungültige Einträge (z. B. „ID0“ = keine Auswahl gespeichert) werden nicht mehr angezeigt.</p>
 
     <?php
     // ==================== BEREICH GERÄTE ====================
