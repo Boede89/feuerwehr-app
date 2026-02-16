@@ -52,10 +52,12 @@ try {
     $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 $beschreibung_optionen = [];
+$beschreibung_optionen_jhv = [];
+$beschreibung_optionen_sonstiges = [];
 $is_jhv_sonstiges_filter = in_array($typ_filter, ['jhv', 'sonstiges']);
-if ($is_jhv_sonstiges_filter) {
+foreach (['jhv' => &$beschreibung_optionen_jhv, 'sonstiges' => &$beschreibung_optionen_sonstiges] as $t => $opts) {
     try {
-        $typ_cond = $typ_filter === 'jhv'
+        $typ_cond = $t === 'jhv'
             ? "((a.typ = 'dienst' AND d.typ = 'jahreshauptversammlung') OR (a.typ = 'manuell' AND (a.bezeichnung = 'Jahreshauptversammlung' OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) = 'jahreshauptversammlung'))))"
             : "((a.typ = 'dienst' AND d.typ = 'sonstiges') OR (a.typ = 'manuell' AND (a.bezeichnung = 'Sonstiges' OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) = 'sonstiges'))))";
         $stmt = $db->prepare("
@@ -73,10 +75,11 @@ if ($is_jhv_sonstiges_filter) {
         $stmt->execute([$von, $bis]);
         while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $b = trim($r['b'] ?? '');
-            if ($b !== '' && !in_array($b, $beschreibung_optionen)) $beschreibung_optionen[] = $b;
+            if ($b !== '' && !in_array($b, $opts)) $opts[] = $b;
         }
     } catch (Exception $e) {}
 }
+$beschreibung_optionen = $typ_filter === 'jhv' ? $beschreibung_optionen_jhv : ($typ_filter === 'sonstiges' ? $beschreibung_optionen_sonstiges : []);
 
 // Hilfsfunktion: Ist Anwesenheit Einsatz oder Übung?
 // Übungsdienste und Dienste aus dem Dienstplan (dienst_typ 'uebungsdienst', 'dienst', 'uebung') werden alle als Übung gewertet.
@@ -283,7 +286,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 </div>
                 <div class="col-md-2" id="filter-beschreibung-wrap" style="<?php echo $is_jhv_sonstiges_filter ? '' : 'display:none'; ?>">
                     <label class="form-label">Beschreibung</label>
-                    <select name="beschreibung" class="form-select">
+                    <select name="beschreibung" id="filter-beschreibung" class="form-select">
                         <option value="">— Alle —</option>
                         <?php foreach ($beschreibung_optionen as $opt): ?>
                         <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo $beschreibung_filter === $opt ? 'selected' : ''; ?>><?php echo htmlspecialchars($opt); ?></option>
@@ -338,11 +341,34 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
     (function(){
         var sel = document.getElementById('filter-typ');
         var wrap = document.getElementById('filter-beschreibung-wrap');
-        if (sel && wrap) {
-            function toggle() {
-                var v = sel.value;
-                wrap.style.display = (v === 'jhv' || v === 'sonstiges') ? '' : 'none';
+        var beschrSel = document.getElementById('filter-beschreibung');
+        var optsJhv = <?php echo json_encode($beschreibung_optionen_jhv); ?>;
+        var optsSonstiges = <?php echo json_encode($beschreibung_optionen_sonstiges); ?>;
+        var currentFilter = <?php echo json_encode($beschreibung_filter); ?>;
+        function fillBeschreibung(opts) {
+            if (!beschrSel) return;
+            beschrSel.innerHTML = '<option value="">— Alle —</option>';
+            (opts || []).forEach(function(o) {
+                var opt = document.createElement('option');
+                opt.value = o;
+                opt.textContent = o;
+                if (o === currentFilter) opt.selected = true;
+                beschrSel.appendChild(opt);
+            });
+        }
+        function toggle() {
+            var v = sel.value;
+            if (v === 'jhv') {
+                wrap.style.display = '';
+                fillBeschreibung(optsJhv);
+            } else if (v === 'sonstiges') {
+                wrap.style.display = '';
+                fillBeschreibung(optsSonstiges);
+            } else {
+                wrap.style.display = 'none';
             }
+        }
+        if (sel && wrap) {
             sel.addEventListener('change', toggle);
         }
     })();
