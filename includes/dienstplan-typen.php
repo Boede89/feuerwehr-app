@@ -1,6 +1,7 @@
 <?php
 /**
  * Verfügbare Typen für Dienstplan und Sonstige Anwesenheit.
+ * Hinweis: Übungsdienste und Dienste aus dem Dienstplan sind dasselbe – beide werden als Übungsdienst gewertet.
  */
 
 /** Typen für Auswahl-Dropdowns (nur die 4 Haupttypen) */
@@ -16,8 +17,8 @@ function get_dienstplan_typen_auswahl() {
 /** Alle Typen inkl. Legacy für Anzeige */
 function get_dienstplan_typen() {
     return get_dienstplan_typen_auswahl() + [
-        'dienst' => 'Dienst',
-        'uebung' => 'Übung',
+        'dienst' => 'Übungsdienst',  // wie uebungsdienst
+        'uebung' => 'Übungsdienst', // wie uebungsdienst
     ];
 }
 

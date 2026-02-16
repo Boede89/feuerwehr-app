@@ -47,6 +47,7 @@ try {
 } catch (Exception $e) {}
 
 // Hilfsfunktion: Ist Anwesenheit Einsatz oder Übung?
+// Übungsdienste und Dienste aus dem Dienstplan (dienst_typ 'uebungsdienst', 'dienst', 'uebung') werden alle als Übung gewertet.
 function ist_einsatz($row) {
     if ($row['liste_typ'] === 'einsatz') return true;
     if ($row['liste_typ'] === 'dienst' && !empty($row['dienst_typ']) && $row['dienst_typ'] === 'einsatz') return true;
