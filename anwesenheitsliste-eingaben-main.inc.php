@@ -1216,8 +1216,8 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                 }
                 var modalVon = document.getElementById('modal_uhrzeit_von');
                 var modalBis = document.getElementById('modal_uhrzeit_bis');
-                var formVon = form.querySelector('[name="uhrzeit_von"]');
-                var formBis = form.querySelector('[name="uhrzeit_bis"]');
+                var formVon = document.querySelector('[name="uhrzeit_von"]') || form.querySelector('[name="uhrzeit_von"]');
+                var formBis = document.querySelector('[name="uhrzeit_bis"]') || form.querySelector('[name="uhrzeit_bis"]');
                 if (modalVon && formVon) modalVon.value = formVon.value || '';
                 if (modalBis && formBis) modalBis.value = formBis.value || (modalBis.value || '');
                 new bootstrap.Modal(modal).show();
@@ -1225,8 +1225,8 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
             document.getElementById('btnConfirmSave').addEventListener('click', function() {
                 var modalVon = document.getElementById('modal_uhrzeit_von');
                 var modalBis = document.getElementById('modal_uhrzeit_bis');
-                var formVon = form.querySelector('[name="uhrzeit_von"]');
-                var formBis = form.querySelector('[name="uhrzeit_bis"]');
+                var formVon = document.querySelector('[name="uhrzeit_von"]') || form.querySelector('[name="uhrzeit_von"]');
+                var formBis = document.querySelector('[name="uhrzeit_bis"]') || form.querySelector('[name="uhrzeit_bis"]');
                 if (modalVon && formVon) formVon.value = modalVon.value || '';
                 if (modalBis && formBis) formBis.value = modalBis.value || '';
                 if (inputPrint) inputPrint.value = cbPrint && cbPrint.checked ? '1' : '0';
