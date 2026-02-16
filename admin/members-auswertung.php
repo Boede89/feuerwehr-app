@@ -55,29 +55,31 @@ $beschreibung_optionen = [];
 $beschreibung_optionen_jhv = [];
 $beschreibung_optionen_sonstiges = [];
 $is_jhv_sonstiges_filter = in_array($typ_filter, ['jhv', 'sonstiges']);
-foreach (['jhv' => &$beschreibung_optionen_jhv, 'sonstiges' => &$beschreibung_optionen_sonstiges] as $t => $opts) {
-    try {
-        $typ_cond = $t === 'jhv'
-            ? "((a.typ = 'dienst' AND d.typ = 'jahreshauptversammlung') OR (a.typ = 'manuell' AND (a.bezeichnung = 'Jahreshauptversammlung' OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) = 'jahreshauptversammlung'))))"
-            : "((a.typ = 'dienst' AND d.typ = 'sonstiges') OR (a.typ = 'manuell' AND (a.bezeichnung = 'Sonstiges' OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) = 'sonstiges'))))";
-        $stmt = $db->prepare("
-            SELECT DISTINCT COALESCE(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))), ''), a.bezeichnung) AS b
-            FROM anwesenheitslisten a
-            LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
-            WHERE a.datum BETWEEN ? AND ?
-            AND $typ_cond
-            AND (
-                (a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '')
-                OR (a.custom_data IS NOT NULL AND JSON_EXTRACT(a.custom_data, '$.beschreibung') IS NOT NULL AND TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) != '')
-            )
-            ORDER BY b
-        ");
-        $stmt->execute([$von, $bis]);
-        while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $b = trim($r['b'] ?? '');
-            if ($b !== '' && !in_array($b, $opts)) $opts[] = $b;
-        }
-    } catch (Exception $e) {}
+if ($bereich !== '') {
+    $load_beschreibung_opts = function($typ_cond) use ($db, $von, $bis) {
+        $opts = [];
+        try {
+            $sql = "SELECT DISTINCT a.bezeichnung AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond . " AND a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '' ORDER BY b";
+            $stmt = $db->prepare($sql);
+            $stmt->execute([$von, $bis]);
+            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $b = trim($r['b'] ?? '');
+                if ($b !== '' && !in_array($b, $opts)) $opts[] = $b;
+            }
+            $sql2 = "SELECT DISTINCT TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond . " AND a.custom_data IS NOT NULL AND JSON_EXTRACT(a.custom_data, '$.beschreibung') IS NOT NULL AND TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) != '' ORDER BY b";
+            $stmt2 = $db->prepare($sql2);
+            $stmt2->execute([$von, $bis]);
+            while ($r = $stmt2->fetch(PDO::FETCH_ASSOC)) {
+                $b = trim($r['b'] ?? '');
+                if ($b !== '' && !in_array($b, $opts)) $opts[] = $b;
+            }
+        } catch (Exception $e) {}
+        return $opts;
+    };
+    $typ_cond_jhv = "((a.typ = 'dienst' AND d.typ = 'jahreshauptversammlung') OR (a.typ = 'manuell' AND (a.bezeichnung = 'Jahreshauptversammlung' OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) = 'jahreshauptversammlung'))))";
+    $typ_cond_sonst = "((a.typ = 'dienst' AND d.typ = 'sonstiges') OR (a.typ = 'manuell' AND (a.bezeichnung = 'Sonstiges' OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) = 'sonstiges'))))";
+    $beschreibung_optionen_jhv = $load_beschreibung_opts($typ_cond_jhv);
+    $beschreibung_optionen_sonstiges = $load_beschreibung_opts($typ_cond_sonst);
 }
 $beschreibung_optionen = $typ_filter === 'jhv' ? $beschreibung_optionen_jhv : ($typ_filter === 'sonstiges' ? $beschreibung_optionen_sonstiges : []);
 
@@ -368,9 +370,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 wrap.style.display = 'none';
             }
         }
-        if (sel && wrap) {
-            sel.addEventListener('change', toggle);
-        }
+        if (sel && wrap) sel.addEventListener('change', toggle);
     })();
     </script>
 
