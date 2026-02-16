@@ -431,8 +431,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         if (!empty($draft['uebungsleiter_member_ids'])) {
             $custom_data_for_save['uebungsleiter_member_ids'] = $draft['uebungsleiter_member_ids'];
         }
-        if ($is_jhv_sonstiges && trim((string)($draft['beschreibung'] ?? '')) !== '') {
-            $custom_data_for_save['beschreibung'] = trim($draft['beschreibung']);
+        if ($is_jhv_sonstiges) {
+            $typ_sonstige_val = ($typ_save === 'dienst' && isset($dienst))
+                ? ($dienst['typ'] ?? 'sonstiges')
+                : ((trim($draft['bezeichnung_sonstige'] ?? '') === 'Jahreshauptversammlung') ? 'jahreshauptversammlung' : 'sonstiges');
+            $custom_data_for_save['typ_sonstige'] = $typ_sonstige_val;
+            if (trim((string)($draft['beschreibung'] ?? '')) !== '') {
+                $custom_data_for_save['beschreibung'] = trim($draft['beschreibung']);
+            }
         }
         if (!empty($draft['vehicle_equipment'])) {
             $custom_data_for_save['vehicle_equipment'] = $draft['vehicle_equipment'];
