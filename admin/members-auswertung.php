@@ -235,7 +235,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     <div class="card-body text-center">
                         <i class="fas fa-clipboard-list fa-3x text-success mb-2"></i>
                         <h5 class="card-title">Einsätze / Dienste</h5>
-                        <p class="card-text text-muted small">Durchschn. Personen, Gruppenführer, Zugführer, Klassifizierung, Einsatzdauer, Top-Themen</p>
+                        <p class="card-text text-muted small">Anzahl, Gesamtstunden, Durchschn. Personen, Gruppenführer, Zugführer, Klassifizierung, Top-Themen</p>
                     </div>
                 </div>
             </a>
@@ -521,8 +521,24 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
         usort($chart_personen_top, fn($a,$b) => $b['count'] - $a['count']);
         $chart_personen_top = array_slice($chart_personen_top, 0, 10);
         $chart_personen_einsatz_uebung = array_filter($chart_personen_einsatz_uebung);
+        $gesamt_stunden_personen = 0;
+        foreach ($personen_stats as $s) { $gesamt_stunden_personen += $s['stunden'] ?? 0; }
     ?>
     <h2 class="h5 mb-3"><i class="fas fa-users"></i> Personen</h2>
+
+    <?php if ($member_id === 0 && !empty($members_mit_teilnahme)): ?>
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">Gesamtstunden aller Personen</h6>
+                    <p class="h4 mb-0"><?php echo number_format($gesamt_stunden_personen, 1, ',', '.'); ?> h</p>
+                    <p class="small text-muted mb-0">Summe der Einsatz-/Übungsstunden aller Mitglieder</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <?php if ($member_id > 0 && !empty($members_mit_teilnahme)): ?>
     <!-- Einzelperson-Profil -->
@@ -822,6 +838,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
             $stmt->execute([$lid]);
             $zf_pro_liste[$lid] = (int)$stmt->fetchColumn();
         }
+        $anzahl_listen = count($listen);
+        $gesamt_stunden_listen = array_sum($dauern);
         $durchschn_personen = count($personen_pro_liste) > 0 ? array_sum($personen_pro_liste) / count($personen_pro_liste) : 0;
         $durchschn_gf = count($gf_pro_liste) > 0 ? array_sum($gf_pro_liste) / count($gf_pro_liste) : 0;
         $durchschn_zf = count($zf_pro_liste) > 0 ? array_sum($zf_pro_liste) / count($zf_pro_liste) : 0;
@@ -831,7 +849,23 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
     ?>
     <h2 class="h5 mb-3"><i class="fas fa-clipboard-list"></i> Einsätze / Dienste</h2>
     <div class="row mb-4">
-        <div class="col-md-3">
+        <div class="col-6 col-md-2">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">Anzahl Einsätze/Übungen</h6>
+                    <p class="h4 mb-0"><?php echo $anzahl_listen; ?></p>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">Gesamtstunden Einsätze/Übungen</h6>
+                    <p class="h4 mb-0"><?php echo number_format($gesamt_stunden_listen, 1, ',', '.'); ?> h</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
             <div class="card">
                 <div class="card-body">
                     <h6 class="card-subtitle text-muted">Durchschn. Personen pro Einsatz/Übung</h6>
@@ -839,7 +873,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-md-2">
             <div class="card">
                 <div class="card-body">
                     <h6 class="card-subtitle text-muted">Durchschn. Gruppenführer pro Einsatz/Übung</h6>
@@ -847,7 +881,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-md-2">
             <div class="card">
                 <div class="card-body">
                     <h6 class="card-subtitle text-muted">Durchschn. Zugführer pro Einsatz/Übung</h6>
@@ -855,7 +889,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-md-2">
             <div class="card">
                 <div class="card-body">
                     <h6 class="card-subtitle text-muted">Durchschn. Einsatzdauer</h6>
