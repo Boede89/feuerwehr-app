@@ -53,23 +53,26 @@ try {
 } catch (Exception $e) {}
 $beschreibung_optionen = [];
 $is_jhv_sonstiges_filter = in_array($typ_filter, ['jhv', 'sonstiges']);
-if ($bereich !== '' && $is_jhv_sonstiges_filter) {
+if ($is_jhv_sonstiges_filter) {
     try {
         $typ_cond = $typ_filter === 'jhv'
             ? "((a.typ = 'dienst' AND d.typ = 'jahreshauptversammlung') OR (a.typ = 'manuell' AND (a.bezeichnung = 'Jahreshauptversammlung' OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) = 'jahreshauptversammlung'))))"
             : "((a.typ = 'dienst' AND d.typ = 'sonstiges') OR (a.typ = 'manuell' AND (a.bezeichnung = 'Sonstiges' OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) = 'sonstiges'))))";
         $stmt = $db->prepare("
-            SELECT DISTINCT a.bezeichnung
+            SELECT DISTINCT COALESCE(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))), ''), a.bezeichnung) AS b
             FROM anwesenheitslisten a
             LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
             WHERE a.datum BETWEEN ? AND ?
             AND $typ_cond
-            AND a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != ''
-            ORDER BY a.bezeichnung
+            AND (
+                (a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '')
+                OR (a.custom_data IS NOT NULL AND JSON_EXTRACT(a.custom_data, '$.beschreibung') IS NOT NULL AND TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) != '')
+            )
+            ORDER BY b
         ");
         $stmt->execute([$von, $bis]);
         while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $b = trim($r['bezeichnung'] ?? '');
+            $b = trim($r['b'] ?? '');
             if ($b !== '' && !in_array($b, $beschreibung_optionen)) $beschreibung_optionen[] = $b;
         }
     } catch (Exception $e) {}

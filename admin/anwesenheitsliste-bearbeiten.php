@@ -99,8 +99,9 @@ $member_pa_ids = array_flip($custom_data['member_pa'] ?? []);
 $is_uebungsdienst_edit = !empty($uebungsleiter_ids)
     || (($liste['typ'] ?? '') === 'dienst' && in_array($liste['dienst_typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung']))
     || (($liste['typ'] ?? '') === 'manuell' && in_array($liste['bezeichnung'] ?? '', ['Übungsdienst', 'Jahreshauptversammlung']));
+$typ_sonstige_edit = $custom_data['typ_sonstige'] ?? '';
 $is_jhv_sonstiges_edit = (($liste['typ'] ?? '') === 'dienst' && in_array($liste['dienst_typ'] ?? '', ['jahreshauptversammlung', 'sonstiges']))
-    || (($liste['typ'] ?? '') === 'manuell' && in_array($liste['bezeichnung'] ?? '', ['Jahreshauptversammlung', 'Sonstiges']));
+    || (($liste['typ'] ?? '') === 'manuell' && (in_array($liste['bezeichnung'] ?? '', ['Jahreshauptversammlung', 'Sonstiges']) || in_array($typ_sonstige_edit, ['jahreshauptversammlung', 'sonstiges'])));
 $uebungsdienst_hide_ids = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
 $berichtersteller_val = $custom_data['berichtersteller'] ?? '';
 $berichtersteller_display = '';
@@ -231,7 +232,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             if ($is_jhv_sonstiges_edit) {
                 $beschr = trim($_POST['beschreibung'] ?? '');
                 if ($beschr !== '') $custom_post['beschreibung'] = $beschr;
-                if (isset($custom_data['typ_sonstige'])) $custom_post['typ_sonstige'] = $custom_data['typ_sonstige'];
+                $ts = $custom_data['typ_sonstige'] ?? '';
+                if ($ts === '' && ($liste['typ'] ?? '') === 'dienst' && in_array($liste['dienst_typ'] ?? '', ['jahreshauptversammlung', 'sonstiges'])) {
+                    $ts = $liste['dienst_typ'];
+                }
+                if ($ts === '' && ($liste['typ'] ?? '') === 'manuell') {
+                    $ts = (trim($liste['bezeichnung'] ?? '') === 'Jahreshauptversammlung') ? 'jahreshauptversammlung' : 'sonstiges';
+                }
+                if ($ts !== '') $custom_post['typ_sonstige'] = $ts;
             }
             if (!empty($_POST['equipment_sonstiges']) && is_array($_POST['equipment_sonstiges'])) {
                 foreach ($_POST['equipment_sonstiges'] as $vid => $txt) {
