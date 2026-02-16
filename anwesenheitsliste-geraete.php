@@ -714,6 +714,7 @@ $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&ausw
         var vehicleId = '';
         var opt = matSelect.options[matSelect.selectedIndex];
         if (opt && opt.dataset && opt.dataset.vehicleId) vehicleId = opt.dataset.vehicleId;
+        if (!vehicleId && currentMangelVehicleId) vehicleId = currentMangelVehicleId;
         ['standort','mangel_an','bezeichnung','mangel_beschreibung','ursache','verbleib','aufgenommen_durch','vehicle_id'].forEach(function(k) {
             var inp = document.createElement('input');
             inp.type = 'hidden';
