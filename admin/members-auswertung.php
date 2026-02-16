@@ -26,6 +26,10 @@ if ($bereich !== '' && !in_array($bereich, $gueltige_bereiche)) {
 $jahr = isset($_GET['jahr']) ? (int)$_GET['jahr'] : (int)date('Y');
 $von = isset($_GET['von']) ? trim($_GET['von']) : $jahr . '-01-01';
 $bis = isset($_GET['bis']) ? trim($_GET['bis']) : date('Y-m-d');
+$member_id = isset($_GET['member_id']) ? (int)$_GET['member_id'] : 0;
+$vehicle_id = isset($_GET['vehicle_id']) ? (int)$_GET['vehicle_id'] : 0;
+$ansicht = isset($_GET['ansicht']) ? trim($_GET['ansicht']) : 'alle';
+if (!in_array($ansicht, ['tabelle', 'diagramme', 'karten', 'alle'])) $ansicht = 'alle';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $von)) $von = $jahr . '-01-01';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bis)) $bis = date('Y-m-d');
 
@@ -47,7 +51,7 @@ function ist_einsatz($row) {
     return false;
 }
 
-$filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
+$filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'member_id' => $member_id, 'vehicle_id' => $vehicle_id, 'ansicht' => $ansicht];
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -148,6 +152,39 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
                     <label class="form-label">Bis</label>
                     <input type="date" name="bis" class="form-control" value="<?php echo htmlspecialchars($bis); ?>">
                 </div>
+                <?php if ($bereich === 'personen'): ?>
+                <div class="col-md-2">
+                    <label class="form-label">Mitglied</label>
+                    <select name="member_id" class="form-select">
+                        <option value="">— Alle —</option>
+                        <?php foreach ($members as $m): ?>
+                        <option value="<?php echo (int)$m['id']; ?>" <?php echo $member_id === (int)$m['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php endif; ?>
+                <?php if ($bereich === 'fahrzeuge'): ?>
+                <div class="col-md-2">
+                    <label class="form-label">Fahrzeug</label>
+                    <select name="vehicle_id" class="form-select">
+                        <option value="">— Alle —</option>
+                        <?php foreach ($vehicles as $v): ?>
+                        <option value="<?php echo (int)$v['id']; ?>" <?php echo $vehicle_id === (int)$v['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php endif; ?>
+                <div class="col-md-2">
+                    <label class="form-label">Ansicht</label>
+                    <select name="ansicht" class="form-select">
+                        <option value="alle" <?php echo $ansicht === 'alle' ? 'selected' : ''; ?>>Alle</option>
+                        <option value="tabelle" <?php echo $ansicht === 'tabelle' ? 'selected' : ''; ?>>Tabelle</option>
+                        <option value="diagramme" <?php echo $ansicht === 'diagramme' ? 'selected' : ''; ?>>Diagramme</option>
+                        <?php if ($bereich === 'personen'): ?>
+                        <option value="karten" <?php echo $ansicht === 'karten' ? 'selected' : ''; ?>>Karten</option>
+                        <?php endif; ?>
+                    </select>
+                </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Anwenden</button>
                 </div>
@@ -163,15 +200,21 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
         $personen_einheitsfuehrer = [];
         $personen_letzte = [];
         try {
-            $stmt = $db->prepare("
+            $sql = "
                 SELECT am.member_id, am.vehicle_id, a.id AS liste_id, a.datum, a.typ AS liste_typ, a.uhrzeit_von, a.uhrzeit_bis,
                        d.typ AS dienst_typ
                 FROM anwesenheitsliste_mitglieder am
                 JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
                 LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
                 WHERE a.datum BETWEEN ? AND ?
-            ");
-            $stmt->execute([$von, $bis]);
+            ";
+            $params = [$von, $bis];
+            if ($member_id > 0) {
+                $sql .= " AND am.member_id = ?";
+                $params[] = $member_id;
+            }
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $mid = (int)$r['member_id'];
                 $einsatz = ist_einsatz($r);
@@ -217,8 +260,177 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
             $tb = (($personen_stats[(int)$b['id']]['einsaetze'] ?? 0) + ($personen_stats[(int)$b['id']]['uebungen'] ?? 0));
             return $tb - $ta;
         });
+        if ($member_id > 0) {
+            $members = array_values(array_filter($members, fn($m) => (int)$m['id'] === $member_id));
+        }
+        $members_mit_teilnahme = array_values(array_filter($members, fn($m) => (($personen_stats[(int)$m['id']]['einsaetze'] ?? 0) + ($personen_stats[(int)$m['id']]['uebungen'] ?? 0)) > 0));
+        $gesamt_teilnahmen = array_sum(array_map(fn($m) => ($personen_stats[(int)$m['id']]['einsaetze'] ?? 0) + ($personen_stats[(int)$m['id']]['uebungen'] ?? 0), $members_mit_teilnahme));
+        $chart_person_fahrzeuge = [];
+        $chart_person_rollen = [];
+        $chart_personen_top = [];
+        $chart_personen_einsatz_uebung = ['Einsätze' => 0, 'Übungen' => 0];
+        foreach ($members_mit_teilnahme as $m) {
+            $mid = (int)$m['id'];
+            $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0];
+            $t = $s['einsaetze'] + $s['uebungen'];
+            $chart_personen_top[] = ['label' => $m['last_name'] . ', ' . $m['first_name'], 'count' => $t];
+            $chart_personen_einsatz_uebung['Einsätze'] += $s['einsaetze'];
+            $chart_personen_einsatz_uebung['Übungen'] += $s['uebungen'];
+        }
+        usort($chart_personen_top, fn($a,$b) => $b['count'] - $a['count']);
+        $chart_personen_top = array_slice($chart_personen_top, 0, 15);
+        $chart_personen_einsatz_uebung = array_filter($chart_personen_einsatz_uebung);
     ?>
     <h2 class="h5 mb-3"><i class="fas fa-users"></i> Personen</h2>
+
+    <?php if ($member_id > 0 && !empty($members_mit_teilnahme)): ?>
+    <!-- Einzelperson-Profil -->
+    <?php
+    $m = $members_mit_teilnahme[0];
+    $chart_person_fahrzeuge = [];
+    $chart_person_rollen = [];
+    $mid = (int)$m['id'];
+    $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'fahrzeuge' => [], 'stunden' => 0];
+    $gesamt = $s['einsaetze'] + $s['uebungen'];
+    $masch = $personen_maschinist[$mid] ?? 0;
+    $ef = $personen_einheitsfuehrer[$mid] ?? 0;
+    $letzte = $personen_letzte[$mid] ?? '-';
+    if ($letzte !== '-') $letzte = date('d.m.Y', strtotime($letzte));
+    $chart_person_fahrzeuge = [];
+    arsort($s['fahrzeuge']);
+    foreach (array_slice($s['fahrzeuge'], 0, 8) as $vid => $cnt) {
+        $chart_person_fahrzeuge[] = ['label' => $vehicle_map[$vid] ?? 'ID'.$vid, 'count' => $cnt];
+    }
+    $chart_person_rollen = [];
+    if ($masch > 0) $chart_person_rollen[] = ['label' => 'Als Maschinist', 'count' => $masch];
+    if ($ef > 0) $chart_person_rollen[] = ['label' => 'Als Einheitsführer', 'count' => $ef];
+    $teilnehmer = $gesamt - $masch - $ef;
+    if ($teilnehmer > 0) $chart_person_rollen[] = ['label' => 'Als Teilnehmer', 'count' => $teilnehmer];
+    ?>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <i class="fas fa-user"></i> <?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <div class="card bg-light h-100">
+                                <div class="card-body text-center">
+                                    <p class="text-muted mb-0 small">Gesamt-Teilnahmen</p>
+                                    <p class="h2 mb-0 text-primary"><?php echo $gesamt; ?></p>
+                                    <p class="small mb-0"><?php echo $s['einsaetze']; ?> Einsätze, <?php echo $s['uebungen']; ?> Übungen</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light h-100">
+                                <div class="card-body text-center">
+                                    <p class="text-muted mb-0 small">Einsatzstunden</p>
+                                    <p class="h2 mb-0 text-success"><?php echo number_format($s['stunden'], 1, ',', '.'); ?> h</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light h-100">
+                                <div class="card-body text-center">
+                                    <p class="text-muted mb-0 small">Als Maschinist / EF</p>
+                                    <p class="h2 mb-0 text-warning"><?php echo $masch; ?> / <?php echo $ef; ?></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light h-100">
+                                <div class="card-body text-center">
+                                    <p class="text-muted mb-0 small">Letzte Teilnahme</p>
+                                    <p class="h4 mb-0"><?php echo htmlspecialchars($letzte); ?></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php if (($ansicht === 'diagramme' || $ansicht === 'alle') && (!empty($chart_person_fahrzeuge) || !empty($chart_person_rollen))): ?>
+    <div class="row mb-4">
+        <?php if (!empty($chart_person_fahrzeuge)): ?>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Fahrzeugverteilung</div>
+                <div class="card-body"><canvas id="chartPersonFahrzeuge" height="220"></canvas></div>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($chart_person_rollen)): ?>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Rollenverteilung</div>
+                <div class="card-body"><canvas id="chartPersonRollen" height="220"></canvas></div>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
+    <?php if (!empty($s['fahrzeuge'])): ?>
+    <div class="card mb-4">
+        <div class="card-header">Fahrzeuge im Detail</div>
+        <div class="card-body">
+            <?php foreach ($s['fahrzeuge'] as $vid => $cnt): ?>
+            <span class="badge bg-secondary me-1 mb-1"><?php echo htmlspecialchars($vehicle_map[$vid] ?? 'ID'.$vid); ?>: <?php echo $cnt; ?>×</span>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php elseif (empty($members_mit_teilnahme)): ?>
+    <p class="text-muted">Keine Teilnahmen im gewählten Zeitraum<?php if ($member_id > 0): ?> für dieses Mitglied<?php endif; ?>.</p>
+    <?php else: ?>
+
+    <?php if (($ansicht === 'diagramme' || $ansicht === 'alle') && (!empty($chart_personen_top) || !empty($chart_personen_einsatz_uebung))): ?>
+    <div class="row mb-4">
+        <?php if (!empty($chart_personen_einsatz_uebung)): ?>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Einsätze vs. Übungen (Gesamt)</div>
+                <div class="card-body"><canvas id="chartPersonenEinsatzUebung" height="220"></canvas></div>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($chart_personen_top)): ?>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Top 15 Teilnehmer</div>
+                <div class="card-body"><canvas id="chartPersonenTop" height="220"></canvas></div>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($ansicht === 'karten' || $ansicht === 'alle'): ?>
+    <div class="row mb-4">
+        <?php foreach (array_slice($members_mit_teilnahme, 0, 12) as $m):
+            $mid = (int)$m['id'];
+            $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'stunden' => 0];
+            $t = $s['einsaetze'] + $s['uebungen'];
+            $prozent = $gesamt_teilnahmen > 0 ? round($t / $gesamt_teilnahmen * 100, 1) : 0;
+        ?>
+        <div class="col-md-4 col-lg-3 mb-3">
+            <div class="card h-100 auswertung-karte">
+                <div class="card-body py-3">
+                    <h6 class="card-title mb-1"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></h6>
+                    <p class="mb-0 small text-muted"><?php echo $t; ?> Teilnahmen <span class="text-primary">(<?php echo $prozent; ?>%)</span></p>
+                    <p class="mb-0 small"><?php echo $s['einsaetze']; ?> E / <?php echo $s['uebungen']; ?> Ü · <?php echo number_format($s['stunden'], 1, ',', '.'); ?> h</p>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($ansicht === 'tabelle' || $ansicht === 'alle'): ?>
     <div class="table-responsive">
         <table class="table table-sm table-hover">
             <thead>
@@ -227,6 +439,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
                     <th class="text-end">Einsätze</th>
                     <th class="text-end">Übungen</th>
                     <th class="text-end">Gesamt</th>
+                    <th class="text-end">Anteil</th>
                     <th class="text-end">Als Maschinist</th>
                     <th class="text-end">Als Einheitsführer</th>
                     <th>Letzte Teilnahme</th>
@@ -235,11 +448,11 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($members as $m):
+                <?php foreach ($members_mit_teilnahme as $m):
                     $mid = (int)$m['id'];
                     $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'fahrzeuge' => [], 'stunden' => 0];
                     $gesamt = $s['einsaetze'] + $s['uebungen'];
-                    if ($gesamt === 0) continue;
+                    $prozent = $gesamt_teilnahmen > 0 ? number_format($gesamt / $gesamt_teilnahmen * 100, 1, ',', '.') : '0';
                     $masch = $personen_maschinist[$mid] ?? 0;
                     $ef = $personen_einheitsfuehrer[$mid] ?? 0;
                     $letzte = $personen_letzte[$mid] ?? '-';
@@ -255,6 +468,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
                     <td class="text-end"><?php echo (int)$s['einsaetze']; ?></td>
                     <td class="text-end"><?php echo (int)$s['uebungen']; ?></td>
                     <td class="text-end"><strong><?php echo $gesamt; ?></strong></td>
+                    <td class="text-end"><span class="badge bg-primary"><?php echo $prozent; ?>%</span></td>
                     <td class="text-end"><?php echo $masch; ?></td>
                     <td class="text-end"><?php echo $ef; ?></td>
                     <td><?php echo htmlspecialchars($letzte); ?></td>
@@ -265,8 +479,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
             </tbody>
         </table>
     </div>
-    <?php if (empty(array_filter($personen_stats, fn($x) => ($x['einsaetze'] + $x['uebungen']) > 0))): ?>
-    <p class="text-muted">Keine Teilnahmen im gewählten Zeitraum.</p>
+    <?php endif; ?>
     <?php endif; ?>
 
     <?php
@@ -354,17 +567,65 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
             </div>
         </div>
     </div>
+    <?php
+        $sum_klass = array_sum($klassifizierung ?: []);
+        $sum_stich = array_sum($einsatzstichwort ?: []);
+        $sum_themen = array_sum($top_themen ?: []);
+        $chart_klass = [];
+        foreach ($klassifizierung ?: [] as $k => $v) {
+            $chart_klass[] = ['label' => $k, 'count' => $v, 'pct' => $sum_klass > 0 ? round($v/$sum_klass*100, 1) : 0];
+        }
+        $chart_stich = [];
+        foreach ($einsatzstichwort ?: [] as $k => $v) {
+            $chart_stich[] = ['label' => $k, 'count' => $v, 'pct' => $sum_stich > 0 ? round($v/$sum_stich*100, 1) : 0];
+        }
+        $chart_themen = [];
+        foreach ($top_themen ?: [] as $k => $v) {
+            $chart_themen[] = ['label' => $k, 'count' => $v, 'pct' => $sum_themen > 0 ? round($v/$sum_themen*100, 1) : 0];
+        }
+    ?>
+    <div class="row">
+    <?php if (($ansicht === 'diagramme' || $ansicht === 'alle') && (!empty($chart_klass) || !empty($chart_stich) || !empty($chart_themen))): ?>
+    <div class="row mb-4">
+        <?php if (!empty($chart_klass)): ?>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Klassifizierung</div>
+                <div class="card-body"><canvas id="chartEinsaetzeKlass" height="220"></canvas></div>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($chart_stich)): ?>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Einsatzstichwort</div>
+                <div class="card-body"><canvas id="chartEinsaetzeStich" height="220"></canvas></div>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($chart_themen)): ?>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Top-Themen Übungen</div>
+                <div class="card-body"><canvas id="chartEinsaetzeThemen" height="220"></canvas></div>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
     <div class="row">
         <div class="col-md-6 mb-4">
             <div class="card">
-                <div class="card-header">Klassifizierung / Einsatzstichwort</div>
+                <div class="card-header">Klassifizierung</div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-sm mb-0">
-                            <thead><tr><th>Klassifizierung</th><th class="text-end">Anzahl</th></tr></thead>
+                            <thead><tr><th>Klassifizierung</th><th class="text-end">Anzahl</th><th class="text-end">Anteil</th></tr></thead>
                             <tbody>
-                                <?php arsort($klassifizierung); foreach ($klassifizierung as $k => $v): ?>
-                                <tr><td><?php echo htmlspecialchars($k); ?></td><td class="text-end"><?php echo $v; ?></td></tr>
+                                <?php arsort($klassifizierung); foreach ($klassifizierung as $k => $v): 
+                                    $pct = $sum_klass > 0 ? number_format($v/$sum_klass*100, 1, ',', '.') : '0';
+                                ?>
+                                <tr><td><?php echo htmlspecialchars($k); ?></td><td class="text-end"><?php echo $v; ?></td><td class="text-end"><span class="badge bg-secondary"><?php echo $pct; ?>%</span></td></tr>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
@@ -378,10 +639,12 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-sm mb-0">
-                            <thead><tr><th>Stichwort</th><th class="text-end">Anzahl</th></tr></thead>
+                            <thead><tr><th>Stichwort</th><th class="text-end">Anzahl</th><th class="text-end">Anteil</th></tr></thead>
                             <tbody>
-                                <?php arsort($einsatzstichwort); foreach ($einsatzstichwort as $k => $v): ?>
-                                <tr><td><?php echo htmlspecialchars($k); ?></td><td class="text-end"><?php echo $v; ?></td></tr>
+                                <?php arsort($einsatzstichwort); foreach ($einsatzstichwort as $k => $v): 
+                                    $pct = $sum_stich > 0 ? number_format($v/$sum_stich*100, 1, ',', '.') : '0';
+                                ?>
+                                <tr><td><?php echo htmlspecialchars($k); ?></td><td class="text-end"><?php echo $v; ?></td><td class="text-end"><span class="badge bg-secondary"><?php echo $pct; ?>%</span></td></tr>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
@@ -395,10 +658,12 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-sm mb-0">
-                    <thead><tr><th>Thema / Bezeichnung</th><th class="text-end">Anzahl</th></tr></thead>
+                    <thead><tr><th>Thema / Bezeichnung</th><th class="text-end">Anzahl</th><th class="text-end">Anteil</th></tr></thead>
                     <tbody>
-                        <?php foreach ($top_themen as $k => $v): ?>
-                        <tr><td><?php echo htmlspecialchars($k); ?></td><td class="text-end"><?php echo $v; ?></td></tr>
+                        <?php foreach ($top_themen as $k => $v): 
+                            $pct = $sum_themen > 0 ? number_format($v/$sum_themen*100, 1, ',', '.') : '0';
+                        ?>
+                        <tr><td><?php echo htmlspecialchars($k); ?></td><td class="text-end"><?php echo $v; ?></td><td class="text-end"><span class="badge bg-secondary"><?php echo $pct; ?>%</span></td></tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
@@ -414,15 +679,21 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
         $fahrzeug_maschinist = [];
         $fahrzeug_ef = [];
         try {
-            $stmt = $db->prepare("
+            $sql_f = "
                 SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.id AS liste_id, a.typ AS liste_typ,
                        d.typ AS dienst_typ
                 FROM anwesenheitsliste_fahrzeuge af
                 JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id
                 LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
                 WHERE a.datum BETWEEN ? AND ?
-            ");
-            $stmt->execute([$von, $bis]);
+            ";
+            $params_f = [$von, $bis];
+            if ($vehicle_id > 0) {
+                $sql_f .= " AND af.vehicle_id = ?";
+                $params_f[] = $vehicle_id;
+            }
+            $stmt = $db->prepare($sql_f);
+            $stmt->execute($params_f);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $vid = (int)$r['vehicle_id'];
                 $einsatz = ($r['liste_typ'] === 'einsatz') || ($r['liste_typ'] === 'dienst' && ($r['dienst_typ'] ?? '') === 'einsatz');
@@ -455,8 +726,49 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
         foreach ($vehicles as $v) $vehicle_map[(int)$v['id']] = $v['name'];
         $member_map = [];
         foreach ($members as $m) $member_map[(int)$m['id']] = $m['last_name'] . ', ' . $m['first_name'];
+        $sorted_vids = array_keys($fahrzeug_stats);
+        usort($sorted_vids, function($a,$b) use ($fahrzeug_stats) {
+            $ta = ($fahrzeug_stats[$a]['einsaetze'] ?? 0) + ($fahrzeug_stats[$a]['uebungen'] ?? 0);
+            $tb = ($fahrzeug_stats[$b]['einsaetze'] ?? 0) + ($fahrzeug_stats[$b]['uebungen'] ?? 0);
+            return $tb - $ta;
+        });
+        $gesamt_fahrzeuge = 0;
+        foreach ($sorted_vids as $vid) {
+            $gesamt_fahrzeuge += ($fahrzeug_stats[$vid]['einsaetze'] ?? 0) + ($fahrzeug_stats[$vid]['uebungen'] ?? 0);
+        }
+        $chart_fahrzeuge = [];
+        $chart_fahrzeuge_einsatz_uebung = ['Einsätze' => 0, 'Übungen' => 0];
+        foreach ($sorted_vids as $vid) {
+            $s = $fahrzeug_stats[$vid];
+            $g = $s['einsaetze'] + $s['uebungen'];
+            $chart_fahrzeuge[] = ['label' => $vehicle_map[$vid] ?? 'ID'.$vid, 'count' => $g];
+            $chart_fahrzeuge_einsatz_uebung['Einsätze'] += $s['einsaetze'];
+            $chart_fahrzeuge_einsatz_uebung['Übungen'] += $s['uebungen'];
+        }
+        $chart_fahrzeuge = array_slice($chart_fahrzeuge, 0, 12);
+        $chart_fahrzeuge_einsatz_uebung = array_filter($chart_fahrzeuge_einsatz_uebung);
     ?>
     <h2 class="h5 mb-3"><i class="fas fa-truck"></i> Fahrzeuge</h2>
+    <?php if (($ansicht === 'diagramme' || $ansicht === 'alle') && (!empty($chart_fahrzeuge) || !empty($chart_fahrzeuge_einsatz_uebung))): ?>
+    <div class="row mb-4">
+        <?php if (!empty($chart_fahrzeuge_einsatz_uebung)): ?>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Einsätze vs. Übungen (Fahrzeuge gesamt)</div>
+                <div class="card-body"><canvas id="chartFahrzeugeEinsatzUebung" height="220"></canvas></div>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($chart_fahrzeuge)): ?>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Einsätze pro Fahrzeug</div>
+                <div class="card-body"><canvas id="chartFahrzeugeTop" height="220"></canvas></div>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
     <div class="table-responsive">
         <table class="table table-sm table-hover">
             <thead>
@@ -465,22 +777,17 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
                     <th class="text-end">Einsätze</th>
                     <th class="text-end">Übungen</th>
                     <th class="text-end">Gesamt</th>
+                    <th class="text-end">Anteil</th>
                     <th class="text-end">Durchschn. Besatzung</th>
                     <th>Häufigste Maschinisten</th>
                     <th>Häufigste Einheitsführer</th>
                 </tr>
             </thead>
             <tbody>
-                <?php
-                $sorted_vids = array_keys($fahrzeug_stats);
-                usort($sorted_vids, function($a,$b) use ($fahrzeug_stats) {
-                    $ta = ($fahrzeug_stats[$a]['einsaetze'] ?? 0) + ($fahrzeug_stats[$a]['uebungen'] ?? 0);
-                    $tb = ($fahrzeug_stats[$b]['einsaetze'] ?? 0) + ($fahrzeug_stats[$b]['uebungen'] ?? 0);
-                    return $tb - $ta;
-                });
-                foreach ($sorted_vids as $vid):
+                <?php foreach ($sorted_vids as $vid):
                     $s = $fahrzeug_stats[$vid];
                     $gesamt = $s['einsaetze'] + $s['uebungen'];
+                    $prozent = $gesamt_fahrzeuge > 0 ? number_format($gesamt / $gesamt_fahrzeuge * 100, 1, ',', '.') : '0';
                     $besatz = $fahrzeug_besatzung[$vid] ?? 0;
                     $masch_list = $fahrzeug_maschinist[$vid] ?? [];
                     $ef_list = $fahrzeug_ef[$vid] ?? [];
@@ -500,6 +807,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
                     <td class="text-end"><?php echo (int)$s['einsaetze']; ?></td>
                     <td class="text-end"><?php echo (int)$s['uebungen']; ?></td>
                     <td class="text-end"><strong><?php echo $gesamt; ?></strong></td>
+                    <td class="text-end"><span class="badge bg-warning text-dark"><?php echo $prozent; ?>%</span></td>
                     <td class="text-end"><?php echo number_format($besatz, 1, ',', '.'); ?></td>
                     <td><?php echo htmlspecialchars(implode(', ', $masch_str) ?: '-'); ?></td>
                     <td><?php echo htmlspecialchars(implode(', ', $ef_str) ?: '-'); ?></td>
@@ -542,8 +850,30 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
         }
         $vehicle_map = [];
         foreach ($vehicles as $v) $vehicle_map[(int)$v['id']] = $v['name'];
+        $gesamt_geraete = array_sum($geraete_count);
+        $chart_geraete = [];
+        foreach (array_slice($geraete_count, 0, 12, true) as $eqid => $cnt) {
+            $info = $geraete_names[$eqid] ?? ['name' => 'ID'.$eqid];
+            $chart_geraete[] = ['label' => $info['name'], 'count' => $cnt];
+        }
     ?>
     <h2 class="h5 mb-3"><i class="fas fa-wrench"></i> Geräte – Einsatzhäufigkeit</h2>
+    <?php if (!empty($geraete_count) && ($ansicht === 'diagramme' || $ansicht === 'alle') && !empty($chart_geraete)): ?>
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Top Geräte (Kuchen)</div>
+                <div class="card-body"><canvas id="chartGeraeteKuchen" height="220"></canvas></div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Top Geräte (Balken)</div>
+                <div class="card-body"><canvas id="chartGeraeteBalken" height="220"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
     <div class="card">
         <div class="card-body p-0">
             <?php if (empty($geraete_count)): ?>
@@ -556,16 +886,19 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
                             <th>Gerät</th>
                             <th>Fahrzeug</th>
                             <th class="text-end">Einsatzanzahl</th>
+                            <th class="text-end">Anteil</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($geraete_count as $eqid => $cnt):
                             $info = $geraete_names[$eqid] ?? ['name' => 'ID'.$eqid, 'vehicle_id' => 0];
+                            $prozent = $gesamt_geraete > 0 ? number_format($cnt / $gesamt_geraete * 100, 1, ',', '.') : '0';
                         ?>
                         <tr>
                             <td><?php echo htmlspecialchars($info['name']); ?></td>
                             <td><?php echo htmlspecialchars($vehicle_map[$info['vehicle_id']] ?? '-'); ?></td>
                             <td class="text-end"><?php echo $cnt; ?></td>
+                            <td class="text-end"><span class="badge bg-info"><?php echo $prozent; ?>%</span></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -580,7 +913,86 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
 
 <style>
 .hover-shadow:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.15); }
+.auswertung-karte { transition: transform 0.2s, box-shadow 0.2s; }
+.auswertung-karte:hover { transform: translateY(-2px); box-shadow: 0 .25rem .5rem rgba(0,0,0,.1); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function() {
+    var colors = ['#0d6efd','#198754','#ffc107','#dc3545','#6f42c1','#0dcaf0','#fd7e14','#20c997','#e83e8c','#6c757d'];
+    function getColor(i) { return colors[i % colors.length]; }
+    function makeDoughnut(canvasId, labels, data) {
+        var el = document.getElementById(canvasId);
+        if (!el || !labels.length) return;
+        new Chart(el, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{ data: data, backgroundColor: labels.map(function(_,i){ return getColor(i); }) }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+        });
+    }
+    function makeBar(canvasId, labels, data, horizontal) {
+        var el = document.getElementById(canvasId);
+        if (!el || !labels.length) return;
+        new Chart(el, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{ label: 'Anzahl', data: data, backgroundColor: labels.map(function(_,i){ return getColor(i); }) }]
+            },
+            options: {
+                indexAxis: horizontal ? 'y' : 'x',
+                responsive: true, maintainAspectRatio: false,
+                scales: (horizontal ? { x: { beginAtZero: true } } : { y: { beginAtZero: true } })
+            }
+        });
+    }
+
+    <?php if ($bereich === 'personen'): ?>
+    <?php if ($member_id > 0 && !empty($chart_person_fahrzeuge)): ?>
+    makeDoughnut('chartPersonFahrzeuge', <?php echo json_encode(array_column($chart_person_fahrzeuge, 'label')); ?>, <?php echo json_encode(array_column($chart_person_fahrzeuge, 'count')); ?>);
+    <?php endif; ?>
+    <?php if ($member_id > 0 && !empty($chart_person_rollen)): ?>
+    makeDoughnut('chartPersonRollen', <?php echo json_encode(array_column($chart_person_rollen, 'label')); ?>, <?php echo json_encode(array_column($chart_person_rollen, 'count')); ?>);
+    <?php endif; ?>
+    <?php if ($member_id === 0 && !empty($chart_personen_einsatz_uebung)): ?>
+    makeDoughnut('chartPersonenEinsatzUebung', <?php echo json_encode(array_keys($chart_personen_einsatz_uebung)); ?>, <?php echo json_encode(array_values($chart_personen_einsatz_uebung)); ?>);
+    <?php endif; ?>
+    <?php if ($member_id === 0 && !empty($chart_personen_top)): ?>
+    makeBar('chartPersonenTop', <?php echo json_encode(array_column($chart_personen_top, 'label')); ?>, <?php echo json_encode(array_column($chart_personen_top, 'count')); ?>, true);
+    <?php endif; ?>
+    <?php endif; ?>
+
+    <?php if ($bereich === 'einsaetze'): ?>
+    <?php if (!empty($chart_klass)): ?>
+    makeDoughnut('chartEinsaetzeKlass', <?php echo json_encode(array_column($chart_klass, 'label')); ?>, <?php echo json_encode(array_column($chart_klass, 'count')); ?>);
+    <?php endif; ?>
+    <?php if (!empty($chart_stich)): ?>
+    makeDoughnut('chartEinsaetzeStich', <?php echo json_encode(array_column($chart_stich, 'label')); ?>, <?php echo json_encode(array_column($chart_stich, 'count')); ?>);
+    <?php endif; ?>
+    <?php if (!empty($chart_themen)): ?>
+    makeBar('chartEinsaetzeThemen', <?php echo json_encode(array_column($chart_themen, 'label')); ?>, <?php echo json_encode(array_column($chart_themen, 'count')); ?>, true);
+    <?php endif; ?>
+    <?php endif; ?>
+
+    <?php if ($bereich === 'fahrzeuge'): ?>
+    <?php if (!empty($chart_fahrzeuge_einsatz_uebung)): ?>
+    makeDoughnut('chartFahrzeugeEinsatzUebung', <?php echo json_encode(array_keys($chart_fahrzeuge_einsatz_uebung)); ?>, <?php echo json_encode(array_values($chart_fahrzeuge_einsatz_uebung)); ?>);
+    <?php endif; ?>
+    <?php if (!empty($chart_fahrzeuge)): ?>
+    makeBar('chartFahrzeugeTop', <?php echo json_encode(array_column($chart_fahrzeuge, 'label')); ?>, <?php echo json_encode(array_column($chart_fahrzeuge, 'count')); ?>, true);
+    <?php endif; ?>
+    <?php endif; ?>
+
+    <?php if ($bereich === 'geraete'): ?>
+    <?php if (!empty($chart_geraete)): ?>
+    makeDoughnut('chartGeraeteKuchen', <?php echo json_encode(array_column($chart_geraete, 'label')); ?>, <?php echo json_encode(array_column($chart_geraete, 'count')); ?>);
+    makeBar('chartGeraeteBalken', <?php echo json_encode(array_column($chart_geraete, 'label')); ?>, <?php echo json_encode(array_column($chart_geraete, 'count')); ?>, true);
+    <?php endif; ?>
+    <?php endif; ?>
+})();
+</script>
 </body>
 </html>
