@@ -1,7 +1,7 @@
 <?php
 /**
- * Mitglieder-Auswertung: Teilnahme an Übungen und Einsätzen.
- * Filter: Jahr, Zeitraum, Mitglied, Typ. Darstellungen: Tabelle, Kuchendiagramm, Balkendiagramm.
+ * Mitglieder-Auswertung: Statistik-Bereiche Personen, Einsätze/Dienste, Fahrzeuge, Geräte.
+ * Filter: Jahr, Zeitraum (von/bis).
  */
 session_start();
 require_once __DIR__ . '/../config/database.php';
@@ -17,105 +17,37 @@ if (!has_permission('members')) {
     exit;
 }
 
+$bereich = isset($_GET['bereich']) ? trim($_GET['bereich']) : '';
+$gueltige_bereiche = ['personen', 'einsaetze', 'fahrzeuge', 'geraete'];
+if ($bereich !== '' && !in_array($bereich, $gueltige_bereiche)) {
+    $bereich = '';
+}
+
 $jahr = isset($_GET['jahr']) ? (int)$_GET['jahr'] : (int)date('Y');
 $von = isset($_GET['von']) ? trim($_GET['von']) : $jahr . '-01-01';
 $bis = isset($_GET['bis']) ? trim($_GET['bis']) : date('Y-m-d');
-$member_id = isset($_GET['member_id']) ? (int)$_GET['member_id'] : 0;
-$typ_filter = isset($_GET['typ']) ? trim($_GET['typ']) : '';
-$darstellung = isset($_GET['darstellung']) ? trim($_GET['darstellung']) : 'tabelle';
-
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $von)) $von = $jahr . '-01-01';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bis)) $bis = date('Y-m-d');
 
 $members = [];
+$vehicles = [];
 try {
     $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
     $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
-
-$typen_auswahl = [
-    '' => '— Alle —',
-    'uebungen' => 'Nur Übungen (Übungsdienst, Sonstiges)',
-    'einsaetze' => 'Nur Einsätze',
-    'dienst' => 'Dienst (Dienstplan)',
-    'einsatz' => 'Einsatz (Sonstige Anwesenheit)',
-    'manuell' => 'Manuell',
-];
-
-$stats = [];
-$stats_nach_typ = [];
-$stats_nach_mitglied = [];
-
 try {
-    $sql = "
-        SELECT am.member_id, m.first_name, m.last_name, a.id AS liste_id, a.datum, a.typ AS liste_typ, a.bezeichnung,
-               d.typ AS dienst_typ, d.bezeichnung AS dienst_bezeichnung
-        FROM anwesenheitsliste_mitglieder am
-        JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
-        LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
-        LEFT JOIN members m ON m.id = am.member_id
-        WHERE a.datum BETWEEN ? AND ?
-    ";
-    $params = [$von, $bis];
-    if ($member_id > 0) {
-        $sql .= " AND am.member_id = ?";
-        $params[] = $member_id;
-    }
-    $sql .= " ORDER BY a.datum DESC, m.last_name, m.first_name";
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name");
+    $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
 
-    foreach ($rows as $r) {
-        $kat = 'sonstiges';
-        if ($r['liste_typ'] === 'einsatz') {
-            $kat = 'einsatz';
-        } elseif ($r['liste_typ'] === 'dienst' && !empty($r['dienst_typ'])) {
-            $kat = $r['dienst_typ'] === 'einsatz' ? 'einsatz' : ($r['dienst_typ'] === 'uebungsdienst' || $r['dienst_typ'] === 'uebung' || $r['dienst_typ'] === 'dienst' ? 'uebung' : $r['dienst_typ']);
-        } elseif ($r['liste_typ'] === 'dienst') {
-            $kat = 'uebung';
-        } elseif ($r['liste_typ'] === 'manuell') {
-            $kat = 'manuell';
-        }
-
-        if ($typ_filter === 'uebungen' && $kat !== 'uebung' && $kat !== 'jahreshauptversammlung' && $kat !== 'sonstiges' && $kat !== 'manuell') continue;
-        if ($typ_filter === 'einsaetze' && $kat !== 'einsatz') continue;
-        if ($typ_filter === 'dienst' && $r['liste_typ'] !== 'dienst') continue;
-        if ($typ_filter === 'einsatz' && $r['liste_typ'] !== 'einsatz') continue;
-        if ($typ_filter === 'manuell' && $r['liste_typ'] !== 'manuell') continue;
-
-        $mid = $r['member_id'];
-        $stats_nach_mitglied[$mid] = ($stats_nach_mitglied[$mid] ?? 0) + 1;
-        $stats_nach_typ[$kat] = ($stats_nach_typ[$kat] ?? 0) + 1;
-        $stats[] = $r;
-    }
-} catch (Exception $e) {
-    $stats = [];
+// Hilfsfunktion: Ist Anwesenheit Einsatz oder Übung?
+function ist_einsatz($row) {
+    if ($row['liste_typ'] === 'einsatz') return true;
+    if ($row['liste_typ'] === 'dienst' && !empty($row['dienst_typ']) && $row['dienst_typ'] === 'einsatz') return true;
+    return false;
 }
 
-$typ_labels = [
-    'uebung' => 'Übungsdienst',
-    'einsatz' => 'Einsatz',
-    'jahreshauptversammlung' => 'JHV',
-    'sonstiges' => 'Sonstiges',
-    'manuell' => 'Manuell',
-];
-
-$chart_data_typ = [];
-foreach ($stats_nach_typ as $k => $v) {
-    $chart_data_typ[] = ['label' => $typ_labels[$k] ?? $k, 'count' => $v];
-}
-$chart_data_mitglied = [];
-foreach ($stats_nach_mitglied as $mid => $cnt) {
-    $m = null;
-    foreach ($members as $mm) {
-        if ((int)$mm['id'] === (int)$mid) { $m = $mm; break; }
-    }
-    $name = $m ? ($m['last_name'] . ', ' . $m['first_name']) : 'ID ' . $mid;
-    $chart_data_mitglied[] = ['label' => $name, 'count' => $cnt];
-}
-usort($chart_data_mitglied, function ($a, $b) { return $b['count'] - $a['count']; });
-$chart_data_mitglied = array_slice($chart_data_mitglied, 0, 15);
+$filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis];
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -139,12 +71,67 @@ $chart_data_mitglied = array_slice($chart_data_mitglied, 0, 15);
 </nav>
 
 <div class="container-fluid mt-4">
-    <h1 class="h3 mb-4"><i class="fas fa-chart-pie"></i> Auswertung – Teilnahme an Übungen & Einsätzen</h1>
+    <h1 class="h3 mb-4"><i class="fas fa-chart-pie"></i> Auswertung</h1>
 
+    <?php if ($bereich === ''): ?>
+    <!-- Übersicht: 4 Bereiche -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6 col-lg-3">
+            <a href="?bereich=personen&<?php echo http_build_query($filter_params); ?>" class="text-decoration-none">
+                <div class="card h-100 border-primary hover-shadow">
+                    <div class="card-body text-center">
+                        <i class="fas fa-users fa-3x text-primary mb-2"></i>
+                        <h5 class="card-title">Personen</h5>
+                        <p class="card-text text-muted small">Teilnahme, Fahrzeuge, Stunden, Maschinist/EF, Letzte Teilnahme</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <a href="?bereich=einsaetze&<?php echo http_build_query($filter_params); ?>" class="text-decoration-none">
+                <div class="card h-100 border-success hover-shadow">
+                    <div class="card-body text-center">
+                        <i class="fas fa-clipboard-list fa-3x text-success mb-2"></i>
+                        <h5 class="card-title">Einsätze / Dienste</h5>
+                        <p class="card-text text-muted small">Durchschn. Personen, GF/ZF, Klassifizierung, Einsatzdauer, Top-Themen</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <a href="?bereich=fahrzeuge&<?php echo http_build_query($filter_params); ?>" class="text-decoration-none">
+                <div class="card h-100 border-warning hover-shadow">
+                    <div class="card-body text-center">
+                        <i class="fas fa-truck fa-3x text-warning mb-2"></i>
+                        <h5 class="card-title">Fahrzeuge</h5>
+                        <p class="card-text text-muted small">Einsätze/Übungen, Besatzungsstärke, Häufigste Maschinisten/EF</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <a href="?bereich=geraete&<?php echo http_build_query($filter_params); ?>" class="text-decoration-none">
+                <div class="card h-100 border-info hover-shadow">
+                    <div class="card-body text-center">
+                        <i class="fas fa-wrench fa-3x text-info mb-2"></i>
+                        <h5 class="card-title">Geräte</h5>
+                        <p class="card-text text-muted small">Welche Geräte wie oft eingesetzt</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+    <?php else: ?>
+    <div class="mb-3">
+        <a href="members-auswertung.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left"></i> Zurück zur Übersicht</a>
+    </div>
+
+    <!-- Filter -->
     <div class="card mb-4">
         <div class="card-header">Filter</div>
         <div class="card-body">
             <form method="get" class="row g-3">
+                <input type="hidden" name="bereich" value="<?php echo htmlspecialchars($bereich); ?>">
                 <div class="col-md-2">
                     <label class="form-label">Jahr</label>
                     <select name="jahr" class="form-select">
@@ -161,71 +148,223 @@ $chart_data_mitglied = array_slice($chart_data_mitglied, 0, 15);
                     <label class="form-label">Bis</label>
                     <input type="date" name="bis" class="form-control" value="<?php echo htmlspecialchars($bis); ?>">
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label">Mitglied</label>
-                    <select name="member_id" class="form-select">
-                        <option value="">— Alle —</option>
-                        <?php foreach ($members as $m): ?>
-                        <option value="<?php echo (int)$m['id']; ?>" <?php echo $member_id === (int)$m['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Typ</label>
-                    <select name="typ" class="form-select">
-                        <?php foreach ($typen_auswahl as $k => $v): ?>
-                        <option value="<?php echo htmlspecialchars($k); ?>" <?php echo $typ_filter === $k ? 'selected' : ''; ?>><?php echo htmlspecialchars($v); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Darstellung</label>
-                    <select name="darstellung" class="form-select">
-                        <option value="tabelle" <?php echo $darstellung === 'tabelle' ? 'selected' : ''; ?>>Tabelle</option>
-                        <option value="kuchendiagramm" <?php echo $darstellung === 'kuchendiagramm' ? 'selected' : ''; ?>>Kuchendiagramm</option>
-                        <option value="balkendiagramm" <?php echo $darstellung === 'balkendiagramm' ? 'selected' : ''; ?>>Balkendiagramm</option>
-                        <option value="alle" <?php echo $darstellung === 'alle' ? 'selected' : ''; ?>>Alle (Tabelle + Diagramme)</option>
-                    </select>
-                </div>
-                <div class="col-12">
+                <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Anwenden</button>
                 </div>
             </form>
         </div>
     </div>
 
+    <?php
+    // ==================== BEREICH PERSONEN ====================
+    if ($bereich === 'personen'):
+        $personen_stats = [];
+        $personen_maschinist = [];
+        $personen_einheitsfuehrer = [];
+        $personen_letzte = [];
+        try {
+            $stmt = $db->prepare("
+                SELECT am.member_id, am.vehicle_id, a.id AS liste_id, a.datum, a.typ AS liste_typ, a.uhrzeit_von, a.uhrzeit_bis,
+                       d.typ AS dienst_typ
+                FROM anwesenheitsliste_mitglieder am
+                JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
+                LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
+                WHERE a.datum BETWEEN ? AND ?
+            ");
+            $stmt->execute([$von, $bis]);
+            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $mid = (int)$r['member_id'];
+                $einsatz = ist_einsatz($r);
+                $personen_stats[$mid] = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'fahrzeuge' => [], 'stunden' => 0];
+                if ($einsatz) $personen_stats[$mid]['einsaetze']++;
+                else $personen_stats[$mid]['uebungen']++;
+                if (!empty($r['vehicle_id'])) {
+                    $vid = (int)$r['vehicle_id'];
+                    $personen_stats[$mid]['fahrzeuge'][$vid] = ($personen_stats[$mid]['fahrzeuge'][$vid] ?? 0) + 1;
+                }
+                $von_t = $r['uhrzeit_von'] ?? null;
+                $bis_t = $r['uhrzeit_bis'] ?? null;
+                if ($von_t && $bis_t) {
+                    $s = strtotime($r['datum'] . ' ' . $bis_t) - strtotime($r['datum'] . ' ' . $von_t);
+                    if ($s > 0) $personen_stats[$mid]['stunden'] += $s / 3600;
+                }
+                $personen_letzte[$mid] = max($personen_letzte[$mid] ?? '', $r['datum']);
+            }
+            $stmt = $db->prepare("
+                SELECT af.maschinist_member_id, af.einheitsfuehrer_member_id, a.datum
+                FROM anwesenheitsliste_fahrzeuge af
+                JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id
+                WHERE a.datum BETWEEN ? AND ?
+            ");
+            $stmt->execute([$von, $bis]);
+            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                if (!empty($r['maschinist_member_id'])) {
+                    $mid = (int)$r['maschinist_member_id'];
+                    $personen_maschinist[$mid] = ($personen_maschinist[$mid] ?? 0) + 1;
+                }
+                if (!empty($r['einheitsfuehrer_member_id'])) {
+                    $mid = (int)$r['einheitsfuehrer_member_id'];
+                    $personen_einheitsfuehrer[$mid] = ($personen_einheitsfuehrer[$mid] ?? 0) + 1;
+                }
+            }
+        } catch (Exception $e) {}
+        $member_map = [];
+        foreach ($members as $m) $member_map[(int)$m['id']] = $m;
+        $vehicle_map = [];
+        foreach ($vehicles as $v) $vehicle_map[(int)$v['id']] = $v['name'];
+        usort($members, function($a,$b) use ($personen_stats) {
+            $ta = (($personen_stats[(int)$a['id']]['einsaetze'] ?? 0) + ($personen_stats[(int)$a['id']]['uebungen'] ?? 0));
+            $tb = (($personen_stats[(int)$b['id']]['einsaetze'] ?? 0) + ($personen_stats[(int)$b['id']]['uebungen'] ?? 0));
+            return $tb - $ta;
+        });
+    ?>
+    <h2 class="h5 mb-3"><i class="fas fa-users"></i> Personen</h2>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr>
+                    <th>Mitglied</th>
+                    <th class="text-end">Einsätze</th>
+                    <th class="text-end">Übungen</th>
+                    <th class="text-end">Gesamt</th>
+                    <th class="text-end">Als Maschinist</th>
+                    <th class="text-end">Als Einheitsführer</th>
+                    <th>Letzte Teilnahme</th>
+                    <th class="text-end">Stunden</th>
+                    <th>Fahrzeuge</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($members as $m):
+                    $mid = (int)$m['id'];
+                    $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'fahrzeuge' => [], 'stunden' => 0];
+                    $gesamt = $s['einsaetze'] + $s['uebungen'];
+                    if ($gesamt === 0) continue;
+                    $masch = $personen_maschinist[$mid] ?? 0;
+                    $ef = $personen_einheitsfuehrer[$mid] ?? 0;
+                    $letzte = $personen_letzte[$mid] ?? '-';
+                    if ($letzte !== '-') $letzte = date('d.m.Y', strtotime($letzte));
+                    $fahrzeuge_str = [];
+                    arsort($s['fahrzeuge']);
+                    foreach (array_slice($s['fahrzeuge'], 0, 5) as $vid => $cnt) {
+                        $fahrzeuge_str[] = ($vehicle_map[$vid] ?? 'ID'.$vid) . ' (' . $cnt . ')';
+                    }
+                ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></td>
+                    <td class="text-end"><?php echo (int)$s['einsaetze']; ?></td>
+                    <td class="text-end"><?php echo (int)$s['uebungen']; ?></td>
+                    <td class="text-end"><strong><?php echo $gesamt; ?></strong></td>
+                    <td class="text-end"><?php echo $masch; ?></td>
+                    <td class="text-end"><?php echo $ef; ?></td>
+                    <td><?php echo htmlspecialchars($letzte); ?></td>
+                    <td class="text-end"><?php echo number_format($s['stunden'], 1, ',', '.'); ?> h</td>
+                    <td><?php echo htmlspecialchars(implode(', ', $fahrzeuge_str)); ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php if (empty(array_filter($personen_stats, fn($x) => ($x['einsaetze'] + $x['uebungen']) > 0))): ?>
+    <p class="text-muted">Keine Teilnahmen im gewählten Zeitraum.</p>
+    <?php endif; ?>
+
+    <?php
+    // ==================== BEREICH EINSÄTZE / DIENSTE ====================
+    elseif ($bereich === 'einsaetze'):
+        $listen = [];
+        $klassifizierung = [];
+        $einsatzstichwort = [];
+        $themen = [];
+        $dauern = [];
+        try {
+            $stmt = $db->prepare("
+                SELECT a.id, a.datum, a.typ AS liste_typ, a.bezeichnung, a.uhrzeit_von, a.uhrzeit_bis,
+                       a.klassifizierung, a.einsatzstichwort, d.typ AS dienst_typ, d.bezeichnung AS dienst_bezeichnung
+                FROM anwesenheitslisten a
+                LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
+                WHERE a.datum BETWEEN ? AND ?
+            ");
+            $stmt->execute([$von, $bis]);
+            $listen = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($listen as $a) {
+                $einsatz = ($a['liste_typ'] === 'einsatz') || ($a['liste_typ'] === 'dienst' && ($a['dienst_typ'] ?? '') === 'einsatz');
+                if ($einsatz) {
+                    $k = trim($a['klassifizierung'] ?? '') ?: '-';
+                    $klassifizierung[$k] = ($klassifizierung[$k] ?? 0) + 1;
+                    $st = trim($a['einsatzstichwort'] ?? '') ?: '-';
+                    $einsatzstichwort[$st] = ($einsatzstichwort[$st] ?? 0) + 1;
+                } else {
+                    $thema = trim($a['bezeichnung'] ?? $a['dienst_bezeichnung'] ?? '') ?: '-';
+                    $themen[$thema] = ($themen[$thema] ?? 0) + 1;
+                }
+                if (!empty($a['uhrzeit_von']) && !empty($a['uhrzeit_bis'])) {
+                    $s = strtotime($a['datum'] . ' ' . $a['uhrzeit_bis']) - strtotime($a['datum'] . ' ' . $a['uhrzeit_von']);
+                    if ($s > 0) $dauern[] = $s / 3600;
+                }
+            }
+        } catch (Exception $e) {}
+        $personen_pro_liste = [];
+        $gf_zf_pro_liste = [];
+        foreach ($listen as $a) {
+            $lid = (int)$a['id'];
+            $stmt = $db->prepare("SELECT COUNT(*) FROM anwesenheitsliste_mitglieder WHERE anwesenheitsliste_id = ?");
+            $stmt->execute([$lid]);
+            $personen_pro_liste[$lid] = (int)$stmt->fetchColumn();
+            $stmt = $db->prepare("
+                SELECT COUNT(*) FROM anwesenheitsliste_mitglieder am
+                JOIN members m ON m.id = am.member_id
+                LEFT JOIN member_qualifications q ON q.id = m.qualification_id
+                WHERE am.anwesenheitsliste_id = ?
+                AND (LOWER(COALESCE(q.name,'')) LIKE '%gruppenführer%' OR LOWER(COALESCE(q.name,'')) LIKE '%zugführer%')
+            ");
+            $stmt->execute([$lid]);
+            $gf_zf_pro_liste[$lid] = (int)$stmt->fetchColumn();
+        }
+        $durchschn_personen = count($personen_pro_liste) > 0 ? array_sum($personen_pro_liste) / count($personen_pro_liste) : 0;
+        $durchschn_gf_zf = count($gf_zf_pro_liste) > 0 ? array_sum($gf_zf_pro_liste) / count($gf_zf_pro_liste) : 0;
+        $durchschn_dauer = count($dauern) > 0 ? array_sum($dauern) / count($dauern) : 0;
+        arsort($themen);
+        $top_themen = array_slice($themen, 0, 15);
+    ?>
+    <h2 class="h5 mb-3"><i class="fas fa-clipboard-list"></i> Einsätze / Dienste</h2>
     <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="card h-100">
-                <div class="card-header">Übersicht</div>
+        <div class="col-md-4">
+            <div class="card">
                 <div class="card-body">
-                    <p class="mb-0"><strong><?php echo count($stats); ?></strong> Teilnahmen im Zeitraum <?php echo date('d.m.Y', strtotime($von)); ?> – <?php echo date('d.m.Y', strtotime($bis)); ?></p>
-                    <?php if (!empty($stats_nach_typ)): ?>
-                    <p class="text-muted small mt-2">Nach Typ: <?php
-                        $parts = [];
-                        foreach ($stats_nach_typ as $k => $v) {
-                            $parts[] = ($typ_labels[$k] ?? $k) . ': ' . $v;
-                        }
-                        echo implode(', ', $parts);
-                    ?></p>
-                    <?php endif; ?>
+                    <h6 class="card-subtitle text-muted">Durchschn. Personen pro Einsatz/Übung</h6>
+                    <p class="h4 mb-0"><?php echo number_format($durchschn_personen, 1, ',', '.'); ?></p>
                 </div>
             </div>
         </div>
-        <?php if (!empty($stats_nach_mitglied)): ?>
-        <div class="col-md-6">
-            <div class="card h-100">
-                <div class="card-header">Teilnahmen pro Mitglied (Top 10)</div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">Durchschn. GF/ZF pro Einsatz/Übung</h6>
+                    <p class="h4 mb-0"><?php echo number_format($durchschn_gf_zf, 1, ',', '.'); ?></p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">Durchschn. Einsatzdauer</h6>
+                    <p class="h4 mb-0"><?php echo number_format($durchschn_dauer, 1, ',', '.'); ?> h</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">Klassifizierung / Einsatzstichwort</div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-sm table-hover mb-0">
-                            <thead><tr><th>Mitglied</th><th class="text-end">Anzahl</th></tr></thead>
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Klassifizierung</th><th class="text-end">Anzahl</th></tr></thead>
                             <tbody>
-                                <?php
-                                $top = array_slice($chart_data_mitglied, 0, 10);
-                                foreach ($top as $row):
-                                ?>
-                                <tr><td><?php echo htmlspecialchars($row['label']); ?></td><td class="text-end"><?php echo (int)$row['count']; ?></td></tr>
+                                <?php arsort($klassifizierung); foreach ($klassifizierung as $k => $v): ?>
+                                <tr><td><?php echo htmlspecialchars($k); ?></td><td class="text-end"><?php echo $v; ?></td></tr>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
@@ -233,76 +372,200 @@ $chart_data_mitglied = array_slice($chart_data_mitglied, 0, 15);
                 </div>
             </div>
         </div>
-        <?php endif; ?>
-    </div>
-
-    <?php if ($darstellung === 'kuchendiagramm' || $darstellung === 'alle'): ?>
-    <div class="row mb-4">
-        <div class="col-md-6">
+        <div class="col-md-6 mb-4">
             <div class="card">
-                <div class="card-header">Nach Typ (Kuchen)</div>
-                <div class="card-body"><canvas id="chartTyp" height="250"></canvas></div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">Top 15 Mitglieder (Kuchen)</div>
-                <div class="card-body"><canvas id="chartMitglied" height="250"></canvas></div>
-            </div>
-        </div>
-    </div>
-    <?php if (empty($chart_data_typ) && empty($chart_data_mitglied)): ?>
-    <p class="text-muted">Keine Daten für Diagramme.</p>
-    <?php endif; ?>
-    <?php endif; ?>
-
-    <?php if ($darstellung === 'balkendiagramm'): ?>
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">Nach Typ (Balken)</div>
-                <div class="card-body"><canvas id="chartTypBar" height="250"></canvas></div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">Top 15 Mitglieder (Balken)</div>
-                <div class="card-body"><canvas id="chartMitgliedBar" height="250"></canvas></div>
+                <div class="card-header">Einsatzstichwort</div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Stichwort</th><th class="text-end">Anzahl</th></tr></thead>
+                            <tbody>
+                                <?php arsort($einsatzstichwort); foreach ($einsatzstichwort as $k => $v): ?>
+                                <tr><td><?php echo htmlspecialchars($k); ?></td><td class="text-end"><?php echo $v; ?></td></tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <?php if (empty($chart_data_typ) && empty($chart_data_mitglied)): ?>
-    <p class="text-muted">Keine Daten für Diagramme.</p>
-    <?php endif; ?>
-    <?php endif; ?>
+    <div class="card mb-4">
+        <div class="card-header">Top-Themen bei Übungsdiensten</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Thema / Bezeichnung</th><th class="text-end">Anzahl</th></tr></thead>
+                    <tbody>
+                        <?php foreach ($top_themen as $k => $v): ?>
+                        <tr><td><?php echo htmlspecialchars($k); ?></td><td class="text-end"><?php echo $v; ?></td></tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-    <?php if ($darstellung === 'tabelle' || $darstellung === 'alle'): ?>
+    <?php
+    // ==================== BEREICH FAHRZEUGE ====================
+    elseif ($bereich === 'fahrzeuge'):
+        $fahrzeug_stats = [];
+        $fahrzeug_besatzung = [];
+        $fahrzeug_maschinist = [];
+        $fahrzeug_ef = [];
+        try {
+            $stmt = $db->prepare("
+                SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.id AS liste_id, a.typ AS liste_typ,
+                       d.typ AS dienst_typ
+                FROM anwesenheitsliste_fahrzeuge af
+                JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id
+                LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
+                WHERE a.datum BETWEEN ? AND ?
+            ");
+            $stmt->execute([$von, $bis]);
+            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $vid = (int)$r['vehicle_id'];
+                $einsatz = ($r['liste_typ'] === 'einsatz') || ($r['liste_typ'] === 'dienst' && ($r['dienst_typ'] ?? '') === 'einsatz');
+                $fahrzeug_stats[$vid] = $fahrzeug_stats[$vid] ?? ['einsaetze' => 0, 'uebungen' => 0];
+                if ($einsatz) $fahrzeug_stats[$vid]['einsaetze']++;
+                else $fahrzeug_stats[$vid]['uebungen']++;
+                $lid = (int)$r['liste_id'];
+                $fahrzeug_besatzung[$vid][] = $lid;
+                if (!empty($r['maschinist_member_id'])) {
+                    $mid = (int)$r['maschinist_member_id'];
+                    $fahrzeug_maschinist[$vid][$mid] = ($fahrzeug_maschinist[$vid][$mid] ?? 0) + 1;
+                }
+                if (!empty($r['einheitsfuehrer_member_id'])) {
+                    $mid = (int)$r['einheitsfuehrer_member_id'];
+                    $fahrzeug_ef[$vid][$mid] = ($fahrzeug_ef[$vid][$mid] ?? 0) + 1;
+                }
+            }
+            foreach ($fahrzeug_besatzung as $vid => $liste_ids) {
+                $anz = 0;
+                $liste_ids = array_unique($liste_ids);
+                foreach ($liste_ids as $lid) {
+                    $stmt = $db->prepare("SELECT COUNT(*) FROM anwesenheitsliste_mitglieder WHERE anwesenheitsliste_id = ? AND vehicle_id = ?");
+                    $stmt->execute([$lid, $vid]);
+                    $anz += (int)$stmt->fetchColumn();
+                }
+                $fahrzeug_besatzung[$vid] = count($liste_ids) > 0 ? $anz / count($liste_ids) : 0;
+            }
+        } catch (Exception $e) {}
+        $vehicle_map = [];
+        foreach ($vehicles as $v) $vehicle_map[(int)$v['id']] = $v['name'];
+        $member_map = [];
+        foreach ($members as $m) $member_map[(int)$m['id']] = $m['last_name'] . ', ' . $m['first_name'];
+    ?>
+    <h2 class="h5 mb-3"><i class="fas fa-truck"></i> Fahrzeuge</h2>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr>
+                    <th>Fahrzeug</th>
+                    <th class="text-end">Einsätze</th>
+                    <th class="text-end">Übungen</th>
+                    <th class="text-end">Gesamt</th>
+                    <th class="text-end">Durchschn. Besatzung</th>
+                    <th>Häufigste Maschinisten</th>
+                    <th>Häufigste Einheitsführer</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $sorted_vids = array_keys($fahrzeug_stats);
+                usort($sorted_vids, function($a,$b) use ($fahrzeug_stats) {
+                    $ta = ($fahrzeug_stats[$a]['einsaetze'] ?? 0) + ($fahrzeug_stats[$a]['uebungen'] ?? 0);
+                    $tb = ($fahrzeug_stats[$b]['einsaetze'] ?? 0) + ($fahrzeug_stats[$b]['uebungen'] ?? 0);
+                    return $tb - $ta;
+                });
+                foreach ($sorted_vids as $vid):
+                    $s = $fahrzeug_stats[$vid];
+                    $gesamt = $s['einsaetze'] + $s['uebungen'];
+                    $besatz = $fahrzeug_besatzung[$vid] ?? 0;
+                    $masch_list = $fahrzeug_maschinist[$vid] ?? [];
+                    $ef_list = $fahrzeug_ef[$vid] ?? [];
+                    arsort($masch_list);
+                    arsort($ef_list);
+                    $masch_str = [];
+                    foreach (array_slice($masch_list, 0, 3) as $mid => $cnt) {
+                        $masch_str[] = ($member_map[$mid] ?? 'ID'.$mid) . ' (' . $cnt . ')';
+                    }
+                    $ef_str = [];
+                    foreach (array_slice($ef_list, 0, 3) as $mid => $cnt) {
+                        $ef_str[] = ($member_map[$mid] ?? 'ID'.$mid) . ' (' . $cnt . ')';
+                    }
+                ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($vehicle_map[$vid] ?? 'ID'.$vid); ?></td>
+                    <td class="text-end"><?php echo (int)$s['einsaetze']; ?></td>
+                    <td class="text-end"><?php echo (int)$s['uebungen']; ?></td>
+                    <td class="text-end"><strong><?php echo $gesamt; ?></strong></td>
+                    <td class="text-end"><?php echo number_format($besatz, 1, ',', '.'); ?></td>
+                    <td><?php echo htmlspecialchars(implode(', ', $masch_str) ?: '-'); ?></td>
+                    <td><?php echo htmlspecialchars(implode(', ', $ef_str) ?: '-'); ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php
+    // ==================== BEREICH GERÄTE ====================
+    elseif ($bereich === 'geraete'):
+        $geraete_count = [];
+        try {
+            $stmt = $db->prepare("SELECT id, custom_data FROM anwesenheitslisten WHERE datum BETWEEN ? AND ? AND custom_data IS NOT NULL AND custom_data != '' AND custom_data != 'null'");
+            $stmt->execute([$von, $bis]);
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $dec = is_string($row['custom_data']) ? json_decode($row['custom_data'], true) : $row['custom_data'];
+                if (!is_array($dec)) continue;
+                $veq = $dec['vehicle_equipment'] ?? [];
+                if (!is_array($veq)) continue;
+                foreach ($veq as $vid => $eq_ids) {
+                    if (!is_array($eq_ids)) continue;
+                    foreach ($eq_ids as $eqid) {
+                        $eqid = (int)$eqid;
+                        if ($eqid > 0) $geraete_count[$eqid] = ($geraete_count[$eqid] ?? 0) + 1;
+                    }
+                }
+            }
+            arsort($geraete_count);
+        } catch (Exception $e) {}
+        $geraete_names = [];
+        if (!empty($geraete_count)) {
+            $ph = implode(',', array_fill(0, count($geraete_count), '?'));
+            $stmt = $db->prepare("SELECT id, name, vehicle_id FROM vehicle_equipment WHERE id IN ($ph)");
+            $stmt->execute(array_keys($geraete_count));
+            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $geraete_names[(int)$r['id']] = ['name' => $r['name'], 'vehicle_id' => (int)$r['vehicle_id']];
+            }
+        }
+        $vehicle_map = [];
+        foreach ($vehicles as $v) $vehicle_map[(int)$v['id']] = $v['name'];
+    ?>
+    <h2 class="h5 mb-3"><i class="fas fa-wrench"></i> Geräte – Einsatzhäufigkeit</h2>
     <div class="card">
-        <div class="card-header">Detaillierte Teilnahmen</div>
-        <div class="card-body">
-            <?php if (empty($stats)): ?>
-            <p class="text-muted mb-0">Keine Teilnahmen im gewählten Zeitraum.</p>
+        <div class="card-body p-0">
+            <?php if (empty($geraete_count)): ?>
+            <p class="text-muted p-3 mb-0">Keine Geräte-Einsätze im gewählten Zeitraum (vehicle_equipment in custom_data).</p>
             <?php else: ?>
             <div class="table-responsive">
-                <table class="table table-sm table-hover">
+                <table class="table table-sm table-hover mb-0">
                     <thead>
                         <tr>
-                            <th>Datum</th>
-                            <th>Mitglied</th>
-                            <th>Typ</th>
-                            <th>Bezeichnung</th>
+                            <th>Gerät</th>
+                            <th>Fahrzeug</th>
+                            <th class="text-end">Einsatzanzahl</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($stats as $s):
-                            $k = $s['liste_typ'] === 'einsatz' ? 'einsatz' : ($s['liste_typ'] === 'dienst' && !empty($s['dienst_typ']) ? $s['dienst_typ'] : $s['liste_typ']);
-                            $typ_label = get_dienstplan_typ_label($k);
+                        <?php foreach ($geraete_count as $eqid => $cnt):
+                            $info = $geraete_names[$eqid] ?? ['name' => 'ID'.$eqid, 'vehicle_id' => 0];
                         ?>
                         <tr>
-                            <td><?php echo date('d.m.Y', strtotime($s['datum'])); ?></td>
-                            <td><?php echo htmlspecialchars(trim($s['last_name'] . ', ' . $s['first_name'])); ?></td>
-                            <td><span class="badge bg-secondary"><?php echo htmlspecialchars($typ_label); ?></span></td>
-                            <td><?php echo htmlspecialchars($s['bezeichnung'] ?? $s['dienst_bezeichnung'] ?? '-'); ?></td>
+                            <td><?php echo htmlspecialchars($info['name']); ?></td>
+                            <td><?php echo htmlspecialchars($vehicle_map[$info['vehicle_id']] ?? '-'); ?></td>
+                            <td class="text-end"><?php echo $cnt; ?></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -312,62 +575,12 @@ $chart_data_mitglied = array_slice($chart_data_mitglied, 0, 15);
         </div>
     </div>
     <?php endif; ?>
+    <?php endif; ?>
 </div>
 
+<style>
+.hover-shadow:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.15); }
+</style>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-(function() {
-    var colors = ['#0d6efd','#198754','#ffc107','#dc3545','#6f42c1','#6c757d','#0dcaf0','#fd7e14'];
-    function getColor(i) { return colors[i % colors.length]; }
-    var dataTyp = <?php echo json_encode($chart_data_typ); ?>;
-    var dataMitglied = <?php echo json_encode($chart_data_mitglied); ?>;
-
-    <?php if ($darstellung === 'kuchendiagramm' || $darstellung === 'alle'): ?>
-    if (dataTyp.length > 0 && document.getElementById('chartTyp')) {
-        new Chart(document.getElementById('chartTyp'), {
-            type: 'doughnut',
-            data: {
-                labels: dataTyp.map(function(d){ return d.label + ' (' + d.count + ')'; }),
-                datasets: [{ data: dataTyp.map(function(d){ return d.count; }), backgroundColor: dataTyp.map(function(d,i){ return getColor(i); }) }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
-    }
-    if (dataMitglied.length > 0 && document.getElementById('chartMitglied')) {
-        new Chart(document.getElementById('chartMitglied'), {
-            type: 'doughnut',
-            data: {
-                labels: dataMitglied.map(function(d){ return d.label + ' (' + d.count + ')'; }),
-                datasets: [{ data: dataMitglied.map(function(d){ return d.count; }), backgroundColor: dataMitglied.map(function(d,i){ return getColor(i); }) }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
-    }
-    <?php endif; ?>
-
-    <?php if ($darstellung === 'balkendiagramm'): ?>
-    if (dataTyp.length > 0 && document.getElementById('chartTypBar')) {
-        new Chart(document.getElementById('chartTypBar'), {
-            type: 'bar',
-            data: {
-                labels: dataTyp.map(function(d){ return d.label; }),
-                datasets: [{ label: 'Teilnahmen', data: dataTyp.map(function(d){ return d.count; }), backgroundColor: dataTyp.map(function(d,i){ return getColor(i); }) }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-        });
-    }
-    if (dataMitglied.length > 0 && document.getElementById('chartMitgliedBar')) {
-        new Chart(document.getElementById('chartMitgliedBar'), {
-            type: 'bar',
-            data: {
-                labels: dataMitglied.map(function(d){ return d.label; }),
-                datasets: [{ label: 'Teilnahmen', data: dataMitglied.map(function(d){ return d.count; }), backgroundColor: '#0d6efd' }]
-            },
-            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true } } }
-        });
-    }
-    <?php endif; ?>
-})();
-</script>
 </body>
 </html>
