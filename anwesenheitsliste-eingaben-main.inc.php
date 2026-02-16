@@ -260,6 +260,13 @@ try {
     $anwesenheitsliste_settings = [];
 }
 $anwesenheitsliste_felder = _anwesenheitsliste_felder_laden($anwesenheitsliste_settings);
+$geraetehaus_adresse = '';
+try {
+    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'geraetehaus_adresse' LIMIT 1");
+    $stmt->execute();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row && trim($row['setting_value'] ?? '') !== '') $geraetehaus_adresse = trim($row['setting_value']);
+} catch (Exception $e) {}
 function _anwesenheitsliste_felder_laden($s) {
     $raw = $s['anwesenheitsliste_felder'] ?? '';
     if ($raw !== '') {
@@ -1059,7 +1066,12 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                                 <?php elseif ($type === 'einsatzstelle'): ?>
                                 <label for="einsatzstelle" class="form-label"><?php echo htmlspecialchars($label); ?></label>
                                 <div class="position-relative">
-                                    <input type="text" class="form-control" id="einsatzstelle" name="einsatzstelle" placeholder="Adresse eingeben (Autovervollständigung)" value="<?php echo htmlspecialchars($val); ?>" autocomplete="off">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="einsatzstelle" name="einsatzstelle" placeholder="Adresse eingeben (Autovervollständigung)" value="<?php echo htmlspecialchars($val); ?>" autocomplete="off">
+                                        <?php if ($geraetehaus_adresse !== ''): ?>
+                                        <button type="button" class="btn btn-outline-secondary" id="btn_geraetehaus" title="Adresse des Gerätehauses eintragen" data-address="<?php echo htmlspecialchars($geraetehaus_adresse); ?>">Gerätehaus</button>
+                                        <?php endif; ?>
+                                    </div>
                                     <div id="einsatzstelle_suggestions" class="list-group position-absolute w-100 mt-1 shadow" style="z-index: 1050; max-height: 200px; overflow-y: auto; display: none;"></div>
                                 </div>
                                 <?php elseif ($type === 'select'): ?>
@@ -1260,6 +1272,10 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
     </script>
     <script>
         (function(){var input=document.getElementById('einsatzstelle');var suggestionsEl=document.getElementById('einsatzstelle_suggestions');if(!input||!suggestionsEl)return;var debounceTimer;input.addEventListener('input',function(){clearTimeout(debounceTimer);var q=input.value.trim();if(q.length<3){suggestionsEl.style.display='none';suggestionsEl.innerHTML='';return;}debounceTimer=setTimeout(function(){fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(q)+'&countrycodes=de,at,ch&limit=5&addressdetails=1',{headers:{'Accept':'application/json'}}).then(function(r){return r.json();}).then(function(data){suggestionsEl.innerHTML='';if(!data||data.length===0){suggestionsEl.style.display='none';return;}data.forEach(function(item){var addr=item.address||{};var strasse=addr.road||'';var hausnummer=addr.house_number||'';var plz=addr.postcode||'';var ort=addr.city||addr.town||addr.village||addr.municipality||'';var zeile1=[strasse,hausnummer].filter(Boolean).join(' ');var zeile2=[plz,ort].filter(Boolean).join(' ');var display=[zeile1,zeile2].filter(Boolean).join(', ');if(!display)display=item.display_name||item.name||'';var a=document.createElement('button');a.type='button';a.className='list-group-item list-group-item-action list-group-item-light text-start';a.textContent=display;a.addEventListener('click',function(){input.value=display;suggestionsEl.style.display='none';suggestionsEl.innerHTML='';});suggestionsEl.appendChild(a);});suggestionsEl.style.display='block';}).catch(function(){suggestionsEl.style.display='none';});},400);});input.addEventListener('blur',function(){setTimeout(function(){suggestionsEl.style.display='none';},200);});document.addEventListener('click',function(e){if(!input.contains(e.target)&&!suggestionsEl.contains(e.target))suggestionsEl.style.display='none';});})();
+    </script>
+    <script>
+    (function(){var btn=document.getElementById('btn_geraetehaus');var input=document.getElementById('einsatzstelle');if(!btn||!input)return;btn.addEventListener('click',function(){var addr=btn.getAttribute('data-address')||'';if(addr)input.value=addr;});
+    })();
     </script>
     <script>var el=document.getElementById('einsatzleiter');if(el)el.addEventListener('change',function(){var w=document.getElementById('einsatzleiter_freitext_wrap');if(w)w.style.display=this.value==='__freitext__'?'block':'none';});</script>
     <script>

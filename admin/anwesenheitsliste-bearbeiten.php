@@ -88,6 +88,13 @@ try {
 } catch (Exception $e) {}
 
 $anwesenheitsliste_felder = anwesenheitsliste_felder_laden();
+$geraetehaus_adresse = '';
+try {
+    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'geraetehaus_adresse' LIMIT 1");
+    $stmt->execute();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row && trim($row['setting_value'] ?? '') !== '') $geraetehaus_adresse = trim($row['setting_value']);
+} catch (Exception $e) {}
 $custom_data = [];
 if (!empty($liste['custom_data'])) {
     $dec = json_decode($liste['custom_data'], true);
@@ -492,6 +499,12 @@ function _al_val($liste, $key, $custom_data = []) {
                         <?php elseif ($type === 'textarea'): ?>
                         <label class="form-label"><?php echo htmlspecialchars($label); ?></label>
                         <textarea class="form-control" name="<?php echo htmlspecialchars($fid); ?>" rows="3"><?php echo htmlspecialchars($val); ?></textarea>
+                        <?php elseif ($fid === 'einsatzstelle' && $geraetehaus_adresse !== ''): ?>
+                        <label class="form-label"><?php echo htmlspecialchars($label); ?></label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="einsatzstelle" id="einsatzstelle_edit" value="<?php echo htmlspecialchars($val); ?>">
+                            <button type="button" class="btn btn-outline-secondary btn-geraetehaus-edit" title="Adresse des Gerätehauses eintragen" data-address="<?php echo htmlspecialchars($geraetehaus_adresse); ?>">Gerätehaus</button>
+                        </div>
                         <?php else: ?>
                         <label class="form-label"><?php echo htmlspecialchars($label); ?></label>
                         <input type="<?php echo $type === 'time' ? 'time' : 'text'; ?>" class="form-control" name="<?php echo htmlspecialchars($fid); ?>" value="<?php echo htmlspecialchars($val); ?>">
@@ -767,6 +780,9 @@ document.querySelectorAll('.uebungsleiter-item').forEach(function(el){
     });
 });
 (function(){var cnt=document.querySelectorAll('.uebungsleiter-item-selected').length;var badge=document.getElementById('uebungsleiter_count_edit');if(badge){badge.textContent=cnt+' ausgewählt';badge.className='badge ms-1 '+(cnt>0?'bg-primary':'bg-secondary');}})();
+document.querySelectorAll('.btn-geraetehaus-edit').forEach(function(btn){
+    btn.addEventListener('click',function(){var inp=document.getElementById('einsatzstelle_edit');var addr=this.getAttribute('data-address')||'';if(inp&&addr)inp.value=addr;});
+});
 function druckenAnwesenheitsliste(id,btn){btn=btn||(event&&event.target?event.target.closest('button'):null);if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm"></span> Drucken...';}fetch('../api/print-anwesenheitsliste.php?id='+id).then(function(r){return r.json();}).then(function(data){if(data.success){alert('Druckauftrag wurde an den Drucker gesendet.');}else{alert('Fehler: '+(data.message||'Unbekannter Fehler'));}}).catch(function(){alert('Fehler beim Senden des Druckauftrags.');}).finally(function(){if(btn){btn.disabled=false;btn.innerHTML='<i class="fas fa-print"></i> Drucken';}});}
 </script>
 <script>

@@ -72,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $app = [
                 'app_name' => sanitize_input($_POST['app_name'] ?? ''),
                 'app_url' => sanitize_input($_POST['app_url'] ?? ''),
+                'geraetehaus_adresse' => trim(sanitize_input($_POST['geraetehaus_adresse'] ?? '')),
             ];
             $upload_err = $_FILES['app_logo']['error'] ?? UPLOAD_ERR_NO_FILE;
             $logo_upload_error = '';
@@ -262,6 +263,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="card-body">
                         <div class="mb-3"><label class="form-label">App Name</label><input class="form-control" name="app_name" value="<?php echo htmlspecialchars($settings['app_name'] ?? ''); ?>"></div>
                         <div class="mb-3"><label class="form-label">App URL</label><input class="form-control" name="app_url" value="<?php echo htmlspecialchars($settings['app_url'] ?? ''); ?>"></div>
+                        <div class="mb-3">
+                            <label class="form-label">Adresse Gerätehaus</label>
+                            <input class="form-control" name="geraetehaus_adresse" placeholder="z.B. Musterstraße 1, 12345 Musterstadt" value="<?php echo htmlspecialchars($settings['geraetehaus_adresse'] ?? ''); ?>">
+                            <small class="text-muted">Wird als Schnellauswahl neben dem Feld „Adresse / Einsatzstelle“ in der Anwesenheitsliste angezeigt.</small>
+                        </div>
                         <div class="mb-3">
                             <label class="form-label">Logo für Formulare</label>
                             <input class="form-control" type="file" name="app_logo" accept="image/jpeg,image/png,image/gif,image/webp">
