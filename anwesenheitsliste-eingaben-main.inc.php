@@ -505,8 +505,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         $all_vehicle_ids = array_unique(array_merge($draft['vehicles'], array_values(array_filter($draft['member_vehicle']))));
         $all_vehicle_ids = array_filter(array_map('intval', $all_vehicle_ids), fn($x) => $x > 0);
         foreach ($all_vehicle_ids as $vid) {
-            $masch = isset($draft['vehicle_maschinist'][$vid]) ? $draft['vehicle_maschinist'][$vid] : null;
-            $einh = isset($draft['vehicle_einheitsfuehrer'][$vid]) ? $draft['vehicle_einheitsfuehrer'][$vid] : null;
+            $masch = isset($draft['vehicle_maschinist'][$vid]) ? (int)$draft['vehicle_maschinist'][$vid] : null;
+            $einh = isset($draft['vehicle_einheitsfuehrer'][$vid]) ? (int)$draft['vehicle_einheitsfuehrer'][$vid] : null;
+            if ($masch !== null && $masch <= 0) $masch = null;
+            if ($einh !== null && $einh <= 0) $einh = null;
             try {
                 $stmt = $db->prepare("INSERT INTO anwesenheitsliste_fahrzeuge (anwesenheitsliste_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id) VALUES (?, ?, ?, ?)");
                 $stmt->execute([$list_id, $vid, $masch, $einh]);

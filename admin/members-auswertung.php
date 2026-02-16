@@ -1036,11 +1036,15 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 $fahrzeug_besatzung[$vid][] = $lid;
                 if (!empty($r['maschinist_member_id'])) {
                     $mid = (int)$r['maschinist_member_id'];
-                    $fahrzeug_maschinist[$vid][$mid] = ($fahrzeug_maschinist[$vid][$mid] ?? 0) + 1;
+                    if ($mid > 0) {
+                        $fahrzeug_maschinist[$vid][$mid] = ($fahrzeug_maschinist[$vid][$mid] ?? 0) + 1;
+                    }
                 }
                 if (!empty($r['einheitsfuehrer_member_id'])) {
                     $mid = (int)$r['einheitsfuehrer_member_id'];
-                    $fahrzeug_ef[$vid][$mid] = ($fahrzeug_ef[$vid][$mid] ?? 0) + 1;
+                    if ($mid > 0) {
+                        $fahrzeug_ef[$vid][$mid] = ($fahrzeug_ef[$vid][$mid] ?? 0) + 1;
+                    }
                 }
             }
             foreach ($fahrzeug_besatzung as $vid => $liste_ids) {
