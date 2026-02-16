@@ -235,7 +235,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     <div class="card-body text-center">
                         <i class="fas fa-clipboard-list fa-3x text-success mb-2"></i>
                         <h5 class="card-title">Einsätze / Dienste</h5>
-                        <p class="card-text text-muted small">Durchschn. Personen, GF/ZF, Klassifizierung, Einsatzdauer, Top-Themen</p>
+                        <p class="card-text text-muted small">Durchschn. Personen, Gruppenführer, Zugführer, Klassifizierung, Einsatzdauer, Top-Themen</p>
                     </div>
                 </div>
             </a>
@@ -796,7 +796,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
             });
         } catch (Exception $e) {}
         $personen_pro_liste = [];
-        $gf_zf_pro_liste = [];
+        $gf_pro_liste = [];
+        $zf_pro_liste = [];
         foreach ($listen as $a) {
             $lid = (int)$a['id'];
             $stmt = $db->prepare("SELECT COUNT(*) FROM anwesenheitsliste_mitglieder WHERE anwesenheitsliste_id = ?");
@@ -807,20 +808,30 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 JOIN members m ON m.id = am.member_id
                 LEFT JOIN member_qualifications q ON q.id = m.qualification_id
                 WHERE am.anwesenheitsliste_id = ?
-                AND (LOWER(COALESCE(q.name,'')) LIKE '%gruppenführer%' OR LOWER(COALESCE(q.name,'')) LIKE '%zugführer%')
+                AND LOWER(COALESCE(q.name,'')) LIKE '%gruppenführer%'
             ");
             $stmt->execute([$lid]);
-            $gf_zf_pro_liste[$lid] = (int)$stmt->fetchColumn();
+            $gf_pro_liste[$lid] = (int)$stmt->fetchColumn();
+            $stmt = $db->prepare("
+                SELECT COUNT(*) FROM anwesenheitsliste_mitglieder am
+                JOIN members m ON m.id = am.member_id
+                LEFT JOIN member_qualifications q ON q.id = m.qualification_id
+                WHERE am.anwesenheitsliste_id = ?
+                AND LOWER(COALESCE(q.name,'')) LIKE '%zugführer%'
+            ");
+            $stmt->execute([$lid]);
+            $zf_pro_liste[$lid] = (int)$stmt->fetchColumn();
         }
         $durchschn_personen = count($personen_pro_liste) > 0 ? array_sum($personen_pro_liste) / count($personen_pro_liste) : 0;
-        $durchschn_gf_zf = count($gf_zf_pro_liste) > 0 ? array_sum($gf_zf_pro_liste) / count($gf_zf_pro_liste) : 0;
+        $durchschn_gf = count($gf_pro_liste) > 0 ? array_sum($gf_pro_liste) / count($gf_pro_liste) : 0;
+        $durchschn_zf = count($zf_pro_liste) > 0 ? array_sum($zf_pro_liste) / count($zf_pro_liste) : 0;
         $durchschn_dauer = count($dauern) > 0 ? array_sum($dauern) / count($dauern) : 0;
         arsort($themen);
         $top_themen = array_slice($themen, 0, 15);
     ?>
     <h2 class="h5 mb-3"><i class="fas fa-clipboard-list"></i> Einsätze / Dienste</h2>
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card">
                 <div class="card-body">
                     <h6 class="card-subtitle text-muted">Durchschn. Personen pro Einsatz/Übung</h6>
@@ -828,15 +839,23 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card">
                 <div class="card-body">
-                    <h6 class="card-subtitle text-muted">Durchschn. GF/ZF pro Einsatz/Übung</h6>
-                    <p class="h4 mb-0"><?php echo number_format($durchschn_gf_zf, 1, ',', '.'); ?></p>
+                    <h6 class="card-subtitle text-muted">Durchschn. Gruppenführer pro Einsatz/Übung</h6>
+                    <p class="h4 mb-0"><?php echo number_format($durchschn_gf, 1, ',', '.'); ?></p>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-subtitle text-muted">Durchschn. Zugführer pro Einsatz/Übung</h6>
+                    <p class="h4 mb-0"><?php echo number_format($durchschn_zf, 1, ',', '.'); ?></p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
             <div class="card">
                 <div class="card-body">
                     <h6 class="card-subtitle text-muted">Durchschn. Einsatzdauer</h6>
