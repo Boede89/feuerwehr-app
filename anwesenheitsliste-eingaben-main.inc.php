@@ -493,7 +493,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilungen (id INT AUTO_INCREMENT PRIMARY KEY, typ VARCHAR(20) NOT NULL, einsatz_uebungsart VARCHAR(50) NOT NULL, datum DATE NOT NULL, einsatzbereitschaft VARCHAR(30) NOT NULL, mangel_beschreibung TEXT NULL, einsatzleiter_member_id INT NULL, einsatzleiter_freitext VARCHAR(255) NULL, user_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, KEY idx_datum (datum), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
                 $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilung_fahrzeuge (id INT AUTO_INCREMENT PRIMARY KEY, geraetewartmitteilung_id INT NOT NULL, vehicle_id INT NOT NULL, maschinist_member_id INT NULL, einheitsfuehrer_member_id INT NULL, equipment_used JSON NULL, defective_equipment JSON NULL, defective_freitext TEXT NULL, defective_mangel TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (geraetewartmitteilung_id) REFERENCES geraetewartmitteilungen(id) ON DELETE CASCADE, FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE, UNIQUE KEY unique_gwm_vehicle (geraetewartmitteilung_id, vehicle_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
                 $gwm_typ = ($typ_save === 'einsatz') ? 'einsatz' : 'uebung';
-                $gwm_art = 'Sonstiges';
+                if ($typ_save === 'einsatz') {
+                    $gwm_art = trim($draft['klassifizierung'] ?? '') !== '' ? trim($draft['klassifizierung']) : (trim($draft['einsatzstichwort'] ?? '') !== '' ? trim($draft['einsatzstichwort']) : (trim($draft['bezeichnung_sonstige'] ?? '') !== '' ? trim($draft['bezeichnung_sonstige']) : 'Sonstiges'));
+                } else {
+                    $gwm_art = trim($draft['thema'] ?? '') !== '' ? trim($draft['thema']) : (trim($bezeichnung_save ?? '') !== '' ? trim($bezeichnung_save) : 'Sonstiges');
+                }
+                $gwm_art = substr($gwm_art, 0, 50);
                 $gwm_el_mid = $draft['einsatzleiter_member_id'] ?? null;
                 $gwm_el_txt = !empty(trim((string)($draft['einsatzleiter_freitext'] ?? ''))) ? trim($draft['einsatzleiter_freitext']) : null;
                 $gwm_mangel = !empty(trim((string)($draft['bemerkung'] ?? ''))) ? trim($draft['bemerkung']) : null;
