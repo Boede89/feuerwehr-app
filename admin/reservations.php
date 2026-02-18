@@ -382,6 +382,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     }
 }
 
+// Divera-Einstellung für „Erneut übermitteln“-Button
+$divera_reservation_enabled = true;
+try {
+    $stmt_set = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_reservation_enabled' LIMIT 1");
+    $stmt_set->execute();
+    $row_set = $stmt_set->fetch(PDO::FETCH_ASSOC);
+    if ($row_set) {
+        $divera_reservation_enabled = ($row_set['setting_value'] ?? '1') === '1';
+    }
+} catch (Exception $e) { /* ignore */ }
+
 // Nur bearbeitete Reservierungen laden
 try {
     $sql = "
@@ -694,6 +705,11 @@ try {
                             else echo 'Abgelehnt';
                             ?>
                         </span>
+                        <?php if ($reservation['status'] === 'approved' && $divera_reservation_enabled): ?>
+                        <button type="button" class="btn btn-outline-primary btn-resend-divera" data-reservation-id="<?php echo (int)$reservation['id']; ?>" title="Termin erneut an Divera 24/7 senden (z.B. wenn die erste Übermittlung fehlgeschlagen ist)">
+                            <i class="fas fa-paper-plane"></i> Erneut an Divera übermitteln
+                        </button>
+                        <?php endif; ?>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
                     </div>
                 </div>
@@ -756,5 +772,41 @@ try {
     <?php endforeach; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.btn-resend-divera').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const btnEl = this;
+                const reservationId = btnEl.getAttribute('data-reservation-id');
+                if (!reservationId) return;
+                const originalHtml = btnEl.innerHTML;
+                btnEl.disabled = true;
+                btnEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Sende...';
+                fetch('process-reservation.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'resend_divera', reservation_id: parseInt(reservationId, 10) })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        alert(data.message || 'Termin wurde erneut an Divera 24/7 übermittelt.');
+                        location.reload();
+                    } else {
+                        alert(data.message || 'Fehler bei der Übermittlung.');
+                        btnEl.disabled = false;
+                        btnEl.innerHTML = originalHtml;
+                    }
+                })
+                .catch(function(err) {
+                    console.error(err);
+                    alert('Netzwerkfehler. Bitte erneut versuchen.');
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = originalHtml;
+                });
+            });
+        });
+    });
+    </script>
 </body>
 </html>

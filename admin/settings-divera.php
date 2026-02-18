@@ -167,10 +167,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <button class="nav-link active" id="verbindung-tab" data-bs-toggle="tab" data-bs-target="#verbindung" type="button">Verbindung</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="api-debug-tab" data-bs-toggle="tab" data-bs-target="#api-debug" type="button">API Debug</button>
+            <button class="nav-link" id="api-debug-tab" data-bs-toggle="tab" data-bs-target="#api-debug" type="button">API Debug (Anwesenheitsliste + Terminübergabe)</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="debug-tab" data-bs-toggle="tab" data-bs-target="#debug" type="button">Letzte API-Anfragen</button>
+            <button class="nav-link" id="debug-tab" data-bs-toggle="tab" data-bs-target="#debug" type="button">Letzte API-Anfragen (Terminübergabe)</button>
         </li>
     </ul>
 
@@ -327,8 +327,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $is_delete = $entry_type === 'delete';
                             $is_response = $entry_type === 'response';
                             $is_skip = $entry_type === 'delete_skip';
-                            $badge = $is_delete ? 'DELETE' : ($is_response ? 'RESPONSE' : ($is_skip ? 'DELETE ÜBERSPRUNGEN' : 'POST'));
-                            $badge_class = $is_delete ? 'danger' : ($is_response ? 'warning' : ($is_skip ? 'secondary' : (($entry['source'] ?? '') === 'form' ? 'info' : 'primary')));
+                            $ctx = $entry['context'] ?? '';
+                            $is_failed = ($ctx === 'create_failed');
+                            $badge = $is_delete ? 'DELETE' : ($is_response ? ($is_failed ? 'RESPONSE (Fehler)' : 'RESPONSE') : ($is_skip ? 'DELETE ÜBERSPRUNGEN' : 'POST'));
+                            $badge_class = $is_delete ? 'danger' : ($is_response ? ($is_failed ? 'danger' : 'warning') : ($is_skip ? 'secondary' : (($entry['source'] ?? '') === 'form' ? 'info' : 'primary')));
                             ?>
                             <div class="card mb-3">
                                 <div class="card-header py-2 d-flex align-items-center">

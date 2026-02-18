@@ -1859,8 +1859,9 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         $code = (int) $m[1];
     }
     $data = is_string($raw) ? json_decode($raw, true) : null;
-    if ($code >= 200 && $code < 300 && is_string($raw)) {
-        log_divera_debug_response($raw, 'create');
+    // Response immer loggen (Erfolg und Fehler), damit in „Letzte API-Anfragen“ die Divera-Antwort sichtbar ist
+    if (is_string($raw) && $raw !== '') {
+        log_divera_debug_response($raw, $code >= 200 && $code < 300 ? 'create' : 'create_failed');
     }
     // Erfolgsprüfung wie im Formular: nur HTTP 2xx (Formular prüft nicht auf data.success)
     $success = $code >= 200 && $code < 300;

@@ -60,6 +60,79 @@ if ($action === 'test') {
     output_json(['success' => true, 'message' => 'Verbindung OK', 'timestamp' => date('c')]);
 }
 
+// Erneut an Divera übermitteln (nur für genehmigte Reservierungen)
+if ($action === 'resend_divera') {
+    $stmt = $db->prepare("
+        SELECT r.*, v.name as vehicle_name 
+        FROM reservations r 
+        LEFT JOIN vehicles v ON r.vehicle_id = v.id 
+        WHERE r.id = ? AND r.status = 'approved'
+    ");
+    $stmt->execute([$reservation_id]);
+    $reservation = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$reservation) {
+        output_json(['success' => false, 'message' => 'Reservierung nicht gefunden oder nicht genehmigt']);
+        exit;
+    }
+    $divera_reservation_enabled = true;
+    $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'divera_reservation_default_group_id', 'divera_reservation_groups')");
+    $stmt_set->execute();
+    $settings = [];
+    while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+        $settings[$row['setting_key']] = $row['setting_value'];
+    }
+    $divera_reservation_enabled = ($settings['divera_reservation_enabled'] ?? '1') === '1';
+    if (!$divera_reservation_enabled) {
+        output_json(['success' => false, 'message' => 'Divera-Terminübergabe ist deaktiviert.']);
+        exit;
+    }
+    $group_ids = [];
+    $default_id = (int) trim((string) ($settings['divera_reservation_default_group_id'] ?? ''));
+    if ($default_id > 0) {
+        $group_ids = [$default_id];
+    }
+    $groups_json = $settings['divera_reservation_groups'] ?? '[]';
+    $groups = json_decode($groups_json, true);
+    if (empty($group_ids) && is_array($groups) && !empty($groups)) {
+        $first_id = (int) ($groups[0]['id'] ?? 0);
+        if ($first_id > 0) {
+            $group_ids = [$first_id];
+        }
+    }
+    if (!empty($group_ids)) {
+        $reservation['_divera_group_ids'] = $group_ids;
+    }
+    $divera_key = '';
+    try {
+        $stmt_key = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+        $stmt_key->execute([$_SESSION['user_id']]);
+        $uk = $stmt_key->fetch(PDO::FETCH_ASSOC);
+        $divera_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string) ($uk['divera_access_key'] ?? '')));
+    } catch (Exception $e) { /* ignore */ }
+    if ($divera_key === '') {
+        $divera_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string) ($divera_config['access_key'] ?? '')));
+    }
+    $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+    if ($divera_key === '') {
+        output_json(['success' => false, 'message' => 'Kein Divera Access Key hinterlegt. Bitte im Profil oder in den Divera-Einstellungen einen Key eintragen.']);
+        exit;
+    }
+    $divera_error = null;
+    $divera_event_id = null;
+    $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error, $divera_event_id);
+    if ($divera_sent) {
+        if ($divera_event_id > 0) {
+            $stmt_upd = $db->prepare("UPDATE reservations SET divera_event_id = ? WHERE id = ?");
+            $stmt_upd->execute([$divera_event_id, $reservation_id]);
+        }
+        output_json(['success' => true, 'message' => 'Termin wurde erneut an Divera 24/7 übermittelt.', 'divera_sent' => true]);
+    } else {
+        $err_msg = $divera_error['message'] ?? 'Unbekannter Fehler';
+        output_json(['success' => false, 'message' => 'Divera-Übermittlung fehlgeschlagen: ' . $err_msg, 'divera_error' => $divera_error]);
+    }
+    exit;
+}
+
 try {
     $db->beginTransaction();
     
