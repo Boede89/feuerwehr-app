@@ -1325,9 +1325,11 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
     </script>
     <?php if ($is_einsatz): ?>
     <script>
-    document.getElementById('typ_sonstige').addEventListener('change',function(){
-        var v=this.value;
-        document.getElementById('typ_sonstige_freitext_wrap').style.display=v==='__custom__'?'block':'none';
+    function syncTypSonstigeVisibility(){
+        var sel=document.getElementById('typ_sonstige');
+        if(!sel)return;
+        var v=sel.value;
+        var w=document.getElementById('typ_sonstige_freitext_wrap');if(w)w.style.display=v==='__custom__'?'block':'none';
         var showEinsatzstichwort=v==='einsatz';
         var showThema=v==='uebungsdienst';
         var showBeschreibung=v==='jahreshauptversammlung'||v==='sonstiges';
@@ -1344,7 +1346,10 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
         var uebWrap=document.getElementById('uebungsleiter_wrap');
         if(elWrap)elWrap.style.display=isUeb?'none':'block';
         if(uebWrap)uebWrap.style.display=isUebungsdienstOnly?'block':'none';
-    });
+    }
+    document.getElementById('typ_sonstige').addEventListener('change',syncTypSonstigeVisibility);
+    document.addEventListener('DOMContentLoaded',syncTypSonstigeVisibility);
+    syncTypSonstigeVisibility();
     document.getElementById('thema').addEventListener('change',function(){
         document.getElementById('thema_neu_wrap').style.display=this.value==='__neu__'?'block':'none';
     });
