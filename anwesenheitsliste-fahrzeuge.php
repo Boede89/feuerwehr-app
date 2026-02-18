@@ -7,6 +7,7 @@ session_start();
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/anwesenheitsliste-helper.php';
+require_once __DIR__ . '/includes/dienstplan-typen.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -182,6 +183,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $draft['maengel'] = $maengel;
         anwesenheitsliste_draft_persist($db, $draft, (int)$_SESSION['user_id']);
     }
+    // typ_sonstige und uebungsleiter aus POST übernehmen (vom Hauptformular, damit sie beim Zurückkehren erhalten bleiben)
+    if (isset($_POST['typ_sonstige']) && ($draft['typ'] ?? '') === 'einsatz') {
+        $ts = trim((string)$_POST['typ_sonstige']);
+        $typen = get_dienstplan_typen_auswahl();
+        $draft['bezeichnung_sonstige'] = $typen[$ts] ?? ($draft['bezeichnung_sonstige'] ?? 'Einsatz');
+    }
+    if (!empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
+        $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_POST['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
+    }
     header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
     exit;
 }
@@ -323,6 +333,20 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                         </div>
                         <?php unset($_SESSION['anwesenheit_error']); endif; ?>
                         <form method="post" id="fahrzeugeForm">
+                            <?php
+                            if (($draft['typ'] ?? '') === 'einsatz') {
+                                $typen_map = get_dienstplan_typen_auswahl();
+                                $bez_cur = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
+                                $typ_key = array_search($bez_cur, $typen_map);
+                                if ($typ_key === false) $typ_key = 'einsatz';
+                                $ueb_ids = $draft['uebungsleiter_member_ids'] ?? [];
+                                if (!is_array($ueb_ids)) $ueb_ids = [];
+                                echo '<input type="hidden" name="typ_sonstige" value="' . htmlspecialchars($typ_key) . '">';
+                                foreach ($ueb_ids as $uid) {
+                                    if ((int)$uid > 0) echo '<input type="hidden" name="uebungsleiter[]" value="' . (int)$uid . '">';
+                                }
+                            }
+                            ?>
                             <p class="text-muted small">Klicken Sie auf einen Fahrzeugnamen, um es als eingesetzt auszuwählen (nochmal klicken zum Abwählen). Pro Fahrzeug können Sie genau einen Maschinisten und einen Einheitsführer festlegen. Jede Person kann nur einem Fahrzeug zugeordnet werden.</p>
                             <?php if (empty($vehicles)): ?>
                                 <p class="text-muted">Keine Fahrzeuge in der Datenbank. Bitte in der Fahrzeugverwaltung anlegen.</p>

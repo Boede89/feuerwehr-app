@@ -5,6 +5,7 @@
 session_start();
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/dienstplan-typen.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -86,6 +87,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $draft['vehicle_maschinist'] = array_filter($draft['vehicle_maschinist'] ?? []);
     $draft['vehicle_einheitsfuehrer'] = array_filter($draft['vehicle_einheitsfuehrer'] ?? []);
     if (empty($draft['member_pa'])) $draft['member_pa'] = [];
+    // typ_sonstige und uebungsleiter aus POST übernehmen (vom Hauptformular, damit sie beim Zurückkehren erhalten bleiben)
+    if (isset($_POST['typ_sonstige']) && ($draft['typ'] ?? '') === 'einsatz') {
+        $ts = trim((string)$_POST['typ_sonstige']);
+        $typen = get_dienstplan_typen_auswahl();
+        $draft['bezeichnung_sonstige'] = $typen[$ts] ?? ($draft['bezeichnung_sonstige'] ?? 'Einsatz');
+    }
+    if (!empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
+        $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_POST['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
+    }
     header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
     exit;
 }
@@ -152,6 +162,18 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                     </div>
                     <div class="card-body p-4">
                         <form method="post" id="personalForm">
+                            <?php
+                            $typen_map = get_dienstplan_typen_auswahl();
+                            $bez_cur = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
+                            $typ_key = array_search($bez_cur, $typen_map);
+                            if ($typ_key === false) $typ_key = 'einsatz';
+                            $ueb_ids = $draft['uebungsleiter_member_ids'] ?? [];
+                            if (!is_array($ueb_ids)) $ueb_ids = [];
+                            ?>
+                            <input type="hidden" name="typ_sonstige" value="<?php echo htmlspecialchars($typ_key); ?>">
+                            <?php foreach ($ueb_ids as $uid): if ((int)$uid > 0): ?>
+                            <input type="hidden" name="uebungsleiter[]" value="<?php echo (int)$uid; ?>">
+                            <?php endif; endforeach; ?>
                             <p class="text-muted small">Klicken Sie auf einen Namen, um die Person als anwesend auszuwählen (nochmal klicken zum Abwählen). Optional: Fahrzeug zuordnen und Rolle (Maschinist/Einheitsführer) – pro Fahrzeug nur je eine Person.</p>
                             <?php if (empty($members)): ?>
                                 <p class="text-muted">Keine Mitglieder in der Datenbank. Bitte zuerst in der Mitgliederverwaltung anlegen.</p>
@@ -230,6 +252,9 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
         if (form) {
             var fd = new FormData();
             fd.append('form_type', 'personal');
+            var typInp = form.querySelector('input[name="typ_sonstige"]');
+            if (typInp) fd.append('typ_sonstige', typInp.value);
+            form.querySelectorAll('input[name="uebungsleiter[]"]').forEach(function(inp){ if(inp.value) fd.append('uebungsleiter[]', inp.value); });
             form.querySelectorAll('.anw-row.selected').forEach(function(row) {
                 var midInput = row.querySelector('.member-id-input');
                 var vehicleSelect = row.querySelector('select[name^="vehicle"]');
