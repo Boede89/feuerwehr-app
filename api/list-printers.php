@@ -55,6 +55,13 @@ if ($ret !== 0) {
         echo json_encode(['success' => false, 'printers' => [], 'message' => 'Zugriff verweigert (Forbidden). ' . $hint, 'raw' => $raw]);
         exit;
     }
+    if (stripos($err, 'Scheduler is not running') !== false || stripos($err, 'cupsd') !== false) {
+        $hint = $printer_cups_server !== ''
+            ? 'CUPS auf dem Host (' . $printer_cups_server . ') läuft nicht. Auf dem Host ausführen: sudo systemctl start cups (oder sudo service cups start).'
+            : 'CUPS-Dienst läuft nicht. Lokal: sudo systemctl start cups. Bei Docker: CUPS-Server in den Einstellungen eintragen (z.B. 172.17.0.1) und sicherstellen, dass CUPS auf dem Host läuft.';
+        echo json_encode(['success' => false, 'printers' => [], 'message' => 'CUPS-Scheduler läuft nicht. ' . $hint, 'raw' => $raw]);
+        exit;
+    }
     echo json_encode(['success' => false, 'printers' => [], 'message' => 'lpstat Fehler: ' . $err, 'raw' => $raw]);
     exit;
 }
