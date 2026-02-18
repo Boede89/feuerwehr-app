@@ -54,6 +54,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($mid, $draft['members'])) {
                 $draft['members'][] = $mid;
             }
+            // Person von anderen Fahrzeugen als Maschinist/EF entfernen (1 Person = 1 Fahrzeug)
+            foreach ($draft['vehicle_maschinist'] ?? [] as $v => $m) {
+                if ((int)$m === $mid && (int)$v !== $vid) unset($draft['vehicle_maschinist'][$v]);
+            }
+            foreach ($draft['vehicle_einheitsfuehrer'] ?? [] as $v => $m) {
+                if ((int)$m === $mid && (int)$v !== $vid) unset($draft['vehicle_einheitsfuehrer'][$v]);
+            }
         }
         header($redirect_self);
         exit;
@@ -82,6 +89,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $draft['vehicle_einheitsfuehrer'] = [];
     $members_set = array_flip($draft['members']);
     if (!empty($_POST['vehicle_id']) && is_array($_POST['vehicle_id'])) {
+        // Validierung: 1 Person = 1 Fahrzeug; 1 Maschinist + 1 EF pro Fahrzeug
+        $masch_by_person = [];
+        $ef_by_person = [];
+        foreach ($_POST['vehicle_id'] as $vid) {
+            $vid = (int)$vid;
+            if ($vid > 0) {
+                $masch = isset($_POST['maschinist'][$vid]) ? (int)$_POST['maschinist'][$vid] : 0;
+                $einh = isset($_POST['einheitsfuehrer'][$vid]) ? (int)$_POST['einheitsfuehrer'][$vid] : 0;
+                if ($masch > 0) {
+                    if (isset($masch_by_person[$masch]) || isset($ef_by_person[$masch])) {
+                        $stmt_n = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
+                        $stmt_n->execute([$masch]);
+                        $n = $stmt_n->fetch(PDO::FETCH_ASSOC);
+                        $name = $n ? trim($n['last_name'] . ', ' . $n['first_name']) : 'Person';
+                        $_SESSION['anwesenheit_error'] = "Eine Person kann nur einem Fahrzeug zugeordnet werden. „{$name}“ ist bereits als Maschinist oder Einheitsführer bei einem anderen Fahrzeug eingetragen.";
+                        header('Location: anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
+                        exit;
+                    }
+                    $masch_by_person[$masch] = $vid;
+                }
+                if ($einh > 0) {
+                    if (isset($masch_by_person[$einh]) || isset($ef_by_person[$einh])) {
+                        $stmt_n = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
+                        $stmt_n->execute([$einh]);
+                        $n = $stmt_n->fetch(PDO::FETCH_ASSOC);
+                        $name = $n ? trim($n['last_name'] . ', ' . $n['first_name']) : 'Person';
+                        $_SESSION['anwesenheit_error'] = "Eine Person kann nur einem Fahrzeug zugeordnet werden. „{$name}“ ist bereits als Maschinist oder Einheitsführer bei einem anderen Fahrzeug eingetragen.";
+                        header('Location: anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
+                        exit;
+                    }
+                    $ef_by_person[$einh] = $vid;
+                }
+                if ($masch > 0 && $einh > 0 && $masch === $einh) {
+                    $_SESSION['anwesenheit_error'] = "Maschinist und Einheitsführer müssen unterschiedliche Personen sein.";
+                    header('Location: anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
+                    exit;
+                }
+            }
+        }
         // Zuerst alle Maschinisten setzen (höhere Priorität für Fahrzeugzuordnung)
         foreach ($_POST['vehicle_id'] as $vid) {
             $vid = (int)$vid;
@@ -270,8 +316,14 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                         <p class="text-muted mb-0 mt-1"><?php echo date('d.m.Y', strtotime($datum)); ?> – Maschinist und Einheitsführer pro Fahrzeug. Personen, die Sie hier auswählen, werden automatisch dem Personal hinzugefügt.</p>
                     </div>
                     <div class="card-body p-4">
+                        <?php if (!empty($_SESSION['anwesenheit_error'])): ?>
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i><?php echo htmlspecialchars($_SESSION['anwesenheit_error']); ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Schließen"></button>
+                        </div>
+                        <?php unset($_SESSION['anwesenheit_error']); endif; ?>
                         <form method="post" id="fahrzeugeForm">
-                            <p class="text-muted small">Klicken Sie auf einen Fahrzeugnamen, um es als eingesetzt auszuwählen (nochmal klicken zum Abwählen). Pro Fahrzeug können Sie Maschinist und Einheitsführer festlegen.</p>
+                            <p class="text-muted small">Klicken Sie auf einen Fahrzeugnamen, um es als eingesetzt auszuwählen (nochmal klicken zum Abwählen). Pro Fahrzeug können Sie genau einen Maschinisten und einen Einheitsführer festlegen. Jede Person kann nur einem Fahrzeug zugeordnet werden.</p>
                             <?php if (empty($vehicles)): ?>
                                 <p class="text-muted">Keine Fahrzeuge in der Datenbank. Bitte in der Fahrzeugverwaltung anlegen.</p>
                             <?php else: ?>
@@ -754,6 +806,38 @@ function members_for_vehicle_dropdown($members, $member_vehicle, $vehicle_id) {
                     selectEl.appendChild(opt);
                 });
                 new bootstrap.Modal(modal).show();
+            });
+        });
+
+        // Validierung: 1 Person = 1 Fahrzeug – bei Auswahl prüfen ob Person bereits woanders
+        function getUsedMemberIds(excludeSelect) {
+            var used = {};
+            document.querySelectorAll('.anw-row select[name^="maschinist"], .anw-row select[name^="einheitsfuehrer"]').forEach(function(sel) {
+                if (sel === excludeSelect) return;
+                var vid = sel.closest('tr').querySelector('.vehicle-id-input');
+                var vidVal = vid ? vid.value : '';
+                var mid = sel.value ? parseInt(sel.value, 10) : 0;
+                if (mid > 0) {
+                    if (!used[mid]) used[mid] = [];
+                    used[mid].push({ vid: vidVal, role: sel.name.indexOf('maschinist') >= 0 ? 'Maschinist' : 'Einheitsführer' });
+                }
+            });
+            return used;
+        }
+        document.querySelectorAll('.anw-row select[name^="maschinist"], .anw-row select[name^="einheitsfuehrer"]').forEach(function(sel) {
+            sel.dataset.prevVal = sel.value || '';
+            sel.addEventListener('change', function() {
+                var mid = this.value ? parseInt(this.value, 10) : 0;
+                if (mid <= 0) { this.dataset.prevVal = this.value; return; }
+                var used = getUsedMemberIds(this);
+                var entries = used[mid] || [];
+                if (entries.length > 0) {
+                    var prevVal = this.dataset.prevVal || '';
+                    this.value = prevVal;
+                    alert('Eine Person kann nur einem Fahrzeug zugeordnet werden. Diese Person ist bereits als ' + entries[0].role + ' bei einem anderen Fahrzeug eingetragen.');
+                    return;
+                }
+                this.dataset.prevVal = this.value;
             });
         });
     </script>

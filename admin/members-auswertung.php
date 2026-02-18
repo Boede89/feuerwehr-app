@@ -556,7 +556,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
     $chart_person_fahrzeuge = [];
     arsort($s['fahrzeuge']);
     foreach (array_slice($s['fahrzeuge'], 0, 8) as $vid => $cnt) {
-        $chart_person_fahrzeuge[] = ['label' => $vehicle_map[$vid] ?? 'ID'.$vid, 'count' => $cnt];
+        $chart_person_fahrzeuge[] = ['label' => $vehicle_map[$vid] ?? '-', 'count' => $cnt];
     }
     $chart_person_rollen = [];
     if ($masch > 0) $chart_person_rollen[] = ['label' => 'Als Maschinist', 'count' => $masch];
@@ -641,7 +641,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
         <div class="card-header">Fahrzeuge im Detail</div>
         <div class="card-body">
             <?php foreach ($s['fahrzeuge'] as $vid => $cnt): ?>
-            <span class="badge bg-secondary me-1 mb-1"><?php echo htmlspecialchars($vehicle_map[$vid] ?? 'ID'.$vid); ?>: <?php echo $cnt; ?>×</span>
+            <span class="badge bg-secondary me-1 mb-1"><?php echo htmlspecialchars($vehicle_map[$vid] ?? '-'); ?>: <?php echo $cnt; ?>×</span>
             <?php endforeach; ?>
         </div>
     </div>
@@ -738,7 +738,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     $fahrzeuge_str = [];
                     arsort($s['fahrzeuge']);
                     foreach (array_slice($s['fahrzeuge'], 0, 5) as $vid => $cnt) {
-                        $fahrzeuge_str[] = ($vehicle_map[$vid] ?? 'ID'.$vid) . ' (' . $cnt . ')';
+                        $fahrzeuge_str[] = ($vehicle_map[$vid] ?? '-') . ' (' . $cnt . ')';
                     }
                 ?>
                 <tr>
@@ -1144,15 +1144,16 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
             array_reduce($fahrzeug_ef, fn($a,$v) => array_merge($a, array_keys($v ?? [])), []),
             array_reduce($fahrzeug_besatzung_top ?? [], fn($a,$v) => array_merge($a, array_keys($v ?? [])), [])
         ));
-        foreach ($all_mids as $mid) {
-            if ($mid > 0 && !isset($member_map[$mid])) {
-                try {
-                    $st = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
-                    $st->execute([$mid]);
-                    $row = $st->fetch(PDO::FETCH_ASSOC);
-                    if ($row) $member_map[$mid] = $row['last_name'] . ', ' . $row['first_name'];
-                } catch (Exception $e) {}
-            }
+        $missing_mids = array_filter($all_mids, fn($mid) => $mid > 0 && !isset($member_map[$mid]));
+        if (!empty($missing_mids)) {
+            try {
+                $ph = implode(',', array_fill(0, count($missing_mids), '?'));
+                $st = $db->prepare("SELECT id, first_name, last_name FROM members WHERE id IN ($ph)");
+                $st->execute(array_values($missing_mids));
+                while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+                    $member_map[(int)$row['id']] = trim($row['last_name'] . ', ' . $row['first_name']);
+                }
+            } catch (Exception $e) {}
         }
         $sorted_vids = array_keys($fahrzeug_stats);
         usort($sorted_vids, function($a,$b) use ($fahrzeug_stats) {
@@ -1169,7 +1170,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
         foreach ($sorted_vids as $vid) {
             $s = $fahrzeug_stats[$vid];
             $g = $s['einsaetze'] + $s['uebungen'];
-            $chart_fahrzeuge[] = ['label' => $vehicle_map[$vid] ?? 'ID'.$vid, 'count' => $g];
+            $chart_fahrzeuge[] = ['label' => $vehicle_map[$vid] ?? '-', 'count' => $g];
             $chart_fahrzeuge_einsatz_uebung['Einsätze'] += $s['einsaetze'];
             $chart_fahrzeuge_einsatz_uebung['Übungen'] += $s['uebungen'];
         }
@@ -1226,19 +1227,22 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     arsort($besatz_list);
                     $masch_str = [];
                     foreach (array_slice(array_filter($masch_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 3) as $mid => $cnt) {
-                        $masch_str[] = ($member_map[$mid] ?? 'ID'.$mid) . ' (' . $cnt . ')';
+                        $name = $member_map[$mid] ?? '-';
+                        $masch_str[] = $name . ' (' . $cnt . ')';
                     }
                     $ef_str = [];
                     foreach (array_slice(array_filter($ef_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 3) as $mid => $cnt) {
-                        $ef_str[] = ($member_map[$mid] ?? 'ID'.$mid) . ' (' . $cnt . ')';
+                        $name = $member_map[$mid] ?? '-';
+                        $ef_str[] = $name . ' (' . $cnt . ')';
                     }
                     $besatz_str = [];
                     foreach (array_slice(array_filter($besatz_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 9) as $mid => $cnt) {
-                        $besatz_str[] = ($member_map[$mid] ?? 'ID'.$mid) . ' (' . $cnt . ')';
+                        $name = $member_map[$mid] ?? '-';
+                        $besatz_str[] = $name . ' (' . $cnt . ')';
                     }
                 ?>
                 <tr>
-                    <td><?php echo htmlspecialchars($vehicle_map[$vid] ?? 'ID'.$vid); ?></td>
+                    <td><?php echo htmlspecialchars($vehicle_map[$vid] ?? '-'); ?></td>
                     <td class="text-end"><?php echo (int)$s['einsaetze']; ?></td>
                     <td class="text-end"><?php echo (int)$s['uebungen']; ?></td>
                     <td class="text-end"><strong><?php echo $gesamt; ?></strong></td>
@@ -1252,7 +1256,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
             </tbody>
         </table>
     </div>
-    <p class="text-muted small mt-2"><i class="fas fa-info-circle"></i> <strong>Häufigste Maschinisten/Einheitsführer:</strong> Nur explizit im Formular ausgewählte Personen. <strong>Top Besatzung:</strong> Nur Personen, die dem Fahrzeug auf der Anwesenheitsliste zugeordnet waren (und das Fahrzeug im Einsatz war). Ungültige Einträge (z. B. „ID0“ = keine Auswahl gespeichert) werden nicht mehr angezeigt.</p>
+    <p class="text-muted small mt-2"><i class="fas fa-info-circle"></i> <strong>Häufigste Maschinisten/Einheitsführer:</strong> Nur explizit im Formular ausgewählte Personen. <strong>Top Besatzung:</strong> Nur Personen, die dem Fahrzeug auf der Anwesenheitsliste zugeordnet waren (und das Fahrzeug im Einsatz war).</p>
 
     <?php
     // ==================== BEREICH GERÄTE ====================
@@ -1299,7 +1303,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
         $gesamt_geraete = array_sum($geraete_count);
         $chart_geraete = [];
         foreach (array_slice($geraete_count, 0, 12, true) as $eqid => $cnt) {
-            $info = $geraete_names[$eqid] ?? ['name' => 'ID'.$eqid];
+            $info = $geraete_names[$eqid] ?? ['name' => '-'];
             $chart_geraete[] = ['label' => $info['name'], 'count' => $cnt];
         }
     ?>
@@ -1337,7 +1341,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     </thead>
                     <tbody>
                         <?php foreach ($geraete_count as $eqid => $cnt):
-                            $info = $geraete_names[$eqid] ?? ['name' => 'ID'.$eqid, 'vehicle_id' => 0];
+                            $info = $geraete_names[$eqid] ?? ['name' => '-', 'vehicle_id' => 0];
                             $prozent = $gesamt_geraete > 0 ? number_format($cnt / $gesamt_geraete * 100, 1, ',', '.') : '0';
                         ?>
                         <tr>

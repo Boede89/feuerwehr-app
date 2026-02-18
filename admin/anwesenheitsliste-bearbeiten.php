@@ -125,7 +125,7 @@ if ($berichtersteller_val !== '' && $berichtersteller_val !== null) {
 }
 
 $message = '';
-$error = '';
+$error = isset($_GET['error']) ? trim((string)$_GET['error']) : '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_anwesenheitsliste') {
     if (!empty($_SESSION['form_center_csrf']) && isset($_POST['form_center_csrf']) && $_POST['form_center_csrf'] === $_SESSION['form_center_csrf']) {
@@ -306,7 +306,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             }
 
             try {
-                $db->prepare("DELETE FROM anwesenheitsliste_fahrzeuge WHERE anwesenheitsliste_id = ?")->execute([$id]);
                 $all_vids = [];
                 $member_vehicles_post = $_POST['member_vehicle'] ?? [];
                 if (is_array($member_ids) && is_array($member_vehicles_post)) {
@@ -321,6 +320,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
                         if ((int)$vid > 0) $all_vids[(int)$vid] = true;
                     }
                 }
+                $masch_by_person = [];
+                $ef_by_person = [];
+                foreach (array_keys($all_vids) as $vid) {
+                    $masch = isset($_POST['vehicle_maschinist'][$vid]) ? (int)$_POST['vehicle_maschinist'][$vid] : 0;
+                    $einh = isset($_POST['vehicle_einheitsfuehrer'][$vid]) ? (int)$_POST['vehicle_einheitsfuehrer'][$vid] : 0;
+                    if ($masch > 0) {
+                        if (isset($masch_by_person[$masch]) || isset($ef_by_person[$masch])) {
+                            $stmt_n = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
+                            $stmt_n->execute([$masch]);
+                            $n = $stmt_n->fetch(PDO::FETCH_ASSOC);
+                            $name = $n ? trim($n['last_name'] . ', ' . $n['first_name']) : 'Person';
+                            $error = "Eine Person kann nur einem Fahrzeug zugeordnet werden. „{$name}“ ist bereits als Maschinist oder Einheitsführer bei einem anderen Fahrzeug eingetragen.";
+                            header('Location: anwesenheitsliste-bearbeiten.php?id=' . (int)$id . '&error=' . urlencode($error));
+                            exit;
+                        }
+                        $masch_by_person[$masch] = $vid;
+                    }
+                    if ($einh > 0) {
+                        if (isset($masch_by_person[$einh]) || isset($ef_by_person[$einh])) {
+                            $stmt_n = $db->prepare("SELECT first_name, last_name FROM members WHERE id = ?");
+                            $stmt_n->execute([$einh]);
+                            $n = $stmt_n->fetch(PDO::FETCH_ASSOC);
+                            $name = $n ? trim($n['last_name'] . ', ' . $n['first_name']) : 'Person';
+                            $error = "Eine Person kann nur einem Fahrzeug zugeordnet werden. „{$name}“ ist bereits als Maschinist oder Einheitsführer bei einem anderen Fahrzeug eingetragen.";
+                            header('Location: anwesenheitsliste-bearbeiten.php?id=' . (int)$id . '&error=' . urlencode($error));
+                            exit;
+                        }
+                        $ef_by_person[$einh] = $vid;
+                    }
+                    if ($masch > 0 && $einh > 0 && $masch === $einh) {
+                        header('Location: anwesenheitsliste-bearbeiten.php?id=' . (int)$id . '&error=' . urlencode('Maschinist und Einheitsführer müssen unterschiedliche Personen sein.'));
+                        exit;
+                    }
+                }
+                $db->prepare("DELETE FROM anwesenheitsliste_fahrzeuge WHERE anwesenheitsliste_id = ?")->execute([$id]);
                 $stmt = $db->prepare("INSERT INTO anwesenheitsliste_fahrzeuge (anwesenheitsliste_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id) VALUES (?, ?, ?, ?)");
                 foreach (array_keys($all_vids) as $vid) {
                     $masch = isset($_POST['vehicle_maschinist'][$vid]) ? (int)$_POST['vehicle_maschinist'][$vid] : null;
