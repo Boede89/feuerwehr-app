@@ -56,9 +56,14 @@ if ($ret !== 0) {
         exit;
     }
     if (stripos($err, 'Scheduler is not running') !== false || stripos($err, 'cupsd') !== false) {
-        $hint = $printer_cups_server !== ''
-            ? 'CUPS auf dem Host (' . $printer_cups_server . ') läuft nicht. Auf dem Host ausführen: sudo systemctl start cups (oder sudo service cups start).'
-            : 'CUPS-Dienst läuft nicht. Lokal: sudo systemctl start cups. Bei Docker: CUPS-Server in den Einstellungen eintragen (z.B. 172.17.0.1) und sicherstellen, dass CUPS auf dem Host läuft.';
+        if ($printer_cups_server !== '') {
+            $is_socket = (strpos($printer_cups_server, '/') !== false);
+            $hint = $is_socket
+                ? 'CUPS-Dienst läuft nicht. Führen Sie aus: sudo systemctl start cups (oder sudo service cups start).'
+                : 'CUPS auf dem Host (' . $printer_cups_server . ') läuft nicht. Auf dem Host: sudo systemctl start cups. Bei Docker: Host-IP (z.B. 172.17.0.1) statt Socket verwenden.';
+        } else {
+            $hint = 'CUPS-Dienst läuft nicht. Führen Sie aus: sudo systemctl start cups. Bei Docker: CUPS-Server in den Einstellungen eintragen (z.B. 172.17.0.1).';
+        }
         echo json_encode(['success' => false, 'printers' => [], 'message' => 'CUPS-Scheduler läuft nicht. ' . $hint, 'raw' => $raw]);
         exit;
     }
