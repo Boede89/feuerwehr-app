@@ -141,6 +141,9 @@ Danach startet CUPS bei jedem Host-Boot automatisch. Der Container-Neustart hat 
 - CUPS-Dienst auf dem Host starten: `sudo systemctl start cups`
 - Für automatischen Start beim Host-Neustart: `sudo systemctl enable cups`
 - Prüfen: `systemctl status cups` – Status sollte „active (running)“ sein
+- **CUPS startet nicht?** Fehler prüfen: `journalctl -u cups -n 30 --no-pager`
+- **Windows-Host?** Docker auf Windows hat keinen nativen CUPS. Optionen: Linux-VM als Host, WSL2 mit CUPS, oder separater CUPS-Container
+- **Druckername manuell eintragen:** Ohne „Verfügbare Drucker“ klicken – wenn Sie den Druckernamen kennen (z.B. von `lpstat -p` auf dem Host), tragen Sie ihn direkt ein
 
 ### „The printer or class does not exist“
 
