@@ -1057,7 +1057,9 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 }
                 $fahrzeug_besatzung[$vid] = count($liste_ids) > 0 ? $anz / count($liste_ids) : 0;
             }
-            // Top Besatzung: (list, member, vehicle) aus af (Maschinist/EF) + am (Crew), pro Tripel nur 1x zählen
+            // Top Besatzung: NUR aus anwesenheitsliste_fahrzeuge (Maschinist + Einheitsführer)
+            // anwesenheitsliste_mitglieder wird NICHT verwendet – vehicle_id dort kann fehlerhaft sein (alte Daten),
+            // wodurch Personen fälschlich anderen Fahrzeugen zugeordnet würden.
             $besatz_triples = [];
             $add_besatz = function($lid, $mid, $vid) use (&$besatz_triples, $fahrzeug_stats) {
                 if ($mid <= 0 || $vid <= 0 || !isset($fahrzeug_stats[$vid])) return;
@@ -1101,30 +1103,6 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 if ($typ_filter === 'jhv' && !ist_jhv($r)) continue;
                 if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
                 $add_besatz((int)$r['anwesenheitsliste_id'], (int)$r['mid'], (int)$r['vehicle_id']);
-            }
-            $sql_besatz = "SELECT am.vehicle_id, am.member_id, am.anwesenheitsliste_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ, JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) AS typ_sonstige
-                FROM anwesenheitsliste_mitglieder am
-                JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
-                LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
-                JOIN anwesenheitsliste_fahrzeuge af ON af.anwesenheitsliste_id = am.anwesenheitsliste_id AND af.vehicle_id = am.vehicle_id
-                WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0 AND am.member_id > 0";
-            $params_besatz = [$von, $bis];
-            $sql_besatz .= get_zeit_filter_sql($params_besatz) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_besatz) . get_thema_filter_sql($params_besatz);
-            if ($vehicle_id > 0) { $sql_besatz .= " AND am.vehicle_id = ?"; $params_besatz[] = $vehicle_id; }
-            $stmt = $db->prepare($sql_besatz);
-            $stmt->execute($params_besatz);
-            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $einsatz = ($r['liste_typ'] === 'einsatz') || ($r['liste_typ'] === 'dienst' && ($r['dienst_typ'] ?? '') === 'einsatz');
-                $jhv = ist_jhv_sonstiges($r);
-                if ($typ_filter === 'einsaetze' && !$einsatz) continue;
-                if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
-                if ($typ_filter === 'beides' && $jhv) continue;
-                if ($typ_filter === 'jhv' && !ist_jhv($r)) continue;
-                if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
-                $vid = (int)$r['vehicle_id'];
-                $mid = (int)$r['member_id'];
-                if ($mid <= 0 || !isset($fahrzeug_stats[$vid])) continue;
-                $add_besatz((int)$r['anwesenheitsliste_id'], $mid, $vid);
             }
             foreach (array_keys($besatz_triples) as $k) {
                 $p = explode('_', $k);
@@ -1210,7 +1188,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     <th class="text-end">Durchschn. Besatzung</th>
                     <th title="Nur Personen, die explizit als Maschinist eingetragen wurden">Häufigste Maschinisten</th>
                     <th title="Nur Personen, die explizit als Einheitsführer eingetragen wurden">Häufigste Einheitsführer</th>
-                    <th title="Personen, die diesem Fahrzeug auf der Anwesenheitsliste zugeordnet waren (nur wenn das Fahrzeug im Einsatz war)">Top Besatzung</th>
+                    <th title="Maschinist und Einheitsführer, die diesem Fahrzeug explizit zugeordnet waren (nur wenn das Fahrzeug im Einsatz war)">Top Besatzung</th>
                 </tr>
             </thead>
             <tbody>
@@ -1236,9 +1214,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                         $ef_str[] = $name . ' (' . $cnt . ')';
                     }
                     $besatz_str = [];
-                    foreach (array_slice(array_filter($besatz_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 9) as $mid => $cnt) {
-                        $name = $member_map[$mid] ?? '-';
-                        $besatz_str[] = $name . ' (' . $cnt . ')';
+                    foreach (array_slice(array_filter($besatz_list, fn($k) => (int)$k > 0 && isset($member_map[$k]), ARRAY_FILTER_USE_KEY), 0, 9) as $mid => $cnt) {
+                        $besatz_str[] = $member_map[$mid] . ' (' . $cnt . ')';
                     }
                 ?>
                 <tr>
@@ -1256,7 +1233,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
             </tbody>
         </table>
     </div>
-    <p class="text-muted small mt-2"><i class="fas fa-info-circle"></i> <strong>Häufigste Maschinisten/Einheitsführer:</strong> Nur explizit im Formular ausgewählte Personen. <strong>Top Besatzung:</strong> Nur Personen, die dem Fahrzeug auf der Anwesenheitsliste zugeordnet waren (und das Fahrzeug im Einsatz war).</p>
+    <p class="text-muted small mt-2"><i class="fas fa-info-circle"></i> <strong>Häufigste Maschinisten/Einheitsführer:</strong> Nur explizit im Formular ausgewählte Personen. <strong>Top Besatzung:</strong> Nur Maschinist und Einheitsführer, die diesem Fahrzeug explizit zugeordnet waren (und das Fahrzeug im Einsatz war).</p>
 
     <?php
     // ==================== BEREICH GERÄTE ====================
