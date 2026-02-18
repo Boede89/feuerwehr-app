@@ -87,9 +87,14 @@ if ($action === 'resend_divera') {
         exit;
     }
     $group_ids = [];
-    $default_id = (int) trim((string) ($settings['divera_reservation_default_group_id'] ?? ''));
-    if ($default_id > 0) {
-        $group_ids = [$default_id];
+    if (!empty($input['divera_group_ids']) && is_array($input['divera_group_ids'])) {
+        $group_ids = array_values(array_filter(array_map('intval', $input['divera_group_ids'])));
+    }
+    if (empty($group_ids)) {
+        $default_id = (int) trim((string) ($settings['divera_reservation_default_group_id'] ?? ''));
+        if ($default_id > 0) {
+            $group_ids = [$default_id];
+        }
     }
     $groups_json = $settings['divera_reservation_groups'] ?? '[]';
     $groups = json_decode($groups_json, true);

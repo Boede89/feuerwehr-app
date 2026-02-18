@@ -382,14 +382,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     }
 }
 
-// Divera-Einstellung für „Erneut übermitteln“-Button
+// Divera-Einstellungen für „Erneut übermitteln“-Button und Empfängergruppen-Auswahl
 $divera_reservation_enabled = true;
+$divera_reservation_groups = [];
+$divera_reservation_default_group_id = '';
 try {
-    $stmt_set = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_reservation_enabled' LIMIT 1");
+    $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'divera_reservation_groups', 'divera_reservation_default_group_id')");
     $stmt_set->execute();
-    $row_set = $stmt_set->fetch(PDO::FETCH_ASSOC);
-    if ($row_set) {
-        $divera_reservation_enabled = ($row_set['setting_value'] ?? '1') === '1';
+    while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+        if ($row['setting_key'] === 'divera_reservation_enabled') {
+            $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+        } elseif ($row['setting_key'] === 'divera_reservation_groups' && $row['setting_value'] !== '') {
+            $dec = json_decode($row['setting_value'], true);
+            $divera_reservation_groups = is_array($dec) ? $dec : [];
+        } elseif ($row['setting_key'] === 'divera_reservation_default_group_id') {
+            $divera_reservation_default_group_id = trim((string)$row['setting_value']);
+        }
     }
 } catch (Exception $e) { /* ignore */ }
 
@@ -692,6 +700,27 @@ try {
                                 <?php endif; ?>
                             </div>
                         </div>
+                        <?php if ($reservation['status'] === 'approved' && $divera_reservation_enabled && !empty($divera_reservation_groups)): ?>
+                        <hr>
+                        <div class="mb-3">
+                            <label for="resendDiveraGroup<?php echo (int)$reservation['id']; ?>" class="form-label">
+                                <i class="fas fa-users me-1"></i>Empfänger-Gruppe (Divera 24/7) – für erneute Übermittlung
+                            </label>
+                            <select class="form-select resend-divera-group-select" id="resendDiveraGroup<?php echo (int)$reservation['id']; ?>">
+                                <option value="" <?php echo $divera_reservation_default_group_id === '' ? 'selected' : ''; ?>>– Standard (aus Einstellungen) –</option>
+                                <?php foreach ($divera_reservation_groups as $g): 
+                                    $gid = (int)($g['id'] ?? 0);
+                                    $gval = $gid > 0 ? (string)$gid : '0';
+                                    $gname = htmlspecialchars($g['name'] ?? ($gid > 0 ? 'Gruppe ' . $gid : 'Alle des Standortes'));
+                                ?>
+                                <option value="<?php echo $gval; ?>" <?php echo $divera_reservation_default_group_id === $gval ? 'selected' : ''; ?>>
+                                    <?php echo $gname; ?><?php echo $gid > 0 ? ' (ID: ' . $gid . ')' : ''; ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="form-text">An welche Divera-Gruppe der Termin bei „Erneut übermitteln“ gesendet werden soll.</div>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     <div class="modal-footer">
                         <span class="badge <?php 
@@ -779,13 +808,19 @@ try {
                 const btnEl = this;
                 const reservationId = btnEl.getAttribute('data-reservation-id');
                 if (!reservationId) return;
+                const modal = btnEl.closest('.modal');
+                const groupSelect = modal ? modal.querySelector('.resend-divera-group-select') : null;
+                let diveraGroupIds = [];
+                if (groupSelect && groupSelect.value && groupSelect.value !== '0') {
+                    diveraGroupIds = [parseInt(groupSelect.value, 10)];
+                }
                 const originalHtml = btnEl.innerHTML;
                 btnEl.disabled = true;
                 btnEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Sende...';
                 fetch('process-reservation.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'resend_divera', reservation_id: parseInt(reservationId, 10) })
+                    body: JSON.stringify({ action: 'resend_divera', reservation_id: parseInt(reservationId, 10), divera_group_ids: diveraGroupIds })
                 })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
