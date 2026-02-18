@@ -82,24 +82,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $draft['vehicle_einheitsfuehrer'] = [];
     $members_set = array_flip($draft['members']);
     if (!empty($_POST['vehicle_id']) && is_array($_POST['vehicle_id'])) {
+        // Zuerst alle Maschinisten setzen (höhere Priorität für Fahrzeugzuordnung)
         foreach ($_POST['vehicle_id'] as $vid) {
             $vid = (int)$vid;
             if ($vid > 0) {
                 $draft['vehicles'][] = $vid;
                 $masch = isset($_POST['maschinist'][$vid]) ? (int)$_POST['maschinist'][$vid] : 0;
-                $einh = isset($_POST['einheitsfuehrer'][$vid]) ? (int)$_POST['einheitsfuehrer'][$vid] : 0;
                 if ($masch > 0) {
                     $draft['vehicle_maschinist'][$vid] = $masch;
                     $draft['member_vehicle'][$masch] = $vid;
                     if (!isset($members_set[$masch])) {
                         $draft['members'][] = $masch;
+                        $members_set[$masch] = true;
                     }
                 }
+            }
+        }
+        // Einheitsführer: nur setzen wenn Person noch kein Fahrzeug hat (Maschinist hat Priorität)
+        foreach ($_POST['vehicle_id'] as $vid) {
+            $vid = (int)$vid;
+            if ($vid > 0) {
+                $einh = isset($_POST['einheitsfuehrer'][$vid]) ? (int)$_POST['einheitsfuehrer'][$vid] : 0;
                 if ($einh > 0) {
                     $draft['vehicle_einheitsfuehrer'][$vid] = $einh;
-                    $draft['member_vehicle'][$einh] = $vid;
+                    if (!isset($draft['member_vehicle'][$einh])) {
+                        $draft['member_vehicle'][$einh] = $vid;
+                    }
                     if (!isset($members_set[$einh])) {
                         $draft['members'][] = $einh;
+                        $members_set[$einh] = true;
                     }
                 }
             }

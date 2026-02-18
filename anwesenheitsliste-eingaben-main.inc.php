@@ -497,8 +497,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             $divera_id_save
         ]);
         $list_id = $db->lastInsertId();
+        // vehicle_id: Priorität Maschinist > Einheitsführer > Personal-Zuordnung (verhindert falsche Zuordnung in Auswertung)
         foreach ($draft['members'] as $mid) {
-            $vid = isset($draft['member_vehicle'][$mid]) ? $draft['member_vehicle'][$mid] : null;
+            $vid = null;
+            foreach ($draft['vehicle_maschinist'] ?? [] as $v => $m) {
+                if ((int)$m === (int)$mid) { $vid = (int)$v; break; }
+            }
+            if ($vid === null) {
+                foreach ($draft['vehicle_einheitsfuehrer'] ?? [] as $v => $m) {
+                    if ((int)$m === (int)$mid) { $vid = (int)$v; break; }
+                }
+            }
+            if ($vid === null) {
+                $vid = isset($draft['member_vehicle'][$mid]) ? (int)$draft['member_vehicle'][$mid] : null;
+            }
+            $vid = ($vid > 0) ? $vid : null;
             $stmt = $db->prepare("INSERT INTO anwesenheitsliste_mitglieder (anwesenheitsliste_id, member_id, vehicle_id) VALUES (?, ?, ?)");
             $stmt->execute([$list_id, $mid, $vid]);
         }

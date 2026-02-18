@@ -1057,7 +1057,52 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 }
                 $fahrzeug_besatzung[$vid] = count($liste_ids) > 0 ? $anz / count($liste_ids) : 0;
             }
-            $sql_besatz = "SELECT am.vehicle_id, am.member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ, JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) AS typ_sonstige
+            // Top Besatzung: (list, member, vehicle) aus af (Maschinist/EF) + am (Crew), pro Tripel nur 1x zählen
+            $besatz_triples = [];
+            $add_besatz = function($lid, $mid, $vid) use (&$besatz_triples, $fahrzeug_stats) {
+                if ($mid <= 0 || $vid <= 0 || !isset($fahrzeug_stats[$vid])) return;
+                $k = (int)$lid . '_' . (int)$mid . '_' . (int)$vid;
+                if (!isset($besatz_triples[$k])) {
+                    $besatz_triples[$k] = true;
+                }
+            };
+            $sql_af_besatz = "SELECT af.anwesenheitsliste_id, af.vehicle_id, af.maschinist_member_id AS mid, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ, JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) AS typ_sonstige
+                FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
+                WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0 AND af.maschinist_member_id IS NOT NULL AND af.maschinist_member_id > 0";
+            $params_af_b = [$von, $bis];
+            $sql_af_besatz .= get_zeit_filter_sql($params_af_b) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_af_b) . get_thema_filter_sql($params_af_b);
+            if ($vehicle_id > 0) { $sql_af_besatz .= " AND af.vehicle_id = ?"; $params_af_b[] = $vehicle_id; }
+            $stmt_af = $db->prepare($sql_af_besatz);
+            $stmt_af->execute($params_af_b);
+            while ($r = $stmt_af->fetch(PDO::FETCH_ASSOC)) {
+                $einsatz = ($r['liste_typ'] ?? '') === 'einsatz' || (($r['dienst_typ'] ?? '') === 'einsatz');
+                $jhv = ist_jhv_sonstiges($r);
+                if ($typ_filter === 'einsaetze' && !$einsatz) continue;
+                if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
+                if ($typ_filter === 'beides' && $jhv) continue;
+                if ($typ_filter === 'jhv' && !ist_jhv($r)) continue;
+                if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
+                $add_besatz((int)$r['anwesenheitsliste_id'], (int)$r['mid'], (int)$r['vehicle_id']);
+            }
+            $sql_af_ef = "SELECT af.anwesenheitsliste_id, af.vehicle_id, af.einheitsfuehrer_member_id AS mid, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ, JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) AS typ_sonstige
+                FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
+                WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0 AND af.einheitsfuehrer_member_id IS NOT NULL AND af.einheitsfuehrer_member_id > 0";
+            $params_af_ef = [$von, $bis];
+            $sql_af_ef .= get_zeit_filter_sql($params_af_ef) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_af_ef) . get_thema_filter_sql($params_af_ef);
+            if ($vehicle_id > 0) { $sql_af_ef .= " AND af.vehicle_id = ?"; $params_af_ef[] = $vehicle_id; }
+            $stmt_af_ef = $db->prepare($sql_af_ef);
+            $stmt_af_ef->execute($params_af_ef);
+            while ($r = $stmt_af_ef->fetch(PDO::FETCH_ASSOC)) {
+                $einsatz = ($r['liste_typ'] ?? '') === 'einsatz' || (($r['dienst_typ'] ?? '') === 'einsatz');
+                $jhv = ist_jhv_sonstiges($r);
+                if ($typ_filter === 'einsaetze' && !$einsatz) continue;
+                if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
+                if ($typ_filter === 'beides' && $jhv) continue;
+                if ($typ_filter === 'jhv' && !ist_jhv($r)) continue;
+                if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
+                $add_besatz((int)$r['anwesenheitsliste_id'], (int)$r['mid'], (int)$r['vehicle_id']);
+            }
+            $sql_besatz = "SELECT am.vehicle_id, am.member_id, am.anwesenheitsliste_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ, JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) AS typ_sonstige
                 FROM anwesenheitsliste_mitglieder am
                 JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
                 LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
@@ -1065,10 +1110,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0 AND am.member_id > 0";
             $params_besatz = [$von, $bis];
             $sql_besatz .= get_zeit_filter_sql($params_besatz) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_besatz) . get_thema_filter_sql($params_besatz);
-            if ($vehicle_id > 0) {
-                $sql_besatz .= " AND am.vehicle_id = ?";
-                $params_besatz[] = $vehicle_id;
-            }
+            if ($vehicle_id > 0) { $sql_besatz .= " AND am.vehicle_id = ?"; $params_besatz[] = $vehicle_id; }
             $stmt = $db->prepare($sql_besatz);
             $stmt->execute($params_besatz);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -1082,7 +1124,15 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 $vid = (int)$r['vehicle_id'];
                 $mid = (int)$r['member_id'];
                 if ($mid <= 0 || !isset($fahrzeug_stats[$vid])) continue;
-                $fahrzeug_besatzung_top[$vid][$mid] = ($fahrzeug_besatzung_top[$vid][$mid] ?? 0) + 1;
+                $add_besatz((int)$r['anwesenheitsliste_id'], $mid, $vid);
+            }
+            foreach (array_keys($besatz_triples) as $k) {
+                $p = explode('_', $k);
+                if (count($p) >= 3) {
+                    $vid = (int)$p[2];
+                    $mid = (int)$p[1];
+                    $fahrzeug_besatzung_top[$vid][$mid] = ($fahrzeug_besatzung_top[$vid][$mid] ?? 0) + 1;
+                }
             }
         } catch (Exception $e) {}
         $vehicle_map = [];

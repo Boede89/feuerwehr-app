@@ -281,12 +281,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             $db->prepare("DELETE FROM anwesenheitsliste_mitglieder WHERE anwesenheitsliste_id = ?")->execute([$id]);
             $member_ids = $_POST['member_id'] ?? [];
             $member_vehicles = $_POST['member_vehicle'] ?? [];
+            $vehicle_maschinist = $_POST['vehicle_maschinist'] ?? [];
+            $vehicle_einheitsfuehrer = $_POST['vehicle_einheitsfuehrer'] ?? [];
             if (is_array($member_ids) && !empty($member_ids)) {
                 $stmt = $db->prepare("INSERT INTO anwesenheitsliste_mitglieder (anwesenheitsliste_id, member_id, vehicle_id) VALUES (?, ?, ?)");
                 foreach ($member_ids as $i => $mid) {
                     $mid = (int)$mid;
                     if ($mid > 0) {
-                        $vid = isset($member_vehicles[$i]) ? (int)$member_vehicles[$i] : null;
+                        $vid = null;
+                        foreach ($vehicle_maschinist as $v => $m) {
+                            if ((int)$m === $mid) { $vid = (int)$v; break; }
+                        }
+                        if ($vid === null) {
+                            foreach ($vehicle_einheitsfuehrer as $v => $m) {
+                                if ((int)$m === $mid) { $vid = (int)$v; break; }
+                            }
+                        }
+                        if ($vid === null) {
+                            $vid = isset($member_vehicles[$i]) ? (int)$member_vehicles[$i] : null;
+                        }
                         $stmt->execute([$id, $mid, $vid > 0 ? $vid : null]);
                     }
                 }
