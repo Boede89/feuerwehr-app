@@ -139,6 +139,7 @@ Danach startet CUPS bei jedem Host-Boot automatisch. Der Container-Neustart hat 
 ### „Scheduler is not running“ / CUPS läuft nicht
 
 - CUPS-Dienst auf dem Host starten: `sudo systemctl start cups`
+- **CUPS läuft auf dem Host, Fehler bleibt im Container?** Apache muss `CUPS_SERVER` an PHP weitergeben. Die Apache-Konfiguration enthält `PassEnv CUPS_SERVER`. Nach Änderungen: `docker compose up -d --force-recreate web` ausführen.
 - Für automatischen Start beim Host-Neustart: `sudo systemctl enable cups`
 - Prüfen: `systemctl status cups` – Status sollte „active (running)“ sein
 - **CUPS startet nicht?** Fehler prüfen: `journalctl -u cups -n 30 --no-pager`

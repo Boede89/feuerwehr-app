@@ -28,6 +28,10 @@ try {
 if ($printer_cups_server === '' && getenv('CUPS_SERVER') !== false) {
     $printer_cups_server = trim(getenv('CUPS_SERVER'));
 }
+// Fallback: Docker-Socket-Mount (Apache übergibt CUPS_SERVER via PassEnv; falls nicht, hier nutzen)
+if ($printer_cups_server === '' && file_exists('/run/cups/cups.sock')) {
+    $printer_cups_server = '/run/cups/cups.sock';
+}
 $env_prefix = ($printer_cups_server !== '') ? 'CUPS_SERVER=' . escapeshellarg($printer_cups_server) . ' ' : '';
 
 $printers = [];
