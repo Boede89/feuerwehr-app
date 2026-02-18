@@ -1683,7 +1683,9 @@ if ($can_atemschutz) {
         }
         
         // Erfolgs-Meldung in Modal anzeigen (ersetzt alert)
-        function showSuccessMessage(mainMsg, subMsgHtml) {
+        // reloadDelay: bei needs_divera_key 5000 ms, damit die Access-Key-Hinweise besser lesbar sind
+        function showSuccessMessage(mainMsg, subMsgHtml, reloadDelay) {
+            reloadDelay = (reloadDelay !== undefined && reloadDelay > 0) ? reloadDelay : 2000;
             const detailsModal = bootstrap.Modal.getInstance(document.getElementById('reservationDetailsModal'));
             const conflictModal = bootstrap.Modal.getInstance(document.getElementById('conflictWarningModal'));
             if (detailsModal) detailsModal.hide();
@@ -1694,7 +1696,7 @@ if ($can_atemschutz) {
             }
             const successModal = new bootstrap.Modal(document.getElementById('successModal'));
             successModal.show();
-            setTimeout(() => location.reload(), 2000);
+            setTimeout(() => location.reload(), reloadDelay);
         }
         
         // Reservierung genehmigen
@@ -1754,7 +1756,7 @@ if ($can_atemschutz) {
                     } else if (data.divera_error) {
                         subMsg = '<div class="alert alert-danger py-2 mt-2 mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Divera: ' + (data.divera_error.message || 'HTTP ' + data.divera_error.code) + '</div>';
                     }
-                    showSuccessMessage(mainMsg, subMsg);
+                    showSuccessMessage(mainMsg, subMsg, data.needs_divera_key ? 5000 : 2000);
                 } else if (data.has_conflicts) {
                     // Konflikte gefunden - zeige Warnung
                     approveBtn.disabled = false;
@@ -1874,7 +1876,7 @@ if ($can_atemschutz) {
                     } else if (data.divera_error) {
                         subMsg = '<div class="alert alert-danger py-2 mt-2 mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Divera: ' + (data.divera_error.message || 'HTTP ' + data.divera_error.code) + '</div>';
                     }
-                    showSuccessMessage(mainMsg, subMsg);
+                    showSuccessMessage(mainMsg, subMsg, data.needs_divera_key ? 5000 : 2000);
                 } else {
                     confirmBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
                     confirmBtn.classList.remove('btn-warning');
