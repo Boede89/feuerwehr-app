@@ -50,7 +50,8 @@ services:
       - ./:/var/www/html
       - ./docker/apache/000-default.conf:/etc/apache2/sites-available/000-default.conf
       - ./docker/php/php.ini:/usr/local/etc/php/php.ini
-      # CUPS-Socket vom Host (empfohlen, umgeht Forbidden): Host muss CUPS laufen haben
+      # CUPS-Socket vom Host (empfohlen, umgeht Forbidden): Host muss CUPS laufen haben.
+      # Damit CUPS beim Host-Neustart automatisch startet, auf dem Host ausführen: sudo systemctl enable cups
       - /run/cups/cups.sock:/run/cups/cups.sock
     depends_on:
       - mysql

@@ -113,7 +113,34 @@ Im `Dockerfile` zusätzlich `cups` (nicht nur `cups-client`) installieren und de
 
 ---
 
+## CUPS automatisch beim Host-Neustart starten
+
+CUPS läuft auf dem **Host**, nicht im Container. Damit CUPS beim Neustart des Hosts automatisch startet:
+
+**Option 1: Setup-Skript (empfohlen)** – einmalig auf dem Host ausführen:
+
+```bash
+sudo bash docker/host-setup-cups.sh
+```
+
+**Option 2: Manuell** – falls CUPS bereits installiert ist:
+
+```bash
+sudo systemctl enable cups
+sudo systemctl start cups
+```
+
+Danach startet CUPS bei jedem Host-Boot automatisch. Der Container-Neustart hat keinen Einfluss auf CUPS – der Dienst muss auf dem Host laufen.
+
+---
+
 ## Fehlerbehebung
+
+### „Scheduler is not running“ / CUPS läuft nicht
+
+- CUPS-Dienst auf dem Host starten: `sudo systemctl start cups`
+- Für automatischen Start beim Host-Neustart: `sudo systemctl enable cups`
+- Prüfen: `systemctl status cups` – Status sollte „active (running)“ sein
 
 ### „The printer or class does not exist“
 
@@ -145,6 +172,7 @@ Im `Dockerfile` zusätzlich `cups` (nicht nur `cups-client`) installieren und de
 ## Kurz-Checkliste
 
 - [ ] CUPS auf dem Host installiert und gestartet (`/run/cups/cups.sock` existiert)
+- [ ] CUPS für Auto-Start aktiviert: `sudo systemctl enable cups` (damit CUPS beim Host-Neustart startet)
 - [ ] Drucker mit `lpadmin` angelegt (Name: `workplacepure`)
 - [ ] `lpstat -p` auf dem Host zeigt den Drucker
 - [ ] docker-compose mit CUPS-Socket-Volume (bereits vorkonfiguriert)
