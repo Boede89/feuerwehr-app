@@ -1060,8 +1060,8 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
                                 </div>
                                 </div>
                                 <?php endif; ?>
-                                <?php if ($is_uebungsdienst_display): ?>
-                                <div id="uebungsleiter_wrap" class="feld-uebungsdienst-toggle" data-einsatzleiter="1" style="<?php echo $is_einsatz && !$is_uebungsdienst_display ? 'display:none' : ''; ?>">
+                                <?php if ($is_uebungsdienst_display || $is_einsatz): ?>
+                                <div id="uebungsleiter_wrap" class="feld-uebungsdienst-toggle" data-einsatzleiter="1" style="<?php echo ($is_einsatz && !$is_uebungsdienst_display) ? 'display:none' : ''; ?>">
                                 <label class="form-label">Übungsleiter <span id="uebungsleiter_count" class="badge bg-secondary ms-1">0 ausgewählt</span></label>
                                 <div class="uebungsleiter-list border rounded p-2" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem;">
                                     <?php $uebungs_ids = $draft['uebungsleiter_member_ids'] ?? []; if (!is_array($uebungs_ids)) $uebungs_ids = []; ?>
