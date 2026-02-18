@@ -180,9 +180,11 @@ try {
         // Terminübergabe-Einstellungen laden
         $divera_reservation_enabled = true;
         $google_calendar_reservation_enabled = true;
-        $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled')");
+        $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled', 'divera_reservation_default_group_id', 'divera_reservation_groups')");
         $stmt_set->execute();
+        $divera_settings = [];
         while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+            $divera_settings[$row['setting_key']] = $row['setting_value'];
             if ($row['setting_key'] === 'divera_reservation_enabled') $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
             if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
         }
@@ -198,12 +200,19 @@ try {
                     $group_ids = array_values(array_filter(array_map('intval', $input['divera_group_ids'])));
                 }
                 if (empty($group_ids)) {
-                    $stmt_set = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_reservation_default_group_id' LIMIT 1");
-                    $stmt_set->execute();
-                    $row_set = $stmt_set->fetch(PDO::FETCH_ASSOC);
-                    $default_id = $row_set ? (int) trim((string) $row_set['setting_value']) : 0;
+                    $default_id = (int) trim((string) ($divera_settings['divera_reservation_default_group_id'] ?? ''));
                     if ($default_id > 0) {
                         $group_ids = [$default_id];
+                    }
+                }
+                if (empty($group_ids)) {
+                    $groups_json = $divera_settings['divera_reservation_groups'] ?? '[]';
+                    $groups = json_decode($groups_json, true);
+                    if (is_array($groups) && !empty($groups)) {
+                        $first_id = (int) ($groups[0]['id'] ?? 0);
+                        if ($first_id > 0) {
+                            $group_ids = [$first_id];
+                        }
                     }
                 }
                 if (!empty($group_ids)) {
@@ -227,8 +236,15 @@ try {
                 }
                 $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
                 if ($divera_key !== '') {
+                    // Reservierung für Divera neu laden (garantiert aktuelle Termindaten wie bei „Erneut übermitteln“)
+                    $stmt_dv = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r LEFT JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+                    $stmt_dv->execute([$reservation_id]);
+                    $res_for_divera = $stmt_dv->fetch(PDO::FETCH_ASSOC) ?: $reservation;
+                    if (!empty($reservation['_divera_group_ids'])) {
+                        $res_for_divera['_divera_group_ids'] = $reservation['_divera_group_ids'];
+                    }
                     $divera_event_id = null;
-                    $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error, $divera_event_id);
+                    $divera_sent = send_reservation_to_divera($res_for_divera, $divera_key, $api_base, $divera_error, $divera_event_id);
                     if ($divera_sent && $divera_event_id > 0) {
                         $stmt_upd = $db->prepare("UPDATE reservations SET divera_event_id = ? WHERE id = ?");
                         $stmt_upd->execute([$divera_event_id, $reservation_id]);
@@ -424,9 +440,11 @@ try {
         // Terminübergabe-Einstellungen laden
         $divera_reservation_enabled = true;
         $google_calendar_reservation_enabled = true;
-        $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled')");
+        $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled', 'divera_reservation_default_group_id', 'divera_reservation_groups')");
         $stmt_set->execute();
+        $divera_settings = [];
         while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+            $divera_settings[$row['setting_key']] = $row['setting_value'];
             if ($row['setting_key'] === 'divera_reservation_enabled') $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
             if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
         }
@@ -442,12 +460,19 @@ try {
                     $group_ids = array_values(array_filter(array_map('intval', $input['divera_group_ids'])));
                 }
                 if (empty($group_ids)) {
-                    $stmt_set = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_reservation_default_group_id' LIMIT 1");
-                    $stmt_set->execute();
-                    $row_set = $stmt_set->fetch(PDO::FETCH_ASSOC);
-                    $default_id = $row_set ? (int) trim((string) $row_set['setting_value']) : 0;
+                    $default_id = (int) trim((string) ($divera_settings['divera_reservation_default_group_id'] ?? ''));
                     if ($default_id > 0) {
                         $group_ids = [$default_id];
+                    }
+                }
+                if (empty($group_ids)) {
+                    $groups_json = $divera_settings['divera_reservation_groups'] ?? '[]';
+                    $groups = json_decode($groups_json, true);
+                    if (is_array($groups) && !empty($groups)) {
+                        $first_id = (int) ($groups[0]['id'] ?? 0);
+                        if ($first_id > 0) {
+                            $group_ids = [$first_id];
+                        }
                     }
                 }
                 if (!empty($group_ids)) {
@@ -471,8 +496,15 @@ try {
                 }
                 $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
                 if ($divera_key !== '') {
+                    // Reservierung für Divera neu laden (garantiert aktuelle Termindaten wie bei „Erneut übermitteln“)
+                    $stmt_dv = $db->prepare("SELECT r.*, v.name as vehicle_name FROM reservations r LEFT JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
+                    $stmt_dv->execute([$reservation_id]);
+                    $res_for_divera = $stmt_dv->fetch(PDO::FETCH_ASSOC) ?: $reservation;
+                    if (!empty($reservation['_divera_group_ids'])) {
+                        $res_for_divera['_divera_group_ids'] = $reservation['_divera_group_ids'];
+                    }
                     $divera_event_id = null;
-                    $divera_sent = send_reservation_to_divera($reservation, $divera_key, $api_base, $divera_error, $divera_event_id);
+                    $divera_sent = send_reservation_to_divera($res_for_divera, $divera_key, $api_base, $divera_error, $divera_event_id);
                     if ($divera_sent && $divera_event_id > 0) {
                         $stmt_upd = $db->prepare("UPDATE reservations SET divera_event_id = ? WHERE id = ?");
                         $stmt_upd->execute([$divera_event_id, $reservation_id]);
