@@ -8,6 +8,7 @@ session_start();
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/anwesenheitsliste-helper.php';
+require_once __DIR__ . '/includes/dienstplan-typen.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -27,6 +28,16 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
     exit;
 }
 $draft = &$_SESSION[$draft_key];
+if (($draft['typ'] ?? '') === 'einsatz') {
+    $ts = trim((string)($_GET['typ_sonstige'] ?? ''));
+    if ($ts !== '') {
+        $typen = get_dienstplan_typen_auswahl();
+        $draft['bezeichnung_sonstige'] = $typen[$ts] ?? $draft['bezeichnung_sonstige'];
+    }
+    if (!empty($_GET['uebungsleiter']) && is_array($_GET['uebungsleiter'])) {
+        $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_GET['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
+    }
+}
 
 $vehicle_equipment_table_exists = false;
 try {

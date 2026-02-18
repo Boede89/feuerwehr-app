@@ -1278,6 +1278,12 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
             var url = this.getAttribute('href');
             var form = document.getElementById('mainForm');
             if (!form || !url) { window.location.href = url || '#'; return; }
+            var typSel = form.querySelector('[name="typ_sonstige"]');
+            var uebItems = form.querySelectorAll('.uebungsleiter-item-selected input[type="checkbox"][name="uebungsleiter[]"]');
+            var params = [];
+            if (typSel && typSel.value) params.push('typ_sonstige=' + encodeURIComponent(typSel.value));
+            uebItems.forEach(function(cb){ if(cb.value) params.push('uebungsleiter[]=' + encodeURIComponent(cb.value)); });
+            if (params.length) url += (url.indexOf('?') >= 0 ? '&' : '?') + params.join('&');
             var fd = new FormData(form);
             fetch('api/save-anwesenheit-draft.php', { method: 'POST', body: fd, credentials: 'same-origin' })
                 .then(function() { window.location.href = url; })

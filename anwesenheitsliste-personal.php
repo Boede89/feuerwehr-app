@@ -25,6 +25,17 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
     exit;
 }
 $draft = &$_SESSION[$draft_key];
+// typ_sonstige und uebungsleiter aus URL übernehmen (vom Hauptformular beim Klick auf Personal)
+if (($draft['typ'] ?? '') === 'einsatz') {
+    $ts = trim((string)($_GET['typ_sonstige'] ?? ''));
+    if ($ts !== '') {
+        $typen = get_dienstplan_typen_auswahl();
+        $draft['bezeichnung_sonstige'] = $typen[$ts] ?? $draft['bezeichnung_sonstige'];
+    }
+    if (!empty($_GET['uebungsleiter']) && is_array($_GET['uebungsleiter'])) {
+        $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_GET['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
+    }
+}
 
 // Mitglieder laden (alle aus members, sortiert)
 $members = [];
