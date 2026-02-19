@@ -1292,20 +1292,18 @@ if ($debug_fahrzeug) {
                     $besatz = $fahrzeug_besatzung[$vid] ?? 0;
                     $masch_list = $fahrzeug_maschinist[$vid] ?? [];
                     arsort($masch_list);
-                    $top_masch = null;
-                    foreach (array_filter(array_keys($masch_list), fn($k) => (int)$k > 0) as $mid) {
-                        $top_masch = ['mid' => (int)$mid, 'cnt' => $masch_list[$mid]];
-                        break;
+                    $masch_str_arr = [];
+                    foreach (array_slice(array_filter($masch_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 3, true) as $mid => $cnt) {
+                        $masch_str_arr[] = ($member_map[(int)$mid] ?? 'ID ' . $mid) . ' (' . $cnt . ')';
                     }
-                    $masch_str = $top_masch ? (($member_map[$top_masch['mid']] ?? 'ID ' . $top_masch['mid']) . ' (' . $top_masch['cnt'] . ')') : '–';
+                    $masch_str = implode(', ', $masch_str_arr) ?: '–';
                     $ef_list = $fahrzeug_ef[$vid] ?? [];
                     arsort($ef_list);
-                    $top_ef = null;
-                    foreach (array_filter(array_keys($ef_list), fn($k) => (int)$k > 0) as $mid) {
-                        $top_ef = ['mid' => (int)$mid, 'cnt' => $ef_list[$mid]];
-                        break;
+                    $ef_str_arr = [];
+                    foreach (array_slice(array_filter($ef_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 3, true) as $mid => $cnt) {
+                        $ef_str_arr[] = ($member_map[(int)$mid] ?? 'ID ' . $mid) . ' (' . $cnt . ')';
                     }
-                    $ef_str = $top_ef ? (($member_map[$top_ef['mid']] ?? 'ID ' . $top_ef['mid']) . ' (' . $top_ef['cnt'] . ')') : '–';
+                    $ef_str = implode(', ', $ef_str_arr) ?: '–';
                 ?>
                 <tr>
                     <td><?php echo htmlspecialchars($vehicle_map[$vid] ?? '-'); ?></td>
