@@ -74,9 +74,10 @@ if ($neu) {
     unset($_SESSION[$draft_key]);
 }
 $draft_loaded = false;
+$has_typ_sonstige_url = $is_einsatz && trim((string)($_GET['typ_sonstige'] ?? '')) !== '';
 if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum || $_SESSION[$draft_key]['auswahl'] !== $auswahl) {
-    // Versuche Entwurf aus DB zu laden (für alle Benutzer – Entwürfe sind gemeinsam nutzbar)
-    if (!$neu && isset($_SESSION['user_id'])) {
+    // Bei Rückkehr von Unterseite (typ_sonstige in URL): NICHT aus DB laden – DB könnte veraltete Daten haben
+    if (!$has_typ_sonstige_url && !$neu && isset($_SESSION['user_id'])) {
         try {
             $stmt = $db->prepare("SELECT datum, auswahl, draft_data FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?");
             $stmt->execute([$datum, $auswahl]);
@@ -828,6 +829,22 @@ $personal_url = 'anwesenheitsliste-personal.php?datum=' . urlencode($datum) . '&
 $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 $geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
 $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+if ($is_einsatz) {
+    $ts = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
+    $typ_key = array_search($ts, get_dienstplan_typen_auswahl());
+    if ($typ_key === false) $typ_key = '__custom__';
+    if ($typ_key !== 'einsatz') {
+        $param_ts = '&typ_sonstige=' . urlencode($typ_key);
+        $param_ueb = '';
+        foreach ($draft['uebungsleiter_member_ids'] ?? [] as $uid) {
+            if ((int)$uid > 0) $param_ueb .= '&uebungsleiter[]=' . (int)$uid;
+        }
+        $personal_url .= $param_ts . $param_ueb;
+        $fahrzeuge_url .= $param_ts . $param_ueb;
+        $geraete_url .= $param_ts . $param_ueb;
+        $maengel_url .= $param_ts . $param_ueb;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
