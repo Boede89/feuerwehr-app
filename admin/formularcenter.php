@@ -129,6 +129,7 @@ $filter_typ = isset($_GET['filter_typ']) ? trim($_GET['filter_typ']) : '';
 $filter_datum_von = isset($_GET['filter_datum_von']) ? trim($_GET['filter_datum_von']) : '';
 $filter_datum_bis = isset($_GET['filter_datum_bis']) ? trim($_GET['filter_datum_bis']) : '';
 $filter_formular = isset($_GET['filter_formular']) ? trim($_GET['filter_formular']) : '';
+$filter_benutzer = isset($_GET['filter_benutzer']) ? trim($_GET['filter_benutzer']) : '';
 
 // CSRF-Token erzeugen
 if (empty($_SESSION['form_center_csrf'])) {
@@ -249,6 +250,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
                 if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
+                if (!empty($_POST['filter_benutzer'])) $redir .= '&filter_benutzer=' . urlencode($_POST['filter_benutzer']);
                 header('Location: ' . $redir);
                 exit;
             } catch (Exception $e) {
@@ -267,6 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
                 if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
+                if (!empty($_POST['filter_benutzer'])) $redir .= '&filter_benutzer=' . urlencode($_POST['filter_benutzer']);
                 header('Location: ' . $redir);
                 exit;
             } catch (Exception $e) {
@@ -284,6 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
                 if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
+                if (!empty($_POST['filter_benutzer'])) $redir .= '&filter_benutzer=' . urlencode($_POST['filter_benutzer']);
                 header('Location: ' . $redir);
                 exit;
             } catch (Exception $e) {
@@ -301,6 +305,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
                 if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
+                if (!empty($_POST['filter_benutzer'])) $redir .= '&filter_benutzer=' . urlencode($_POST['filter_benutzer']);
                 header('Location: ' . $redir);
                 exit;
             } catch (Exception $e) {
@@ -338,6 +343,12 @@ try {
     if ($filter_datum_bis !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_bis)) {
         $sql .= " AND DATE(s.created_at) <= ?";
         $params[] = $filter_datum_bis;
+    }
+    if ($filter_benutzer !== '') {
+        $sql .= " AND (CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) LIKE ? OR CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, '')) LIKE ?)";
+        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filter_benutzer) . '%';
+        $params[] = $like;
+        $params[] = $like;
     }
     $sql .= " ORDER BY s.updated_at DESC";
     $stmt = $params ? $db->prepare($sql) : $db->query($sql);
@@ -380,6 +391,12 @@ try {
         $sql .= " AND a.datum <= ?";
         $params[] = $filter_datum_bis;
     }
+    if ($filter_benutzer !== '') {
+        $sql .= " AND (CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) LIKE ? OR CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, '')) LIKE ?)";
+        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filter_benutzer) . '%';
+        $params[] = $like;
+        $params[] = $like;
+    }
     $sql .= " ORDER BY a.datum DESC, a.created_at DESC";
     $stmt = $params ? $db->prepare($sql) : $db->query($sql);
     if ($params) $stmt->execute($params);
@@ -406,6 +423,12 @@ try {
     if ($filter_datum_bis !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_bis)) {
         $sql .= " AND m.aufgenommen_am <= ?";
         $params[] = $filter_datum_bis;
+    }
+    if ($filter_benutzer !== '') {
+        $sql .= " AND (CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) LIKE ? OR CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, '')) LIKE ?)";
+        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filter_benutzer) . '%';
+        $params[] = $like;
+        $params[] = $like;
     }
     $sql .= " ORDER BY m.aufgenommen_am DESC, m.created_at DESC";
     $stmt = $params ? $db->prepare($sql) : $db->query($sql);
@@ -435,6 +458,12 @@ try {
     if ($filter_datum_bis !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_bis)) {
         $sql .= " AND g.datum <= ?";
         $params[] = $filter_datum_bis;
+    }
+    if ($filter_benutzer !== '') {
+        $sql .= " AND (CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) LIKE ? OR CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, '')) LIKE ?)";
+        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filter_benutzer) . '%';
+        $params[] = $like;
+        $params[] = $like;
     }
     $sql .= " ORDER BY g.datum DESC, g.created_at DESC";
     $stmt = $params ? $db->prepare($sql) : $db->query($sql);
@@ -691,7 +720,7 @@ try {
                     <form method="get" class="d-flex flex-wrap align-items-center gap-2">
                         <input type="hidden" name="tab" value="submissions">
                         <input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>">
-                        <?php if ($filter_formular === 'anwesenheitsliste'): ?>
+                        <?php if ($filter_formular === '' || $filter_formular === 'anwesenheitsliste'): ?>
                         <select name="filter_typ" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
                             <option value="">Alle Typen</option>
                             <option value="einsatz" <?php echo $filter_typ === 'einsatz' ? 'selected' : ''; ?>>Einsatz</option>
@@ -701,10 +730,11 @@ try {
                             <option value="sonstiges" <?php echo $filter_typ === 'sonstiges' ? 'selected' : ''; ?>>Sonstiges</option>
                         </select>
                         <?php endif; ?>
+                        <input type="text" name="filter_benutzer" class="form-control form-control-sm" style="width: 140px;" value="<?php echo htmlspecialchars($filter_benutzer); ?>" placeholder="Benutzer" title="Nach eingereicht von filtern">
                         <input type="date" name="filter_datum_von" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($filter_datum_von); ?>" placeholder="Von" onchange="this.form.submit()">
                         <input type="date" name="filter_datum_bis" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($filter_datum_bis); ?>" placeholder="Bis" onchange="this.form.submit()">
                         <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="fas fa-filter"></i> Filtern</button>
-                        <?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== ''): ?>
+                        <?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== '' || $filter_benutzer !== ''): ?>
                         <a href="?tab=submissions" class="btn btn-outline-secondary btn-sm">Zurücksetzen</a>
                         <?php endif; ?>
                     </form>
@@ -716,6 +746,7 @@ try {
                     if ($filter_typ !== '') $base_params['filter_typ'] = $filter_typ;
                     if ($filter_datum_von !== '') $base_params['filter_datum_von'] = $filter_datum_von;
                     if ($filter_datum_bis !== '') $base_params['filter_datum_bis'] = $filter_datum_bis;
+                    if ($filter_benutzer !== '') $base_params['filter_benutzer'] = $filter_benutzer;
                     ?>
                     <div class="mb-3">
                         <span class="me-2 text-muted small">Formular:</span>
@@ -744,10 +775,14 @@ try {
                         <?php endforeach; ?>
                     </div>
                     <?php if (empty($submissions) && empty($anwesenheitslisten) && empty($maengelberichte) && empty($geraetewartmitteilungen)): ?>
-                        <p class="text-muted mb-0">Noch keine ausgefüllten Formulare, Anwesenheitslisten oder Mängelberichte vorhanden.<?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== ''): ?> Versuchen Sie, die Filter zu ändern.<?php endif; ?></p>
+                        <p class="text-muted mb-0">Noch keine ausgefüllten Formulare, Anwesenheitslisten oder Mängelberichte vorhanden.<?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== '' || $filter_benutzer !== ''): ?> Versuchen Sie, die Filter zu ändern.<?php endif; ?></p>
                     <?php else: ?>
+                        <div class="mb-3">
+                            <input type="text" id="formularcenter-suche" class="form-control form-control-sm" style="max-width: 280px;" placeholder="Berichte durchsuchen (Titel, Typ, Benutzer…)" autocomplete="off">
+                            <small class="text-muted">Die Suche filtert automatisch beim Tippen.</small>
+                        </div>
                         <div class="table-responsive">
-                            <table class="table table-hover">
+                            <table class="table table-hover" id="formularcenter-tabelle">
                                 <thead>
                                     <tr>
                                         <th>Formular / Anwesenheitsliste</th>
@@ -760,8 +795,9 @@ try {
                                 <tbody>
                                     <?php foreach ($submissions as $s):
                                         $s['created_at_display'] = format_datetime_berlin($s['created_at']);
+                                        $search_text = strtolower(($s['form_title'] ?? '') . ' Formular ' . trim(($s['user_first_name'] ?? '') . ' ' . ($s['user_last_name'] ?? '')) . ' ' . ($s['created_at_display'] ?? ''));
                                     ?>
-                                    <tr>
+                                    <tr data-search="<?php echo htmlspecialchars($search_text); ?>">
                                         <td><i class="fas fa-file-alt text-muted me-1"></i> <?php echo htmlspecialchars($s['form_title']); ?></td>
                                         <td><span class="badge bg-secondary">Formular</span></td>
                                         <td><?php echo htmlspecialchars(trim($s['user_first_name'] . ' ' . $s['user_last_name']) ?: 'Unbekannt'); ?></td>
@@ -776,6 +812,7 @@ try {
                                                 <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
                                                 <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
                                                 <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
+                                                <?php if ($filter_benutzer !== ''): ?><input type="hidden" name="filter_benutzer" value="<?php echo htmlspecialchars($filter_benutzer); ?>"><?php endif; ?>
                                                 <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="fas fa-trash"></i></button>
                                             </form>
                                         </td>
@@ -788,8 +825,9 @@ try {
                                             $titel .= ' – ' . $a['einsatzstichwort'];
                                         }
                                         $typ_label = htmlspecialchars(get_anwesenheitsliste_typ_label($a));
+                                        $search_text = strtolower($titel . ' ' . $typ_label . ' ' . trim(($a['user_first_name'] ?? '') . ' ' . ($a['user_last_name'] ?? '')) . ' ' . format_datetime_berlin($a['created_at']));
                                     ?>
-                                    <tr>
+                                    <tr data-search="<?php echo htmlspecialchars($search_text); ?>">
                                         <td><i class="fas fa-clipboard-list text-muted me-1"></i> <?php echo htmlspecialchars($titel); ?></td>
                                         <td><span class="badge bg-info"><?php echo $typ_label; ?></span></td>
                                         <td><?php echo htmlspecialchars(trim($a['user_first_name'] . ' ' . $a['user_last_name']) ?: 'Unbekannt'); ?></td>
@@ -804,8 +842,9 @@ try {
                                     <?php foreach ($maengelberichte as $m):
                                         $titel = date('d.m.Y', strtotime($m['aufgenommen_am'])) . ' – ' . htmlspecialchars($m['standort']) . ' – ' . htmlspecialchars($m['mangel_an']);
                                         if (!empty($m['bezeichnung'])) $titel .= ' – ' . htmlspecialchars($m['bezeichnung']);
+                                        $search_text = strtolower($titel . ' Mängelbericht ' . trim(($m['user_first_name'] ?? '') . ' ' . ($m['user_last_name'] ?? '')) . ' ' . format_datetime_berlin($m['created_at']));
                                     ?>
-                                    <tr>
+                                    <tr data-search="<?php echo htmlspecialchars($search_text); ?>">
                                         <td><i class="fas fa-exclamation-triangle text-warning me-1"></i> <?php echo $titel; ?></td>
                                         <td><span class="badge bg-warning text-dark">Mängelbericht</span></td>
                                         <td><?php echo htmlspecialchars(trim($m['user_first_name'] . ' ' . $m['user_last_name']) ?: 'Unbekannt'); ?></td>
@@ -821,6 +860,7 @@ try {
                                                 <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
                                                 <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
                                                 <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
+                                                <?php if ($filter_benutzer !== ''): ?><input type="hidden" name="filter_benutzer" value="<?php echo htmlspecialchars($filter_benutzer); ?>"><?php endif; ?>
                                                 <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="fas fa-trash"></i></button>
                                             </form>
                                         </td>
@@ -828,8 +868,9 @@ try {
                                     <?php endforeach; ?>
                                     <?php foreach ($geraetewartmitteilungen as $g):
                                         $titel = date('d.m.Y', strtotime($g['datum'])) . ' – ' . ($g['typ'] === 'einsatz' ? 'Einsatz' : 'Übung') . ' – ' . htmlspecialchars($g['einsatz_uebungsart']);
+                                        $search_text = strtolower($titel . ' ' . trim(($g['user_first_name'] ?? '') . ' ' . ($g['user_last_name'] ?? '')) . ' ' . format_datetime_berlin($g['created_at']));
                                     ?>
-                                    <tr>
+                                    <tr data-search="<?php echo htmlspecialchars($search_text); ?>">
                                         <td><i class="fas fa-wrench text-info me-1"></i> <?php echo $titel; ?></td>
                                         <td><span class="badge bg-info"><?php echo $g['typ'] === 'einsatz' ? 'Einsatz' : 'Übung'; ?></span></td>
                                         <td><?php echo htmlspecialchars(trim($g['user_first_name'] . ' ' . $g['user_last_name']) ?: 'Unbekannt'); ?></td>
@@ -845,6 +886,7 @@ try {
                                                 <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
                                                 <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
                                                 <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
+                                                <?php if ($filter_benutzer !== ''): ?><input type="hidden" name="filter_benutzer" value="<?php echo htmlspecialchars($filter_benutzer); ?>"><?php endif; ?>
                                                 <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="fas fa-trash"></i></button>
                                             </form>
                                         </td>
@@ -1460,6 +1502,27 @@ try {
                 .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
                 .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Alle Gerätewartmitteilungen drucken'; } });
         }
+
+        // Live-Suche für Berichte (filtert beim Tippen)
+        (function() {
+            var sucheEl = document.getElementById('formularcenter-suche');
+            var table = document.getElementById('formularcenter-tabelle');
+            if (!sucheEl || !table) return;
+            var tbodyEl = table.querySelector('tbody');
+            if (!tbodyEl) return;
+            var rows = tbodyEl.querySelectorAll('tr[data-search]');
+            var debounceTimer;
+            sucheEl.addEventListener('input', function() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(function() {
+                    var q = (sucheEl.value || '').toLowerCase().trim();
+                    rows.forEach(function(tr) {
+                        var text = (tr.getAttribute('data-search') || '').toLowerCase();
+                        tr.style.display = (q === '' || text.indexOf(q) >= 0) ? '' : 'none';
+                    });
+                }, 80);
+            });
+        })();
     </script>
 </body>
 </html>
