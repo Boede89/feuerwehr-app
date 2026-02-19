@@ -806,7 +806,7 @@ try {
                                         <td><?php echo $s['created_at_display']; ?></td>
                                         <td>
                                             <a href="../formulare-ausfuellen.php?id=<?php echo (int)$s['form_id']; ?>&edit=<?php echo (int)$s['id']; ?>&return=formularcenter" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Bearbeiten</a>
-                                            <form method="post" class="d-inline" onsubmit="return confirm('Formulareingabe wirklich löschen?');">
+                                            <form method="post" class="d-inline" data-delete-type="Formulareingabe">
                                                 <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
                                                 <input type="hidden" name="action" value="delete_submission">
                                                 <input type="hidden" name="submission_id" value="<?php echo (int)$s['id']; ?>">
@@ -815,7 +815,7 @@ try {
                                                 <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
                                                 <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
                                                 <?php if ($filter_benutzer !== ''): ?><input type="hidden" name="filter_benutzer" value="<?php echo htmlspecialchars($filter_benutzer); ?>"><?php endif; ?>
-                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="fas fa-trash"></i></button>
+                                                <button type="button" class="btn btn-outline-danger btn-sm" title="Löschen" onclick="openDeleteConfirm(this, 'Formulareingabe')"><i class="fas fa-trash"></i></button>
                                             </form>
                                         </td>
                                     </tr>
@@ -838,6 +838,17 @@ try {
                                             <a href="anwesenheitsliste-bearbeiten.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
                                             <a href="../api/anwesenheitsliste-pdf.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" download><i class="fas fa-file-pdf"></i> PDF</a>
                                             <button type="button" class="btn btn-outline-secondary btn-sm" title="Drucken" onclick="druckenAnwesenheitsliste(<?php echo (int)$a['id']; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
+                                            <form method="post" class="d-inline" data-delete-type="Anwesenheitsliste">
+                                                <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
+                                                <input type="hidden" name="action" value="delete_anwesenheitsliste">
+                                                <input type="hidden" name="anwesenheitsliste_id" value="<?php echo (int)$a['id']; ?>">
+                                                <?php if ($filter_typ !== ''): ?><input type="hidden" name="filter_typ" value="<?php echo htmlspecialchars($filter_typ); ?>"><?php endif; ?>
+                                                <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
+                                                <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
+                                                <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
+                                                <?php if ($filter_benutzer !== ''): ?><input type="hidden" name="filter_benutzer" value="<?php echo htmlspecialchars($filter_benutzer); ?>"><?php endif; ?>
+                                                <button type="button" class="btn btn-outline-danger btn-sm" title="Löschen" onclick="openDeleteConfirm(this, 'Anwesenheitsliste')"><i class="fas fa-trash"></i></button>
+                                            </form>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
@@ -855,7 +866,7 @@ try {
                                             <a href="maengelbericht-bearbeiten.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
                                             <a href="../api/maengelbericht-pdf.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" download><i class="fas fa-file-pdf"></i> PDF</a>
                                             <button type="button" class="btn btn-outline-secondary btn-sm" title="Drucken" onclick="druckenMaengelbericht(<?php echo (int)$m['id']; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
-                                            <form method="post" class="d-inline" onsubmit="return confirm('Mängelbericht wirklich löschen?');">
+                                            <form method="post" class="d-inline" data-delete-type="Mängelbericht">
                                                 <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
                                                 <input type="hidden" name="action" value="delete_maengelbericht">
                                                 <input type="hidden" name="maengelbericht_id" value="<?php echo (int)$m['id']; ?>">
@@ -863,7 +874,7 @@ try {
                                                 <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
                                                 <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
                                                 <?php if ($filter_benutzer !== ''): ?><input type="hidden" name="filter_benutzer" value="<?php echo htmlspecialchars($filter_benutzer); ?>"><?php endif; ?>
-                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="fas fa-trash"></i></button>
+                                                <button type="button" class="btn btn-outline-danger btn-sm" title="Löschen" onclick="openDeleteConfirm(this, 'Mängelbericht')"><i class="fas fa-trash"></i></button>
                                             </form>
                                         </td>
                                     </tr>
@@ -881,7 +892,7 @@ try {
                                             <a href="geraetewartmitteilung-bearbeiten.php?id=<?php echo (int)$g['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
                                             <a href="../api/geraetewartmitteilung-pdf.php?id=<?php echo (int)$g['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" download><i class="fas fa-file-pdf"></i> PDF</a>
                                             <button type="button" class="btn btn-outline-secondary btn-sm" title="Drucken" onclick="druckenGeraetewartmitteilung(<?php echo (int)$g['id']; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
-                                            <form method="post" class="d-inline" onsubmit="return confirm('Gerätewartmitteilung wirklich löschen?');">
+                                            <form method="post" class="d-inline" data-delete-type="Gerätewartmitteilung">
                                                 <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
                                                 <input type="hidden" name="action" value="delete_geraetewartmitteilung">
                                                 <input type="hidden" name="geraetewartmitteilung_id" value="<?php echo (int)$g['id']; ?>">
@@ -889,7 +900,7 @@ try {
                                                 <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
                                                 <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
                                                 <?php if ($filter_benutzer !== ''): ?><input type="hidden" name="filter_benutzer" value="<?php echo htmlspecialchars($filter_benutzer); ?>"><?php endif; ?>
-                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Löschen"><i class="fas fa-trash"></i></button>
+                                                <button type="button" class="btn btn-outline-danger btn-sm" title="Löschen" onclick="openDeleteConfirm(this, 'Gerätewartmitteilung')"><i class="fas fa-trash"></i></button>
                                             </form>
                                         </td>
                                     </tr>
@@ -963,11 +974,11 @@ try {
                                         <td><small><?php echo !empty($ausbilder_namen) ? htmlspecialchars(implode(', ', $ausbilder_namen)) : '—'; ?></small></td>
                                         <td>
                                             <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#dienstplanModal" onclick='openDienstplanModal(<?php echo json_encode($e); ?>)'><i class="fas fa-edit"></i></button>
-                                            <form method="post" class="d-inline" onsubmit="return confirm('Eintrag wirklich löschen?');">
+                                            <form method="post" class="d-inline" data-delete-type="Dienstplan-Eintrag">
                                                 <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
                                                 <input type="hidden" name="action" value="dienstplan_delete">
                                                 <input type="hidden" name="dienstplan_id" value="<?php echo (int)$e['id']; ?>">
-                                                <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i></button>
+                                                <button type="button" class="btn btn-outline-danger btn-sm" title="Löschen" onclick="openDeleteConfirm(this, 'Dienstplan-Eintrag')"><i class="fas fa-trash"></i></button>
                                             </form>
                                         </td>
                                     </tr>
@@ -1050,6 +1061,27 @@ try {
                         <button type="submit" class="btn btn-primary">Speichern</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Löschen bestätigen -->
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-body text-center py-4 px-4">
+                    <div class="mb-3">
+                        <div class="rounded-circle bg-danger bg-opacity-10 d-inline-flex align-items-center justify-content-center" style="width: 64px; height: 64px;">
+                            <i class="fas fa-trash-alt text-danger fa-2x"></i>
+                        </div>
+                    </div>
+                    <h5 class="modal-title mb-2" id="deleteConfirmModalLabel">Wirklich löschen?</h5>
+                    <p class="text-muted mb-0" id="deleteConfirmModalText">Möchten Sie diesen Eintrag wirklich unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.</p>
+                </div>
+                <div class="modal-footer justify-content-center gap-2 border-0 pb-4 pt-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><i class="fas fa-times me-1"></i> Abbrechen</button>
+                    <button type="button" class="btn btn-danger" id="deleteConfirmBtn"><i class="fas fa-trash me-1"></i> Ja, löschen</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1216,6 +1248,27 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        var deleteConfirmFormToSubmit = null;
+        function openDeleteConfirm(btn, typeName) {
+            var form = btn.closest('form');
+            if (!form) return;
+            deleteConfirmFormToSubmit = form;
+            var textEl = document.getElementById('deleteConfirmModalText');
+            if (textEl) textEl.textContent = 'Möchten Sie diese ' + typeName + ' wirklich unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
+            var modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+            modal.show();
+        }
+        document.getElementById('deleteConfirmBtn').addEventListener('click', function() {
+            if (deleteConfirmFormToSubmit) {
+                deleteConfirmFormToSubmit.submit();
+                deleteConfirmFormToSubmit = null;
+            }
+            bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal')).hide();
+        });
+        document.getElementById('deleteConfirmModal').addEventListener('hidden.bs.modal', function() {
+            deleteConfirmFormToSubmit = null;
+        });
+
         function openFormModal(form) {
             document.getElementById('formEditModalTitle').textContent = form ? 'Formular bearbeiten' : 'Neues Formular';
             document.getElementById('form_id').value = form ? form.id : '';
