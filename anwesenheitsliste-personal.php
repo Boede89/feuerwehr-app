@@ -25,12 +25,13 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
     exit;
 }
 $draft = &$_SESSION[$draft_key];
+$is_uebungsdienst_draft = (($draft['typ'] ?? '') === 'einsatz' && trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst') || (($draft['typ'] ?? '') === 'manuell' && trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst');
 // typ_sonstige und uebungsleiter aus URL übernehmen (vom Hauptformular beim Klick auf Personal)
-if (($draft['typ'] ?? '') === 'einsatz') {
+if (($draft['typ'] ?? '') === 'einsatz' || $is_uebungsdienst_draft) {
     $ts = trim((string)($_GET['typ_sonstige'] ?? ''));
     if ($ts !== '') {
         $typen = get_dienstplan_typen_auswahl();
-        $draft['bezeichnung_sonstige'] = $typen[$ts] ?? $draft['bezeichnung_sonstige'];
+        $draft['bezeichnung_sonstige'] = $typen[$ts] ?? ($draft['bezeichnung_sonstige'] ?? 'Einsatz');
     }
     if (!empty($_GET['uebungsleiter']) && is_array($_GET['uebungsleiter'])) {
         $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_GET['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
@@ -99,12 +100,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $draft['vehicle_einheitsfuehrer'] = array_filter($draft['vehicle_einheitsfuehrer'] ?? []);
     if (empty($draft['member_pa'])) $draft['member_pa'] = [];
     // typ_sonstige und uebungsleiter aus POST übernehmen (vom Hauptformular, damit sie beim Zurückkehren erhalten bleiben)
-    if (isset($_POST['typ_sonstige']) && ($draft['typ'] ?? '') === 'einsatz') {
+    if (isset($_POST['typ_sonstige']) && (($draft['typ'] ?? '') === 'einsatz' || trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst')) {
         $ts = trim((string)$_POST['typ_sonstige']);
         $typen = get_dienstplan_typen_auswahl();
         $draft['bezeichnung_sonstige'] = $typen[$ts] ?? ($draft['bezeichnung_sonstige'] ?? 'Einsatz');
-    }
-    if (!empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
+        if ($ts === 'uebungsdienst') {
+            $ids = !empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])
+                ? array_values(array_map('intval', array_filter($_POST['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})))
+                : [];
+            $draft['uebungsleiter_member_ids'] = $ids;
+        }
+    } elseif (!empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
         $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_POST['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
     }
     header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
@@ -242,7 +248,7 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                             <?php endif; ?>
                             <div class="d-flex flex-wrap gap-2 mt-3">
                                 <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Übernehmen und zurück</button>
-                                <a href="<?php echo htmlspecialchars($back_url); ?>" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Zurück (ohne Speichern)</a>
+                                <a href="<?php echo htmlspecialchars($back_url); ?>" class="btn btn-secondary" id="btnBackOhneSpeichern"><i class="fas fa-arrow-left"></i> Zurück (ohne Speichern)</a>
                             </div>
                         </form>
                     </div>
@@ -258,31 +264,44 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-    window.addEventListener('beforeunload', function() {
-        var form = document.getElementById('personalForm');
-        if (form) {
-            var fd = new FormData();
-            fd.append('form_type', 'personal');
-            var typInp = form.querySelector('input[name="typ_sonstige"]');
-            if (typInp) fd.append('typ_sonstige', typInp.value);
-            form.querySelectorAll('input[name="uebungsleiter[]"]').forEach(function(inp){ if(inp.value) fd.append('uebungsleiter[]', inp.value); });
-            form.querySelectorAll('.anw-row.selected').forEach(function(row) {
-                var midInput = row.querySelector('.member-id-input');
-                var vehicleSelect = row.querySelector('select[name^="vehicle"]');
-                var roleSelect = row.querySelector('select[name^="role"]');
-                var paCheck = row.querySelector('.member-pa-check');
-                if (midInput) {
-                    fd.append('member_id[]', midInput.value);
-                    if (vehicleSelect) fd.append('vehicle[' + midInput.value + ']', vehicleSelect.value);
-                    if (roleSelect) fd.append('role[' + midInput.value + ']', roleSelect.value);
-                    if (paCheck && paCheck.checked) fd.append('member_pa[' + midInput.value + ']', '1');
-                }
-            });
-            navigator.sendBeacon('api/save-anwesenheit-draft.php', fd);
-        } else {
-            navigator.sendBeacon('api/save-anwesenheit-draft.php', '');
-        }
-    });
+    (function() {
+        var discardFlag = 'anwesenheit_discard_personal';
+        var btnBack = document.getElementById('btnBackOhneSpeichern');
+        if (btnBack) btnBack.addEventListener('click', function(e) {
+            e.preventDefault();
+            sessionStorage.setItem(discardFlag, '1');
+            window.location.href = this.getAttribute('href');
+        });
+        window.addEventListener('beforeunload', function() {
+            if (sessionStorage.getItem(discardFlag) === '1') {
+                sessionStorage.removeItem(discardFlag);
+                return;
+            }
+            var form = document.getElementById('personalForm');
+            if (form) {
+                var fd = new FormData();
+                fd.append('form_type', 'personal');
+                var typInp = form.querySelector('input[name="typ_sonstige"]');
+                if (typInp) fd.append('typ_sonstige', typInp.value);
+                form.querySelectorAll('input[name="uebungsleiter[]"]').forEach(function(inp){ if(inp.value) fd.append('uebungsleiter[]', inp.value); });
+                form.querySelectorAll('.anw-row.selected').forEach(function(row) {
+                    var midInput = row.querySelector('.member-id-input');
+                    var vehicleSelect = row.querySelector('select[name^="vehicle"]');
+                    var roleSelect = row.querySelector('select[name^="role"]');
+                    var paCheck = row.querySelector('.member-pa-check');
+                    if (midInput) {
+                        fd.append('member_id[]', midInput.value);
+                        if (vehicleSelect) fd.append('vehicle[' + midInput.value + ']', vehicleSelect.value);
+                        if (roleSelect) fd.append('role[' + midInput.value + ']', roleSelect.value);
+                        if (paCheck && paCheck.checked) fd.append('member_pa[' + midInput.value + ']', '1');
+                    }
+                });
+                navigator.sendBeacon('api/save-anwesenheit-draft.php', fd);
+            } else {
+                navigator.sendBeacon('api/save-anwesenheit-draft.php', '');
+            }
+        });
+    })();
     </script>
     <script>
         document.querySelectorAll('.anw-row').forEach(function(row) {

@@ -49,12 +49,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
             if ($vid > 0 && $role === 'maschinist') $draft['vehicle_maschinist'][$vid] = $mid;
             if ($vid > 0 && $role === 'einheitsfuehrer') $draft['vehicle_einheitsfuehrer'][$vid] = $mid;
         }
-        if (isset($_POST['typ_sonstige']) && ($draft['typ'] ?? '') === 'einsatz') {
+        if (isset($_POST['typ_sonstige']) && (($draft['typ'] ?? '') === 'einsatz' || trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst')) {
             $ts = trim((string)$_POST['typ_sonstige']);
             $typen = get_dienstplan_typen_auswahl();
             $draft['bezeichnung_sonstige'] = $typen[$ts] ?? ($draft['bezeichnung_sonstige'] ?? 'Einsatz');
-        }
-        if (!empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
+            if ($ts === 'uebungsdienst') {
+                $ids = !empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])
+                    ? array_values(array_map('intval', array_filter($_POST['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})))
+                    : [];
+                $draft['uebungsleiter_member_ids'] = $ids;
+            }
+        } elseif (!empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
             $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_POST['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
         }
     } elseif ($form_type === 'geraete') {
