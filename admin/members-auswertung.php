@@ -284,7 +284,7 @@ if ($debug_fahrzeug) {
                     <div class="card-body text-center">
                         <i class="fas fa-truck fa-3x text-warning mb-2"></i>
                         <h5 class="card-title">Fahrzeuge</h5>
-                        <p class="card-text text-muted small">Einsätze/Übungen, Besatzungsstärke, Maschinisten, Einheitsführer, Top Besatzung</p>
+                        <p class="card-text text-muted small">Einsätze/Übungen, Besatzungsstärke</p>
                     </div>
                 </div>
             </a>
@@ -1117,9 +1117,6 @@ if ($debug_fahrzeug) {
     elseif ($bereich === 'fahrzeuge'):
         $fahrzeug_stats = [];
         $fahrzeug_besatzung = [];
-        $fahrzeug_besatzung_top = [];
-        $fahrzeug_maschinist = [];
-        $fahrzeug_ef = [];
         try {
             // 1. Fahrzeug-Stats und Durchschn. Besatzung (mit Filtern)
             $sql_f = "SELECT af.anwesenheitsliste_id, af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0";
@@ -1176,50 +1173,7 @@ if ($debug_fahrzeug) {
                     if ($mid > 0 && $vid > 0 && isset($fahrzeug_stats[$vid])) $besatz_pro_liste[$lid][$vid] = ($besatz_pro_liste[$lid][$vid] ?? 0) + 1;
                 }
             }
-            // 3. Maschinist / Einheitsführer / Top Besatzung: IDENTISCHE Logik wie Debug-Tabelle (gleiche Queries)
-            $fahrzeug_debug = []; // [mid => ['auf_fahrzeug'=>[vid=>cnt], 'maschinist'=>[vid=>cnt], 'einheitsfuehrer'=>[vid=>cnt]]
-            $stmt_am = $db->prepare("SELECT am.member_id, am.vehicle_id FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0 AND am.member_id > 0");
-            $stmt_am->execute([$von, $bis]);
-            while ($r = $stmt_am->fetch(PDO::FETCH_ASSOC)) {
-                $mid = (int)$r['member_id'];
-                $vid = (int)$r['vehicle_id'];
-                if ($mid > 0 && $vid > 0) {
-                    if (!isset($fahrzeug_debug[$mid])) $fahrzeug_debug[$mid] = ['auf_fahrzeug'=>[], 'maschinist'=>[], 'einheitsfuehrer'=>[]];
-                    $fahrzeug_debug[$mid]['auf_fahrzeug'][$vid] = ($fahrzeug_debug[$mid]['auf_fahrzeug'][$vid] ?? 0) + 1;
-                }
-            }
-            $stmt_af = $db->prepare("SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ?");
-            $stmt_af->execute([$von, $bis]);
-            while ($r = $stmt_af->fetch(PDO::FETCH_ASSOC)) {
-                $vid = (int)$r['vehicle_id'];
-                if ($vid <= 0) continue;
-                if (!empty($r['maschinist_member_id'])) {
-                    $mid = (int)$r['maschinist_member_id'];
-                    if ($mid > 0) {
-                        if (!isset($fahrzeug_debug[$mid])) $fahrzeug_debug[$mid] = ['auf_fahrzeug'=>[], 'maschinist'=>[], 'einheitsfuehrer'=>[]];
-                        $fahrzeug_debug[$mid]['maschinist'][$vid] = ($fahrzeug_debug[$mid]['maschinist'][$vid] ?? 0) + 1;
-                    }
-                }
-                if (!empty($r['einheitsfuehrer_member_id'])) {
-                    $mid = (int)$r['einheitsfuehrer_member_id'];
-                    if ($mid > 0) {
-                        if (!isset($fahrzeug_debug[$mid])) $fahrzeug_debug[$mid] = ['auf_fahrzeug'=>[], 'maschinist'=>[], 'einheitsfuehrer'=>[]];
-                        $fahrzeug_debug[$mid]['einheitsfuehrer'][$vid] = ($fahrzeug_debug[$mid]['einheitsfuehrer'][$vid] ?? 0) + 1;
-                    }
-                }
-            }
-            foreach ($fahrzeug_debug as $mid => $d) {
-                foreach ($d['auf_fahrzeug'] ?? [] as $vid => $cnt) {
-                    if ($vid > 0) $fahrzeug_besatzung_top[$vid][$mid] = ($fahrzeug_besatzung_top[$vid][$mid] ?? 0) + $cnt;
-                }
-                foreach ($d['maschinist'] ?? [] as $vid => $cnt) {
-                    if ($vid > 0) $fahrzeug_maschinist[$vid][$mid] = ($fahrzeug_maschinist[$vid][$mid] ?? 0) + $cnt;
-                }
-                foreach ($d['einheitsfuehrer'] ?? [] as $vid => $cnt) {
-                    if ($vid > 0) $fahrzeug_ef[$vid][$mid] = ($fahrzeug_ef[$vid][$mid] ?? 0) + $cnt;
-                }
-            }
-            // 4. Durchschn. Besatzung: pro Fahrzeug Summe Besatzung pro Liste / Anzahl Listen
+            // 3. Durchschn. Besatzung: pro Fahrzeug Summe Besatzung pro Liste / Anzahl Listen
             foreach ($fahrzeug_besatzung as $vid => $liste_ids) {
                 $liste_ids = array_unique($liste_ids);
                 $sum = 0;
@@ -1231,28 +1185,6 @@ if ($debug_fahrzeug) {
         } catch (Exception $e) {}
         $vehicle_map = [];
         foreach ($vehicles as $v) $vehicle_map[(int)$v['id']] = $v['name'];
-        $member_map = [];
-        foreach ($members as $m) {
-            $name = trim(($m['last_name'] ?? '') . ', ' . ($m['first_name'] ?? ''));
-            $member_map[(int)$m['id']] = $name !== '' ? $name : 'ID ' . (int)$m['id'];
-        }
-        $all_mids = array_unique(array_merge(
-            array_reduce($fahrzeug_maschinist, fn($a,$v) => array_merge($a, array_keys($v ?? [])), []),
-            array_reduce($fahrzeug_ef, fn($a,$v) => array_merge($a, array_keys($v ?? [])), []),
-            array_reduce($fahrzeug_besatzung_top ?? [], fn($a,$v) => array_merge($a, array_keys($v ?? [])), [])
-        ));
-        $missing_mids = array_filter($all_mids, fn($mid) => (int)$mid > 0 && !isset($member_map[(int)$mid]));
-        if (!empty($missing_mids)) {
-            try {
-                $ph = implode(',', array_fill(0, count($missing_mids), '?'));
-                $st = $db->prepare("SELECT id, first_name, last_name FROM members WHERE id IN ($ph)");
-                $st->execute(array_values($missing_mids));
-                while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
-                    $name = trim(($row['last_name'] ?? '') . ', ' . ($row['first_name'] ?? ''));
-                    $member_map[(int)$row['id']] = $name !== '' ? $name : 'ID ' . (int)$row['id'];
-                }
-            } catch (Exception $e) {}
-        }
         $sorted_vids = array_keys($fahrzeug_stats);
         usort($sorted_vids, function($a,$b) use ($fahrzeug_stats) {
             $ta = ($fahrzeug_stats[$a]['einsaetze'] ?? 0) + ($fahrzeug_stats[$a]['uebungen'] ?? 0);
@@ -1306,9 +1238,6 @@ if ($debug_fahrzeug) {
                     <th class="text-end">Gesamt</th>
                     <th class="text-end">Anteil</th>
                     <th class="text-end">Durchschn. Besatzung</th>
-                    <th title="Aus anwesenheitsliste_mitglieder – wie oft Person auf diesem Fahrzeug eingetragen">Top Besatzung</th>
-                    <th title="Nur explizit als Maschinist in anwesenheitsliste_fahrzeuge eingetragen">Häufigste Maschinisten</th>
-                    <th title="Nur explizit als Einheitsführer in anwesenheitsliste_fahrzeuge eingetragen">Häufigste Einheitsführer</th>
                 </tr>
             </thead>
             <tbody>
@@ -1317,30 +1246,6 @@ if ($debug_fahrzeug) {
                     $gesamt = $s['einsaetze'] + $s['uebungen'];
                     $prozent = $gesamt_fahrzeuge > 0 ? number_format($gesamt / $gesamt_fahrzeuge * 100, 1, ',', '.') : '0';
                     $besatz = $fahrzeug_besatzung[$vid] ?? 0;
-                    $masch_list = $fahrzeug_maschinist[$vid] ?? [];
-                    $ef_list = $fahrzeug_ef[$vid] ?? [];
-                    $besatz_list = $fahrzeug_besatzung_top[$vid] ?? [];
-                    arsort($masch_list);
-                    arsort($ef_list);
-                    arsort($besatz_list);
-                    $masch_str = [];
-                    foreach (array_slice(array_filter($masch_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 3) as $mid => $cnt) {
-                        $mid = (int)$mid;
-                        $name = $member_map[$mid] ?? ('Unbekannt (ID ' . $mid . ')');
-                        $masch_str[] = $name . ' (' . $cnt . ')';
-                    }
-                    $ef_str = [];
-                    foreach (array_slice(array_filter($ef_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 3) as $mid => $cnt) {
-                        $mid = (int)$mid;
-                        $name = $member_map[$mid] ?? ('Unbekannt (ID ' . $mid . ')');
-                        $ef_str[] = $name . ' (' . $cnt . ')';
-                    }
-                    $besatz_str = [];
-                    foreach (array_slice(array_filter($besatz_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 9) as $mid => $cnt) {
-                        $mid = (int)$mid;
-                        $name = $member_map[$mid] ?? ('Unbekannt (ID ' . $mid . ')');
-                        $besatz_str[] = $name . ' (' . $cnt . ')';
-                    }
                 ?>
                 <tr>
                     <td><?php echo htmlspecialchars($vehicle_map[$vid] ?? '-'); ?></td>
@@ -1349,16 +1254,11 @@ if ($debug_fahrzeug) {
                     <td class="text-end"><strong><?php echo $gesamt; ?></strong></td>
                     <td class="text-end"><span class="badge bg-warning text-dark"><?php echo $prozent; ?>%</span></td>
                     <td class="text-end"><?php echo number_format($besatz, 1, ',', '.'); ?></td>
-                    <td><?php echo htmlspecialchars(implode(', ', $besatz_str) ?: '-'); ?></td>
-                    <td><?php echo htmlspecialchars(implode(', ', $masch_str) ?: '-'); ?></td>
-                    <td><?php echo htmlspecialchars(implode(', ', $ef_str) ?: '-'); ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
     </div>
-    <p class="text-muted small mt-2"><i class="fas fa-info-circle"></i> Reihenfolge wie Debug-Tabelle: <strong>Top Besatzung</strong> = anwesenheitsliste_mitglieder, <strong>Maschinist</strong> = anwesenheitsliste_fahrzeuge.maschinist_member_id, <strong>Einheitsführer</strong> = anwesenheitsliste_fahrzeuge.einheitsfuehrer_member_id.</p>
-
     <?php
     // ==================== BEREICH GERÄTE ====================
     elseif ($bereich === 'geraete'):
