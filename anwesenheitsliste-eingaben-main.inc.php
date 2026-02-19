@@ -4,6 +4,10 @@
  */
 ob_start();
 session_start();
+if (!headers_sent()) {
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+}
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/config/divera.php';
 require_once __DIR__ . '/includes/functions.php';
@@ -838,6 +842,28 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
         .anwesenheits-option-btn { min-height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .anwesenheits-option-btn:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
     </style>
+    <?php if ($is_einsatz): ?>
+    <script>
+    (function(){
+        var urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('typ_sonstige')) return;
+        var ref = document.referrer || '';
+        if (ref.indexOf('anwesenheitsliste-personal') < 0 && ref.indexOf('anwesenheitsliste-fahrzeuge') < 0 && ref.indexOf('anwesenheitsliste-geraete') < 0 && ref.indexOf('anwesenheitsliste-maengel') < 0) return;
+        try {
+            var ts = sessionStorage.getItem('anwesenheit_typ_sonstige');
+            var ueb = sessionStorage.getItem('anwesenheit_uebungsleiter');
+            if (!ts || ts === '') return;
+            var uebIds = [];
+            try { uebIds = ueb ? JSON.parse(ueb) : []; } catch(e){}
+            var base = window.location.pathname + window.location.search;
+            var sep = base.indexOf('?') >= 0 ? '&' : '?';
+            var add = 'typ_sonstige=' + encodeURIComponent(ts);
+            uebIds.forEach(function(id){ if(id) add += '&uebungsleiter[]=' + encodeURIComponent(id); });
+            window.location.replace(base + sep + add);
+        } catch(e){}
+    })();
+    </script>
+    <?php endif; ?>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -1292,9 +1318,15 @@ $maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&au
             var typSel = form.querySelector('[name="typ_sonstige"]');
             var uebItems = form.querySelectorAll('.uebungsleiter-item-selected input[type="checkbox"][name="uebungsleiter[]"]');
             var params = [];
-            if (typSel && typSel.value) params.push('typ_sonstige=' + encodeURIComponent(typSel.value));
-            uebItems.forEach(function(cb){ if(cb.value) params.push('uebungsleiter[]=' + encodeURIComponent(cb.value)); });
+            var typVal = typSel && typSel.value ? typSel.value : '';
+            if (typVal) params.push('typ_sonstige=' + encodeURIComponent(typVal));
+            var uebIds = [];
+            uebItems.forEach(function(cb){ if(cb.value) { params.push('uebungsleiter[]=' + encodeURIComponent(cb.value)); uebIds.push(cb.value); } });
             if (params.length) url += (url.indexOf('?') >= 0 ? '&' : '?') + params.join('&');
+            try {
+                sessionStorage.setItem('anwesenheit_typ_sonstige', typVal || '');
+                sessionStorage.setItem('anwesenheit_uebungsleiter', JSON.stringify(uebIds));
+            } catch(z){}
             var fd = new FormData(form);
             fetch('api/save-anwesenheit-draft.php', { method: 'POST', body: fd, credentials: 'same-origin' })
                 .then(function() { window.location.href = url; })
