@@ -4,6 +4,33 @@
  */
 
 /**
+ * Gibt den Anzeige-Typ für die Übersicht zurück: Übungsdienst, Einsatz oder Sonstiges.
+ * Entspricht der Auswahl beim Ausfüllen des Formulars (nicht dem technischen typ/dienst_typ).
+ *
+ * @param array $row Anwesenheitslisten-Zeile mit typ, bezeichnung, custom_data, dienst_typ
+ * @return string "Übungsdienst", "Einsatz" oder "Sonstiges"
+ */
+function get_anwesenheitsliste_typ_label($row) {
+    $typ = $row['typ'] ?? '';
+    $dienst_typ = $row['dienst_typ'] ?? '';
+    $bezeichnung = trim($row['bezeichnung'] ?? '');
+    $custom_data = !empty($row['custom_data']) ? (is_string($row['custom_data']) ? json_decode($row['custom_data'], true) : $row['custom_data']) : [];
+    if (!is_array($custom_data)) $custom_data = [];
+    $typ_sonstige = trim($custom_data['typ_sonstige'] ?? '');
+    if ($typ === 'einsatz') return 'Einsatz';
+    if ($typ === 'dienst') {
+        if ($dienst_typ === 'einsatz') return 'Einsatz';
+        if ($dienst_typ === 'sonstiges') return 'Sonstiges';
+        return 'Übungsdienst';
+    }
+    if ($typ === 'manuell') {
+        if ($typ_sonstige === 'sonstiges' || $bezeichnung === 'Sonstiges') return 'Sonstiges';
+        return 'Übungsdienst';
+    }
+    return 'Übungsdienst';
+}
+
+/**
  * Lädt Mitglieder sortiert für Einsatzleiter/Übungsleiter-Auswahl.
  * Reihenfolge: 1) Personal-Auswahl zuerst, 2) nach Qualifikation (Zugführer > Gruppenführer > Truppführer > Mannschaft),
  * 3) nach Name. Verwendet sort_order aus member_qualifications (kleiner = höhere Stufe).

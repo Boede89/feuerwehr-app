@@ -8,6 +8,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/divera.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/dienstplan-typen.php';
+require_once __DIR__ . '/../includes/anwesenheitsliste-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -350,7 +351,7 @@ try {
 $anwesenheitslisten = [];
 try {
     $sql = "
-        SELECT a.id, a.datum, a.bezeichnung, a.typ, a.einsatzstichwort, a.created_at,
+        SELECT a.id, a.datum, a.bezeichnung, a.typ, a.einsatzstichwort, a.custom_data, a.created_at,
                d.bezeichnung AS dienst_bezeichnung, d.typ AS dienst_typ,
                COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name
         FROM anwesenheitslisten a
@@ -786,7 +787,7 @@ try {
                                         if (!empty($a['einsatzstichwort']) && ($a['typ'] ?? '') === 'einsatz') {
                                             $titel .= ' – ' . $a['einsatzstichwort'];
                                         }
-                                        $typ_label = ($a['typ'] ?? '') === 'einsatz' ? 'Einsatz' : (($a['typ'] ?? '') === 'manuell' ? 'Manuell' : htmlspecialchars(get_dienstplan_typ_label($a['dienst_typ'] ?? 'uebungsdienst')));
+                                        $typ_label = htmlspecialchars(get_anwesenheitsliste_typ_label($a));
                                     ?>
                                     <tr>
                                         <td><i class="fas fa-clipboard-list text-muted me-1"></i> <?php echo htmlspecialchars($titel); ?></td>
