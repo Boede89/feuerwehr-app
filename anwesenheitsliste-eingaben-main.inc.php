@@ -1093,7 +1093,7 @@ if ($is_einsatz) {
                                 $feld_einsatzleiter = ($type === 'einsatzleiter');
                                 $div_style = '';
                                 if ($is_einsatz && $feld_uebungsdienst_hide && ($is_uebungsdienst_display || $is_jhv_sonstiges_display)) $div_style = 'display:none';
-                                if ($is_einsatz && $feld_einsatzleiter) $div_style = ($is_uebungsdienst_display || $is_jhv_sonstiges_display) ? 'display:none' : '';
+                                if ($is_einsatz && $feld_einsatzleiter) $div_style = '';
                             ?>
                             <div class="mb-3<?php echo $type === 'textarea' ? ' mb-4' : ''; ?> feld-uebungsdienst-toggle" data-feld="<?php echo htmlspecialchars($id); ?>" data-hide-uebungsdienst="<?php echo $feld_uebungsdienst_hide ? '1' : '0'; ?>" data-einsatzleiter="<?php echo $feld_einsatzleiter ? '1' : '0'; ?>"<?php echo $div_style !== '' ? ' style="' . $div_style . '"' : ''; ?>>
                                 <?php if ($type === 'einsatzleiter'): ?>
