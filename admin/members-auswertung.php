@@ -343,9 +343,23 @@ if ($debug_fahrzeug) {
                         <?php
                         $member_map = [];
                         foreach ($members as $m) $member_map[(int)$m['id']] = $m;
+                        $debug_mids = array_keys($debug_data);
+                        $debug_missing = array_filter($debug_mids, fn($mid) => (int)$mid > 0 && !isset($member_map[(int)$mid]));
+                        if (!empty($debug_missing)) {
+                            try {
+                                $ph = implode(',', array_fill(0, count($debug_missing), '?'));
+                                $st = $db->prepare("SELECT id, first_name, last_name FROM members WHERE id IN ($ph)");
+                                $st->execute(array_values($debug_missing));
+                                while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+                                    $name = trim(($row['last_name'] ?? '') . ', ' . ($row['first_name'] ?? ''));
+                                    $member_map[(int)$row['id']] = ['last_name' => $row['last_name'] ?? '', 'first_name' => $row['first_name'] ?? ''];
+                                }
+                            } catch (Exception $e) {}
+                        }
                         foreach ($debug_data as $mid => $d):
-                            $m = $member_map[$mid] ?? null;
-                            $name = $m ? trim($m['last_name'] . ', ' . $m['first_name']) : 'ID ' . $mid;
+                            $m = $member_map[(int)$mid] ?? null;
+                            $name = $m ? trim(($m['last_name'] ?? '') . ', ' . ($m['first_name'] ?? '')) : 'Unbekannt (ID ' . (int)$mid . ')';
+                            if ($name === '' && $m) $name = 'ID ' . (int)$mid;
                         ?>
                         <tr>
                             <td><?php echo htmlspecialchars($name); ?></td>
@@ -1220,20 +1234,24 @@ if ($debug_fahrzeug) {
         $vehicle_map = [];
         foreach ($vehicles as $v) $vehicle_map[(int)$v['id']] = $v['name'];
         $member_map = [];
-        foreach ($members as $m) $member_map[(int)$m['id']] = $m['last_name'] . ', ' . $m['first_name'];
+        foreach ($members as $m) {
+            $name = trim(($m['last_name'] ?? '') . ', ' . ($m['first_name'] ?? ''));
+            $member_map[(int)$m['id']] = $name !== '' ? $name : 'ID ' . (int)$m['id'];
+        }
         $all_mids = array_unique(array_merge(
             array_reduce($fahrzeug_maschinist, fn($a,$v) => array_merge($a, array_keys($v ?? [])), []),
             array_reduce($fahrzeug_ef, fn($a,$v) => array_merge($a, array_keys($v ?? [])), []),
             array_reduce($fahrzeug_besatzung_top ?? [], fn($a,$v) => array_merge($a, array_keys($v ?? [])), [])
         ));
-        $missing_mids = array_filter($all_mids, fn($mid) => $mid > 0 && !isset($member_map[$mid]));
+        $missing_mids = array_filter($all_mids, fn($mid) => (int)$mid > 0 && !isset($member_map[(int)$mid]));
         if (!empty($missing_mids)) {
             try {
                 $ph = implode(',', array_fill(0, count($missing_mids), '?'));
                 $st = $db->prepare("SELECT id, first_name, last_name FROM members WHERE id IN ($ph)");
                 $st->execute(array_values($missing_mids));
                 while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
-                    $member_map[(int)$row['id']] = trim($row['last_name'] . ', ' . $row['first_name']);
+                    $name = trim(($row['last_name'] ?? '') . ', ' . ($row['first_name'] ?? ''));
+                    $member_map[(int)$row['id']] = $name !== '' ? $name : 'ID ' . (int)$row['id'];
                 }
             } catch (Exception $e) {}
         }
@@ -1309,17 +1327,21 @@ if ($debug_fahrzeug) {
                     arsort($besatz_list);
                     $masch_str = [];
                     foreach (array_slice(array_filter($masch_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 3) as $mid => $cnt) {
-                        $name = $member_map[$mid] ?? '-';
+                        $mid = (int)$mid;
+                        $name = $member_map[$mid] ?? ('Unbekannt (ID ' . $mid . ')');
                         $masch_str[] = $name . ' (' . $cnt . ')';
                     }
                     $ef_str = [];
                     foreach (array_slice(array_filter($ef_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 3) as $mid => $cnt) {
-                        $name = $member_map[$mid] ?? '-';
+                        $mid = (int)$mid;
+                        $name = $member_map[$mid] ?? ('Unbekannt (ID ' . $mid . ')');
                         $ef_str[] = $name . ' (' . $cnt . ')';
                     }
                     $besatz_str = [];
-                    foreach (array_slice(array_filter($besatz_list, fn($k) => (int)$k > 0 && isset($member_map[$k]), ARRAY_FILTER_USE_KEY), 0, 9) as $mid => $cnt) {
-                        $besatz_str[] = $member_map[$mid] . ' (' . $cnt . ')';
+                    foreach (array_slice(array_filter($besatz_list, fn($k) => (int)$k > 0, ARRAY_FILTER_USE_KEY), 0, 9) as $mid => $cnt) {
+                        $mid = (int)$mid;
+                        $name = $member_map[$mid] ?? ('Unbekannt (ID ' . $mid . ')');
+                        $besatz_str[] = $name . ' (' . $cnt . ')';
                     }
                 ?>
                 <tr>
