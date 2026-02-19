@@ -184,6 +184,55 @@ function get_thema_filter_sql(&$params) {
 }
 
 $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $zeit_von, 'zeit_bis' => $zeit_bis, 'member_id' => $member_id, 'vehicle_id' => $vehicle_id, 'ansicht' => $ansicht, 'typ' => $typ_filter, 'beschreibung' => $beschreibung_filter, 'thema' => $thema_filter];
+
+// VORLÄUFIG: Debug-Daten Fahrzeug-Zuordnungen (zum Prüfen ob Maschinist/EF korrekt gespeichert)
+$debug_fahrzeug = isset($_GET['debug_fahrzeug']) && $_GET['debug_fahrzeug'] === '1';
+$debug_data = [];
+if ($debug_fahrzeug) {
+    try {
+        // Person auf Fahrzeug (anwesenheitsliste_mitglieder)
+        $stmt = $db->prepare("SELECT am.member_id, am.vehicle_id, a.datum FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0");
+        $stmt->execute([$von, $bis]);
+        while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $mid = (int)$r['member_id'];
+            $vid = (int)$r['vehicle_id'];
+            if (!isset($debug_data[$mid])) $debug_data[$mid] = ['auf_fahrzeug' => [], 'maschinist_al' => 0, 'maschinist_gwm' => 0, 'einheitsfuehrer_al' => 0, 'einheitsfuehrer_gwm' => 0];
+            $debug_data[$mid]['auf_fahrzeug'][$vid] = ($debug_data[$mid]['auf_fahrzeug'][$vid] ?? 0) + 1;
+        }
+        // Maschinist/Einheitsführer aus Anwesenheitslisten
+        $stmt = $db->prepare("SELECT af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ?");
+        $stmt->execute([$von, $bis]);
+        while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if (!empty($r['maschinist_member_id'])) {
+                $mid = (int)$r['maschinist_member_id'];
+                if (!isset($debug_data[$mid])) $debug_data[$mid] = ['auf_fahrzeug' => [], 'maschinist_al' => 0, 'maschinist_gwm' => 0, 'einheitsfuehrer_al' => 0, 'einheitsfuehrer_gwm' => 0];
+                $debug_data[$mid]['maschinist_al']++;
+            }
+            if (!empty($r['einheitsfuehrer_member_id'])) {
+                $mid = (int)$r['einheitsfuehrer_member_id'];
+                if (!isset($debug_data[$mid])) $debug_data[$mid] = ['auf_fahrzeug' => [], 'maschinist_al' => 0, 'maschinist_gwm' => 0, 'einheitsfuehrer_al' => 0, 'einheitsfuehrer_gwm' => 0];
+                $debug_data[$mid]['einheitsfuehrer_al']++;
+            }
+        }
+        // Maschinist/Einheitsführer aus Gerätewartmitteilungen
+        try {
+            $stmt = $db->prepare("SELECT gf.maschinist_member_id, gf.einheitsfuehrer_member_id FROM geraetewartmitteilung_fahrzeuge gf JOIN geraetewartmitteilungen g ON g.id = gf.geraetewartmitteilung_id WHERE g.datum BETWEEN ? AND ?");
+            $stmt->execute([$von, $bis]);
+            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                if (!empty($r['maschinist_member_id'])) {
+                    $mid = (int)$r['maschinist_member_id'];
+                    if (!isset($debug_data[$mid])) $debug_data[$mid] = ['auf_fahrzeug' => [], 'maschinist_al' => 0, 'maschinist_gwm' => 0, 'einheitsfuehrer_al' => 0, 'einheitsfuehrer_gwm' => 0];
+                    $debug_data[$mid]['maschinist_gwm']++;
+                }
+                if (!empty($r['einheitsfuehrer_member_id'])) {
+                    $mid = (int)$r['einheitsfuehrer_member_id'];
+                    if (!isset($debug_data[$mid])) $debug_data[$mid] = ['auf_fahrzeug' => [], 'maschinist_al' => 0, 'maschinist_gwm' => 0, 'einheitsfuehrer_al' => 0, 'einheitsfuehrer_gwm' => 0];
+                    $debug_data[$mid]['einheitsfuehrer_gwm']++;
+                }
+            }
+        } catch (Exception $e) {}
+    } catch (Exception $e) {}
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -256,6 +305,71 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 </div>
             </a>
         </div>
+    </div>
+
+    <!-- VORLÄUFIG: Debug-Button zum Prüfen der Fahrzeug-Zuordnungen (später entfernen) -->
+    <div class="mt-4 p-3 bg-light rounded border">
+        <p class="text-muted small mb-2"><i class="fas fa-info-circle"></i> Nur zum Prüfen, ob Maschinist/Einheitsführer korrekt gespeichert werden.</p>
+        <?php if ($debug_fahrzeug): ?>
+        <form method="get" class="d-inline-flex align-items-center gap-2 mb-2 flex-wrap">
+            <input type="hidden" name="debug_fahrzeug" value="1">
+            <input type="date" name="von" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($von); ?>">
+            <span>–</span>
+            <input type="date" name="bis" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($bis); ?>">
+            <button type="submit" class="btn btn-outline-primary btn-sm">Zeitraum anwenden</button>
+        </form>
+        <a href="members-auswertung.php" class="btn btn-outline-secondary btn-sm mb-2"><i class="fas fa-times me-1"></i> Debug schließen</a>
+        <?php else: ?>
+        <a href="?debug_fahrzeug=1&von=<?php echo htmlspecialchars($von); ?>&bis=<?php echo htmlspecialchars($bis); ?>" class="btn btn-outline-warning btn-sm"><i class="fas fa-bug me-1"></i> Vorläufig: Debug Fahrzeug-Zuordnungen</a>
+        <?php endif; ?>
+
+        <?php if ($debug_fahrzeug && !empty($debug_data)): ?>
+        <div class="mt-4">
+            <h6 class="text-warning"><i class="fas fa-table"></i> Debug: Person × Fahrzeug × Maschinist × Einheitsführer (Zeitraum <?php echo htmlspecialchars($von); ?> – <?php echo htmlspecialchars($bis); ?>)</h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mt-2">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Person</th>
+                            <?php foreach ($vehicles as $v): ?>
+                            <th class="text-center" title="<?php echo htmlspecialchars($v['name']); ?>"><?php echo htmlspecialchars(mb_substr($v['name'], 0, 12)); ?></th>
+                            <?php endforeach; ?>
+                            <th class="text-center bg-info bg-opacity-25">Maschinist (AL)</th>
+                            <th class="text-center bg-info bg-opacity-25">Maschinist (GWM)</th>
+                            <th class="text-center bg-success bg-opacity-25">Einheitsf. (AL)</th>
+                            <th class="text-center bg-success bg-opacity-25">Einheitsf. (GWM)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $member_map = [];
+                        foreach ($members as $m) $member_map[(int)$m['id']] = $m;
+                        foreach ($debug_data as $mid => $d):
+                            $m = $member_map[$mid] ?? null;
+                            $name = $m ? trim($m['last_name'] . ', ' . $m['first_name']) : 'ID ' . $mid;
+                        ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($name); ?></td>
+                            <?php foreach ($vehicles as $v):
+                                $vid = (int)$v['id'];
+                                $cnt = $d['auf_fahrzeug'][$vid] ?? 0;
+                            ?>
+                            <td class="text-center"><?php echo $cnt > 0 ? $cnt : '–'; ?></td>
+                            <?php endforeach; ?>
+                            <td class="text-center bg-info bg-opacity-10"><?php echo $d['maschinist_al'] ?: '–'; ?></td>
+                            <td class="text-center bg-info bg-opacity-10"><?php echo $d['maschinist_gwm'] ?: '–'; ?></td>
+                            <td class="text-center bg-success bg-opacity-10"><?php echo $d['einheitsfuehrer_al'] ?: '–'; ?></td>
+                            <td class="text-center bg-success bg-opacity-10"><?php echo $d['einheitsfuehrer_gwm'] ?: '–'; ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <p class="small text-muted mt-2">AL = Anwesenheitsliste, GWM = Gerätewartmitteilung. „auf Fahrzeug“ = Anzahl Einträge in anwesenheitsliste_mitglieder mit vehicle_id.</p>
+        </div>
+        <?php elseif ($debug_fahrzeug): ?>
+        <p class="text-muted mt-2">Keine Daten im gefilterten Zeitraum.</p>
+        <?php endif; ?>
     </div>
     <?php else: ?>
     <div class="mb-3">
