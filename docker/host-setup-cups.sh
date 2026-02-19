@@ -18,6 +18,15 @@ apt-get install -y cups cups-client
 echo "Aktiviere CUPS für automatischen Start beim Boot..."
 systemctl enable cups
 
+echo "Richte automatischen Neustart bei Absturz ein..."
+mkdir -p /etc/systemd/system/cups.service.d
+cat > /etc/systemd/system/cups.service.d/override.conf << 'EOF'
+[Service]
+Restart=on-failure
+RestartSec=5
+EOF
+systemctl daemon-reload
+
 echo "Starte CUPS..."
 systemctl start cups
 

@@ -311,10 +311,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="mb-3" id="printer_local_wrap2" style="display: <?php echo ($settings['printer_type'] ?? 'local') === 'ipp' ? 'none' : 'block'; ?>;">
                             <label class="form-label">Druckername (lokal)</label>
                             <div class="input-group">
-                                <input class="form-control" name="printer_destination" id="printer_destination" placeholder="z.B. HP_LaserJet oder leer für Standarddrucker" value="<?php echo htmlspecialchars($settings['printer_destination'] ?? ''); ?>">
+                                <input class="form-control" name="printer_destination" id="printer_destination" placeholder="z.B. workplacepure oder HP_LaserJet (manuell eintragen funktioniert immer)" value="<?php echo htmlspecialchars($settings['printer_destination'] ?? ''); ?>">
                                 <button type="button" class="btn btn-outline-secondary" id="btn_list_printers" title="Verfügbare Drucker anzeigen"><i class="fas fa-list"></i> Verfügbare Drucker</button>
                             </div>
-                            <div id="printers_list" class="mt-2 small text-muted" style="display:none;"></div>
+                            <small class="text-muted d-block mt-1">Der Druckername kann jederzeit manuell eingetragen werden – auch wenn „Verfügbare Drucker“ nicht funktioniert.</small>
+                            <div id="printers_list" class="mt-2 small" style="display:none;"></div>
                         </div>
                         <div id="printer_ipp_wrap" style="display: <?php echo ($settings['printer_type'] ?? 'local') === 'ipp' ? 'block' : 'none'; ?>;">
                             <p class="text-muted small mb-2">Für IPP: Drucker muss zuerst in CUPS angelegt werden (z.B. auf dem Host: <code>lpadmin -p feuerwehr_ipp -E -v ipp://host/ipp/print -m everywhere</code>). Dann „Lokaler Drucker“ wählen und den Namen (z.B. feuerwehr_ipp) eintragen.</p>
@@ -358,31 +359,49 @@ document.getElementById('btn_list_printers')?.addEventListener('click', function
     out.style.display = 'block';
     out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Drucker...</span>';
     btn.disabled = true;
-    fetch('../api/list-printers.php')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            btn.disabled = false;
-            if (data.success && data.printers && data.printers.length > 0) {
-                var html = '<strong>Verfügbare Drucker:</strong> ';
-                data.printers.forEach(function(p) {
-                    var def = (data.default_printer === p.name) ? ' (Standard)' : '';
-                    var safe = p.name.replace(/"/g, '&quot;');
-                    html += '<span class="badge bg-secondary me-1" style="cursor:pointer" data-name="' + safe + '" role="button">' + p.name + def + '</span> ';
-                });
-                out.innerHTML = html;
-                out.querySelectorAll('[data-name]').forEach(function(el) {
-                    el.addEventListener('click', function() {
-                        document.getElementById('printer_destination').value = this.getAttribute('data-name');
+    function doFetch() {
+        fetch('../api/list-printers.php')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                btn.disabled = false;
+                if (data.success && data.printers && data.printers.length > 0) {
+                    var html = '<strong>Verfügbare Drucker:</strong> ';
+                    data.printers.forEach(function(p) {
+                        var def = (data.default_printer === p.name) ? ' (Standard)' : '';
+                        var safe = p.name.replace(/"/g, '&quot;');
+                        html += '<span class="badge bg-secondary me-1" style="cursor:pointer" data-name="' + safe + '" role="button">' + p.name + def + '</span> ';
                     });
+                    out.innerHTML = html;
+                    out.querySelectorAll('[data-name]').forEach(function(el) {
+                        el.addEventListener('click', function() {
+                            document.getElementById('printer_destination').value = this.getAttribute('data-name');
+                        });
+                    });
+                } else {
+                    var html = '<div class="text-warning">' + (data.message || 'Keine Drucker gefunden.') + '</div>';
+                    if (data.configured_printer) {
+                        html += '<div class="mt-2 text-muted">Aktuell eingetragen: <code>' + (data.configured_printer.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')) + '</code> – bleibt gültig, auch wenn CUPS ausfällt.</div>';
+                    }
+                    html += '<button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="btn_retry_printers"><i class="fas fa-redo"></i> Erneut versuchen</button>';
+                    out.innerHTML = html;
+                    document.getElementById('btn_retry_printers')?.addEventListener('click', function() {
+                        out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Drucker...</span>';
+                        btn.disabled = true;
+                        doFetch();
+                    });
+                }
+            })
+            .catch(function() {
+                btn.disabled = false;
+                out.innerHTML = '<span class="text-danger">Fehler beim Laden.</span> <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="btn_retry_printers"><i class="fas fa-redo"></i> Erneut versuchen</button>';
+                document.getElementById('btn_retry_printers')?.addEventListener('click', function() {
+                    out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Drucker...</span>';
+                    btn.disabled = true;
+                    doFetch();
                 });
-            } else {
-                out.innerHTML = '<span class="text-warning">' + (data.message || 'Keine Drucker gefunden. CUPS_SERVER in docker-compose setzen?') + '</span>';
-            }
-        })
-        .catch(function() {
-            btn.disabled = false;
-            out.innerHTML = '<span class="text-danger">Fehler beim Laden.</span>';
-        });
+            });
+    }
+    doFetch();
 });
 </script>
 </body>

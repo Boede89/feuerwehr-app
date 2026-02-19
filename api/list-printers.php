@@ -17,12 +17,14 @@ $lp_bin = (file_exists('/usr/bin/lp') && is_executable('/usr/bin/lp')) ? '/usr/b
 $lpstat_bin = (file_exists('/usr/bin/lpstat') && is_executable('/usr/bin/lpstat')) ? '/usr/bin/lpstat' : 'lpstat';
 
 $printer_cups_server = '';
+$configured_printer = '';
 try {
-    $stmt = $db->prepare('SELECT setting_value FROM settings WHERE setting_key = ?');
-    $stmt->execute(['printer_cups_server']);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($row && trim($row['setting_value'] ?? '') !== '') {
-        $printer_cups_server = trim($row['setting_value']);
+    $stmt = $db->prepare('SELECT setting_key, setting_value FROM settings WHERE setting_key IN (?, ?)');
+    $stmt->execute(['printer_cups_server', 'printer_destination']);
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $val = trim($row['setting_value'] ?? '');
+        if ($row['setting_key'] === 'printer_cups_server' && $val !== '') $printer_cups_server = $val;
+        if ($row['setting_key'] === 'printer_destination' && $val !== '') $configured_printer = $val;
     }
 } catch (Exception $e) {}
 if ($printer_cups_server === '' && getenv('CUPS_SERVER') !== false) {
@@ -41,38 +43,28 @@ $err = '';
 exec($env_prefix . escapeshellarg($lpstat_bin) . ' -p 2>&1', $lines, $ret);
 $raw = implode("\n", $lines);
 
+$manual_hint = 'Druckername manuell eintragen (z.B. workplacepure) – funktioniert auch ohne CUPS-Erkennung.';
 if ($ret !== 0) {
     $err = trim($raw);
+    $msg = '';
     if (strpos($err, 'not found') !== false || strpos($err, 'No such file') !== false) {
-        echo json_encode(['success' => false, 'printers' => [], 'message' => 'lpstat nicht gefunden. CUPS-Client installiert?', 'raw' => $raw]);
-        exit;
+        $msg = 'lpstat nicht gefunden. ' . $manual_hint;
+    } elseif (strpos($err, 'Unable to connect') !== false || strpos($err, 'Connection refused') !== false) {
+        $msg = 'CUPS nicht erreichbar. Linux-Host: sudo systemctl start cups. ' . $manual_hint;
+    } elseif (stripos($err, 'Forbidden') !== false) {
+        $msg = 'CUPS blockiert Zugriff. cupsd.conf anpassen (Allow from 172.17.0.0/16). ' . $manual_hint;
+    } elseif (stripos($err, 'Scheduler is not running') !== false || stripos($err, 'cupsd') !== false) {
+        $msg = 'CUPS läuft nicht. Linux-Host: sudo systemctl start cups. Windows: Druckername manuell eintragen. ' . $manual_hint;
+    } else {
+        $msg = 'lpstat Fehler. ' . $manual_hint;
     }
-    if (strpos($err, 'Unable to connect') !== false || strpos($err, 'Connection refused') !== false) {
-        $hint = $printer_cups_server !== ''
-            ? 'CUPS-Server ' . $printer_cups_server . ' nicht erreichbar. Prüfen Sie: CUPS auf Host läuft, hört auf 0.0.0.0:631, Firewall.'
-            : 'Bei Docker: „CUPS-Server (Docker)“ in den Einstellungen auf 172.17.0.1 setzen, oder CUPS_SERVER in docker-compose.';
-        echo json_encode(['success' => false, 'printers' => [], 'message' => 'Keine Verbindung zum CUPS-Server. ' . $hint, 'raw' => $raw]);
-        exit;
-    }
-    if (stripos($err, 'Forbidden') !== false) {
-        $hint = 'CUPS blockiert den Zugriff vom Container. Auf dem Host in /etc/cups/cupsd.conf: 1) ServerAlias * einfügen (für Host-Header). 2) Im Abschnitt Location / die Zeile Allow from 172.17.0.0/16. Dann: sudo systemctl restart cups';
-        echo json_encode(['success' => false, 'printers' => [], 'message' => 'Zugriff verweigert (Forbidden). ' . $hint, 'raw' => $raw]);
-        exit;
-    }
-    if (stripos($err, 'Scheduler is not running') !== false || stripos($err, 'cupsd') !== false) {
-        if ($printer_cups_server !== '') {
-            $is_socket = (strpos($printer_cups_server, '/') !== false);
-            $hint = $is_socket
-                ? 'CUPS-Dienst läuft nicht. Linux-Host: sudo systemctl start cups. '
-                : 'CUPS auf dem Host (' . $printer_cups_server . ') läuft nicht. Auf dem Host: sudo systemctl start cups. ';
-        } else {
-            $hint = 'CUPS-Dienst läuft nicht. Linux-Host: sudo systemctl start cups. ';
-        }
-        $hint .= 'Alternative: Druckername manuell eintragen (ohne „Verfügbare Drucker“ klicken). Bei Windows-Host: Docker benötigt einen Linux-Host mit CUPS – oder CUPS in einer separaten Linux-VM/Container betreiben.';
-        echo json_encode(['success' => false, 'printers' => [], 'message' => 'CUPS-Scheduler läuft nicht. ' . $hint, 'raw' => $raw]);
-        exit;
-    }
-    echo json_encode(['success' => false, 'printers' => [], 'message' => 'lpstat Fehler: ' . $err, 'raw' => $raw]);
+    echo json_encode([
+        'success' => false,
+        'printers' => [],
+        'message' => $msg,
+        'configured_printer' => $configured_printer,
+        'raw' => $raw
+    ]);
     exit;
 }
 
@@ -104,6 +96,7 @@ echo json_encode([
     'success' => true,
     'printers' => $printers,
     'default_printer' => $default_printer,
+    'configured_printer' => $configured_printer,
     'raw' => $raw,
     'cups_server_used' => $printer_cups_server ?: '(Standard/Umgebung)',
     'message' => $empty_msg
