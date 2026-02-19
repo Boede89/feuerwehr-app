@@ -186,48 +186,60 @@ function get_thema_filter_sql(&$params) {
 $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $zeit_von, 'zeit_bis' => $zeit_bis, 'member_id' => $member_id, 'vehicle_id' => $vehicle_id, 'ansicht' => $ansicht, 'typ' => $typ_filter, 'beschreibung' => $beschreibung_filter, 'thema' => $thema_filter];
 
 // VORLÄUFIG: Debug-Daten Fahrzeug-Zuordnungen (zum Prüfen ob Maschinist/EF korrekt gespeichert)
+// Pro Fahrzeug: je 1 Maschinist + 1 Einheitsführer – getrennt pro Fahrzeug berechnet
 $debug_fahrzeug = isset($_GET['debug_fahrzeug']) && $_GET['debug_fahrzeug'] === '1';
 $debug_data = [];
 if ($debug_fahrzeug) {
     try {
+        $init_member = function($mid) use (&$debug_data) {
+            if (!isset($debug_data[$mid])) {
+                $debug_data[$mid] = [
+                    'auf_fahrzeug' => [],
+                    'maschinist' => [],  // pro vehicle_id
+                    'einheitsfuehrer' => []  // pro vehicle_id
+                ];
+            }
+        };
         // Person auf Fahrzeug (anwesenheitsliste_mitglieder)
         $stmt = $db->prepare("SELECT am.member_id, am.vehicle_id, a.datum FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0");
         $stmt->execute([$von, $bis]);
         while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $mid = (int)$r['member_id'];
             $vid = (int)$r['vehicle_id'];
-            if (!isset($debug_data[$mid])) $debug_data[$mid] = ['auf_fahrzeug' => [], 'maschinist_al' => 0, 'maschinist_gwm' => 0, 'einheitsfuehrer_al' => 0, 'einheitsfuehrer_gwm' => 0];
+            $init_member($mid);
             $debug_data[$mid]['auf_fahrzeug'][$vid] = ($debug_data[$mid]['auf_fahrzeug'][$vid] ?? 0) + 1;
         }
-        // Maschinist/Einheitsführer aus Anwesenheitslisten
-        $stmt = $db->prepare("SELECT af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ?");
+        // Maschinist/Einheitsführer aus Anwesenheitslisten – pro Fahrzeug
+        $stmt = $db->prepare("SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ?");
         $stmt->execute([$von, $bis]);
         while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $vid = (int)$r['vehicle_id'];
             if (!empty($r['maschinist_member_id'])) {
                 $mid = (int)$r['maschinist_member_id'];
-                if (!isset($debug_data[$mid])) $debug_data[$mid] = ['auf_fahrzeug' => [], 'maschinist_al' => 0, 'maschinist_gwm' => 0, 'einheitsfuehrer_al' => 0, 'einheitsfuehrer_gwm' => 0];
-                $debug_data[$mid]['maschinist_al']++;
+                $init_member($mid);
+                $debug_data[$mid]['maschinist'][$vid] = ($debug_data[$mid]['maschinist'][$vid] ?? 0) + 1;
             }
             if (!empty($r['einheitsfuehrer_member_id'])) {
                 $mid = (int)$r['einheitsfuehrer_member_id'];
-                if (!isset($debug_data[$mid])) $debug_data[$mid] = ['auf_fahrzeug' => [], 'maschinist_al' => 0, 'maschinist_gwm' => 0, 'einheitsfuehrer_al' => 0, 'einheitsfuehrer_gwm' => 0];
-                $debug_data[$mid]['einheitsfuehrer_al']++;
+                $init_member($mid);
+                $debug_data[$mid]['einheitsfuehrer'][$vid] = ($debug_data[$mid]['einheitsfuehrer'][$vid] ?? 0) + 1;
             }
         }
-        // Maschinist/Einheitsführer aus Gerätewartmitteilungen
+        // Maschinist/Einheitsführer aus Gerätewartmitteilungen – pro Fahrzeug
         try {
-            $stmt = $db->prepare("SELECT gf.maschinist_member_id, gf.einheitsfuehrer_member_id FROM geraetewartmitteilung_fahrzeuge gf JOIN geraetewartmitteilungen g ON g.id = gf.geraetewartmitteilung_id WHERE g.datum BETWEEN ? AND ?");
+            $stmt = $db->prepare("SELECT gf.vehicle_id, gf.maschinist_member_id, gf.einheitsfuehrer_member_id FROM geraetewartmitteilung_fahrzeuge gf JOIN geraetewartmitteilungen g ON g.id = gf.geraetewartmitteilung_id WHERE g.datum BETWEEN ? AND ?");
             $stmt->execute([$von, $bis]);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $vid = (int)$r['vehicle_id'];
                 if (!empty($r['maschinist_member_id'])) {
                     $mid = (int)$r['maschinist_member_id'];
-                    if (!isset($debug_data[$mid])) $debug_data[$mid] = ['auf_fahrzeug' => [], 'maschinist_al' => 0, 'maschinist_gwm' => 0, 'einheitsfuehrer_al' => 0, 'einheitsfuehrer_gwm' => 0];
-                    $debug_data[$mid]['maschinist_gwm']++;
+                    $init_member($mid);
+                    $debug_data[$mid]['maschinist'][$vid] = ($debug_data[$mid]['maschinist'][$vid] ?? 0) + 1;
                 }
                 if (!empty($r['einheitsfuehrer_member_id'])) {
                     $mid = (int)$r['einheitsfuehrer_member_id'];
-                    if (!isset($debug_data[$mid])) $debug_data[$mid] = ['auf_fahrzeug' => [], 'maschinist_al' => 0, 'maschinist_gwm' => 0, 'einheitsfuehrer_al' => 0, 'einheitsfuehrer_gwm' => 0];
-                    $debug_data[$mid]['einheitsfuehrer_gwm']++;
+                    $init_member($mid);
+                    $debug_data[$mid]['einheitsfuehrer'][$vid] = ($debug_data[$mid]['einheitsfuehrer'][$vid] ?? 0) + 1;
                 }
             }
         } catch (Exception $e) {}
@@ -325,19 +337,23 @@ if ($debug_fahrzeug) {
 
         <?php if ($debug_fahrzeug && !empty($debug_data)): ?>
         <div class="mt-4">
-            <h6 class="text-warning"><i class="fas fa-table"></i> Debug: Person × Fahrzeug × Maschinist × Einheitsführer (Zeitraum <?php echo htmlspecialchars($von); ?> – <?php echo htmlspecialchars($bis); ?>)</h6>
+            <h6 class="text-warning"><i class="fas fa-table"></i> Debug: Person × Fahrzeug (pro Fahrzeug: Besatzung | Maschinist | Einheitsführer) – Zeitraum <?php echo htmlspecialchars($von); ?> – <?php echo htmlspecialchars($bis); ?></h6>
             <div class="table-responsive">
                 <table class="table table-sm table-bordered mt-2">
                     <thead class="table-light">
                         <tr>
                             <th>Person</th>
                             <?php foreach ($vehicles as $v): ?>
-                            <th class="text-center" title="<?php echo htmlspecialchars($v['name']); ?>"><?php echo htmlspecialchars(mb_substr($v['name'], 0, 12)); ?></th>
+                            <th colspan="3" class="text-center border-start bg-light" title="<?php echo htmlspecialchars($v['name']); ?>"><?php echo htmlspecialchars($v['name']); ?></th>
                             <?php endforeach; ?>
-                            <th class="text-center bg-info bg-opacity-25">Maschinist (AL)</th>
-                            <th class="text-center bg-info bg-opacity-25">Maschinist (GWM)</th>
-                            <th class="text-center bg-success bg-opacity-25">Einheitsf. (AL)</th>
-                            <th class="text-center bg-success bg-opacity-25">Einheitsf. (GWM)</th>
+                        </tr>
+                        <tr>
+                            <th></th>
+                            <?php foreach ($vehicles as $v): ?>
+                            <th class="text-center border-start" style="min-width: 40px;">Besatzung</th>
+                            <th class="text-center bg-info bg-opacity-25" style="min-width: 40px;">Masch.</th>
+                            <th class="text-center bg-success bg-opacity-25" style="min-width: 40px;">EF</th>
+                            <?php endforeach; ?>
                         </tr>
                     </thead>
                     <tbody>
@@ -352,20 +368,20 @@ if ($debug_fahrzeug) {
                             <td><?php echo htmlspecialchars($name); ?></td>
                             <?php foreach ($vehicles as $v):
                                 $vid = (int)$v['id'];
-                                $cnt = $d['auf_fahrzeug'][$vid] ?? 0;
+                                $besatzung = $d['auf_fahrzeug'][$vid] ?? 0;
+                                $masch = $d['maschinist'][$vid] ?? 0;
+                                $ef = $d['einheitsfuehrer'][$vid] ?? 0;
                             ?>
-                            <td class="text-center"><?php echo $cnt > 0 ? $cnt : '–'; ?></td>
+                            <td class="text-center border-start"><?php echo $besatzung > 0 ? $besatzung : '–'; ?></td>
+                            <td class="text-center bg-info bg-opacity-10"><?php echo $masch > 0 ? $masch : '–'; ?></td>
+                            <td class="text-center bg-success bg-opacity-10"><?php echo $ef > 0 ? $ef : '–'; ?></td>
                             <?php endforeach; ?>
-                            <td class="text-center bg-info bg-opacity-10"><?php echo $d['maschinist_al'] ?: '–'; ?></td>
-                            <td class="text-center bg-info bg-opacity-10"><?php echo $d['maschinist_gwm'] ?: '–'; ?></td>
-                            <td class="text-center bg-success bg-opacity-10"><?php echo $d['einheitsfuehrer_al'] ?: '–'; ?></td>
-                            <td class="text-center bg-success bg-opacity-10"><?php echo $d['einheitsfuehrer_gwm'] ?: '–'; ?></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
-            <p class="small text-muted mt-2">AL = Anwesenheitsliste, GWM = Gerätewartmitteilung. „auf Fahrzeug“ = Anzahl Einträge in anwesenheitsliste_mitglieder mit vehicle_id.</p>
+            <p class="small text-muted mt-2">Pro Fahrzeug: Besatzung = Einträge in anwesenheitsliste_mitglieder. Masch. = Maschinist, EF = Einheitsführer (aus Anwesenheitslisten + Gerätewartmitteilungen, pro Fahrzeug getrennt).</p>
         </div>
         <?php elseif ($debug_fahrzeug): ?>
         <p class="text-muted mt-2">Keine Daten im gefilterten Zeitraum.</p>
