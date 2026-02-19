@@ -1416,7 +1416,9 @@ if ($is_einsatz) {
         if(!sel)return;
         var params=new URLSearchParams(window.location.search);
         var tsUrl=params.get('typ_sonstige');
-        if(tsUrl==='uebungsdienst'&&sel.value!=='uebungsdienst'){sel.value='uebungsdienst';}
+        if(tsUrl==='uebungsdienst'){
+            sel.value='uebungsdienst';
+        }
         var v=sel.value;
         var w=document.getElementById('typ_sonstige_freitext_wrap');if(w)w.style.display=v==='__custom__'?'block':'none';
         var showEinsatzstichwort=v==='einsatz';
@@ -1429,16 +1431,17 @@ if ($is_einsatz) {
         if(elThema)elThema.style.display=showThema?'block':'none';
         if(elBeschr)elBeschr.style.display=showBeschreibung?'block':'none';
         var isUeb= v==='uebungsdienst'||v==='sonstiges';
-        var isUebungsdienstOnly= v==='uebungsdienst';
+        var isUebungsdienstOnly= v==='uebungsdienst'||tsUrl==='uebungsdienst';
         document.querySelectorAll('.feld-uebungsdienst-toggle[data-hide-uebungsdienst="1"]').forEach(function(el){el.style.display=isUeb?'none':'block';});
         var elWrap=document.getElementById('einsatzleiter_wrap');
         var uebWrap=document.getElementById('uebungsleiter_wrap');
         if(elWrap)elWrap.style.display=isUeb?'none':'block';
         if(uebWrap)uebWrap.style.display=isUebungsdienstOnly?'block':'none';
     }
-    document.getElementById('typ_sonstige').addEventListener('change',syncTypSonstigeVisibility);
-    document.addEventListener('DOMContentLoaded',syncTypSonstigeVisibility);
-    syncTypSonstigeVisibility();
+    var selTs=document.getElementById('typ_sonstige');
+    if(selTs)selTs.addEventListener('change',syncTypSonstigeVisibility);
+    document.addEventListener('DOMContentLoaded',function(){syncTypSonstigeVisibility();setTimeout(syncTypSonstigeVisibility,50);});
+    if(document.readyState!=='loading')syncTypSonstigeVisibility();
     document.getElementById('thema').addEventListener('change',function(){
         document.getElementById('thema_neu_wrap').style.display=this.value==='__neu__'?'block':'none';
     });
