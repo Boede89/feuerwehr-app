@@ -538,9 +538,8 @@ if (isset($_GET['edit_submission'])) {
     $id = (int)$_GET['edit_submission'];
     foreach ($submissions as $s) {
         if ((int)$s['id'] === $id) {
-            $edit_submission = $s;
-            $edit_submission['created_at_display'] = format_datetime_berlin($s['created_at']);
-            break;
+            header('Location: ../formulare-ausfuellen.php?id=' . (int)$s['form_id'] . '&edit=' . (int)$s['id'] . '&return=formularcenter');
+            exit;
         }
     }
 }
@@ -767,7 +766,7 @@ try {
                                         <td><?php echo htmlspecialchars(trim($s['user_first_name'] . ' ' . $s['user_last_name']) ?: 'Unbekannt'); ?></td>
                                         <td><?php echo $s['created_at_display']; ?></td>
                                         <td>
-                                            <a href="?tab=submissions&edit_submission=<?php echo (int)$s['id']; ?>#submissionModal" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#submissionModal" onclick='openSubmissionModal(<?php echo json_encode($s); ?>)'><i class="fas fa-edit"></i> Bearbeiten</a>
+                                            <a href="../formulare-ausfuellen.php?id=<?php echo (int)$s['form_id']; ?>&edit=<?php echo (int)$s['id']; ?>&return=formularcenter" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Bearbeiten</a>
                                             <form method="post" class="d-inline" onsubmit="return confirm('Formulareingabe wirklich löschen?');">
                                                 <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
                                                 <input type="hidden" name="action" value="delete_submission">
@@ -1256,13 +1255,6 @@ try {
         document.addEventListener('DOMContentLoaded', function() {
             openFormModal(<?php echo json_encode($edit_form); ?>);
             var m = document.getElementById('formEditModal');
-            if (m) new bootstrap.Modal(m).show();
-        });
-        <?php endif; ?>
-        <?php if ($edit_submission): ?>
-        document.addEventListener('DOMContentLoaded', function() {
-            openSubmissionModal(<?php echo json_encode($edit_submission); ?>);
-            var m = document.getElementById('submissionModal');
             if (m) new bootstrap.Modal(m).show();
         });
         <?php endif; ?>

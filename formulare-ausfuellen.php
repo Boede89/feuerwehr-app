@@ -17,6 +17,9 @@ if (!has_permission('forms')) {
 }
 
 $form_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$edit_submission_id = isset($_GET['edit']) ? (int)$_GET['edit'] : (isset($_POST['edit']) ? (int)$_POST['edit'] : 0);
+$return_formularcenter = (isset($_GET['return']) && $_GET['return'] === 'formularcenter') || (isset($_POST['return']) && $_POST['return'] === 'formularcenter');
+
 if (!$form_id) {
     header('Location: formulare.php');
     exit;
@@ -46,8 +49,22 @@ if (!empty($form['schema_json'])) {
 $message = '';
 $error = '';
 $form_data = [];
+$is_edit_mode = ($edit_submission_id > 0);
 
-// POST: Formular absenden
+// Bearbeitungsmodus: bestehende Eingabe laden
+if ($is_edit_mode && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    try {
+        $stmt = $db->prepare("SELECT form_data FROM app_form_submissions WHERE id = ? AND form_id = ?");
+        $stmt->execute([$edit_submission_id, $form_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row && !empty($row['form_data'])) {
+            $form_data = json_decode($row['form_data'], true);
+            if (!is_array($form_data)) $form_data = [];
+        }
+    } catch (Exception $e) {}
+}
+
+// POST: Formular absenden oder aktualisieren
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $form_data = [];
     foreach ($schema as $field) {
@@ -61,9 +78,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     try {
-        $stmt = $db->prepare("INSERT INTO app_form_submissions (form_id, user_id, form_data) VALUES (?, ?, ?)");
-        $stmt->execute([$form_id, $_SESSION['user_id'], json_encode($form_data, JSON_UNESCAPED_UNICODE)]);
-        $message = 'Ihr Formular wurde erfolgreich abgesendet.';
+        if ($is_edit_mode && $edit_submission_id > 0) {
+            $stmt = $db->prepare("UPDATE app_form_submissions SET form_data = ?, updated_at = NOW() WHERE id = ? AND form_id = ?");
+            $stmt->execute([json_encode($form_data, JSON_UNESCAPED_UNICODE), $edit_submission_id, $form_id]);
+            if ($return_formularcenter) {
+                header('Location: admin/formularcenter.php?tab=submissions&message=' . urlencode('Formulareingabe wurde aktualisiert.'));
+                exit;
+            }
+            $message = 'Ihr Formular wurde erfolgreich aktualisiert.';
+        } else {
+            $stmt = $db->prepare("INSERT INTO app_form_submissions (form_id, user_id, form_data) VALUES (?, ?, ?)");
+            $stmt->execute([$form_id, $_SESSION['user_id'], json_encode($form_data, JSON_UNESCAPED_UNICODE)]);
+            if ($return_formularcenter) {
+                header('Location: admin/formularcenter.php?tab=submissions&message=' . urlencode('Formular wurde erfolgreich abgesendet.'));
+                exit;
+            }
+            $message = 'Ihr Formular wurde erfolgreich abgesendet.';
+        }
         $form_data = []; // Nach Erfolg leeren, damit Felder leer sind
     } catch (Exception $e) {
         $error = 'Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.';
@@ -92,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <li class="nav-item"><a class="nav-link" href="index.php"><i class="fas fa-home"></i> Startseite</a></li>
                     <li class="nav-item"><a class="nav-link" href="formulare.php"><i class="fas fa-file-alt"></i> Formulare</a></li>
                     <?php if (!is_system_user()): ?>
+                    <li class="nav-item"><a class="nav-link" href="admin/formularcenter.php"><i class="fas fa-inbox"></i> Formularcenter</a></li>
                     <li class="nav-item"><a class="nav-link" href="admin/dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
                     <?php endif; ?>
                     <li class="nav-item dropdown">
@@ -124,7 +156,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="card-body p-4">
                         <?php if ($message): ?>
                             <div class="alert alert-success"><?php echo htmlspecialchars($message); ?>
+                                <?php if ($return_formularcenter): ?>
+                                <a href="admin/formularcenter.php?tab=submissions" class="alert-link">Zurück zum Formularcenter</a>
+                                <?php else: ?>
                                 <a href="formulare.php" class="alert-link">Zurück zur Formularübersicht</a>
+                                <?php endif; ?>
                             </div>
                         <?php elseif ($error): ?>
                             <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
@@ -132,6 +168,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <?php if (!$message): ?>
                         <form method="post" action="">
+                            <?php if ($is_edit_mode): ?>
+                            <input type="hidden" name="edit" value="<?php echo (int)$edit_submission_id; ?>">
+                            <?php if ($return_formularcenter): ?><input type="hidden" name="return" value="formularcenter"><?php endif; ?>
+                            <?php endif; ?>
                             <?php foreach ($schema as $field):
                                 $name = $field['name'] ?? 'field_' . uniqid();
                                 $label = $field['label'] ?? $name;
@@ -168,8 +208,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <?php if (!empty($schema)): ?>
                             <div class="d-flex gap-2 mt-4">
+                                <?php if ($return_formularcenter): ?>
+                                <a href="admin/formularcenter.php?tab=submissions" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Zurück zum Formularcenter</a>
+                                <?php else: ?>
                                 <a href="formulare.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
-                                <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Absenden</button>
+                                <?php endif; ?>
+                                <button type="submit" class="btn btn-primary"><?php if ($is_edit_mode): ?><i class="fas fa-save"></i> Speichern<?php else: ?><i class="fas fa-paper-plane"></i> Absenden<?php endif; ?></button>
                             </div>
                             <?php endif; ?>
                         </form>
