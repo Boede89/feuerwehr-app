@@ -380,7 +380,7 @@ try {
         $sql .= " AND a.datum <= ?";
         $params[] = $filter_datum_bis;
     }
-    $sql .= " ORDER BY a.created_at DESC";
+    $sql .= " ORDER BY a.datum DESC, a.created_at DESC";
     $stmt = $params ? $db->prepare($sql) : $db->query($sql);
     if ($params) $stmt->execute($params);
     $anwesenheitslisten = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -407,7 +407,7 @@ try {
         $sql .= " AND m.aufgenommen_am <= ?";
         $params[] = $filter_datum_bis;
     }
-    $sql .= " ORDER BY m.created_at DESC";
+    $sql .= " ORDER BY m.aufgenommen_am DESC, m.created_at DESC";
     $stmt = $params ? $db->prepare($sql) : $db->query($sql);
     if ($params) $stmt->execute($params);
     $maengelberichte = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -436,7 +436,7 @@ try {
         $sql .= " AND g.datum <= ?";
         $params[] = $filter_datum_bis;
     }
-    $sql .= " ORDER BY g.created_at DESC";
+    $sql .= " ORDER BY g.datum DESC, g.created_at DESC";
     $stmt = $params ? $db->prepare($sql) : $db->query($sql);
     if ($params) $stmt->execute($params);
     $geraetewartmitteilungen = $stmt->fetchAll(PDO::FETCH_ASSOC);
