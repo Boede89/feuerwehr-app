@@ -113,11 +113,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
         $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_POST['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
     }
-    header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
+    $redirect = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+    $ts = trim((string)($_POST['typ_sonstige'] ?? ''));
+    if ($ts !== '' && (($draft['typ'] ?? '') === 'einsatz' || trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst')) {
+        $redirect .= '&typ_sonstige=' . urlencode($ts);
+        $ueb_ids = $draft['uebungsleiter_member_ids'] ?? [];
+        foreach ($ueb_ids as $uid) {
+            if ((int)$uid > 0) $redirect .= '&uebungsleiter[]=' . (int)$uid;
+        }
+    }
+    header('Location: ' . $redirect);
     exit;
 }
 
+$typen_map = get_dienstplan_typen_auswahl();
+$bez_cur = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
+$typ_key = array_search($bez_cur, $typen_map);
+if ($typ_key === false) $typ_key = 'einsatz';
+$ueb_ids = $draft['uebungsleiter_member_ids'] ?? [];
+if (!is_array($ueb_ids)) $ueb_ids = [];
 $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+if ($typ_key === 'uebungsdienst' || trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst') {
+    $back_url .= '&typ_sonstige=uebungsdienst';
+    foreach ($ueb_ids as $uid) {
+        if ((int)$uid > 0) $back_url .= '&uebungsleiter[]=' . (int)$uid;
+    }
+}
 $selected_ids = array_flip($draft['members']);
 $member_vehicle = $draft['member_vehicle'];
 $member_pa = array_flip($draft['member_pa'] ?? []);
@@ -179,14 +200,6 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                     </div>
                     <div class="card-body p-4">
                         <form method="post" id="personalForm">
-                            <?php
-                            $typen_map = get_dienstplan_typen_auswahl();
-                            $bez_cur = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
-                            $typ_key = array_search($bez_cur, $typen_map);
-                            if ($typ_key === false) $typ_key = 'einsatz';
-                            $ueb_ids = $draft['uebungsleiter_member_ids'] ?? [];
-                            if (!is_array($ueb_ids)) $ueb_ids = [];
-                            ?>
                             <input type="hidden" name="typ_sonstige" value="<?php echo htmlspecialchars($typ_key); ?>">
                             <?php foreach ($ueb_ids as $uid): if ((int)$uid > 0): ?>
                             <input type="hidden" name="uebungsleiter[]" value="<?php echo (int)$uid; ?>">

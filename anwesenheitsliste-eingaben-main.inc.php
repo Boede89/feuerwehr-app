@@ -149,6 +149,17 @@ $draft = &$_SESSION[$draft_key];
 if (!isset($draft['maengel']) || !is_array($draft['maengel'])) {
     $draft['maengel'] = [];
 }
+// typ_sonstige und uebungsleiter aus URL übernehmen (z.B. beim Zurückkehren von Personal/Fahrzeuge/etc.)
+if ($is_einsatz) {
+    $ts = trim((string)($_GET['typ_sonstige'] ?? ''));
+    if ($ts !== '') {
+        $typen = get_dienstplan_typen_auswahl();
+        $draft['bezeichnung_sonstige'] = $typen[$ts] ?? ($draft['bezeichnung_sonstige'] ?? 'Einsatz');
+    }
+    if (isset($_GET['uebungsleiter']) && is_array($_GET['uebungsleiter'])) {
+        $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_GET['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
+    }
+}
 
 // Divera-Einsatz: Daten aus Divera übernehmen (wenn divera_id übergeben)
 $divera_id = isset($_GET['divera_id']) ? (int)$_GET['divera_id'] : 0;
