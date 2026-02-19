@@ -1176,38 +1176,47 @@ if ($debug_fahrzeug) {
                     if ($mid > 0 && $vid > 0 && isset($fahrzeug_stats[$vid])) $besatz_pro_liste[$lid][$vid] = ($besatz_pro_liste[$lid][$vid] ?? 0) + 1;
                 }
             }
-            // 3. Maschinist / Einheitsführer / Top Besatzung: EXAKT wie Debug-Tabelle (gleiche Queries, nur von/bis)
-            $person_fahrzeug_besatzung = [];
-            $params_am = [$von, $bis];
-            $sql_am_debug = "SELECT am.member_id, am.vehicle_id FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0 AND am.member_id > 0";
-            if ($vehicle_id > 0) { $sql_am_debug .= " AND am.vehicle_id = ?"; $params_am[] = $vehicle_id; }
-            $stmt_am = $db->prepare($sql_am_debug);
-            $stmt_am->execute($params_am);
+            // 3. Maschinist / Einheitsführer / Top Besatzung: IDENTISCHE Logik wie Debug-Tabelle (gleiche Queries)
+            $fahrzeug_debug = []; // [mid => ['auf_fahrzeug'=>[vid=>cnt], 'maschinist'=>[vid=>cnt], 'einheitsfuehrer'=>[vid=>cnt]]
+            $stmt_am = $db->prepare("SELECT am.member_id, am.vehicle_id FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0 AND am.member_id > 0");
+            $stmt_am->execute([$von, $bis]);
             while ($r = $stmt_am->fetch(PDO::FETCH_ASSOC)) {
                 $mid = (int)$r['member_id'];
                 $vid = (int)$r['vehicle_id'];
-                if ($mid > 0 && $vid > 0) $person_fahrzeug_besatzung[$mid][$vid] = ($person_fahrzeug_besatzung[$mid][$vid] ?? 0) + 1;
+                if ($mid > 0 && $vid > 0) {
+                    if (!isset($fahrzeug_debug[$mid])) $fahrzeug_debug[$mid] = ['auf_fahrzeug'=>[], 'maschinist'=>[], 'einheitsfuehrer'=>[]];
+                    $fahrzeug_debug[$mid]['auf_fahrzeug'][$vid] = ($fahrzeug_debug[$mid]['auf_fahrzeug'][$vid] ?? 0) + 1;
+                }
             }
-            $params_af = [$von, $bis];
-            $sql_af_debug = "SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0";
-            if ($vehicle_id > 0) { $sql_af_debug .= " AND af.vehicle_id = ?"; $params_af[] = $vehicle_id; }
-            $stmt_af = $db->prepare($sql_af_debug);
-            $stmt_af->execute($params_af);
+            $stmt_af = $db->prepare("SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ?");
+            $stmt_af->execute([$von, $bis]);
             while ($r = $stmt_af->fetch(PDO::FETCH_ASSOC)) {
                 $vid = (int)$r['vehicle_id'];
                 if ($vid <= 0) continue;
                 if (!empty($r['maschinist_member_id'])) {
                     $mid = (int)$r['maschinist_member_id'];
-                    if ($mid > 0) $fahrzeug_maschinist[$vid][$mid] = ($fahrzeug_maschinist[$vid][$mid] ?? 0) + 1;
+                    if ($mid > 0) {
+                        if (!isset($fahrzeug_debug[$mid])) $fahrzeug_debug[$mid] = ['auf_fahrzeug'=>[], 'maschinist'=>[], 'einheitsfuehrer'=>[]];
+                        $fahrzeug_debug[$mid]['maschinist'][$vid] = ($fahrzeug_debug[$mid]['maschinist'][$vid] ?? 0) + 1;
+                    }
                 }
                 if (!empty($r['einheitsfuehrer_member_id'])) {
                     $mid = (int)$r['einheitsfuehrer_member_id'];
-                    if ($mid > 0) $fahrzeug_ef[$vid][$mid] = ($fahrzeug_ef[$vid][$mid] ?? 0) + 1;
+                    if ($mid > 0) {
+                        if (!isset($fahrzeug_debug[$mid])) $fahrzeug_debug[$mid] = ['auf_fahrzeug'=>[], 'maschinist'=>[], 'einheitsfuehrer'=>[]];
+                        $fahrzeug_debug[$mid]['einheitsfuehrer'][$vid] = ($fahrzeug_debug[$mid]['einheitsfuehrer'][$vid] ?? 0) + 1;
+                    }
                 }
             }
-            foreach ($person_fahrzeug_besatzung as $mid => $vids) {
-                foreach ($vids as $vid => $cnt) {
+            foreach ($fahrzeug_debug as $mid => $d) {
+                foreach ($d['auf_fahrzeug'] ?? [] as $vid => $cnt) {
                     if ($vid > 0) $fahrzeug_besatzung_top[$vid][$mid] = ($fahrzeug_besatzung_top[$vid][$mid] ?? 0) + $cnt;
+                }
+                foreach ($d['maschinist'] ?? [] as $vid => $cnt) {
+                    if ($vid > 0) $fahrzeug_maschinist[$vid][$mid] = ($fahrzeug_maschinist[$vid][$mid] ?? 0) + $cnt;
+                }
+                foreach ($d['einheitsfuehrer'] ?? [] as $vid => $cnt) {
+                    if ($vid > 0) $fahrzeug_ef[$vid][$mid] = ($fahrzeug_ef[$vid][$mid] ?? 0) + $cnt;
                 }
             }
             // 4. Durchschn. Besatzung: pro Fahrzeug Summe Besatzung pro Liste / Anzahl Listen
@@ -1297,9 +1306,9 @@ if ($debug_fahrzeug) {
                     <th class="text-end">Gesamt</th>
                     <th class="text-end">Anteil</th>
                     <th class="text-end">Durchschn. Besatzung</th>
-                    <th title="Nur Personen, die explizit als Maschinist eingetragen wurden">Häufigste Maschinisten</th>
-                    <th title="Nur Personen, die explizit als Einheitsführer eingetragen wurden">Häufigste Einheitsführer</th>
-                    <th title="Strichliste: Personen, die diesem Fahrzeug in Anwesenheitslisten zugeordnet waren (Maschinist, EF, Besatzung)">Top Besatzung</th>
+                    <th title="Aus anwesenheitsliste_mitglieder – wie oft Person auf diesem Fahrzeug eingetragen">Top Besatzung</th>
+                    <th title="Nur explizit als Maschinist in anwesenheitsliste_fahrzeuge eingetragen">Häufigste Maschinisten</th>
+                    <th title="Nur explizit als Einheitsführer in anwesenheitsliste_fahrzeuge eingetragen">Häufigste Einheitsführer</th>
                 </tr>
             </thead>
             <tbody>
@@ -1340,15 +1349,15 @@ if ($debug_fahrzeug) {
                     <td class="text-end"><strong><?php echo $gesamt; ?></strong></td>
                     <td class="text-end"><span class="badge bg-warning text-dark"><?php echo $prozent; ?>%</span></td>
                     <td class="text-end"><?php echo number_format($besatz, 1, ',', '.'); ?></td>
+                    <td><?php echo htmlspecialchars(implode(', ', $besatz_str) ?: '-'); ?></td>
                     <td><?php echo htmlspecialchars(implode(', ', $masch_str) ?: '-'); ?></td>
                     <td><?php echo htmlspecialchars(implode(', ', $ef_str) ?: '-'); ?></td>
-                    <td><?php echo htmlspecialchars(implode(', ', $besatz_str) ?: '-'); ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
     </div>
-    <p class="text-muted small mt-2"><i class="fas fa-info-circle"></i> <strong>Häufigste Maschinisten/Einheitsführer:</strong> Aus anwesenheitsliste_fahrzeuge (pro Fahrzeug getrennt). <strong>Top Besatzung:</strong> Aus anwesenheitsliste_mitglieder – wie oft Person auf diesem Fahrzeug eingetragen war.</p>
+    <p class="text-muted small mt-2"><i class="fas fa-info-circle"></i> Reihenfolge wie Debug-Tabelle: <strong>Top Besatzung</strong> = anwesenheitsliste_mitglieder, <strong>Maschinist</strong> = anwesenheitsliste_fahrzeuge.maschinist_member_id, <strong>Einheitsführer</strong> = anwesenheitsliste_fahrzeuge.einheitsfuehrer_member_id.</p>
 
     <?php
     // ==================== BEREICH GERÄTE ====================
