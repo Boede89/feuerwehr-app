@@ -193,7 +193,7 @@ if ($divera_id > 0 && $is_einsatz) {
             $draft['einsatzstelle'] = trim((string)($a['address'] ?? ''));
             $draft['einsatzstichwort'] = trim((string)($a['title'] ?? ''));
             $draft['bezeichnung_sonstige'] = trim((string)($a['title'] ?? ''));
-            if (!empty($a['text'])) $draft['bemerkung'] = trim((string)$a['text']);
+            // Einsatzkurzbericht (bemerkung) wird nicht aus Divera übernommen – nur manuelle Eingabe
             $datum = $draft['datum'];
         }
     }
