@@ -115,9 +115,19 @@ if ($edit_id > 0 && $_SERVER['REQUEST_METHOD'] !== 'POST') {
                 $vehicle_equipment_sonstiges_edit = $cd['vehicle_equipment_sonstiges'] ?? [];
             } catch (Exception $e) {}
             $bezeichnung_sonstige = 'Einsatz';
+            $thema_edit = $liste_edit['bezeichnung'] ?? ($cd['thema'] ?? '');
+            $beschreibung_edit = $cd['beschreibung'] ?? '';
             if (($liste_edit['typ'] ?? '') === 'manuell') {
+                $ts_cd = trim($cd['typ_sonstige'] ?? '');
                 $bez = trim($liste_edit['bezeichnung'] ?? '');
-                $bezeichnung_sonstige = ($bez === 'Sonstiges') ? 'Sonstiges' : 'Übungsdienst';
+                if ($ts_cd === 'sonstiges' || $bez === 'Sonstiges') {
+                    $bezeichnung_sonstige = 'Sonstiges';
+                    $beschreibung_edit = $beschreibung_edit !== '' ? $beschreibung_edit : $bez;
+                    $thema_edit = '';
+                } else {
+                    $bezeichnung_sonstige = 'Übungsdienst';
+                    $thema_edit = $bez !== '' ? $bez : ($cd['thema'] ?? '');
+                }
             }
             $uhrzeit_von_edit = $liste_edit['uhrzeit_von'] ?? '';
             if ($uhrzeit_von_edit !== '' && strlen($uhrzeit_von_edit) >= 5) $uhrzeit_von_edit = substr($uhrzeit_von_edit, 0, 5);
@@ -130,7 +140,7 @@ if ($edit_id > 0 && $_SERVER['REQUEST_METHOD'] !== 'POST') {
                 'typ' => $liste_edit['typ'],
                 'bezeichnung_sonstige' => $bezeichnung_sonstige,
                 'einsatzstichwort' => $liste_edit['einsatzstichwort'] ?? '',
-                'thema' => $liste_edit['bezeichnung'] ?? ($cd['thema'] ?? ''),
+                'thema' => $thema_edit,
                 'bemerkung' => $liste_edit['bemerkung'] ?? '',
                 'members' => $members_edit,
                 'member_vehicle' => $member_vehicle_edit,
@@ -157,7 +167,7 @@ if ($edit_id > 0 && $_SERVER['REQUEST_METHOD'] !== 'POST') {
                 'berichtersteller' => $cd['berichtersteller'] ?? null,
                 'custom_data' => $cd,
                 'maengel' => [],
-                'beschreibung' => $cd['beschreibung'] ?? '',
+                'beschreibung' => $beschreibung_edit,
                 'edit_id' => $edit_id,
             ];
             $draft_loaded = true;
