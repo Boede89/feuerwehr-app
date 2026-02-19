@@ -952,9 +952,27 @@ if ($is_einsatz) {
                             <input type="hidden" name="print_geraetewartmitteilung_after_save" id="print_geraetewartmitteilung_after_save" value="0">
                             <?php if ($is_einsatz): 
                                 $dienstplan_themen = [];
+                                $beschreibung_optionen_sonstiges = [];
                                 try {
                                     $stmt = $db->query("SELECT DISTINCT bezeichnung FROM dienstplan ORDER BY bezeichnung");
                                     $dienstplan_themen = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                                } catch (Exception $e) { /* ignore */ }
+                                try {
+                                    $von_b = date('Y-m-d', strtotime('-5 years'));
+                                    $bis_b = date('Y-m-d', strtotime('+1 day'));
+                                    $typ_cond_sonst = "((a.typ = 'dienst' AND d.typ IN ('sonstiges', 'jahreshauptversammlung')) OR (a.typ = 'manuell' AND (a.bezeichnung IN ('Sonstiges', 'Jahreshauptversammlung') OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) IN ('sonstiges', 'jahreshauptversammlung')))))";
+                                    $stmt = $db->prepare("SELECT DISTINCT a.bezeichnung AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond_sonst . " AND a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '' ORDER BY b");
+                                    $stmt->execute([$von_b, $bis_b]);
+                                    while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                        $b = trim($r['b'] ?? '');
+                                        if ($b !== '' && !in_array($b, $beschreibung_optionen_sonstiges)) $beschreibung_optionen_sonstiges[] = $b;
+                                    }
+                                    $stmt2 = $db->prepare("SELECT DISTINCT TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond_sonst . " AND a.custom_data IS NOT NULL AND JSON_EXTRACT(a.custom_data, '$.beschreibung') IS NOT NULL AND TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) != '' ORDER BY b");
+                                    $stmt2->execute([$von_b, $bis_b]);
+                                    while ($r = $stmt2->fetch(PDO::FETCH_ASSOC)) {
+                                        $b = trim($r['b'] ?? '');
+                                        if ($b !== '' && !in_array($b, $beschreibung_optionen_sonstiges)) $beschreibung_optionen_sonstiges[] = $b;
+                                    }
                                 } catch (Exception $e) { /* ignore */ }
                             ?>
                             <div class="mb-4">
@@ -981,7 +999,12 @@ if ($is_einsatz) {
                                 </div>
                                 <div class="mt-3" id="beschreibung_sonstige_wrap" style="display: <?php echo $show_beschreibung ? 'block' : 'none'; ?>;">
                                     <label for="beschreibung_sonstige" class="form-label">Beschreibung</label>
-                                    <input type="text" class="form-control" id="beschreibung_sonstige" name="beschreibung" placeholder="Freitext z.B. Jahresrückblick, Mitgliederversammlung" value="<?php echo htmlspecialchars($draft['beschreibung'] ?? ''); ?>">
+                                    <input type="text" class="form-control" id="beschreibung_sonstige" name="beschreibung" list="beschreibung_sonstige_list" placeholder="Aus Liste wählen oder Freitext eingeben" value="<?php echo htmlspecialchars($draft['beschreibung'] ?? ''); ?>">
+                                    <datalist id="beschreibung_sonstige_list">
+                                        <?php foreach ($beschreibung_optionen_sonstiges as $opt): ?>
+                                        <option value="<?php echo htmlspecialchars($opt); ?>">
+                                        <?php endforeach; ?>
+                                    </datalist>
                                 </div>
                                 <div class="mt-3" id="thema_wrap" style="display: <?php echo $show_thema ? 'block' : 'none'; ?>;">
                                     <label for="thema" class="form-label">Thema</label>
@@ -1008,10 +1031,34 @@ if ($is_einsatz) {
                                 } catch (Exception $e) { /* ignore */ }
                                 $thema_dienst = trim((string)($draft['thema'] ?? $dienst['bezeichnung'] ?? ''));
                             ?>
-                            <?php if ($is_jhv_sonstiges_dienst): ?>
+                            <?php if ($is_jhv_sonstiges_dienst): 
+                                $beschreibung_optionen_dienst = [];
+                                try {
+                                    $von_b = date('Y-m-d', strtotime('-5 years'));
+                                    $bis_b = date('Y-m-d', strtotime('+1 day'));
+                                    $typ_cond_sonst = "((a.typ = 'dienst' AND d.typ IN ('sonstiges', 'jahreshauptversammlung')) OR (a.typ = 'manuell' AND (a.bezeichnung IN ('Sonstiges', 'Jahreshauptversammlung') OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) IN ('sonstiges', 'jahreshauptversammlung')))))";
+                                    $stmt = $db->prepare("SELECT DISTINCT a.bezeichnung AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond_sonst . " AND a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '' ORDER BY b");
+                                    $stmt->execute([$von_b, $bis_b]);
+                                    while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                        $b = trim($r['b'] ?? '');
+                                        if ($b !== '' && !in_array($b, $beschreibung_optionen_dienst)) $beschreibung_optionen_dienst[] = $b;
+                                    }
+                                    $stmt2 = $db->prepare("SELECT DISTINCT TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond_sonst . " AND a.custom_data IS NOT NULL AND JSON_EXTRACT(a.custom_data, '$.beschreibung') IS NOT NULL AND TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) != '' ORDER BY b");
+                                    $stmt2->execute([$von_b, $bis_b]);
+                                    while ($r = $stmt2->fetch(PDO::FETCH_ASSOC)) {
+                                        $b = trim($r['b'] ?? '');
+                                        if ($b !== '' && !in_array($b, $beschreibung_optionen_dienst)) $beschreibung_optionen_dienst[] = $b;
+                                    }
+                                } catch (Exception $e) { /* ignore */ }
+                            ?>
                             <div class="mb-4">
                                 <label for="beschreibung_dienst" class="form-label">Beschreibung</label>
-                                <input type="text" class="form-control" id="beschreibung_dienst" name="beschreibung" placeholder="Freitext z.B. Jahresrückblick, Mitgliederversammlung" value="<?php echo htmlspecialchars($draft['beschreibung'] ?? ''); ?>">
+                                <input type="text" class="form-control" id="beschreibung_dienst" name="beschreibung" list="beschreibung_dienst_list" placeholder="Aus Liste wählen oder Freitext eingeben" value="<?php echo htmlspecialchars($draft['beschreibung'] ?? ''); ?>">
+                                <datalist id="beschreibung_dienst_list">
+                                    <?php foreach ($beschreibung_optionen_dienst as $opt): ?>
+                                    <option value="<?php echo htmlspecialchars($opt); ?>">
+                                    <?php endforeach; ?>
+                                </datalist>
                             </div>
                             <?php else: ?>
                             <div class="mb-4">
