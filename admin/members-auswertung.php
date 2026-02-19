@@ -1117,6 +1117,7 @@ if ($debug_fahrzeug) {
     elseif ($bereich === 'fahrzeuge'):
         $fahrzeug_stats = [];
         $fahrzeug_besatzung = [];
+        $fahrzeug_maschinist = [];
         try {
             // 1. Fahrzeug-Stats und Durchschn. Besatzung (mit Filtern)
             $sql_f = "SELECT af.anwesenheitsliste_id, af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0";
@@ -1173,7 +1174,19 @@ if ($debug_fahrzeug) {
                     if ($mid > 0 && $vid > 0 && isset($fahrzeug_stats[$vid])) $besatz_pro_liste[$lid][$vid] = ($besatz_pro_liste[$lid][$vid] ?? 0) + 1;
                 }
             }
-            // 3. Durchschn. Besatzung: pro Fahrzeug Summe Besatzung pro Liste / Anzahl Listen
+            // 3. Maschinist pro Fahrzeug (gleiche Logik wie Debug-Tabelle: anwesenheitsliste_fahrzeuge.maschinist_member_id)
+            $fahrzeug_maschinist = [];
+            $stmt_af = $db->prepare("SELECT af.vehicle_id, af.maschinist_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0");
+            $stmt_af->execute([$von, $bis]);
+            while ($r = $stmt_af->fetch(PDO::FETCH_ASSOC)) {
+                $vid = (int)$r['vehicle_id'];
+                if ($vid <= 0) continue;
+                if (!empty($r['maschinist_member_id'])) {
+                    $mid = (int)$r['maschinist_member_id'];
+                    if ($mid > 0) $fahrzeug_maschinist[$vid][$mid] = ($fahrzeug_maschinist[$vid][$mid] ?? 0) + 1;
+                }
+            }
+            // 4. Durchschn. Besatzung: pro Fahrzeug Summe Besatzung pro Liste / Anzahl Listen
             foreach ($fahrzeug_besatzung as $vid => $liste_ids) {
                 $liste_ids = array_unique($liste_ids);
                 $sum = 0;
@@ -1185,6 +1198,28 @@ if ($debug_fahrzeug) {
         } catch (Exception $e) {}
         $vehicle_map = [];
         foreach ($vehicles as $v) $vehicle_map[(int)$v['id']] = $v['name'];
+        $member_map = [];
+        foreach ($members as $m) {
+            $name = trim(($m['last_name'] ?? '') . ', ' . ($m['first_name'] ?? ''));
+            $member_map[(int)$m['id']] = $name !== '' ? $name : 'ID ' . (int)$m['id'];
+        }
+        $all_maschinist_mids = [];
+        foreach ($fahrzeug_maschinist as $v) {
+            $all_maschinist_mids = array_merge($all_maschinist_mids, array_keys($v ?? []));
+        }
+        $all_maschinist_mids = array_unique(array_filter($all_maschinist_mids, fn($mid) => (int)$mid > 0));
+        $missing_mids = array_filter($all_maschinist_mids, fn($mid) => !isset($member_map[(int)$mid]));
+        if (!empty($missing_mids)) {
+            try {
+                $ph = implode(',', array_fill(0, count($missing_mids), '?'));
+                $st = $db->prepare("SELECT id, first_name, last_name FROM members WHERE id IN ($ph)");
+                $st->execute(array_values($missing_mids));
+                while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+                    $name = trim(($row['last_name'] ?? '') . ', ' . ($row['first_name'] ?? ''));
+                    $member_map[(int)$row['id']] = $name !== '' ? $name : 'ID ' . (int)$row['id'];
+                }
+            } catch (Exception $e) {}
+        }
         $sorted_vids = array_keys($fahrzeug_stats);
         usort($sorted_vids, function($a,$b) use ($fahrzeug_stats) {
             $ta = ($fahrzeug_stats[$a]['einsaetze'] ?? 0) + ($fahrzeug_stats[$a]['uebungen'] ?? 0);
@@ -1247,6 +1282,14 @@ if ($debug_fahrzeug) {
                     $gesamt = $s['einsaetze'] + $s['uebungen'];
                     $prozent = $gesamt_fahrzeuge > 0 ? number_format($gesamt / $gesamt_fahrzeuge * 100, 1, ',', '.') : '0';
                     $besatz = $fahrzeug_besatzung[$vid] ?? 0;
+                    $masch_list = $fahrzeug_maschinist[$vid] ?? [];
+                    arsort($masch_list);
+                    $top_masch = null;
+                    foreach (array_filter(array_keys($masch_list), fn($k) => (int)$k > 0) as $mid) {
+                        $top_masch = ['mid' => (int)$mid, 'cnt' => $masch_list[$mid]];
+                        break;
+                    }
+                    $masch_str = $top_masch ? (($member_map[$top_masch['mid']] ?? 'ID ' . $top_masch['mid']) . ' (' . $top_masch['cnt'] . ')') : '–';
                 ?>
                 <tr>
                     <td><?php echo htmlspecialchars($vehicle_map[$vid] ?? '-'); ?></td>
@@ -1255,7 +1298,7 @@ if ($debug_fahrzeug) {
                     <td class="text-end"><strong><?php echo $gesamt; ?></strong></td>
                     <td class="text-end"><span class="badge bg-warning text-dark"><?php echo $prozent; ?>%</span></td>
                     <td class="text-end"><?php echo number_format($besatz, 1, ',', '.'); ?></td>
-                    <td>–</td>
+                    <td><?php echo htmlspecialchars($masch_str); ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
