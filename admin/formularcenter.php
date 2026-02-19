@@ -705,17 +705,19 @@ try {
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <span><i class="fas fa-inbox"></i> Eingegangene Formulare</span>
                     <div class="d-flex flex-wrap align-items-center gap-2">
-                    <?php if (!empty($anwesenheitslisten)): ?>
-                    <a href="../api/anwesenheitsliste-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-outline-success btn-sm" download title="Alle Anwesenheitslisten als PDF herunterladen"><i class="fas fa-file-pdf"></i> Alle Berichte als PDF</a>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" title="Alle Anwesenheitslisten drucken" onclick="druckenAnwesenheitslisteAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print"></i> Alle drucken</button>
+                    <?php if ($filter_formular !== ''): ?>
+                    <?php if ($filter_formular === 'anwesenheitsliste' && !empty($anwesenheitslisten)): ?>
+                    <a href="../api/anwesenheitsliste-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-success btn-sm" download title="Alle Anwesenheitslisten als PDF herunterladen"><i class="fas fa-file-pdf me-1"></i> Alle Berichte als PDF</a>
+                    <button type="button" class="btn btn-dark btn-sm" title="Alle Anwesenheitslisten drucken" onclick="druckenAnwesenheitslisteAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print me-1"></i> Alle drucken</button>
                     <?php endif; ?>
-                    <?php if (!empty($maengelberichte)): ?>
-                    <a href="../api/maengelbericht-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-outline-success btn-sm" download title="Alle Mängelberichte als PDF herunterladen"><i class="fas fa-file-pdf"></i> Alle Mängelberichte als PDF</a>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" title="Alle Mängelberichte drucken" onclick="druckenMaengelberichtAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print"></i> Alle Mängelberichte drucken</button>
+                    <?php if ($filter_formular === 'maengelbericht' && !empty($maengelberichte)): ?>
+                    <a href="../api/maengelbericht-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-success btn-sm" download title="Alle Mängelberichte als PDF herunterladen"><i class="fas fa-file-pdf me-1"></i> Alle Mängelberichte als PDF</a>
+                    <button type="button" class="btn btn-dark btn-sm" title="Alle Mängelberichte drucken" onclick="druckenMaengelberichtAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print me-1"></i> Alle Mängelberichte drucken</button>
                     <?php endif; ?>
-                    <?php if (!empty($geraetewartmitteilungen)): ?>
-                    <a href="../api/geraetewartmitteilung-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-outline-success btn-sm" download title="Alle Gerätewartmitteilungen als PDF herunterladen"><i class="fas fa-file-pdf"></i> Alle Gerätewartmitteilungen als PDF</a>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" title="Alle Gerätewartmitteilungen drucken" onclick="druckenGeraetewartmitteilungAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print"></i> Alle Gerätewartmitteilungen drucken</button>
+                    <?php if ($filter_formular === 'geraetewartmitteilung' && !empty($geraetewartmitteilungen)): ?>
+                    <a href="../api/geraetewartmitteilung-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-success btn-sm" download title="Alle Gerätewartmitteilungen als PDF herunterladen"><i class="fas fa-file-pdf me-1"></i> Alle Gerätewartmitteilungen als PDF</a>
+                    <button type="button" class="btn btn-dark btn-sm" title="Alle Gerätewartmitteilungen drucken" onclick="druckenGeraetewartmitteilungAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print me-1"></i> Alle Gerätewartmitteilungen drucken</button>
+                    <?php endif; ?>
                     <?php endif; ?>
                     <form method="get" class="d-flex flex-wrap align-items-center gap-2">
                         <input type="hidden" name="tab" value="submissions">
