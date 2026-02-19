@@ -54,7 +54,20 @@ if ($ret !== 0) {
     } elseif (stripos($err, 'Forbidden') !== false) {
         $msg = 'CUPS blockiert Zugriff. cupsd.conf anpassen (Allow from 172.17.0.0/16). ' . $manual_hint;
     } elseif (stripos($err, 'Scheduler is not running') !== false || stripos($err, 'cupsd') !== false) {
-        $msg = 'CUPS läuft nicht. Linux-Host: sudo systemctl start cups. Windows: Druckername manuell eintragen. ' . $manual_hint;
+        $msg = 'CUPS nicht erreichbar. ';
+        $is_socket = ($printer_cups_server !== '' && strpos($printer_cups_server, '/') !== false);
+        if ($is_socket) {
+            if (is_dir($printer_cups_server)) {
+                $msg .= 'Socket-Pfad ist ein Verzeichnis (Docker-Mount-Problem). Container neu starten: docker compose restart web – nachdem CUPS auf dem Host läuft. ';
+            } elseif (!file_exists($printer_cups_server)) {
+                $msg .= 'Socket nicht vorhanden. Auf dem Host: sudo systemctl start cups. Danach: docker compose restart web. ';
+            } else {
+                $msg .= 'Socket vorhanden, CUPS antwortet nicht. Auf dem Host: sudo systemctl restart cups. Danach: docker compose restart web. ';
+            }
+        } else {
+            $msg .= 'Linux-Host: sudo systemctl start cups. Danach: docker compose restart web. ';
+        }
+        $msg .= $manual_hint;
     } else {
         $msg = 'lpstat Fehler. ' . $manual_hint;
     }

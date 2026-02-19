@@ -36,3 +36,6 @@ systemctl status cups --no-pager || true
 echo ""
 echo "Prüfen mit: lpstat -p"
 echo "Drucker anlegen mit: sudo lpadmin -p NAME -E -v ipp://... -m everywhere"
+echo ""
+echo "WICHTIG: Container neu starten, damit der CUPS-Socket gemountet wird:"
+echo "  cd ~/feuerwehr-app && docker compose restart web"
