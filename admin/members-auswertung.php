@@ -1107,9 +1107,6 @@ if ($debug_fahrzeug) {
         $fahrzeug_besatzung_top = [];
         $fahrzeug_maschinist = [];
         $fahrzeug_ef = [];
-        $person_fahrzeug_besatzung = [];
-        $person_fahrzeug_maschinist = [];
-        $person_fahrzeug_ef = [];
         try {
             // 1. Alle Listen mit Fahrzeugen laden (für Stats + Strichliste)
             $sql_f = "SELECT af.anwesenheitsliste_id, af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0";
@@ -1190,11 +1187,8 @@ if ($debug_fahrzeug) {
                     $besatz_pro_liste[$lid][$vid] = ($besatz_pro_liste[$lid][$vid] ?? 0) + 1;
                 }
             }
-            $fahrzeug_besatzung_top = $strichliste ?? [];
-            // 3b. Person × Fahrzeug Matrix (wie Debug-Tabelle: Besatzung | Maschinist | EF pro Fahrzeug)
+            // 3b. Top Besatzung: aus anwesenheitsliste_mitglieder (person_fahrzeug_besatzung), getrennt von Maschinist/EF
             $person_fahrzeug_besatzung = [];
-            $person_fahrzeug_maschinist = [];
-            $person_fahrzeug_ef = [];
             foreach ($am_by_liste as $lid => $am_rows) {
                 foreach ($am_rows as $am) {
                     $mid = (int)$am['member_id'];
@@ -1204,17 +1198,12 @@ if ($debug_fahrzeug) {
                     }
                 }
             }
-            foreach ($fahrzeug_maschinist as $vid => $mids) {
-                foreach ($mids as $mid => $cnt) {
-                    if ($mid > 0 && $vid > 0) {
-                        $person_fahrzeug_maschinist[$mid][$vid] = ($person_fahrzeug_maschinist[$mid][$vid] ?? 0) + $cnt;
-                    }
-                }
-            }
-            foreach ($fahrzeug_ef as $vid => $mids) {
-                foreach ($mids as $mid => $cnt) {
-                    if ($mid > 0 && $vid > 0) {
-                        $person_fahrzeug_ef[$mid][$vid] = ($person_fahrzeug_ef[$mid][$vid] ?? 0) + $cnt;
+            // fahrzeug_besatzung_top: pro Fahrzeug die Personen mit Besatzungs-Count (nur anwesenheitsliste_mitglieder)
+            $fahrzeug_besatzung_top = [];
+            foreach ($person_fahrzeug_besatzung as $mid => $vids) {
+                foreach ($vids as $vid => $cnt) {
+                    if (isset($fahrzeug_stats[$vid])) {
+                        $fahrzeug_besatzung_top[$vid][$mid] = ($fahrzeug_besatzung_top[$vid][$mid] ?? 0) + $cnt;
                     }
                 }
             }
@@ -1348,63 +1337,7 @@ if ($debug_fahrzeug) {
             </tbody>
         </table>
     </div>
-    <p class="text-muted small mt-2"><i class="fas fa-info-circle"></i> <strong>Häufigste Maschinisten/Einheitsführer:</strong> Nur explizit im Formular ausgewählte Personen. <strong>Top Besatzung:</strong> Strichliste – Personen, die diesem Fahrzeug in Anwesenheitslisten zugeordnet waren (Maschinist, Einheitsführer, Besatzung). Pro Liste maximal 1 Strich pro Person.</p>
-
-    <!-- Person × Fahrzeug: Besatzung | Maschinist | Einheitsführer pro Fahrzeug (nur Anwesenheitslisten) -->
-    <?php
-    $person_fahrzeug_all_mids = array_unique(array_merge(
-        array_keys($person_fahrzeug_besatzung ?? []),
-        array_keys($person_fahrzeug_maschinist ?? []),
-        array_keys($person_fahrzeug_ef ?? [])
-    ));
-    $person_fahrzeug_all_mids = array_filter($person_fahrzeug_all_mids, fn($x) => $x > 0);
-    usort($person_fahrzeug_all_mids, function($a, $b) use ($member_map) {
-        $na = $member_map[$a] ?? '';
-        $nb = $member_map[$b] ?? '';
-        return strcasecmp($na, $nb);
-    });
-    if (!empty($person_fahrzeug_all_mids) && !empty($sorted_vids)): ?>
-    <h6 class="mt-4 mb-2"><i class="fas fa-users"></i> Person × Fahrzeug (Besatzung | Maschinist | Einheitsführer pro Fahrzeug)</h6>
-    <div class="table-responsive">
-        <table class="table table-sm table-bordered">
-            <thead class="table-light">
-                <tr>
-                    <th>Person</th>
-                    <?php foreach ($sorted_vids as $vid): ?>
-                    <th colspan="3" class="text-center border-start bg-light"><?php echo htmlspecialchars($vehicle_map[$vid] ?? '-'); ?></th>
-                    <?php endforeach; ?>
-                </tr>
-                <tr>
-                    <th></th>
-                    <?php foreach ($sorted_vids as $vid): ?>
-                    <th class="text-center border-start" style="min-width: 38px;">Besatzung</th>
-                    <th class="text-center bg-info bg-opacity-25" style="min-width: 38px;">Masch.</th>
-                    <th class="text-center bg-success bg-opacity-25" style="min-width: 38px;">EF</th>
-                    <?php endforeach; ?>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($person_fahrzeug_all_mids as $mid):
-                    $name = $member_map[$mid] ?? 'ID ' . $mid;
-                ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($name); ?></td>
-                    <?php foreach ($sorted_vids as $vid):
-                        $besatzung = $person_fahrzeug_besatzung[$mid][$vid] ?? 0;
-                        $masch = $person_fahrzeug_maschinist[$mid][$vid] ?? 0;
-                        $ef = $person_fahrzeug_ef[$mid][$vid] ?? 0;
-                    ?>
-                    <td class="text-center border-start"><?php echo $besatzung > 0 ? $besatzung : '–'; ?></td>
-                    <td class="text-center bg-info bg-opacity-10"><?php echo $masch > 0 ? $masch : '–'; ?></td>
-                    <td class="text-center bg-success bg-opacity-10"><?php echo $ef > 0 ? $ef : '–'; ?></td>
-                    <?php endforeach; ?>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-    <p class="text-muted small mt-1">Nur Anwesenheitslisten. Pro Fahrzeug: Besatzung = anwesenheitsliste_mitglieder, Masch. = Maschinist, EF = Einheitsführer.</p>
-    <?php endif; ?>
+    <p class="text-muted small mt-2"><i class="fas fa-info-circle"></i> <strong>Häufigste Maschinisten/Einheitsführer:</strong> Aus anwesenheitsliste_fahrzeuge (pro Fahrzeug getrennt). <strong>Top Besatzung:</strong> Aus anwesenheitsliste_mitglieder – wie oft Person auf diesem Fahrzeug eingetragen war.</p>
 
     <?php
     // ==================== BEREICH GERÄTE ====================
