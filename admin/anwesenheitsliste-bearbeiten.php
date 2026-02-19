@@ -26,10 +26,6 @@ if ($id <= 0) {
     exit;
 }
 
-try {
-    $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN einsatzbericht_nummer VARCHAR(50) NULL");
-} catch (Exception $e) { /* Spalte existiert evtl. bereits */ }
-
 $liste = null;
 try {
     $stmt = $db->prepare("
@@ -47,6 +43,16 @@ try {
 }
 if (!$liste) {
     header('Location: formularcenter.php?tab=submissions&error=not_found');
+    exit;
+}
+
+// Weiterleitung zur Ausfüllseite – identisches Layout wie beim Ausfüllen
+$datum = $liste['datum'] ?? '';
+$typ = $liste['typ'] ?? 'dienst';
+$auswahl = ($typ === 'einsatz' || $typ === 'manuell') ? 'einsatz' : (string)($liste['dienstplan_id'] ?? '');
+if ($auswahl === '' && $typ === 'dienst') $auswahl = 'einsatz'; // Fallback wenn Dienstplan gelöscht
+if ($datum !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum)) {
+    header('Location: ../anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&edit_id=' . (int)$id . '&return=formularcenter');
     exit;
 }
 

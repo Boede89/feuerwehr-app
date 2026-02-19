@@ -25,6 +25,8 @@ if (!isset($_SESSION['user_id'])) {
 
 $datum = isset($_GET['datum']) ? trim($_GET['datum']) : '';
 $auswahl = isset($_GET['auswahl']) ? trim($_GET['auswahl']) : '';
+$edit_id = isset($_GET['edit_id']) ? (int)$_GET['edit_id'] : (isset($_POST['edit_id']) ? (int)$_POST['edit_id'] : 0);
+$return_formularcenter = (isset($_GET['return']) && $_GET['return'] === 'formularcenter') || (isset($_POST['return']) && $_POST['return'] === 'formularcenter');
 
 if ($datum === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum)) {
     header('Location: anwesenheitsliste.php?error=datum');
@@ -70,11 +72,99 @@ if ($is_einsatz) {
 // Session-Draft für diese Anwesenheitsliste (ein Draft pro User)
 $draft_key = 'anwesenheit_draft';
 $neu = isset($_GET['neu']) && $_GET['neu'] === '1';
-if ($neu) {
+if ($neu && $edit_id <= 0) {
     unset($_SESSION[$draft_key]);
 }
 $draft_loaded = false;
 $has_typ_sonstige_url = $is_einsatz && trim((string)($_GET['typ_sonstige'] ?? '')) !== '';
+
+// Bearbeitungsmodus: bestehende Anwesenheitsliste laden
+if ($edit_id > 0 && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    try {
+        $stmt = $db->prepare("SELECT a.*, d.bezeichnung AS dienst_bezeichnung, d.typ AS dienst_typ FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.id = ?");
+        $stmt->execute([$edit_id]);
+        $liste_edit = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($liste_edit) {
+            $cd = !empty($liste_edit['custom_data']) ? json_decode($liste_edit['custom_data'], true) : [];
+            if (!is_array($cd)) $cd = [];
+            $ueb_ids = $cd['uebungsleiter_member_ids'] ?? [];
+            if (!is_array($ueb_ids)) $ueb_ids = [];
+            $members_edit = [];
+            $member_vehicle_edit = [];
+            $stmt_m = $db->prepare("SELECT member_id, vehicle_id FROM anwesenheitsliste_mitglieder WHERE anwesenheitsliste_id = ?");
+            $stmt_m->execute([$edit_id]);
+            while ($r = $stmt_m->fetch(PDO::FETCH_ASSOC)) {
+                $members_edit[] = (int)$r['member_id'];
+                $member_vehicle_edit[(int)$r['member_id']] = $r['vehicle_id'] ? (int)$r['vehicle_id'] : null;
+            }
+            $vehicles_edit = [];
+            $vehicle_maschinist_edit = [];
+            $vehicle_einheitsfuehrer_edit = [];
+            $vehicle_equipment_edit = [];
+            $vehicle_equipment_sonstiges_edit = [];
+            try {
+                $stmt_v = $db->prepare("SELECT vehicle_id, maschinist_member_id, einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge WHERE anwesenheitsliste_id = ?");
+                $stmt_v->execute([$edit_id]);
+                while ($rv = $stmt_v->fetch(PDO::FETCH_ASSOC)) {
+                    $vid = (int)$rv['vehicle_id'];
+                    $vehicles_edit[] = $vid;
+                    $vehicle_maschinist_edit[$vid] = $rv['maschinist_member_id'] ? (int)$rv['maschinist_member_id'] : null;
+                    $vehicle_einheitsfuehrer_edit[$vid] = $rv['einheitsfuehrer_member_id'] ? (int)$rv['einheitsfuehrer_member_id'] : null;
+                }
+                $vehicle_equipment_edit = $cd['vehicle_equipment'] ?? [];
+                $vehicle_equipment_sonstiges_edit = $cd['vehicle_equipment_sonstiges'] ?? [];
+            } catch (Exception $e) {}
+            $bezeichnung_sonstige = 'Einsatz';
+            if (($liste_edit['typ'] ?? '') === 'manuell') {
+                $bez = trim($liste_edit['bezeichnung'] ?? '');
+                $bezeichnung_sonstige = ($bez === 'Sonstiges') ? 'Sonstiges' : 'Übungsdienst';
+            }
+            $uhrzeit_von_edit = $liste_edit['uhrzeit_von'] ?? '';
+            if ($uhrzeit_von_edit !== '' && strlen($uhrzeit_von_edit) >= 5) $uhrzeit_von_edit = substr($uhrzeit_von_edit, 0, 5);
+            $uhrzeit_bis_edit = $liste_edit['uhrzeit_bis'] ?? date('H:i');
+            if ($uhrzeit_bis_edit !== '' && strlen($uhrzeit_bis_edit) >= 5) $uhrzeit_bis_edit = substr($uhrzeit_bis_edit, 0, 5);
+            $_SESSION[$draft_key] = [
+                'datum' => $liste_edit['datum'],
+                'auswahl' => $auswahl,
+                'dienstplan_id' => $liste_edit['dienstplan_id'],
+                'typ' => $liste_edit['typ'],
+                'bezeichnung_sonstige' => $bezeichnung_sonstige,
+                'einsatzstichwort' => $liste_edit['einsatzstichwort'] ?? '',
+                'thema' => $liste_edit['bezeichnung'] ?? ($cd['thema'] ?? ''),
+                'bemerkung' => $liste_edit['bemerkung'] ?? '',
+                'members' => $members_edit,
+                'member_vehicle' => $member_vehicle_edit,
+                'member_pa' => array_values(array_map('intval', is_array($cd['member_pa'] ?? null) ? $cd['member_pa'] : [])),
+                'vehicles' => array_unique($vehicles_edit),
+                'vehicle_maschinist' => $vehicle_maschinist_edit,
+                'vehicle_einheitsfuehrer' => $vehicle_einheitsfuehrer_edit,
+                'vehicle_equipment' => $vehicle_equipment_edit,
+                'vehicle_equipment_sonstiges' => $vehicle_equipment_sonstiges_edit,
+                'uhrzeit_von' => $uhrzeit_von_edit,
+                'uhrzeit_bis' => $uhrzeit_bis_edit,
+                'uebungsleiter_member_ids' => $ueb_ids,
+                'alarmierung_durch' => $liste_edit['alarmierung_durch'] ?? '',
+                'einsatzstelle' => $liste_edit['einsatzstelle'] ?? '',
+                'objekt' => $liste_edit['objekt'] ?? '',
+                'eigentuemer' => $liste_edit['eigentuemer'] ?? '',
+                'geschaedigter' => $liste_edit['geschaedigter'] ?? '',
+                'klassifizierung' => $liste_edit['klassifizierung'] ?? '',
+                'kostenpflichtiger_einsatz' => $liste_edit['kostenpflichtiger_einsatz'] ?? '',
+                'personenschaeden' => $liste_edit['personenschaeden'] ?? '',
+                'brandwache' => $liste_edit['brandwache'] ?? '',
+                'einsatzleiter_member_id' => $liste_edit['einsatzleiter_member_id'] ?? null,
+                'einsatzleiter_freitext' => $liste_edit['einsatzleiter_freitext'] ?? '',
+                'berichtersteller' => $cd['berichtersteller'] ?? null,
+                'custom_data' => $cd,
+                'maengel' => [],
+                'beschreibung' => $cd['beschreibung'] ?? '',
+                'edit_id' => $edit_id,
+            ];
+            $draft_loaded = true;
+        }
+    } catch (Exception $e) {}
+}
+
 if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum || $_SESSION[$draft_key]['auswahl'] !== $auswahl) {
     // Bei Rückkehr von Unterseite (typ_sonstige in URL): NICHT aus DB laden – DB könnte veraltete Daten haben
     if (!$has_typ_sonstige_url && !$neu && isset($_SESSION['user_id'])) {
@@ -329,6 +419,7 @@ function _anwesenheitsliste_draft_value($id, $draft) {
 
 // Speichern (nur auf dieser Seite): Liste anlegen + Personal/Fahrzeuge aus Session
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
+    $edit_id_save = isset($_POST['edit_id']) ? (int)$_POST['edit_id'] : (int)($draft['edit_id'] ?? 0);
     $ber = trim($_POST['berichtersteller'] ?? '');
     if ($ber === '') $ber = trim($_POST['berichtersteller_display'] ?? '');
     $draft['berichtersteller'] = $ber !== '' ? $ber : null;
@@ -489,30 +580,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         $custom_data_json = !empty($custom_data_for_save) ? json_encode($custom_data_for_save) : null;
         $einsatzstichwort_save = ($typ_save === 'einsatz' && !empty($draft['einsatzstichwort'])) ? $draft['einsatzstichwort'] : null;
         $divera_id_save = !empty($draft['divera_id']) ? (int)$draft['divera_id'] : null;
-        $stmt = $db->prepare("
-            INSERT INTO anwesenheitslisten (datum, dienstplan_id, typ, bezeichnung, user_id, bemerkung, einsatzstichwort,
-                uhrzeit_von, uhrzeit_bis, alarmierung_durch, einsatzstelle, objekt, eigentuemer, geschaedigter,
-                klassifizierung, kostenpflichtiger_einsatz, personenschaeden, brandwache, einsatzleiter_member_id, einsatzleiter_freitext, custom_data, divera_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([
-            $draft['datum'], $dp_id, $typ_save, $bezeichnung_save, $_SESSION['user_id'], $draft['bemerkung'] !== '' ? $draft['bemerkung'] : null, $einsatzstichwort_save,
-            $uhrzeit_von_save, $uhrzeit_bis_save,
-            $draft['alarmierung_durch'] !== '' ? $draft['alarmierung_durch'] : null,
-            $draft['einsatzstelle'] !== '' ? $draft['einsatzstelle'] : null,
-            $draft['objekt'] !== '' ? $draft['objekt'] : null,
-            $draft['eigentuemer'] !== '' ? $draft['eigentuemer'] : null,
-            $draft['geschaedigter'] !== '' ? $draft['geschaedigter'] : null,
-            $draft['klassifizierung'] !== '' ? $draft['klassifizierung'] : null,
-            $draft['kostenpflichtiger_einsatz'] !== '' ? $draft['kostenpflichtiger_einsatz'] : null,
-            $draft['personenschaeden'] !== '' ? $draft['personenschaeden'] : null,
-            $draft['brandwache'] !== '' ? $draft['brandwache'] : null,
-            $draft['einsatzleiter_member_id'] ?? null,
-            $draft['einsatzleiter_freitext'] !== '' ? $draft['einsatzleiter_freitext'] : null,
-            $custom_data_json,
-            $divera_id_save
-        ]);
-        $list_id = $db->lastInsertId();
+        if ($edit_id_save > 0) {
+            $stmt = $db->prepare("
+                UPDATE anwesenheitslisten SET datum=?, dienstplan_id=?, typ=?, bezeichnung=?, bemerkung=?, einsatzstichwort=?,
+                    uhrzeit_von=?, uhrzeit_bis=?, alarmierung_durch=?, einsatzstelle=?, objekt=?, eigentuemer=?, geschaedigter=?,
+                    klassifizierung=?, kostenpflichtiger_einsatz=?, personenschaeden=?, brandwache=?, einsatzleiter_member_id=?, einsatzleiter_freitext=?, custom_data=?
+                WHERE id=?
+            ");
+            $stmt->execute([
+                $draft['datum'], $dp_id, $typ_save, $bezeichnung_save, $draft['bemerkung'] !== '' ? $draft['bemerkung'] : null, $einsatzstichwort_save,
+                $uhrzeit_von_save, $uhrzeit_bis_save,
+                $draft['alarmierung_durch'] !== '' ? $draft['alarmierung_durch'] : null,
+                $draft['einsatzstelle'] !== '' ? $draft['einsatzstelle'] : null,
+                $draft['objekt'] !== '' ? $draft['objekt'] : null,
+                $draft['eigentuemer'] !== '' ? $draft['eigentuemer'] : null,
+                $draft['geschaedigter'] !== '' ? $draft['geschaedigter'] : null,
+                $draft['klassifizierung'] !== '' ? $draft['klassifizierung'] : null,
+                $draft['kostenpflichtiger_einsatz'] !== '' ? $draft['kostenpflichtiger_einsatz'] : null,
+                $draft['personenschaeden'] !== '' ? $draft['personenschaeden'] : null,
+                $draft['brandwache'] !== '' ? $draft['brandwache'] : null,
+                $draft['einsatzleiter_member_id'] ?? null,
+                $draft['einsatzleiter_freitext'] !== '' ? $draft['einsatzleiter_freitext'] : null,
+                $custom_data_json,
+                $edit_id_save
+            ]);
+            $list_id = $edit_id_save;
+            $db->prepare("DELETE FROM anwesenheitsliste_mitglieder WHERE anwesenheitsliste_id = ?")->execute([$list_id]);
+            $db->prepare("DELETE FROM anwesenheitsliste_fahrzeuge WHERE anwesenheitsliste_id = ?")->execute([$list_id]);
+        } else {
+            $stmt = $db->prepare("
+                INSERT INTO anwesenheitslisten (datum, dienstplan_id, typ, bezeichnung, user_id, bemerkung, einsatzstichwort,
+                    uhrzeit_von, uhrzeit_bis, alarmierung_durch, einsatzstelle, objekt, eigentuemer, geschaedigter,
+                    klassifizierung, kostenpflichtiger_einsatz, personenschaeden, brandwache, einsatzleiter_member_id, einsatzleiter_freitext, custom_data, divera_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $draft['datum'], $dp_id, $typ_save, $bezeichnung_save, $_SESSION['user_id'], $draft['bemerkung'] !== '' ? $draft['bemerkung'] : null, $einsatzstichwort_save,
+                $uhrzeit_von_save, $uhrzeit_bis_save,
+                $draft['alarmierung_durch'] !== '' ? $draft['alarmierung_durch'] : null,
+                $draft['einsatzstelle'] !== '' ? $draft['einsatzstelle'] : null,
+                $draft['objekt'] !== '' ? $draft['objekt'] : null,
+                $draft['eigentuemer'] !== '' ? $draft['eigentuemer'] : null,
+                $draft['geschaedigter'] !== '' ? $draft['geschaedigter'] : null,
+                $draft['klassifizierung'] !== '' ? $draft['klassifizierung'] : null,
+                $draft['kostenpflichtiger_einsatz'] !== '' ? $draft['kostenpflichtiger_einsatz'] : null,
+                $draft['personenschaeden'] !== '' ? $draft['personenschaeden'] : null,
+                $draft['brandwache'] !== '' ? $draft['brandwache'] : null,
+                $draft['einsatzleiter_member_id'] ?? null,
+                $draft['einsatzleiter_freitext'] !== '' ? $draft['einsatzleiter_freitext'] : null,
+                $custom_data_json,
+                $divera_id_save
+            ]);
+            $list_id = $db->lastInsertId();
+        }
         // vehicle_id: Priorität Maschinist > Einheitsführer > Personal-Zuordnung (verhindert falsche Zuordnung in Auswertung)
         foreach ($draft['members'] as $mid) {
             $vid = null;
@@ -546,8 +666,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             }
         }
 
-        // Automatisch Gerätewartmitteilung erstellen (wenn mindestens ein Fahrzeug ausgewählt)
-        if (!empty($all_vehicle_ids)) {
+        // Automatisch Gerätewartmitteilung erstellen (nur bei neuer Liste, nicht beim Bearbeiten)
+        if ($edit_id_save <= 0 && !empty($all_vehicle_ids)) {
             try {
                 $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilungen (id INT AUTO_INCREMENT PRIMARY KEY, typ VARCHAR(20) NOT NULL, einsatz_uebungsart VARCHAR(50) NOT NULL, datum DATE NOT NULL, einsatzbereitschaft VARCHAR(30) NOT NULL, mangel_beschreibung TEXT NULL, einsatzleiter_member_id INT NULL, einsatzleiter_freitext VARCHAR(255) NULL, user_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, KEY idx_datum (datum), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
                 $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilung_fahrzeuge (id INT AUTO_INCREMENT PRIMARY KEY, geraetewartmitteilung_id INT NOT NULL, vehicle_id INT NOT NULL, maschinist_member_id INT NULL, einheitsfuehrer_member_id INT NULL, equipment_used JSON NULL, defective_equipment JSON NULL, defective_freitext TEXT NULL, defective_mangel TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (geraetewartmitteilung_id) REFERENCES geraetewartmitteilungen(id) ON DELETE CASCADE, FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE, UNIQUE KEY unique_gwm_vehicle (geraetewartmitteilung_id, vehicle_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
@@ -811,11 +931,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         } catch (Exception $e) { /* ignore */ }
         $print_after = !empty($_POST['print_after_save']);
         $print_maengelbericht_after = !empty($_POST['print_maengelbericht_after_save']) && !empty($maengelbericht_ids);
-        $print_geraetewartmitteilung_after = !empty($_POST['print_geraetewartmitteilung_after_save']) && $gwm_id > 0;
-        $redirect = 'anwesenheitsliste.php?message=erfolg';
-        if ($print_after) $redirect .= '&print=' . $list_id;
-        if ($print_maengelbericht_after) $redirect .= '&print_maengelbericht=' . implode(',', $maengelbericht_ids);
-        if ($print_geraetewartmitteilung_after) $redirect .= '&print_geraetewartmitteilung=' . $gwm_id;
+        $print_geraetewartmitteilung_after = !empty($_POST['print_geraetewartmitteilung_after_save']) && !empty($gwm_id) && $gwm_id > 0;
+        $return_fc = !empty($_POST['return']) && $_POST['return'] === 'formularcenter';
+        $redirect = $return_fc ? 'admin/formularcenter.php?tab=submissions&message=' . urlencode('Anwesenheitsliste wurde gespeichert.') : 'anwesenheitsliste.php?message=erfolg';
+        if (!$return_fc) {
+            if ($print_after) $redirect .= '&print=' . $list_id;
+            if ($print_maengelbericht_after) $redirect .= '&print_maengelbericht=' . implode(',', $maengelbericht_ids);
+            if ($print_geraetewartmitteilung_after) $redirect .= '&print_geraetewartmitteilung=' . $gwm_id;
+        }
         header('Location: ' . $redirect);
         exit;
     } catch (Exception $e) {
@@ -824,11 +947,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
     }
 }
 
-$back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
-$personal_url = 'anwesenheitsliste-personal.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
-$fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
-$geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
-$maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+$url_edit_suffix = ($edit_id > 0 ? '&edit_id=' . (int)$edit_id : '') . ($return_formularcenter ? '&return=formularcenter' : '');
+$back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
+$personal_url = 'anwesenheitsliste-personal.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
+$fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
+$geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
+$maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
 if ($is_einsatz) {
     $ts = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
     $typ_key = array_search($ts, get_dienstplan_typen_auswahl());
@@ -947,6 +1071,8 @@ if ($is_einsatz) {
                         </div>
                         <form method="post" id="mainForm">
                             <input type="hidden" name="save_final" value="1">
+                            <?php if ($edit_id > 0): ?><input type="hidden" name="edit_id" value="<?php echo (int)$edit_id; ?>"><?php endif; ?>
+                            <?php if ($return_formularcenter): ?><input type="hidden" name="return" value="formularcenter"><?php endif; ?>
                             <input type="hidden" name="print_after_save" id="print_after_save" value="0">
                             <input type="hidden" name="print_maengelbericht_after_save" id="print_maengelbericht_after_save" value="0">
                             <input type="hidden" name="print_geraetewartmitteilung_after_save" id="print_geraetewartmitteilung_after_save" value="0">
@@ -1220,7 +1346,7 @@ if ($is_einsatz) {
                             <?php endforeach; ?>
                             <div class="d-flex flex-wrap gap-2">
                                 <button type="button" class="btn btn-success" id="btnSaveAnwesenheit"><i class="fas fa-save"></i> Anwesenheitsliste speichern</button>
-                                <a href="anwesenheitsliste.php" class="btn btn-secondary">Zurück zur Auswahl</a>
+                                <a href="<?php echo $return_formularcenter ? 'admin/formularcenter.php?tab=submissions' : 'anwesenheitsliste.php'; ?>" class="btn btn-secondary"><?php echo $return_formularcenter ? 'Zurück zum Formularcenter' : 'Zurück zur Auswahl'; ?></a>
                             </div>
                         </form>
     <!-- Modal: Bericht absenden bestätigen -->

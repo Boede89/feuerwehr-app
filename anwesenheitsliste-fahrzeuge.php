@@ -16,6 +16,9 @@ if (!isset($_SESSION['user_id'])) {
 
 $datum = isset($_GET['datum']) ? trim($_GET['datum']) : '';
 $auswahl = isset($_GET['auswahl']) ? trim($_GET['auswahl']) : '';
+$edit_id = isset($_GET['edit_id']) ? (int)$_GET['edit_id'] : 0;
+$return_formularcenter = isset($_GET['return']) && $_GET['return'] === 'formularcenter';
+$url_suffix = ($edit_id > 0 ? '&edit_id=' . $edit_id : '') . ($return_formularcenter ? '&return=formularcenter' : '');
 if ($datum === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum) || $auswahl === '') {
     header('Location: anwesenheitsliste.php?error=datum');
     exit;
@@ -23,7 +26,7 @@ if ($datum === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum) || $auswahl ==
 
 $draft_key = 'anwesenheit_draft';
 if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum || $_SESSION[$draft_key]['auswahl'] !== $auswahl) {
-    header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
+    header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix);
     exit;
 }
 $draft = &$_SESSION[$draft_key];
@@ -203,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
         $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_POST['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
     }
-    $redirect = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+    $redirect = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
     if (($draft['typ'] ?? '') === 'einsatz') {
         $typen_map = get_dienstplan_typen_auswahl();
         $ts = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
@@ -267,7 +270,7 @@ if ($berichtersteller !== '' && $berichtersteller !== null) {
     if ($berichtersteller_display === '') $berichtersteller_display = (string)$berichtersteller;
 }
 
-$back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+$back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
 if (($draft['typ'] ?? '') === 'einsatz') {
     $typen_map = get_dienstplan_typen_auswahl();
     $ts = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');

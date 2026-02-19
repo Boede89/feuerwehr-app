@@ -19,6 +19,9 @@ if (!has_permission('forms')) {
 
 $datum = isset($_GET['datum']) ? trim($_GET['datum']) : '';
 $auswahl = isset($_GET['auswahl']) ? trim($_GET['auswahl']) : '';
+$edit_id = isset($_GET['edit_id']) ? (int)$_GET['edit_id'] : 0;
+$return_formularcenter = isset($_GET['return']) && $_GET['return'] === 'formularcenter';
+$url_suffix = ($edit_id > 0 ? '&edit_id=' . $edit_id : '') . ($return_formularcenter ? '&return=formularcenter' : '');
 if ($datum === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum) || $auswahl === '') {
     header('Location: anwesenheitsliste.php?error=datum');
     exit;
@@ -26,7 +29,7 @@ if ($datum === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum) || $auswahl ==
 
 $draft_key = 'anwesenheit_draft';
 if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum || $_SESSION[$draft_key]['auswahl'] !== $auswahl) {
-    header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
+    header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix);
     exit;
 }
 $draft = &$_SESSION[$draft_key];
@@ -72,7 +75,7 @@ try {
     $vehicles_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 
-$back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+$back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
 if (($draft['typ'] ?? '') === 'einsatz') {
     $typen_map = get_dienstplan_typen_auswahl();
     $ts = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
