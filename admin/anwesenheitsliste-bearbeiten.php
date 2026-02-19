@@ -104,11 +104,11 @@ $uebungsleiter_ids = $custom_data['uebungsleiter_member_ids'] ?? [];
 if (!is_array($uebungsleiter_ids)) $uebungsleiter_ids = [];
 $member_pa_ids = array_flip($custom_data['member_pa'] ?? []);
 $is_uebungsdienst_edit = !empty($uebungsleiter_ids)
-    || (($liste['typ'] ?? '') === 'dienst' && in_array($liste['dienst_typ'] ?? '', ['uebungsdienst', 'jahreshauptversammlung']))
-    || (($liste['typ'] ?? '') === 'manuell' && in_array($liste['bezeichnung'] ?? '', ['Übungsdienst', 'Jahreshauptversammlung']));
+    || (($liste['typ'] ?? '') === 'dienst' && ($liste['dienst_typ'] ?? '') === 'uebungsdienst')
+    || (($liste['typ'] ?? '') === 'manuell' && trim($liste['bezeichnung'] ?? '') === 'Übungsdienst');
 $typ_sonstige_edit = $custom_data['typ_sonstige'] ?? '';
-$is_jhv_sonstiges_edit = (($liste['typ'] ?? '') === 'dienst' && in_array($liste['dienst_typ'] ?? '', ['jahreshauptversammlung', 'sonstiges']))
-    || (($liste['typ'] ?? '') === 'manuell' && (in_array($liste['bezeichnung'] ?? '', ['Jahreshauptversammlung', 'Sonstiges']) || in_array($typ_sonstige_edit, ['jahreshauptversammlung', 'sonstiges'])));
+$is_jhv_sonstiges_edit = (($liste['typ'] ?? '') === 'dienst' && ($liste['dienst_typ'] ?? '') === 'sonstiges')
+    || (($liste['typ'] ?? '') === 'manuell' && ((trim($liste['bezeichnung'] ?? '') === 'Sonstiges') || $typ_sonstige_edit === 'sonstiges'));
 $uebungsdienst_hide_ids = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
 $berichtersteller_val = $custom_data['berichtersteller'] ?? '';
 $berichtersteller_display = '';
@@ -240,11 +240,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
                 $beschr = trim($_POST['beschreibung'] ?? '');
                 if ($beschr !== '') $custom_post['beschreibung'] = $beschr;
                 $ts = $custom_data['typ_sonstige'] ?? '';
-                if ($ts === '' && ($liste['typ'] ?? '') === 'dienst' && in_array($liste['dienst_typ'] ?? '', ['jahreshauptversammlung', 'sonstiges'])) {
-                    $ts = $liste['dienst_typ'];
+                if ($ts === '' && ($liste['typ'] ?? '') === 'dienst' && ($liste['dienst_typ'] ?? '') === 'sonstiges') {
+                    $ts = 'sonstiges';
                 }
                 if ($ts === '' && ($liste['typ'] ?? '') === 'manuell') {
-                    $ts = (trim($liste['bezeichnung'] ?? '') === 'Jahreshauptversammlung') ? 'jahreshauptversammlung' : 'sonstiges';
+                    $ts = 'sonstiges';
                 }
                 if ($ts !== '') $custom_post['typ_sonstige'] = $ts;
             }

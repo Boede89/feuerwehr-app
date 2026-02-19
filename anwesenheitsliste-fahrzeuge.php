@@ -203,7 +203,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
         $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_POST['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
     }
-    header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl));
+    $redirect = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+    if (($draft['typ'] ?? '') === 'einsatz') {
+        $typen_map = get_dienstplan_typen_auswahl();
+        $ts = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
+        $typ_key = array_search($ts, $typen_map);
+        if ($typ_key === false) $typ_key = '__custom__';
+        $redirect .= '&typ_sonstige=' . urlencode($typ_key);
+        foreach ($draft['uebungsleiter_member_ids'] ?? [] as $uid) {
+            if ((int)$uid > 0) $redirect .= '&uebungsleiter[]=' . (int)$uid;
+        }
+    }
+    header('Location: ' . $redirect);
     exit;
 }
 
@@ -257,6 +268,16 @@ if ($berichtersteller !== '' && $berichtersteller !== null) {
 }
 
 $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+if (($draft['typ'] ?? '') === 'einsatz') {
+    $typen_map = get_dienstplan_typen_auswahl();
+    $ts = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
+    $typ_key = array_search($ts, $typen_map);
+    if ($typ_key === false) $typ_key = '__custom__';
+    $back_url .= '&typ_sonstige=' . urlencode($typ_key);
+    foreach ($draft['uebungsleiter_member_ids'] ?? [] as $uid) {
+        if ((int)$uid > 0) $back_url .= '&uebungsleiter[]=' . (int)$uid;
+    }
+}
 // Angezeigte Auswahl: explizit gewählte Fahrzeuge + Fahrzeuge, die unter Personal zugeordnet wurden
 $selected_vehicles = array_flip($draft['vehicles']);
 foreach ($draft['member_vehicle'] as $mid => $vid) {

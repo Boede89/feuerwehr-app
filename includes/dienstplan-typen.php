@@ -4,13 +4,12 @@
  * Hinweis: Übungsdienste und Dienste aus dem Dienstplan sind dasselbe – beide werden als Übungsdienst gewertet.
  */
 
-/** Typen für Auswahl-Dropdowns (nur die 4 Haupttypen) */
+/** Typen für Auswahl-Dropdowns */
 function get_dienstplan_typen_auswahl() {
     return [
-        'uebungsdienst'         => 'Übungsdienst',
-        'einsatz'               => 'Einsatz',
-        'jahreshauptversammlung' => 'Jahreshauptversammlung',
-        'sonstiges'             => 'Sonstiges',
+        'uebungsdienst' => 'Übungsdienst',
+        'einsatz'       => 'Einsatz',
+        'sonstiges'     => 'Sonstiges',
     ];
 }
 

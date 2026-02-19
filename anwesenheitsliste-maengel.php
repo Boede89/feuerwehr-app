@@ -73,6 +73,16 @@ try {
 } catch (Exception $e) {}
 
 $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl);
+if (($draft['typ'] ?? '') === 'einsatz') {
+    $typen_map = get_dienstplan_typen_auswahl();
+    $ts = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
+    $typ_key = array_search($ts, $typen_map);
+    if ($typ_key === false) $typ_key = '__custom__';
+    $back_url .= '&typ_sonstige=' . urlencode($typ_key);
+    foreach ($draft['uebungsleiter_member_ids'] ?? [] as $uid) {
+        if ((int)$uid > 0) $back_url .= '&uebungsleiter[]=' . (int)$uid;
+    }
+}
 $message = '';
 $error = '';
 

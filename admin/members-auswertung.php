@@ -35,7 +35,7 @@ $thema_filter = isset($_GET['thema']) ? trim($_GET['thema']) : '';
 $zeit_von = isset($_GET['zeit_von']) ? trim($_GET['zeit_von']) : '';
 $zeit_bis = isset($_GET['zeit_bis']) ? trim($_GET['zeit_bis']) : '';
 if (!in_array($ansicht, ['tabelle', 'diagramme', 'karten', 'alle'])) $ansicht = 'alle';
-if (!in_array($typ_filter, ['einsaetze', 'uebungen', 'beides', 'jhv', 'sonstiges'])) $typ_filter = 'beides';
+if (!in_array($typ_filter, ['einsaetze', 'uebungen', 'beides', 'sonstiges'])) $typ_filter = 'beides';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $von)) $von = $jahr . '-01-01';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bis)) $bis = date('Y-m-d');
 if (!preg_match('/^\d{1,2}:\d{2}$/', $zeit_von)) $zeit_von = '';
@@ -53,9 +53,8 @@ try {
     $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 $beschreibung_optionen = [];
-$beschreibung_optionen_jhv = [];
 $beschreibung_optionen_sonstiges = [];
-$is_jhv_sonstiges_filter = in_array($typ_filter, ['jhv', 'sonstiges']);
+$is_jhv_sonstiges_filter = ($typ_filter === 'sonstiges');
 $is_uebungen_filter = ($typ_filter === 'uebungen');
 if ($bereich !== '') {
     $load_beschreibung_opts = function($typ_cond) use ($db, $von, $bis) {
@@ -78,12 +77,10 @@ if ($bereich !== '') {
         } catch (Exception $e) {}
         return $opts;
     };
-    $typ_cond_jhv = "((a.typ = 'dienst' AND d.typ = 'jahreshauptversammlung') OR (a.typ = 'manuell' AND (a.bezeichnung = 'Jahreshauptversammlung' OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) = 'jahreshauptversammlung'))))";
-    $typ_cond_sonst = "((a.typ = 'dienst' AND d.typ = 'sonstiges') OR (a.typ = 'manuell' AND (a.bezeichnung = 'Sonstiges' OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) = 'sonstiges'))))";
-    $beschreibung_optionen_jhv = $load_beschreibung_opts($typ_cond_jhv);
+    $typ_cond_sonst = "((a.typ = 'dienst' AND d.typ IN ('sonstiges', 'jahreshauptversammlung')) OR (a.typ = 'manuell' AND (a.bezeichnung IN ('Sonstiges', 'Jahreshauptversammlung') OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) IN ('sonstiges', 'jahreshauptversammlung')))))";
     $beschreibung_optionen_sonstiges = $load_beschreibung_opts($typ_cond_sonst);
 }
-$beschreibung_optionen = $typ_filter === 'jhv' ? $beschreibung_optionen_jhv : ($typ_filter === 'sonstiges' ? $beschreibung_optionen_sonstiges : []);
+$beschreibung_optionen = ($typ_filter === 'sonstiges') ? $beschreibung_optionen_sonstiges : [];
 
 $thema_optionen = [];
 $is_uebungen_filter = ($typ_filter === 'uebungen');
@@ -167,17 +164,14 @@ function get_zeit_filter_sql(&$params) {
 }
 function get_typ_filter_sql() {
     global $typ_filter;
-    if ($typ_filter === 'jhv') {
-        return " AND ((a.typ = 'dienst' AND d.typ = 'jahreshauptversammlung') OR (a.typ = 'manuell' AND (a.bezeichnung = 'Jahreshauptversammlung' OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) = 'jahreshauptversammlung'))))";
-    }
     if ($typ_filter === 'sonstiges') {
-        return " AND ((a.typ = 'dienst' AND d.typ = 'sonstiges') OR (a.typ = 'manuell' AND (a.bezeichnung = 'Sonstiges' OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) = 'sonstiges'))))";
+        return " AND ((a.typ = 'dienst' AND d.typ IN ('sonstiges', 'jahreshauptversammlung')) OR (a.typ = 'manuell' AND (a.bezeichnung IN ('Sonstiges', 'Jahreshauptversammlung') OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) IN ('sonstiges', 'jahreshauptversammlung')))))";
     }
     return '';
 }
 function get_beschreibung_filter_sql(&$params) {
     global $typ_filter, $beschreibung_filter;
-    if (!in_array($typ_filter, ['jhv', 'sonstiges']) || $beschreibung_filter === '') return '';
+    if ($typ_filter !== 'sonstiges' || $beschreibung_filter === '') return '';
     $params[] = $beschreibung_filter;
     $params[] = $beschreibung_filter;
     return ' AND (a.bezeichnung = ? OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, \'$.beschreibung\')) = ?))';
@@ -304,7 +298,6 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                         <option value="beides" <?php echo $typ_filter === 'beides' ? 'selected' : ''; ?>>Einsätze + Übungen</option>
                         <option value="einsaetze" <?php echo $typ_filter === 'einsaetze' ? 'selected' : ''; ?>>Nur Einsätze</option>
                         <option value="uebungen" <?php echo $typ_filter === 'uebungen' ? 'selected' : ''; ?>>Nur Übungen</option>
-                        <option value="jhv" <?php echo $typ_filter === 'jhv' ? 'selected' : ''; ?>>JHV</option>
                         <option value="sonstiges" <?php echo $typ_filter === 'sonstiges' ? 'selected' : ''; ?>>Sonstiges</option>
                     </select>
                 </div>
@@ -375,7 +368,6 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
         var sel = document.getElementById('filter-typ');
         var wrap = document.getElementById('filter-beschreibung-wrap');
         var beschrSel = document.getElementById('filter-beschreibung');
-        var optsJhv = <?php echo json_encode($beschreibung_optionen_jhv); ?>;
         var optsSonstiges = <?php echo json_encode($beschreibung_optionen_sonstiges); ?>;
         var currentFilter = <?php echo json_encode($beschreibung_filter); ?>;
         function fillBeschreibung(opts) {
@@ -392,10 +384,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
         var themaWrap = document.getElementById('filter-thema-wrap');
         function toggle() {
             var v = sel.value;
-            if (v === 'jhv') {
-                wrap.style.display = '';
-                fillBeschreibung(optsJhv);
-            } else if (v === 'sonstiges') {
+            if (v === 'sonstiges') {
                 wrap.style.display = '';
                 fillBeschreibung(optsSonstiges);
             } else {
@@ -441,7 +430,6 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 if ($typ_filter === 'einsaetze' && !$einsatz) continue;
                 if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
                 if ($typ_filter === 'beides' && $jhv) continue;
-                if ($typ_filter === 'jhv' && !ist_jhv($r)) continue;
                 if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
                 $personen_stats[$mid] = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0, 'jhv' => 0, 'sonstiges' => 0, 'fahrzeuge' => [], 'stunden' => 0];
                 if ($einsatz) $personen_stats[$mid]['einsaetze']++;
@@ -472,7 +460,6 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 if ($typ_filter === 'einsaetze' && !$einsatz) continue;
                 if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
                 if ($typ_filter === 'beides' && $jhv) continue;
-                if ($typ_filter === 'jhv' && !ist_jhv($r)) continue;
                 if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
                 if (!empty($r['maschinist_member_id'])) {
                     $mid = (int)$r['maschinist_member_id'];
@@ -492,7 +479,6 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
             $s = $personen_stats[(int)$m['id']] ?? [];
             if ($typ_filter === 'einsaetze') return $s['einsaetze'] ?? 0;
             if ($typ_filter === 'uebungen') return $s['uebungen'] ?? 0;
-            if ($typ_filter === 'jhv') return $s['jhv'] ?? 0;
             if ($typ_filter === 'sonstiges') return $s['sonstiges'] ?? 0;
             return ($s['einsaetze'] ?? 0) + ($s['uebungen'] ?? 0);
         };
@@ -503,7 +489,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
             $members = array_values(array_filter($members, fn($m) => (int)$m['id'] === $member_id));
         }
         $members_mit_teilnahme = array_values(array_filter($members, fn($m) => $get_teilnahme_count($m) > 0));
-        $basis_fuer_prozent = $typ_filter === 'einsaetze' ? $anzahl_einsaetze : ($typ_filter === 'uebungen' ? $anzahl_uebungen : ($typ_filter === 'jhv' || $typ_filter === 'sonstiges' ? $anzahl_jhv_sonstiges : $anzahl_gesamt));
+        $basis_fuer_prozent = $typ_filter === 'einsaetze' ? $anzahl_einsaetze : ($typ_filter === 'uebungen' ? $anzahl_uebungen : ($typ_filter === 'sonstiges' ? $anzahl_jhv_sonstiges : $anzahl_gesamt));
         $chart_person_fahrzeuge = [];
         $chart_person_rollen = [];
         $chart_personen_top = [];
@@ -513,7 +499,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
             $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0];
             $t = $get_teilnahme_count($m);
             $chart_personen_top[] = ['label' => $m['last_name'] . ', ' . $m['first_name'], 'count' => $t];
-            if ($typ_filter !== 'jhv' && $typ_filter !== 'sonstiges') {
+            if ($typ_filter !== 'sonstiges') {
                 $chart_personen_einsatz_uebung['Einsätze'] += $s['einsaetze'];
                 $chart_personen_einsatz_uebung['Übungen'] += $s['uebungen'];
             }
@@ -548,7 +534,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
     $chart_person_rollen = [];
     $mid = (int)$m['id'];
     $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0, 'jhv' => 0, 'sonstiges' => 0, 'fahrzeuge' => [], 'stunden' => 0];
-    $gesamt = ($typ_filter === 'jhv' || $typ_filter === 'sonstiges') ? (($typ_filter === 'jhv' ? ($s['jhv'] ?? 0) : ($s['sonstiges'] ?? 0))) : ($s['einsaetze'] + $s['uebungen']);
+    $gesamt = ($typ_filter === 'sonstiges') ? ($s['sonstiges'] ?? 0) : ($s['einsaetze'] + $s['uebungen']);
     $masch = $personen_maschinist[$mid] ?? 0;
     $ef = $personen_einheitsfuehrer[$mid] ?? 0;
     $letzte = $personen_letzte[$mid] ?? '-';
@@ -580,7 +566,6 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                                     <p class="small mb-0"><?php
                                         if ($typ_filter === 'einsaetze') echo (int)$s['einsaetze'] . ' Einsätze';
                                         elseif ($typ_filter === 'uebungen') echo (int)$s['uebungen'] . ' Übungen';
-                                        elseif ($typ_filter === 'jhv') echo (int)($s['jhv'] ?? 0) . ' JHV';
                                         elseif ($typ_filter === 'sonstiges') echo (int)($s['sonstiges'] ?? 0) . ' Sonstiges';
                                         else { echo (int)$s['einsaetze'] . ' Einsätze, ' . (int)$s['uebungen'] . ' Übungen'; if (($s['jhv_sonstiges'] ?? 0) > 0) echo ', ' . (int)$s['jhv_sonstiges'] . ' JHV/Sonstiges'; }
                                     ?></p>
@@ -677,8 +662,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
         <?php foreach (array_slice($members_mit_teilnahme, 0, 12) as $m):
             $mid = (int)$m['id'];
             $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0, 'stunden' => 0];
-            $t = ($typ_filter === 'jhv' || $typ_filter === 'sonstiges') ? (($typ_filter === 'jhv' ? ($s['jhv'] ?? 0) : ($s['sonstiges'] ?? 0))) : ($s['einsaetze'] + $s['uebungen']);
-            $person_count = $typ_filter === 'einsaetze' ? $s['einsaetze'] : ($typ_filter === 'uebungen' ? $s['uebungen'] : ($typ_filter === 'jhv' || $typ_filter === 'sonstiges' ? $t : $t));
+            $t = ($typ_filter === 'sonstiges') ? ($s['sonstiges'] ?? 0) : ($s['einsaetze'] + $s['uebungen']);
+            $person_count = $typ_filter === 'einsaetze' ? $s['einsaetze'] : ($typ_filter === 'uebungen' ? $s['uebungen'] : ($typ_filter === 'sonstiges' ? $t : $t));
             $prozent = $basis_fuer_prozent > 0 ? round($person_count / $basis_fuer_prozent * 100, 1) : 0;
         ?>
         <div class="col-md-4 col-lg-3 mb-3">
@@ -689,7 +674,6 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     <p class="mb-0 small"><?php
                         if ($typ_filter === 'einsaetze') echo (int)$s['einsaetze'] . ' E';
                         elseif ($typ_filter === 'uebungen') echo (int)$s['uebungen'] . ' Ü';
-                        elseif ($typ_filter === 'jhv') echo (int)($s['jhv'] ?? 0) . ' JHV';
                         elseif ($typ_filter === 'sonstiges') echo (int)($s['sonstiges'] ?? 0) . ' Sonstiges';
                         else echo (int)$s['einsaetze'] . ' E / ' . (int)$s['uebungen'] . ' Ü';
                         ?> · <?php echo number_format($s['stunden'], 1, ',', '.'); ?> h</p>
@@ -702,18 +686,18 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
 
     <?php if ($ansicht === 'tabelle' || $ansicht === 'alle'): ?>
     <?php if ($basis_fuer_prozent > 0): ?>
-    <p class="text-muted small mb-2"><i class="fas fa-info-circle"></i> Anteil: 100% = Teilnahme an allen <?php echo $basis_fuer_prozent; ?> <?php echo $typ_filter === 'einsaetze' ? 'Einsätzen' : ($typ_filter === 'uebungen' ? 'Übungen' : ($typ_filter === 'jhv' ? 'JHV' : ($typ_filter === 'sonstiges' ? 'Sonstiges' : 'Einsätzen/Übungen'))); ?> im Zeitraum</p>
+    <p class="text-muted small mb-2"><i class="fas fa-info-circle"></i> Anteil: 100% = Teilnahme an allen <?php echo $basis_fuer_prozent; ?> <?php echo $typ_filter === 'einsaetze' ? 'Einsätzen' : ($typ_filter === 'uebungen' ? 'Übungen' : ($typ_filter === 'sonstiges' ? 'Sonstiges' : 'Einsätzen/Übungen')); ?> im Zeitraum</p>
     <?php endif; ?>
     <div class="table-responsive">
         <table class="table table-sm table-hover">
             <thead>
                 <tr>
                     <th>Mitglied</th>
-                    <?php if ($typ_filter !== 'jhv' && $typ_filter !== 'sonstiges'): ?>
+                    <?php if ($typ_filter !== 'sonstiges'): ?>
                     <th class="text-end">Einsätze</th>
                     <th class="text-end">Übungen</th>
                     <?php else: ?>
-                    <th class="text-end"><?php echo $typ_filter === 'jhv' ? 'JHV' : 'Sonstiges'; ?></th>
+                    <th class="text-end">Sonstiges</th>
                     <?php endif; ?>
                     <th class="text-end">Gesamt</th>
                     <th class="text-end">Anteil</th>
@@ -728,8 +712,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 <?php foreach ($members_mit_teilnahme as $m):
                     $mid = (int)$m['id'];
                     $s = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0, 'fahrzeuge' => [], 'stunden' => 0];
-                    $gesamt = ($typ_filter === 'jhv' || $typ_filter === 'sonstiges') ? (($typ_filter === 'jhv' ? ($s['jhv'] ?? 0) : ($s['sonstiges'] ?? 0))) : ($s['einsaetze'] + $s['uebungen']);
-                    $person_count = $typ_filter === 'einsaetze' ? $s['einsaetze'] : ($typ_filter === 'uebungen' ? $s['uebungen'] : ($typ_filter === 'jhv' || $typ_filter === 'sonstiges' ? $gesamt : $gesamt));
+                    $gesamt = ($typ_filter === 'sonstiges') ? ($s['sonstiges'] ?? 0) : ($s['einsaetze'] + $s['uebungen']);
+                    $person_count = $typ_filter === 'einsaetze' ? $s['einsaetze'] : ($typ_filter === 'uebungen' ? $s['uebungen'] : ($typ_filter === 'sonstiges' ? $gesamt : $gesamt));
                     $prozent = $basis_fuer_prozent > 0 ? number_format($person_count / $basis_fuer_prozent * 100, 1, ',', '.') : '0';
                     $masch = $personen_maschinist[$mid] ?? 0;
                     $ef = $personen_einheitsfuehrer[$mid] ?? 0;
@@ -743,11 +727,11 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 ?>
                 <tr>
                     <td><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></td>
-                    <?php if ($typ_filter !== 'jhv' && $typ_filter !== 'sonstiges'): ?>
+                    <?php if ($typ_filter !== 'sonstiges'): ?>
                     <td class="text-end"><?php echo (int)$s['einsaetze']; ?></td>
                     <td class="text-end"><?php echo (int)$s['uebungen']; ?></td>
                     <?php else: ?>
-                    <td class="text-end"><?php echo (int)($typ_filter === 'jhv' ? ($s['jhv'] ?? 0) : ($s['sonstiges'] ?? 0)); ?></td>
+                    <td class="text-end"><?php echo (int)($s['sonstiges'] ?? 0); ?></td>
                     <?php endif; ?>
                     <td class="text-end"><strong><?php echo $gesamt; ?></strong></td>
                     <td class="text-end"><span class="badge bg-primary"><?php echo $prozent; ?>%</span></td>
@@ -784,7 +768,6 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 if ($typ_filter === 'einsaetze' && !$einsatz) continue;
                 if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
                 if ($typ_filter === 'beides' && $jhv) continue;
-                if ($typ_filter === 'jhv' && !ist_jhv($a)) continue;
                 if ($typ_filter === 'sonstiges' && !ist_sonstiges($a)) continue;
                 if ($einsatz) {
                     $k = trim($a['klassifizierung'] ?? '') ?: '-';
@@ -806,7 +789,6 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 if ($typ_filter === 'einsaetze' && !$einsatz) return false;
                 if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) return false;
                 if ($typ_filter === 'beides' && $jhv) return false;
-                if ($typ_filter === 'jhv' && !ist_jhv($a)) return false;
                 if ($typ_filter === 'sonstiges' && !ist_sonstiges($a)) return false;
                 return true;
             });
@@ -985,7 +967,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
         </div>
     </div>
     <div class="card mb-4">
-        <div class="card-header">Top-Themen <?php echo ($typ_filter === 'jhv' || $typ_filter === 'sonstiges') ? '(' . ($typ_filter === 'jhv' ? 'JHV' : 'Sonstiges') . ')' : 'bei Übungsdiensten'; ?></div>
+        <div class="card-header">Top-Themen <?php echo ($typ_filter === 'sonstiges') ? '(Sonstiges)' : 'bei Übungsdiensten'; ?></div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-sm mb-0">
@@ -1027,7 +1009,6 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 if ($typ_filter === 'einsaetze' && !$einsatz) continue;
                 if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
                 if ($typ_filter === 'beides' && $jhv) continue;
-                if ($typ_filter === 'jhv' && !ist_jhv($r)) continue;
                 if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
                 $lid = (int)$r['anwesenheitsliste_id'];
                 $vid = (int)$r['vehicle_id'];
@@ -1241,7 +1222,6 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 if ($typ_filter === 'einsaetze' && !$einsatz) continue;
                 if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
                 if ($typ_filter === 'beides' && $jhv) continue;
-                if ($typ_filter === 'jhv' && !ist_jhv($row)) continue;
                 if ($typ_filter === 'sonstiges' && !ist_sonstiges($row)) continue;
                 $dec = is_string($row['custom_data']) ? json_decode($row['custom_data'], true) : $row['custom_data'];
                 if (!is_array($dec)) continue;

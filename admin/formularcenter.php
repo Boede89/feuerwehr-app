@@ -366,7 +366,7 @@ try {
             $sql .= " AND a.typ = 'manuell'";
         } elseif ($filter_typ === 'dienst') {
             $sql .= " AND a.typ = 'dienst'";
-        } elseif (in_array($filter_typ, ['uebungsdienst', 'jahreshauptversammlung', 'sonstiges'])) {
+        } elseif (in_array($filter_typ, ['uebungsdienst', 'sonstiges'])) {
             $sql .= " AND a.typ = 'dienst' AND d.typ = ?";
             $params[] = $filter_typ;
         }
@@ -698,7 +698,6 @@ try {
                             <option value="uebungsdienst" <?php echo $filter_typ === 'uebungsdienst' ? 'selected' : ''; ?>>Übungsdienst</option>
                             <option value="dienst" <?php echo $filter_typ === 'dienst' ? 'selected' : ''; ?>>Dienst (alle)</option>
                             <option value="manuell" <?php echo $filter_typ === 'manuell' ? 'selected' : ''; ?>>Manuell</option>
-                            <option value="jahreshauptversammlung" <?php echo $filter_typ === 'jahreshauptversammlung' ? 'selected' : ''; ?>>Jahreshauptversammlung</option>
                             <option value="sonstiges" <?php echo $filter_typ === 'sonstiges' ? 'selected' : ''; ?>>Sonstiges</option>
                         </select>
                         <?php endif; ?>
