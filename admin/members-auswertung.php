@@ -1238,6 +1238,7 @@ if ($debug_fahrzeug) {
                     <th class="text-end">Gesamt</th>
                     <th class="text-end">Anteil</th>
                     <th class="text-end">Durchschn. Besatzung</th>
+                    <th>Häufigste Maschinisten</th>
                 </tr>
             </thead>
             <tbody>
@@ -1254,6 +1255,7 @@ if ($debug_fahrzeug) {
                     <td class="text-end"><strong><?php echo $gesamt; ?></strong></td>
                     <td class="text-end"><span class="badge bg-warning text-dark"><?php echo $prozent; ?>%</span></td>
                     <td class="text-end"><?php echo number_format($besatz, 1, ',', '.'); ?></td>
+                    <td>–</td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
