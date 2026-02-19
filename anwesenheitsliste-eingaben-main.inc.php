@@ -863,9 +863,10 @@ if ($is_einsatz) {
     <script>
     (function(){
         var urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('typ_sonstige')) return;
-        var ref = document.referrer || '';
-        if (ref.indexOf('anwesenheitsliste-personal') < 0 && ref.indexOf('anwesenheitsliste-fahrzeuge') < 0 && ref.indexOf('anwesenheitsliste-geraete') < 0 && ref.indexOf('anwesenheitsliste-maengel') < 0) return;
+        if (urlParams.has('typ_sonstige')) {
+            try { sessionStorage.removeItem('anwesenheit_typ_sonstige'); sessionStorage.removeItem('anwesenheit_uebungsleiter'); } catch(e){}
+            return;
+        }
         try {
             var ts = sessionStorage.getItem('anwesenheit_typ_sonstige');
             var ueb = sessionStorage.getItem('anwesenheit_uebungsleiter');
@@ -1391,9 +1392,31 @@ if ($is_einsatz) {
     </script>
     <?php if ($is_einsatz): ?>
     <script>
+    (function(){
+        function applyUrlParams(){
+            var params=new URLSearchParams(window.location.search);
+            var ts=params.get('typ_sonstige');
+            var ueb=params.getAll('uebungsleiter[]');
+            if(ts!=='uebungsdienst')return;
+            var sel=document.getElementById('typ_sonstige');
+            if(sel&&sel.value!=='uebungsdienst'){sel.value='uebungsdienst';}
+            if(ueb.length>0){
+                document.querySelectorAll('.uebungsleiter-item').forEach(function(el){
+                    var cb=el.querySelector('input[name="uebungsleiter[]"]');
+                    if(cb&&ueb.indexOf(cb.value)>=0){cb.checked=true;el.classList.add('uebungsleiter-item-selected');}
+                });
+                var badge=document.getElementById('uebungsleiter_count');
+                if(badge){badge.textContent=ueb.length+' ausgewählt';badge.className='badge ms-1 bg-primary';}
+            }
+        }
+        if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',applyUrlParams);}else{applyUrlParams();}
+    })();
     function syncTypSonstigeVisibility(){
         var sel=document.getElementById('typ_sonstige');
         if(!sel)return;
+        var params=new URLSearchParams(window.location.search);
+        var tsUrl=params.get('typ_sonstige');
+        if(tsUrl==='uebungsdienst'&&sel.value!=='uebungsdienst'){sel.value='uebungsdienst';}
         var v=sel.value;
         var w=document.getElementById('typ_sonstige_freitext_wrap');if(w)w.style.display=v==='__custom__'?'block':'none';
         var showEinsatzstichwort=v==='einsatz';
