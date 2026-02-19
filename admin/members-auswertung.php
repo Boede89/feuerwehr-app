@@ -225,24 +225,7 @@ if ($debug_fahrzeug) {
                 $debug_data[$mid]['einheitsfuehrer'][$vid] = ($debug_data[$mid]['einheitsfuehrer'][$vid] ?? 0) + 1;
             }
         }
-        // Maschinist/Einheitsführer aus Gerätewartmitteilungen – pro Fahrzeug
-        try {
-            $stmt = $db->prepare("SELECT gf.vehicle_id, gf.maschinist_member_id, gf.einheitsfuehrer_member_id FROM geraetewartmitteilung_fahrzeuge gf JOIN geraetewartmitteilungen g ON g.id = gf.geraetewartmitteilung_id WHERE g.datum BETWEEN ? AND ?");
-            $stmt->execute([$von, $bis]);
-            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $vid = (int)$r['vehicle_id'];
-                if (!empty($r['maschinist_member_id'])) {
-                    $mid = (int)$r['maschinist_member_id'];
-                    $init_member($mid);
-                    $debug_data[$mid]['maschinist'][$vid] = ($debug_data[$mid]['maschinist'][$vid] ?? 0) + 1;
-                }
-                if (!empty($r['einheitsfuehrer_member_id'])) {
-                    $mid = (int)$r['einheitsfuehrer_member_id'];
-                    $init_member($mid);
-                    $debug_data[$mid]['einheitsfuehrer'][$vid] = ($debug_data[$mid]['einheitsfuehrer'][$vid] ?? 0) + 1;
-                }
-            }
-        } catch (Exception $e) {}
+        // Nur Anwesenheitslisten – Gerätewartmitteilungen weglassen (stammen meist von AL, sonst Doppelzählung)
     } catch (Exception $e) {}
 }
 ?>
@@ -381,7 +364,7 @@ if ($debug_fahrzeug) {
                     </tbody>
                 </table>
             </div>
-            <p class="small text-muted mt-2">Pro Fahrzeug: Besatzung = Einträge in anwesenheitsliste_mitglieder. Masch. = Maschinist, EF = Einheitsführer (aus Anwesenheitslisten + Gerätewartmitteilungen, pro Fahrzeug getrennt).</p>
+            <p class="small text-muted mt-2">Nur Anwesenheitslisten (keine Gerätewartmitteilungen, um Doppelzählung zu vermeiden). Pro Fahrzeug: Besatzung, Masch. = Maschinist, EF = Einheitsführer.</p>
         </div>
         <?php elseif ($debug_fahrzeug): ?>
         <p class="text-muted mt-2">Keine Daten im gefilterten Zeitraum.</p>
