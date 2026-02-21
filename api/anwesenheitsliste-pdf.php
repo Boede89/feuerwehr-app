@@ -256,14 +256,16 @@ $einsatzdauer = _calc_einsatzdauer($uhrzeit_von, $uhrzeit_bis);
 if ($uhrzeit_von !== '' && strlen($uhrzeit_von) >= 5) $uhrzeit_von = substr($uhrzeit_von, 0, 5);
 if ($uhrzeit_bis !== '' && strlen($uhrzeit_bis) >= 5) $uhrzeit_bis = substr($uhrzeit_bis, 0, 5);
 
+$datum_formatiert = $liste['datum'] ? date('d.m.Y', strtotime($liste['datum'])) : '-';
 $uebungsdienst_hide_pdf = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
 $html .= '<div class="section"><div class="section-title">Stammdaten</div><table class="stamm-inline">';
+$html .= '<tr><td class="label-cell">Datum</td><td colspan="5">' . htmlspecialchars($datum_formatiert) . '</td></tr>';
 if (!$is_uebungsdienst_pdf) {
     $html .= '<tr><td class="label-cell">Einsatzbericht Nr.</td><td>' . htmlspecialchars($einsatzbericht_display) . '</td><td class="label-cell">Alarmierung durch</td><td>' . htmlspecialchars($alarmierung ?: '-') . '</td></tr>';
 }
 $html .= '<tr><td class="label-cell">Uhrzeit von</td><td>' . htmlspecialchars($uhrzeit_von ?: '-') . '</td><td class="label-cell">Uhrzeit bis</td><td>' . htmlspecialchars($uhrzeit_bis ?: '-') . '</td><td class="label-cell">Einsatzdauer</td><td>' . htmlspecialchars($einsatzdauer ?: '-') . '</td></tr>';
 $html .= '<tr><td class="label-cell">' . htmlspecialchars($stichwort_thema_label) . '</td><td>' . htmlspecialchars($stichwort_thema_val ?: '-') . '</td><td class="label-cell">Klassifizierung</td><td>' . htmlspecialchars($klassifizierung ?: '-') . '</td></tr>';
-$skip_ids = ['einsatzbericht_nummer','alarmierung_durch','uhrzeit_von','uhrzeit_bis','einsatzstichwort','klassifizierung','einsatzleiter'];
+$skip_ids = ['datum','einsatzbericht_nummer','alarmierung_durch','uhrzeit_von','uhrzeit_bis','einsatzstichwort','klassifizierung','einsatzleiter'];
 foreach ($anwesenheitsliste_felder as $f) {
     if (empty($f['visible'])) continue;
     $fid = $f['id'] ?? '';
