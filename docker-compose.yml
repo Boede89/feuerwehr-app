@@ -54,8 +54,11 @@ services:
       - mysql
     networks:
       - feuerwehr_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - APACHE_DOCUMENT_ROOT=/var/www/html
+      - CUPS_SERVER=host.docker.internal:631
 
 volumes:
   mysql_data:

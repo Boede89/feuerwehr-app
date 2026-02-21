@@ -708,9 +708,11 @@ try {
                     <?php if ($filter_formular !== ''): ?>
                     <?php if ($filter_formular === 'anwesenheitsliste' && !empty($anwesenheitslisten)): ?>
                     <a href="../api/anwesenheitsliste-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-success btn-sm" download title="Alle Anwesenheitslisten als PDF herunterladen"><i class="fas fa-file-pdf me-1"></i> Alle Berichte als PDF</a>
+                    <button type="button" class="btn btn-dark btn-sm" title="Alle Anwesenheitslisten drucken" onclick="druckenAnwesenheitslisteAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print me-1"></i> Alle drucken</button>
                     <?php endif; ?>
                     <?php if ($filter_formular === 'maengelbericht' && !empty($maengelberichte)): ?>
                     <a href="../api/maengelbericht-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-success btn-sm" download title="Alle Mängelberichte als PDF herunterladen"><i class="fas fa-file-pdf me-1"></i> Alle Mängelberichte als PDF</a>
+                    <button type="button" class="btn btn-dark btn-sm" title="Alle Mängelberichte drucken" onclick="druckenMaengelberichtAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print me-1"></i> Alle Mängelberichte drucken</button>
                     <?php endif; ?>
                     <?php if ($filter_formular === 'geraetewartmitteilung' && !empty($geraetewartmitteilungen)): ?>
                     <a href="../api/geraetewartmitteilung-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-success btn-sm" download title="Alle Gerätewartmitteilungen als PDF herunterladen"><i class="fas fa-file-pdf me-1"></i> Alle Gerätewartmitteilungen als PDF</a>
@@ -835,6 +837,7 @@ try {
                                         <td>
                                             <a href="anwesenheitsliste-bearbeiten.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
                                             <a href="../api/anwesenheitsliste-pdf.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" download><i class="fas fa-file-pdf"></i> PDF</a>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" title="Drucken" onclick="druckenAnwesenheitsliste(<?php echo (int)$a['id']; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
                                             <form method="post" class="d-inline" data-delete-type="Anwesenheitsliste">
                                                 <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
                                                 <input type="hidden" name="action" value="delete_anwesenheitsliste">
@@ -887,6 +890,7 @@ try {
                                         <td>
                                             <a href="geraetewartmitteilung-bearbeiten.php?id=<?php echo (int)$g['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
                                             <a href="../api/geraetewartmitteilung-pdf.php?id=<?php echo (int)$g['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" download><i class="fas fa-file-pdf"></i> PDF</a>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" title="Drucken" onclick="druckenGeraetewartmitteilung(<?php echo (int)$g['id']; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
                                             <form method="post" class="d-inline" data-delete-type="Gerätewartmitteilung">
                                                 <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
                                                 <input type="hidden" name="action" value="delete_geraetewartmitteilung">
@@ -1470,6 +1474,73 @@ try {
                     btn.innerHTML = '<i class="fas fa-upload"></i> Ausgewählte exportieren';
                 });
         });
+
+        function druckenAnwesenheitsliste(id, btn) {
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Drucken...'; }
+            fetch('../api/print-anwesenheitsliste.php?id=' + id)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) showPrintToast('Druckauftrag wurde gesendet.', true);
+                    else showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
+                })
+                .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
+                .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Drucken'; } });
+        }
+        function druckenAnwesenheitslisteAlle(query, btn) {
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Drucken...'; }
+            fetch('../api/print-anwesenheitsliste.php?alle=1' + (query ? '&' + query : ''))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) showPrintToast('Druckauftrag wurde gesendet.', true);
+                    else showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
+                })
+                .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
+                .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Alle drucken'; } });
+        }
+        function druckenMaengelbericht(id, btn) {
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Drucken...'; }
+            fetch('../api/print-maengelbericht.php?id=' + id)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) showPrintToast('Druckauftrag wurde gesendet.', true);
+                    else showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
+                })
+                .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
+                .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Drucken'; } });
+        }
+        function druckenMaengelberichtAlle(query, btn) {
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Drucken...'; }
+            fetch('../api/print-maengelbericht.php?alle=1' + (query ? '&' + query : ''))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) showPrintToast('Druckauftrag wurde gesendet.', true);
+                    else showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
+                })
+                .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
+                .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Alle Mängelberichte drucken'; } });
+        }
+        function druckenGeraetewartmitteilung(id, btn) {
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Drucken...'; }
+            fetch('../api/print-geraetewartmitteilung.php?id=' + id)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) showPrintToast('Druckauftrag wurde gesendet.', true);
+                    else showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
+                })
+                .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
+                .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Drucken'; } });
+        }
+        function druckenGeraetewartmitteilungAlle(query, btn) {
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Drucken...'; }
+            fetch('../api/print-geraetewartmitteilung.php?alle=1' + (query ? '&' + query : ''))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) showPrintToast('Druckauftrag wurde gesendet.', true);
+                    else showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
+                })
+                .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
+                .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Alle Gerätewartmitteilungen drucken'; } });
+        }
 
         // Live-Suche für Berichte (filtert beim Tippen)
         (function() {

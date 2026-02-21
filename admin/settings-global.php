@@ -114,7 +114,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = $logo_upload_error;
             }
 
-            $all = array_merge($smtp, $google, $app);
+            // Drucker
+            $printer = [
+                'printer_destination' => sanitize_input($_POST['printer_destination'] ?? ''),
+                'printer_cups_server' => trim(sanitize_input($_POST['printer_cups_server'] ?? '')),
+            ];
+
+            $all = array_merge($smtp, $google, $app, $printer);
             foreach ($all as $k => $v) {
                 $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
                 $stmt->execute([$k, $v]);
@@ -276,6 +282,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
         </div>
+        <div class="row g-4 mt-1">
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header"><i class="fas fa-print"></i> Drucker</div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Der Drucker wird auf dem Host mit <code>lpadmin</code> angelegt. Hier tragen Sie den Druckernamen ein, unter dem er in CUPS registriert ist.</p>
+                        <div class="mb-3">
+                            <label class="form-label">Druckername</label>
+                            <div class="input-group">
+                                <input class="form-control" name="printer_destination" id="printer_destination" placeholder="z.B. workplacepure" value="<?php echo htmlspecialchars($settings['printer_destination'] ?? ''); ?>">
+                                <button type="button" class="btn btn-outline-secondary" id="btn_list_printers" title="Verfügbare Drucker anzeigen"><i class="fas fa-list"></i> Drucker auflisten</button>
+                            </div>
+                            <small class="text-muted d-block mt-1">Der Name, den Sie beim <code>lpadmin -p NAME</code> Befehl verwenden.</small>
+                            <div id="printers_list" class="mt-2 small" style="display:none;"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">CUPS-Server (optional)</label>
+                            <input class="form-control" name="printer_cups_server" placeholder="z.B. host.docker.internal:631 (leer = CUPS_SERVER aus docker-compose)" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
+                            <small class="text-muted">Bei Docker: Host-Adresse, damit der Container den CUPS-Server des Hosts nutzt. Leer lassen, wenn bereits über Umgebungsvariable gesetzt.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="d-flex justify-content-end mt-3">
             <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Speichern</button>
         </div>
@@ -286,6 +316,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.getElementById('btn_list_printers')?.addEventListener('click', function() {
+    var btn = this;
+    var out = document.getElementById('printers_list');
+    out.style.display = 'block';
+    out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Drucker...</span>';
+    btn.disabled = true;
+    fetch('../api/list-printers.php')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            if (data.success && data.printers && data.printers.length > 0) {
+                var html = '<strong>Verfügbare Drucker:</strong> ';
+                data.printers.forEach(function(p) {
+                    var def = (data.default_printer === p.name) ? ' (Standard)' : '';
+                    var safe = (p.name || '').replace(/"/g, '&quot;');
+                    html += '<span class="badge bg-secondary me-1" style="cursor:pointer" data-name="' + safe + '" role="button">' + (p.name || '').replace(/</g, '&lt;') + def + '</span> ';
+                });
+                out.innerHTML = html;
+                out.querySelectorAll('[data-name]').forEach(function(el) {
+                    el.addEventListener('click', function() {
+                        document.getElementById('printer_destination').value = this.getAttribute('data-name').replace(/&quot;/g, '"');
+                    });
+                });
+            } else {
+                var html = '<span class="text-warning">' + (data.message || 'Keine Drucker gefunden.') + '</span>';
+                if (data.configured_printer) {
+                    html += '<div class="mt-2 text-muted">Aktuell eingetragen: <code>' + (data.configured_printer || '').replace(/</g, '&lt;') + '</code></div>';
+                }
+                out.innerHTML = html;
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            out.innerHTML = '<span class="text-danger">Fehler beim Laden. CUPS-Server erreichbar?</span>';
+        });
+});
+</script>
 </body>
 </html>
 

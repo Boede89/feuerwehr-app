@@ -13,7 +13,9 @@ RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     pkg-config \
     libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+    cups-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && usermod -aG lp www-data
 
 # PHP Extensions installieren
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
