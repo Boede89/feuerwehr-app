@@ -198,8 +198,14 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
     $uhrzeit_von_init = '';
     $uhrzeit_bis_init = '';
     $uebungsleiter_init = [];
+    $beschreibung_init = '';
     if (!$is_einsatz && isset($dienst)) {
-        if (!empty(trim($dienst['bezeichnung'] ?? ''))) $thema_init = trim($dienst['bezeichnung']);
+        $dienst_typ_init = $dienst['typ'] ?? 'uebungsdienst';
+        if ($dienst_typ_init === 'sonstiges') {
+            $beschreibung_init = trim($dienst['bezeichnung'] ?? '');
+        } else {
+            if (!empty(trim($dienst['bezeichnung'] ?? ''))) $thema_init = trim($dienst['bezeichnung']);
+        }
         $ub = trim((string)($dienst['uhrzeit_dienstbeginn'] ?? ''));
         if ($ub !== '' && (preg_match('/^\d{1,2}:\d{2}$/', $ub) || preg_match('/^\d{1,2}:\d{2}:\d{2}$/', $ub))) {
             $uhrzeit_von_init = strlen($ub) >= 5 ? substr($ub, 0, 5) : $ub;
@@ -246,7 +252,7 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'berichtersteller' => null,
         'custom_data' => [],
         'maengel' => [],
-        'beschreibung' => '',
+        'beschreibung' => $beschreibung_init,
     ];
     }
 }
