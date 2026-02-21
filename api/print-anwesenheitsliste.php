@@ -6,8 +6,11 @@
 session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/print-helper.inc.php';
 
 header('Content-Type: application/json; charset=UTF-8');
+
+$debug = !empty($_GET['debug']) || !empty($_POST['debug']);
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     echo json_encode(['success' => false, 'message' => 'Nicht angemeldet']);
@@ -85,6 +88,22 @@ if (file_put_contents($pdfPath, $pdf_content) === false) {
     exit;
 }
 
+$cups_servers = print_helper_get_cups_servers($printer_cups_server);
+
+// Bei lokalem Drucker ohne Konfiguration: Standard-Drucker ermitteln
+$effective_destination = $printer_destination;
+if ($printer_type === 'local' && $effective_destination === '') {
+    $effective_destination = print_helper_get_default_printer($cups_servers);
+    if ($effective_destination === null) {
+        @unlink($pdfPath);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Kein Drucker konfiguriert. Bitte in den globalen Einstellungen (Drucker) einen Drucker auswählen (z.B. über „Verfügbare Drucker“). Ohne konfigurierten Drucker kann nichts gedruckt werden.'
+        ]);
+        exit;
+    }
+}
+
 $lp_bin = (file_exists('/usr/bin/lp') && is_executable('/usr/bin/lp')) ? '/usr/bin/lp' : 'lp';
 $lp_cmd = '';
 if ($printer_type === 'ipp' && $printer_ipp_url !== '') {
@@ -99,32 +118,17 @@ if ($printer_type === 'ipp' && $printer_ipp_url !== '') {
     }
     $lp_cmd = escapeshellarg($lp_bin) . ' -d ' . escapeshellarg($dest) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
 } else {
-    if ($printer_destination !== '') {
-        $lp_cmd = escapeshellarg($lp_bin) . ' -d ' . escapeshellarg($printer_destination) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
+    if ($effective_destination !== '') {
+        $lp_cmd = escapeshellarg($lp_bin) . ' -d ' . escapeshellarg($effective_destination) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
     } else {
         $lp_cmd = escapeshellarg($lp_bin) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
     }
 }
 
-// CUPS-Server: Primär + Fallbacks (TCP stabiler als Socket bei lang laufenden Containern)
-$cups_servers = array_filter(array_unique([
-    $printer_cups_server,
-    getenv('CUPS_SERVER') ?: '',
-    'host.docker.internal:631',
-    '172.17.0.1:631',
-    '172.17.0.1'
-]));
-
-$output = [];
-$return_var = -1;
-foreach ($cups_servers as $cups_srv) {
-    $env_prefix = ($cups_srv !== '') ? 'CUPS_SERVER=' . escapeshellarg($cups_srv) . ' ' : '';
-    exec($env_prefix . $lp_cmd, $output, $return_var);
-    if ($return_var === 0) break;
-}
+list($success, $output, $return_var, $cups_used) = print_helper_run_lp($lp_cmd, $cups_servers);
 @unlink($pdfPath);
 
-if ($return_var !== 0) {
+if (!$success) {
     $err = implode(' ', $output);
     error_log('print-anwesenheitsliste lp error: ' . $err);
     $hint = '';
@@ -139,4 +143,22 @@ if ($return_var !== 0) {
     exit;
 }
 
-echo json_encode(['success' => true, 'message' => 'Druckauftrag wurde an den Drucker gesendet.']);
+$job_id = print_helper_parse_job_id($output);
+$msg = 'Druckauftrag wurde an den Drucker gesendet.';
+if ($printer_destination === '' && $effective_destination !== '') {
+    $msg .= ' (Standard-Drucker: ' . $effective_destination . ')';
+}
+if ($debug) {
+    echo json_encode([
+        'success' => true,
+        'message' => $msg,
+        'debug' => [
+            'lp_output' => $output,
+            'job_id' => $job_id,
+            'cups_server' => $cups_used,
+            'printer_used' => $effective_destination
+        ]
+    ]);
+} else {
+    echo json_encode(['success' => true, 'message' => $msg]);
+}

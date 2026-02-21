@@ -313,6 +313,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="input-group">
                                 <input class="form-control" name="printer_destination" id="printer_destination" placeholder="z.B. workplacepure oder HP_LaserJet (manuell eintragen funktioniert immer)" value="<?php echo htmlspecialchars($settings['printer_destination'] ?? ''); ?>">
                                 <button type="button" class="btn btn-outline-secondary" id="btn_list_printers" title="Verfügbare Drucker anzeigen"><i class="fas fa-list"></i> Verfügbare Drucker</button>
+                                <button type="button" class="btn btn-outline-info" id="btn_print_diagnose" title="Druck-Verbindung prüfen und Testseite drucken"><i class="fas fa-stethoscope"></i> Druck prüfen</button>
                             </div>
                             <small class="text-muted d-block mt-1">Der Druckername kann jederzeit manuell eingetragen werden – auch wenn „Verfügbare Drucker“ nicht funktioniert.</small>
                             <div id="printers_list" class="mt-2 small" style="display:none;"></div>
@@ -352,6 +353,33 @@ document.getElementById('printer_type')?.addEventListener('change', function() {
     document.getElementById('printer_local_wrap').style.display = isIpp ? 'none' : 'block';
     document.getElementById('printer_local_wrap2').style.display = isIpp ? 'none' : 'block';
     document.getElementById('printer_ipp_wrap').style.display = isIpp ? 'block' : 'none';
+});
+document.getElementById('btn_print_diagnose')?.addEventListener('click', function() {
+    var btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Prüfe...';
+    fetch('../api/print-diagnose.php?test=1')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-stethoscope"></i> Druck prüfen';
+            var msg = 'CUPS erreichbar: ' + (data.cups_reachable ? 'Ja' : 'Nein') + '\n';
+            msg += 'Drucker: ' + (data.printers && data.printers.length ? data.printers.join(', ') : 'Keine') + '\n';
+            msg += 'Standard-Drucker: ' + (data.default_printer || 'Nicht gesetzt') + '\n';
+            if (data.test_print) {
+                msg += '\nTest-Druck: ' + (data.test_print.success ? 'Erfolgreich' : 'Fehlgeschlagen') + '\n';
+                if (data.test_print.job_id) msg += 'Job-ID: ' + data.test_print.job_id + '\n';
+                if (data.test_print.printer_used) msg += 'Verwendet: ' + data.test_print.printer_used + '\n';
+                if (data.test_print.lp_output && data.test_print.lp_output.length) msg += 'lp-Ausgabe: ' + data.test_print.lp_output.join(' ') + '\n';
+            }
+            if (data.hints && data.hints.length) msg += '\nHinweise:\n' + data.hints.join('\n');
+            alert(msg);
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-stethoscope"></i> Druck prüfen';
+            alert('Fehler beim Prüfen: Verbindung fehlgeschlagen.');
+        });
 });
 document.getElementById('btn_list_printers')?.addEventListener('click', function() {
     var btn = this;

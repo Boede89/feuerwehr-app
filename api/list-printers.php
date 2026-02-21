@@ -48,7 +48,7 @@ $cups_servers_tried[] = $printer_cups_server ?: '(Standard)';
 
 // Fallback: Wenn primär fehlschlägt, Netzwerk-Varianten probieren (TCP stabiler als Socket bei lang laufenden Containern)
 $cups_working = $printer_cups_server;
-$fallbacks = ['host.docker.internal:631', '172.17.0.1:631', '172.17.0.1'];
+$fallbacks = ['host.docker.internal:631', '172.17.0.1:631', '172.18.0.1:631', '172.17.0.1', '172.18.0.1'];
 foreach ($fallbacks as $fb) {
     if ($ret === 0) break;
     if ($fb === $printer_cups_server || ($printer_cups_server === '' && $fb === getenv('CUPS_SERVER'))) continue;
