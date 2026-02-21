@@ -809,6 +809,7 @@ function _al_val($liste, $key, $custom_data = []) {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<?php include __DIR__ . '/includes/print-toast.inc.php'; ?>
 <style>.uebungsleiter-item:hover{background:#f8f9fa}.uebungsleiter-item-selected{background:#0d6efd!important;color:#fff!important;border-color:#0d6efd!important}</style>
 <script>
 (function(){
@@ -836,7 +837,7 @@ document.querySelectorAll('.uebungsleiter-item').forEach(function(el){
 document.querySelectorAll('.btn-geraetehaus-edit').forEach(function(btn){
     btn.addEventListener('click',function(){var inp=document.getElementById('einsatzstelle_edit');var addr=this.getAttribute('data-address')||'';if(inp&&addr)inp.value=addr;});
 });
-function druckenAnwesenheitsliste(id,btn){btn=btn||(event&&event.target?event.target.closest('button'):null);if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm"></span> Drucken...';}fetch('../api/print-anwesenheitsliste.php?id='+id).then(function(r){return r.json();}).then(function(data){if(data.success){alert('Druckauftrag wurde an den Drucker gesendet.');}else{alert('Fehler: '+(data.message||'Unbekannter Fehler'));}}).catch(function(){alert('Fehler beim Senden des Druckauftrags.');}).finally(function(){if(btn){btn.disabled=false;btn.innerHTML='<i class="fas fa-print"></i> Drucken';}});}
+function druckenAnwesenheitsliste(id,btn){btn=btn||(event&&event.target?event.target.closest('button'):null);if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm"></span> Drucken...';}fetch('../api/print-anwesenheitsliste.php?id='+id).then(function(r){return r.json();}).then(function(data){if(data.success){showPrintToast('Druckauftrag wurde an den Drucker gesendet.',true);}else{showPrintToast('Fehler: '+(data.message||'Unbekannter Fehler'),false);}}).catch(function(){showPrintToast('Fehler beim Senden des Druckauftrags.',false);}).finally(function(){if(btn){btn.disabled=false;btn.innerHTML='<i class="fas fa-print"></i> Drucken';}});}
 </script>
 <script>
 (function() {

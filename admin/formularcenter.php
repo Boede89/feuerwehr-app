@@ -1247,6 +1247,7 @@ try {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?php include __DIR__ . '/includes/print-toast.inc.php'; ?>
     <script>
         var deleteConfirmFormToSubmit = null;
         function openDeleteConfirm(btn, typeName) {
@@ -1483,12 +1484,12 @@ try {
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.success) {
-                        alert('Druckauftrag wurde an den Drucker gesendet.');
+                        showPrintToast('Druckauftrag wurde an den Drucker gesendet.', true);
                     } else {
-                        alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+                        showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
                     }
                 })
-                .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
+                .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
                 .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Drucken'; } });
         }
         function druckenAnwesenheitslisteAlle(query, btn) {
@@ -1499,12 +1500,12 @@ try {
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.success) {
-                        alert('Druckauftrag wurde an den Drucker gesendet.');
+                        showPrintToast('Druckauftrag wurde an den Drucker gesendet.', true);
                     } else {
-                        alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+                        showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
                     }
                 })
-                .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
+                .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
                 .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Alle drucken'; } });
         }
         function druckenMaengelbericht(id, btn) {
@@ -1513,10 +1514,10 @@ try {
             fetch('../api/print-maengelbericht.php?id=' + id)
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
-                    if (data.success) alert('Druckauftrag wurde an den Drucker gesendet.');
-                    else alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+                    if (data.success) showPrintToast('Druckauftrag wurde an den Drucker gesendet.', true);
+                    else showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
                 })
-                .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
+                .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
                 .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Drucken'; } });
         }
         function druckenMaengelberichtAlle(query, btn) {
@@ -1526,10 +1527,10 @@ try {
             fetch(url)
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
-                    if (data.success) alert('Druckauftrag wurde an den Drucker gesendet.');
-                    else alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+                    if (data.success) showPrintToast('Druckauftrag wurde an den Drucker gesendet.', true);
+                    else showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
                 })
-                .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
+                .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
                 .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Alle Mängelberichte drucken'; } });
         }
         function druckenGeraetewartmitteilung(id, btn) {
@@ -1538,10 +1539,10 @@ try {
             fetch('../api/print-geraetewartmitteilung.php?id=' + id)
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
-                    if (data.success) alert('Druckauftrag wurde an den Drucker gesendet.');
-                    else alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+                    if (data.success) showPrintToast('Druckauftrag wurde an den Drucker gesendet.', true);
+                    else showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
                 })
-                .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
+                .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
                 .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Drucken'; } });
         }
         function druckenGeraetewartmitteilungAlle(query, btn) {
@@ -1551,10 +1552,10 @@ try {
             fetch(url)
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
-                    if (data.success) alert('Druckauftrag wurde an den Drucker gesendet.');
-                    else alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+                    if (data.success) showPrintToast('Druckauftrag wurde an den Drucker gesendet.', true);
+                    else showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
                 })
-                .catch(function() { alert('Fehler beim Senden des Druckauftrags.'); })
+                .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
                 .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Alle Gerätewartmitteilungen drucken'; } });
         }
 
