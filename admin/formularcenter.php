@@ -187,17 +187,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
         $datum = trim($_POST['dienstplan_datum'] ?? '');
         $thema = trim($_POST['dienstplan_thema'] ?? '');
         $thema_neu = trim($_POST['dienstplan_thema_neu'] ?? '');
+        $beschreibung = trim($_POST['dienstplan_beschreibung'] ?? '');
         $typ_raw = trim($_POST['dienstplan_typ'] ?? '');
         $uhrzeit = trim($_POST['dienstplan_uhrzeit'] ?? '');
         $uhrzeit_ende = trim($_POST['dienstplan_uhrzeit_ende'] ?? '');
         $ausbilder_ids = isset($_POST['dienstplan_ausbilder']) && is_array($_POST['dienstplan_ausbilder']) ? array_filter(array_map('intval', $_POST['dienstplan_ausbilder'])) : [];
         $typen = get_dienstplan_typen_auswahl();
         $typ = array_key_exists($typ_raw, $typen) ? $typ_raw : 'uebungsdienst';
-        $thema_value = $thema === '__neu__' ? $thema_neu : $thema;
+        $thema_value = ($typ === 'uebungsdienst') ? ($thema === '__neu__' ? $thema_neu : $thema) : $beschreibung;
         $uhrzeit_val = (preg_match('/^\d{1,2}:\d{2}$/', $uhrzeit) || preg_match('/^\d{1,2}:\d{2}:\d{2}$/', $uhrzeit)) ? $uhrzeit : null;
         $uhrzeit_ende_val = (preg_match('/^\d{1,2}:\d{2}$/', $uhrzeit_ende) || preg_match('/^\d{1,2}:\d{2}:\d{2}$/', $uhrzeit_ende)) ? $uhrzeit_ende : null;
-        if (empty($datum) || $thema_value === '') {
-            $error = 'Datum und Thema sind erforderlich.';
+        if (empty($datum)) {
+            $error = 'Datum ist erforderlich.';
+        } elseif ($typ === 'uebungsdienst' && $thema_value === '') {
+            $error = 'Bitte wählen Sie ein Thema oder geben Sie ein neues ein.';
+        } elseif (($typ === 'sonstiges' || $typ === 'einsatz') && $beschreibung === '') {
+            $error = 'Bitte geben Sie eine Beschreibung ein.';
         } else {
             try {
                 if ($id) {
@@ -1009,6 +1014,31 @@ try {
                             <input type="date" class="form-control" id="dienstplan_datum" name="dienstplan_datum" required>
                         </div>
                         <div class="mb-3">
+                            <label for="dienstplan_typ" class="form-label">Typ *</label>
+                            <select class="form-select" id="dienstplan_typ" name="dienstplan_typ">
+                                <?php foreach (get_dienstplan_typen_auswahl() as $key => $label): ?>
+                                    <option value="<?php echo htmlspecialchars($key); ?>"><?php echo htmlspecialchars($label); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="dienstplan_thema_wrap">
+                            <label for="dienstplan_thema" class="form-label">Thema *</label>
+                            <select class="form-select" id="dienstplan_thema" name="dienstplan_thema">
+                                <option value="">— Bitte wählen oder neues Thema eingeben —</option>
+                                <?php foreach ($dienstplan_themen as $t): ?>
+                                    <option value="<?php echo htmlspecialchars($t); ?>"><?php echo htmlspecialchars($t); ?></option>
+                                <?php endforeach; ?>
+                                <option value="__neu__">— Neues Thema eingeben —</option>
+                            </select>
+                            <div class="mt-2" id="dienstplan_thema_neu_wrap" style="display: none;">
+                                <input type="text" class="form-control" id="dienstplan_thema_neu" name="dienstplan_thema_neu" placeholder="Neues Thema (wird für spätere Einträge gespeichert)">
+                            </div>
+                        </div>
+                        <div class="mb-3" id="dienstplan_beschreibung_wrap" style="display: none;">
+                            <label for="dienstplan_beschreibung" class="form-label">Beschreibung *</label>
+                            <input type="text" class="form-control" id="dienstplan_beschreibung" name="dienstplan_beschreibung" placeholder="z.B. Jahreshauptversammlung, Geräteprüfung, ...">
+                        </div>
+                        <div class="mb-3">
                             <label for="dienstplan_uhrzeit" class="form-label">Uhrzeit Dienstbeginn</label>
                             <input type="time" class="form-control" id="dienstplan_uhrzeit" name="dienstplan_uhrzeit">
                             <div class="form-text">Wird automatisch in die Anwesenheitsliste übernommen (Uhrzeit von).</div>
@@ -1032,27 +1062,6 @@ try {
                                 <?php endif; ?>
                             </div>
                             <div class="form-text">Werden in der Anwesenheitsliste als Übungsleiter vorausgewählt.</div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="dienstplan_typ" class="form-label">Typ</label>
-                            <select class="form-select" id="dienstplan_typ" name="dienstplan_typ">
-                                <?php foreach (get_dienstplan_typen_auswahl() as $key => $label): ?>
-                                    <option value="<?php echo htmlspecialchars($key); ?>"><?php echo htmlspecialchars($label); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="dienstplan_thema" class="form-label">Thema *</label>
-                            <select class="form-select" id="dienstplan_thema" name="dienstplan_thema">
-                                <option value="">— Bitte wählen oder neues Thema eingeben —</option>
-                                <?php foreach ($dienstplan_themen as $t): ?>
-                                    <option value="<?php echo htmlspecialchars($t); ?>"><?php echo htmlspecialchars($t); ?></option>
-                                <?php endforeach; ?>
-                                <option value="__neu__">— Neues Thema eingeben —</option>
-                            </select>
-                            <div class="mt-2" id="dienstplan_thema_neu_wrap" style="display: none;">
-                                <input type="text" class="form-control" id="dienstplan_thema_neu" name="dienstplan_thema_neu" placeholder="Neues Thema (wird für spätere Einträge gespeichert)">
-                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -1318,26 +1327,46 @@ try {
             });
             var typSel = document.getElementById('dienstplan_typ');
             if (typSel) typSel.value = entry && entry.typ ? entry.typ : 'uebungsdienst';
+            updateDienstplanTypFields();
             var themaSel = document.getElementById('dienstplan_thema');
             var themaNeuWrap = document.getElementById('dienstplan_thema_neu_wrap');
             var themaNeu = document.getElementById('dienstplan_thema_neu');
+            var beschreibungEl = document.getElementById('dienstplan_beschreibung');
+            var typ = typSel ? typSel.value : 'uebungsdienst';
             if (entry && entry.bezeichnung) {
-                var opt = Array.from(themaSel.options).find(function(o) { return o.value === entry.bezeichnung; });
-                if (opt) {
-                    themaSel.value = entry.bezeichnung;
-                    themaNeuWrap.style.display = 'none';
+                if (typ === 'uebungsdienst') {
+                    var opt = Array.from(themaSel.options).find(function(o) { return o.value === entry.bezeichnung; });
+                    if (opt) {
+                        themaSel.value = entry.bezeichnung;
+                        themaNeuWrap.style.display = 'none';
+                    } else {
+                        themaSel.value = '__neu__';
+                        themaNeu.value = entry.bezeichnung;
+                        themaNeuWrap.style.display = 'block';
+                    }
                 } else {
-                    themaSel.value = '__neu__';
-                    themaNeu.value = entry.bezeichnung;
-                    themaNeuWrap.style.display = 'block';
+                    if (beschreibungEl) beschreibungEl.value = entry.bezeichnung;
                 }
             } else {
                 themaSel.value = '';
                 themaNeu.value = '';
                 themaNeuWrap.style.display = 'none';
+                if (beschreibungEl) beschreibungEl.value = '';
             }
-            themaSel.onchange();
+            if (themaSel) themaSel.dispatchEvent(new Event('change'));
         }
+        function updateDienstplanTypFields() {
+            var typ = (document.getElementById('dienstplan_typ') || {}).value || 'uebungsdienst';
+            var themaWrap = document.getElementById('dienstplan_thema_wrap');
+            var beschreibungWrap = document.getElementById('dienstplan_beschreibung_wrap');
+            if (themaWrap) themaWrap.style.display = (typ === 'uebungsdienst') ? 'block' : 'none';
+            if (beschreibungWrap) beschreibungWrap.style.display = (typ === 'sonstiges' || typ === 'einsatz') ? 'block' : 'none';
+            var thema = document.getElementById('dienstplan_thema');
+            var beschreibung = document.getElementById('dienstplan_beschreibung');
+            if (thema) thema.required = (typ === 'uebungsdienst');
+            if (beschreibung) beschreibung.required = (typ === 'sonstiges' || typ === 'einsatz');
+        }
+        document.getElementById('dienstplan_typ').addEventListener('change', updateDienstplanTypFields);
         document.getElementById('dienstplan_thema').addEventListener('change', function() {
             var wrap = document.getElementById('dienstplan_thema_neu_wrap');
             wrap.style.display = this.value === '__neu__' ? 'block' : 'none';
