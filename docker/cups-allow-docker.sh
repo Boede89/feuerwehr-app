@@ -15,20 +15,30 @@ cp -a "$CONF" "${CONF}.bak.$(date +%Y%m%d%H%M)"
 sed -i 's/Listen localhost:631/Listen 0.0.0.0:631/' "$CONF"
 sed -i 's/Listen \*:631/Listen 0.0.0.0:631/' "$CONF" 2>/dev/null || true
 
-# ServerAlias
+# ServerAlias (nach Browsing oder am Anfang)
+grep -q 'ServerAlias' "$CONF" || sed -i '/^Browsing /a ServerAlias *' "$CONF"
 grep -q 'ServerAlias' "$CONF" || sed -i '1a ServerAlias *' "$CONF"
 
-# Docker-Netzwerk erlauben
+# Docker-Netzwerk erlauben – in ALLE Location-Blöcke (127.0.0.1 oder @LOCAL)
 if ! grep -q 'Allow from 172.17.0.0/16' "$CONF"; then
     if grep -q 'Allow from 127.0.0.1' "$CONF"; then
-        sed -i '0,/Allow from 127.0.0.1/s/\(Allow from 127.0.0.1\)/\1\n  Allow from 172.17.0.0\/16\n  Allow from 172.18.0.0\/16/' "$CONF"
-    elif grep -q 'Allow from @LOCAL' "$CONF"; then
-        sed -i '0,/Allow from @LOCAL/s/\(Allow from @LOCAL\)/\1\n  Allow from 172.17.0.0\/16\n  Allow from 172.18.0.0\/16/' "$CONF"
-    else
-        # Vor </Location> einfügen
-        sed -i '0,/<\/Location>/s/\(<\/Location>\)/  Allow from 172.17.0.0\/16\n  Allow from 172.18.0.0\/16\n\1/' "$CONF"
+        sed -i '/Allow from 127.0.0.1/a\
+  Allow from 172.17.0.0\/16\
+  Allow from 172.18.0.0\/16' "$CONF"
+    fi
+    if grep -q 'Allow from @LOCAL' "$CONF" && ! grep -q 'Allow from 172.17.0.0/16' "$CONF"; then
+        sed -i '/Allow from @LOCAL/a\
+  Allow from 172.17.0.0\/16\
+  Allow from 172.18.0.0\/16' "$CONF"
+    fi
+    # Fallback: vor erstem </Location>
+    if ! grep -q 'Allow from 172.17.0.0/16' "$CONF"; then
+        sed -i '0,/<\/Location>/s/<\/Location>/  Allow from 172.17.0.0\/16\
+  Allow from 172.18.0.0\/16\
+<\/Location>/' "$CONF"
     fi
 fi
 
+cupsd -t 2>/dev/null || { echo "Fehler: cupsd.conf ungültig. Wiederherstellen: cp ${CONF}.bak.* $CONF"; exit 1; }
 systemctl restart cups
 echo "CUPS neu gestartet. Prüfen: lpstat -p"
