@@ -39,9 +39,25 @@ $env_prefix = ($printer_cups_server !== '') ? 'CUPS_SERVER=' . escapeshellarg($p
 $printers = [];
 $raw = '';
 $err = '';
+$cups_servers_tried = [];
 
+// Primärer Versuch
 exec($env_prefix . escapeshellarg($lpstat_bin) . ' -p 2>&1', $lines, $ret);
 $raw = implode("\n", $lines);
+$cups_servers_tried[] = $printer_cups_server ?: '(Standard)';
+
+// Fallback: Wenn primär fehlschlägt, Netzwerk-Varianten probieren (TCP stabiler als Socket bei lang laufenden Containern)
+$cups_working = $printer_cups_server;
+$fallbacks = ['host.docker.internal:631', '172.17.0.1:631', '172.17.0.1'];
+foreach ($fallbacks as $fb) {
+    if ($ret === 0) break;
+    if ($fb === $printer_cups_server || ($printer_cups_server === '' && $fb === getenv('CUPS_SERVER'))) continue;
+    $env_fb = 'CUPS_SERVER=' . escapeshellarg($fb) . ' ';
+    exec($env_fb . escapeshellarg($lpstat_bin) . ' -p 2>&1', $lines, $ret);
+    $raw = implode("\n", $lines);
+    $cups_servers_tried[] = $fb;
+    if ($ret === 0) { $cups_working = $fb; break; }
+}
 
 $manual_hint = 'Druckername manuell eintragen (z.B. workplacepure) – funktioniert auch ohne CUPS-Erkennung.';
 if ($ret !== 0) {
@@ -87,7 +103,8 @@ foreach ($lines as $line) {
     }
 }
 
-exec($env_prefix . escapeshellarg($lpstat_bin) . ' -d 2>&1', $def_lines, $dret);
+$env_working = ($cups_working !== '') ? 'CUPS_SERVER=' . escapeshellarg($cups_working) . ' ' : '';
+exec($env_working . escapeshellarg($lpstat_bin) . ' -d 2>&1', $def_lines, $dret);
 $default_printer = '';
 foreach ($def_lines as $line) {
     if (preg_match('/^system default destination:\s*(\S+)/', $line, $m)) {
@@ -111,6 +128,6 @@ echo json_encode([
     'default_printer' => $default_printer,
     'configured_printer' => $configured_printer,
     'raw' => $raw,
-    'cups_server_used' => $printer_cups_server ?: '(Standard/Umgebung)',
+    'cups_server_used' => $cups_working ?: $printer_cups_server ?: '(Standard/Umgebung)',
     'message' => $empty_msg
 ]);

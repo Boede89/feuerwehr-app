@@ -295,7 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="card h-100">
                     <div class="card-header"><i class="fas fa-print"></i> Drucker</div>
                     <div class="card-body">
-                        <p class="text-muted small mb-3">Anwesenheitslisten werden als PDF erzeugt und per CUPS (lp) gesendet. <strong>Docker:</strong> Die docker-compose nutzt den CUPS-Socket vom Host (<code>/run/cups/cups.sock</code>) – CUPS-Server hier leer lassen.</p>
+                        <p class="text-muted small mb-3">Anwesenheitslisten werden als PDF erzeugt und per CUPS (lp) gesendet. <strong>Docker:</strong> Nutzt CUPS über TCP (host.docker.internal:631) – stabiler als Socket. Einmalig: <code>sudo bash docker/host-setup-cups.sh</code> auf dem Host.</p>
                         <div class="mb-3">
                             <label class="form-label">Druckertyp</label>
                             <select class="form-select" name="printer_type" id="printer_type">

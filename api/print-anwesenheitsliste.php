@@ -106,15 +106,22 @@ if ($printer_type === 'ipp' && $printer_ipp_url !== '') {
     }
 }
 
-// CUPS-Server explizit setzen (wichtig für Docker: Container nutzt Host-CUPS)
-$env_prefix = '';
-if ($printer_cups_server !== '') {
-    $env_prefix = 'CUPS_SERVER=' . escapeshellarg($printer_cups_server) . ' ';
-}
+// CUPS-Server: Primär + Fallbacks (TCP stabiler als Socket bei lang laufenden Containern)
+$cups_servers = array_filter(array_unique([
+    $printer_cups_server,
+    getenv('CUPS_SERVER') ?: '',
+    'host.docker.internal:631',
+    '172.17.0.1:631',
+    '172.17.0.1'
+]));
 
 $output = [];
-$return_var = 0;
-exec($env_prefix . $lp_cmd, $output, $return_var);
+$return_var = -1;
+foreach ($cups_servers as $cups_srv) {
+    $env_prefix = ($cups_srv !== '') ? 'CUPS_SERVER=' . escapeshellarg($cups_srv) . ' ' : '';
+    exec($env_prefix . $lp_cmd, $output, $return_var);
+    if ($return_var === 0) break;
+}
 @unlink($pdfPath);
 
 if ($return_var !== 0) {

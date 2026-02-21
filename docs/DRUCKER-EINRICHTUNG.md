@@ -53,31 +53,23 @@ Sie sollten `printer workplacepure` sehen.
 
 ### Schritt 4: CUPS für Docker – Socket (empfohlen) oder Netzwerk
 
-**Option A: Socket-Passthrough (empfohlen, kein Forbidden)**
+**Netzwerk-Zugriff (empfohlen, dauerhaft stabil)**
 
-Die docker-compose nutzt bereits den CUPS-Socket vom Host. Keine cupsd.conf-Änderungen nötig. Voraussetzung: CUPS läuft auf dem Host, der Socket existiert unter `/run/cups/cups.sock`.
+Die docker-compose nutzt CUPS über TCP (host.docker.internal:631). Das ist stabiler als der Socket – keine Verbindungsabbrüche nach Tagen.
 
-**Option B: Netzwerk-Zugriff (falls Socket nicht möglich)**
-
+Einmalig auf dem Host ausführen:
 ```bash
-# 1. CUPS auf allen Interfaces hören lassen
-sudo sed -i 's/Listen localhost:631/Listen 0.0.0.0:631/' /etc/cups/cupsd.conf
-
-# 2. In /etc/cups/cupsd.conf: ServerAlias * und Allow from 172.17.0.0/16 im <Location />
-sudo nano /etc/cups/cupsd.conf
-
-sudo systemctl restart cups
+sudo bash docker/host-setup-cups.sh
 ```
-
-Dann in docker-compose `CUPS_SERVER=172.17.0.1` setzen und den Socket-Volume-Eintrag auskommentieren.
+Das Skript konfiguriert CUPS für Netzwerk-Zugriff (Listen 0.0.0.0:631, Allow from Docker).
 
 ### Schritt 5: docker-compose (bereits vorkonfiguriert)
 
 Die `docker-compose.yml` enthält bereits:
-- Volume: `/run/cups/cups.sock` vom Host
-- Environment: `CUPS_SERVER=/run/cups/cups.sock`
+- `extra_hosts: host.docker.internal: host-gateway`
+- `CUPS_SERVER=host.docker.internal:631`
 
-Keine Änderung nötig, wenn Sie den Socket nutzen.
+Keine Änderung nötig.
 
 ### Schritt 6: Container neu bauen und starten
 
