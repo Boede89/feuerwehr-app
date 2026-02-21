@@ -61,7 +61,7 @@ Einmalig auf dem Host ausführen:
 ```bash
 sudo bash docker/host-setup-cups.sh
 ```
-Das Skript konfiguriert CUPS für Netzwerk-Zugriff (Listen 0.0.0.0:631, Allow from Docker).
+Das Skript konfiguriert CUPS für Netzwerk-Zugriff (Listen 0.0.0.0:631, Allow from Docker) und richtet **cups-docker-ensure.service** ein – dieser prüft bei jedem Boot, ob die CUPS-Config noch stimmt (z.B. nach Paket-Updates) und stellt sie ggf. wieder her.
 
 ### Schritt 5: docker-compose (bereits vorkonfiguriert)
 

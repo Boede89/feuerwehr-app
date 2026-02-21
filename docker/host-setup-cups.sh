@@ -73,4 +73,26 @@ echo ""
 echo "Prüfen mit: lpstat -p"
 echo "Drucker anlegen mit: sudo lpadmin -p NAME -E -v ipp://... -m everywhere"
 echo ""
+echo "Richte dauerhafte Absicherung ein (prüft bei jedem Boot, ob CUPS-Config noch stimmt)..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cp -f "$SCRIPT_DIR/cups-allow-docker.sh" /usr/local/bin/cups-allow-docker-feuerwehr.sh
+chmod +x /usr/local/bin/cups-allow-docker-feuerwehr.sh
+cat > /etc/systemd/system/cups-docker-ensure.service << 'SVCEOF'
+[Unit]
+Description=CUPS Docker-Zugriff sicherstellen (Feuerwehr-App)
+After=network.target cups.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/cups-allow-docker-feuerwehr.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+systemctl daemon-reload
+systemctl enable cups-docker-ensure.service
+echo "  cups-docker-ensure.service wird bei jedem Boot vor CUPS ausgeführt."
+
+echo ""
 echo "Container neu starten: cd ~/feuerwehr-app && docker compose up -d --force-recreate web"
