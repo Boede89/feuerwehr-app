@@ -112,7 +112,9 @@ if ($printer_type === 'ipp' && $printer_ipp_url !== '') {
         $parsed = parse_url($printer_ipp_url);
         $scheme = $parsed['scheme'] ?? 'ipp';
         $host = $parsed['host'] ?? '';
-        $path = $parsed['path'] ?? '/ipp/print';
+        $path = isset($parsed['path']) ? $parsed['path'] : '/ipp/print';
+        if ($path === '' || $path[0] !== '/') $path = '/' . $path;
+        if (!empty($parsed['query'])) $path .= '?' . $parsed['query'];
         $port = $parsed['port'] ?? ($scheme === 'ipps' ? 443 : 631);
         $dest = $scheme . '://' . rawurlencode($printer_username) . ':' . rawurlencode($printer_password) . '@' . $host . ($port ? ':' . $port : '') . $path;
     }

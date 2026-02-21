@@ -300,13 +300,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="form-label">Druckertyp</label>
                             <select class="form-select" name="printer_type" id="printer_type">
                                 <option value="local" <?php echo ($settings['printer_type'] ?? 'local') === 'local' ? 'selected' : ''; ?>>Lokaler Drucker (CUPS)</option>
-                                <option value="ipp" <?php echo ($settings['printer_type'] ?? '') === 'ipp' ? 'selected' : ''; ?>>IPP / Cloud-Drucker</option>
+                                <option value="ipp" <?php echo ($settings['printer_type'] ?? '') === 'ipp' ? 'selected' : ''; ?>>Cloud-Drucker (IPP mit Anmeldung)</option>
                             </select>
                         </div>
-                        <div class="mb-3" id="printer_local_wrap" style="display: <?php echo ($settings['printer_type'] ?? 'local') === 'ipp' ? 'none' : 'block'; ?>;">
+                        <div class="mb-3" id="printer_cups_wrap">
                             <label class="form-label">CUPS-Server (Docker)</label>
                             <input class="form-control" name="printer_cups_server" placeholder="z.B. 172.17.0.1 oder host.docker.internal (leer = CUPS_SERVER aus docker-compose)" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
-                            <small class="text-muted">Nur bei Docker: Host-Adresse, damit der Container den CUPS-Server des Hosts nutzt.</small>
+                            <small class="text-muted">Bei Docker: Host-Adresse, damit der Container den CUPS-Server des Hosts nutzt. Für lokale und Cloud-Drucker erforderlich.</small>
                         </div>
                         <div class="mb-3" id="printer_local_wrap2" style="display: <?php echo ($settings['printer_type'] ?? 'local') === 'ipp' ? 'none' : 'block'; ?>;">
                             <label class="form-label">Druckername (lokal)</label>
@@ -319,18 +319,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div id="printers_list" class="mt-2 small" style="display:none;"></div>
                         </div>
                         <div id="printer_ipp_wrap" style="display: <?php echo ($settings['printer_type'] ?? 'local') === 'ipp' ? 'block' : 'none'; ?>;">
-                            <p class="text-muted small mb-2">Für IPP: Drucker muss zuerst in CUPS angelegt werden (z.B. auf dem Host: <code>lpadmin -p feuerwehr_ipp -E -v ipp://host/ipp/print -m everywhere</code>). Dann „Lokaler Drucker“ wählen und den Namen (z.B. feuerwehr_ipp) eintragen.</p>
+                            <p class="text-muted small mb-2"><strong>Cloud-Drucker (workplacepure, KM Cloud Print etc.):</strong> Tragen Sie die Drucker-URL und Ihre Cloud-Anmeldedaten ein. Benutzername und Passwort sind erforderlich, damit der Drucker erreichbar ist.</p>
                             <div class="mb-3">
-                                <label class="form-label">IPP-URL / Freigabelink</label>
-                                <input class="form-control" name="printer_ipp_url" placeholder="z.B. ipp://drucker.example.com/ipp/print" value="<?php echo htmlspecialchars($settings['printer_ipp_url'] ?? ''); ?>">
+                                <label class="form-label">Drucker-URL / Adresse</label>
+                                <div class="input-group">
+                                    <input class="form-control" name="printer_ipp_url" id="printer_ipp_url" placeholder="z.B. ipps://ipp.workplacepure.com/ipp/print/..." value="<?php echo htmlspecialchars($settings['printer_ipp_url'] ?? ''); ?>">
+                                    <button type="button" class="btn btn-outline-secondary" id="btn_fetch_ipp_uri" title="URI aus CUPS-Drucker übernehmen"><i class="fas fa-download"></i> URI aus CUPS übernehmen</button>
+                                </div>
+                                <small class="text-muted d-block mt-1">Vollständige Adresse des Druckers. Mit „URI aus CUPS übernehmen“ können Sie die Adresse eines bereits in CUPS angelegten Druckers übernehmen.</small>
+                                <div id="ipp_uri_list" class="mt-2 small" style="display:none;"></div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Benutzername</label>
-                                <input class="form-control" name="printer_username" value="<?php echo htmlspecialchars($settings['printer_username'] ?? ''); ?>">
+                                <label class="form-label">Benutzername (Cloud-Login)</label>
+                                <input class="form-control" name="printer_username" id="printer_username" placeholder="Ihr Cloud-Benutzername" value="<?php echo htmlspecialchars($settings['printer_username'] ?? ''); ?>">
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Passwort</label>
-                                <input class="form-control" type="password" name="printer_password" placeholder="Leer lassen zum Beibehalten">
+                                <label class="form-label">Passwort (Cloud-Login)</label>
+                                <input class="form-control" type="password" name="printer_password" id="printer_password" placeholder="Leer lassen zum Beibehalten">
                             </div>
                         </div>
                     </div>
@@ -350,9 +355,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script>
 document.getElementById('printer_type')?.addEventListener('change', function() {
     var isIpp = this.value === 'ipp';
-    document.getElementById('printer_local_wrap').style.display = isIpp ? 'none' : 'block';
     document.getElementById('printer_local_wrap2').style.display = isIpp ? 'none' : 'block';
     document.getElementById('printer_ipp_wrap').style.display = isIpp ? 'block' : 'none';
+});
+document.getElementById('btn_fetch_ipp_uri')?.addEventListener('click', function() {
+    var btn = this;
+    var out = document.getElementById('ipp_uri_list');
+    out.style.display = 'block';
+    out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Drucker-URIs...</span>';
+    btn.disabled = true;
+    fetch('../api/list-printers.php?uris=1')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            if (data.success && data.printers && data.printers.length > 0) {
+                var html = '<strong>Drucker auswählen (URI übernehmen):</strong><br>';
+                data.printers.forEach(function(p) {
+                    var uri = (p.device_uri || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                    if (uri && (uri.indexOf('ipp') === 0 || uri.indexOf('ipps') === 0)) {
+                        html += '<span class="badge bg-primary me-1 mb-1" style="cursor:pointer" data-uri="' + uri + '" role="button" title="' + uri + '">' + (p.name || '').replace(/</g, '&lt;') + '</span> ';
+                    }
+                });
+                if (html.indexOf('badge') === -1) {
+                    html = '<span class="text-warning">Keine IPP-Drucker mit URI gefunden. Tragen Sie die URL manuell ein (z.B. aus lpstat -v auf dem Host).</span>';
+                }
+                out.innerHTML = html;
+                out.querySelectorAll('[data-uri]').forEach(function(el) {
+                    el.addEventListener('click', function() {
+                        document.getElementById('printer_ipp_url').value = this.getAttribute('data-uri');
+                    });
+                });
+            } else {
+                out.innerHTML = '<span class="text-warning">' + (data.message || 'Keine Drucker gefunden.') + '</span>';
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            out.innerHTML = '<span class="text-danger">Fehler beim Laden.</span>';
+        });
 });
 document.getElementById('btn_print_diagnose')?.addEventListener('click', function() {
     var btn = this;

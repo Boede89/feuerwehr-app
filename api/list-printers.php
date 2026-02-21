@@ -103,6 +103,25 @@ foreach ($lines as $line) {
     }
 }
 
+// Device-URIs für Cloud-Drucker (lpstat -v), z.B. für IPP mit Anmeldung
+$include_uris = !empty($_GET['uris']);
+$device_uris = [];
+if ($include_uris) {
+    $env_v = ($cups_working !== '') ? 'CUPS_SERVER=' . escapeshellarg($cups_working) . ' ' : '';
+    exec($env_v . escapeshellarg($lpstat_bin) . ' -v 2>&1', $v_lines, $v_ret);
+    if ($v_ret === 0) {
+        foreach ($v_lines as $v_line) {
+            if (preg_match('/^device for (\S+):\s*(.+)$/', trim($v_line), $vm)) {
+                $device_uris[trim($vm[1])] = trim($vm[2]);
+            }
+        }
+    }
+    foreach ($printers as &$p) {
+        $p['device_uri'] = $device_uris[$p['name']] ?? '';
+    }
+    unset($p);
+}
+
 $env_working = ($cups_working !== '') ? 'CUPS_SERVER=' . escapeshellarg($cups_working) . ' ' : '';
 exec($env_working . escapeshellarg($lpstat_bin) . ' -d 2>&1', $def_lines, $dret);
 $default_printer = '';
