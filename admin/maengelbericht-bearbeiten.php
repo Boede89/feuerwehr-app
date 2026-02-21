@@ -159,7 +159,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         <h1 class="h3 mb-0"><i class="fas fa-exclamation-triangle text-warning"></i> Mängelbericht bearbeiten</h1>
         <div class="d-flex gap-2">
             <a href="../api/maengelbericht-pdf.php?id=<?php echo (int)$id; ?>" class="btn btn-outline-success" download><i class="fas fa-file-pdf"></i> PDF</a>
-            <button type="button" class="btn btn-outline-secondary" onclick="druckenMaengelbericht(<?php echo (int)$id; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
         </div>
     </div>
     <?php if ($message): ?><div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
@@ -313,17 +312,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         });
     }
 })();
-function druckenMaengelbericht(id, btn) {
-    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Drucken...'; }
-    fetch('../api/print-maengelbericht.php?id=' + id)
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.success) alert('Druckauftrag wurde gesendet.');
-            else alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
-        })
-        .catch(function() { alert('Fehler beim Drucken.'); })
-        .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Drucken'; } });
-}
 </script>
 </body>
 </html>

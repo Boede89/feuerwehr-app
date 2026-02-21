@@ -939,16 +939,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         try {
             $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?")->execute([$draft['datum'], $draft['auswahl']]);
         } catch (Exception $e) { /* ignore */ }
-        $print_after = !empty($_POST['print_after_save']);
-        $print_maengelbericht_after = !empty($_POST['print_maengelbericht_after_save']) && !empty($maengelbericht_ids);
-        $print_geraetewartmitteilung_after = !empty($_POST['print_geraetewartmitteilung_after_save']) && !empty($gwm_id) && $gwm_id > 0;
         $return_fc = !empty($_POST['return']) && $_POST['return'] === 'formularcenter';
         $redirect = $return_fc ? 'admin/formularcenter.php?tab=submissions&message=' . urlencode('Anwesenheitsliste wurde gespeichert.') : 'anwesenheitsliste.php?message=erfolg';
-        if (!$return_fc) {
-            if ($print_after) $redirect .= '&print=' . $list_id;
-            if ($print_maengelbericht_after) $redirect .= '&print_maengelbericht=' . implode(',', $maengelbericht_ids);
-            if ($print_geraetewartmitteilung_after) $redirect .= '&print_geraetewartmitteilung=' . $gwm_id;
-        }
         header('Location: ' . $redirect);
         exit;
     } catch (Exception $e) {
@@ -1083,9 +1075,6 @@ if ($is_einsatz) {
                             <input type="hidden" name="save_final" value="1">
                             <?php if ($edit_id > 0): ?><input type="hidden" name="edit_id" value="<?php echo (int)$edit_id; ?>"><?php endif; ?>
                             <?php if ($return_formularcenter): ?><input type="hidden" name="return" value="formularcenter"><?php endif; ?>
-                            <input type="hidden" name="print_after_save" id="print_after_save" value="0">
-                            <input type="hidden" name="print_maengelbericht_after_save" id="print_maengelbericht_after_save" value="0">
-                            <input type="hidden" name="print_geraetewartmitteilung_after_save" id="print_geraetewartmitteilung_after_save" value="0">
                             <?php if ($is_einsatz): 
                                 $dienstplan_themen = [];
                                 $beschreibung_optionen_sonstiges = [];
@@ -1383,24 +1372,6 @@ if ($is_einsatz) {
                             </div>
                         </div>
                     </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" checked>
-                        <label class="form-check-label" for="cbPrintAfterSave">Anwesenheitsliste drucken</label>
-                    </div>
-                    <?php if (!empty($draft['maengel']) && is_array($draft['maengel'])): ?>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="cbPrintMaengelberichtAfterSave" checked>
-                        <label class="form-check-label" for="cbPrintMaengelberichtAfterSave">Mängelbericht drucken</label>
-                    </div>
-                    <?php endif; ?>
-                    <?php
-                    $has_vehicles_for_gwm = !empty($draft['vehicles']) || !empty(array_filter($draft['member_vehicle'] ?? []));
-                    if ($has_vehicles_for_gwm): ?>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="cbPrintGeraetewartmitteilungAfterSave" checked>
-                        <label class="form-check-label" for="cbPrintGeraetewartmitteilungAfterSave">Gerätewartmitteilung drucken</label>
-                    </div>
-                    <?php endif; ?>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
@@ -1420,12 +1391,6 @@ if ($is_einsatz) {
     (function(){
         var btnSave = document.getElementById('btnSaveAnwesenheit');
         var modal = document.getElementById('saveConfirmModal');
-        var cbPrint = document.getElementById('cbPrintAfterSave');
-        var cbPrintMaengel = document.getElementById('cbPrintMaengelberichtAfterSave');
-        var cbPrintGwm = document.getElementById('cbPrintGeraetewartmitteilungAfterSave');
-        var inputPrint = document.getElementById('print_after_save');
-        var inputPrintMaengel = document.getElementById('print_maengelbericht_after_save');
-        var inputPrintGwm = document.getElementById('print_geraetewartmitteilung_after_save');
         var form = document.getElementById('mainForm');
         var validationEl = document.getElementById('validationError');
         var isEinsatz = <?php echo $is_einsatz ? 'true' : 'false'; ?>;
@@ -1494,9 +1459,6 @@ if ($is_einsatz) {
                 var formBis = document.querySelector('[name="uhrzeit_bis"]') || form.querySelector('[name="uhrzeit_bis"]');
                 if (modalVon && formVon) formVon.value = modalVon.value || '';
                 if (modalBis && formBis) formBis.value = modalBis.value || '';
-                if (inputPrint) inputPrint.value = cbPrint && cbPrint.checked ? '1' : '0';
-                if (inputPrintMaengel) inputPrintMaengel.value = cbPrintMaengel && cbPrintMaengel.checked ? '1' : '0';
-                if (inputPrintGwm) inputPrintGwm.value = cbPrintGwm && cbPrintGwm.checked ? '1' : '0';
                 form.submit();
             });
         }

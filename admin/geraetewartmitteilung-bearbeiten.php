@@ -347,24 +347,11 @@ foreach ($fahrzeuge as $f) {
             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
             <a href="formularcenter.php?tab=submissions&filter_formular=geraetewartmitteilung" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
             <a href="../api/geraetewartmitteilung-pdf.php?id=<?php echo (int)$id; ?>" class="btn btn-outline-success" download><i class="fas fa-file-pdf"></i> PDF</a>
-            <button type="button" class="btn btn-outline-secondary" title="Drucken" onclick="druckenGwm(<?php echo (int)$id; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
         </div>
     </form>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<?php include __DIR__ . '/includes/print-toast.inc.php'; ?>
 <script>
-function druckenGwm(id, btn) {
-    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Drucken...'; }
-    fetch('../api/print-geraetewartmitteilung.php?id=' + id)
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.success) showPrintToast('Druckauftrag wurde an den Drucker gesendet.', true);
-            else showPrintToast('Fehler: ' + (data.message || 'Unbekannter Fehler'), false);
-        })
-        .catch(function() { showPrintToast('Fehler beim Senden des Druckauftrags.', false); })
-        .finally(function() { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-print"></i> Drucken'; } });
-}
 (function() {
     function toggleVehicleRow(checkbox) {
         var vid = parseInt(checkbox.dataset.vid, 10);

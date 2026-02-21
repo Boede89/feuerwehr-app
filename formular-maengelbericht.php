@@ -166,8 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
             }
         }
 
-        $print_after = !empty($_POST['print_after_save']);
-        header('Location: formulare.php?message=maengelbericht_erfolg&print_maengelbericht=' . ($print_after ? $id : ''));
+        header('Location: formulare.php?message=maengelbericht_erfolg');
         exit;
     } catch (Exception $e) {
         $error = 'Speichern fehlgeschlagen: ' . $e->getMessage();
@@ -216,7 +215,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                     <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
                     <form method="post" id="maengelberichtForm">
                         <input type="hidden" name="save_maengelbericht" value="1">
-                        <input type="hidden" name="print_after_save" id="print_after_save" value="0">
                         <div class="mb-3">
                             <label for="standort" class="form-label">Standort</label>
                             <select class="form-select" id="standort" name="standort" required>
@@ -292,10 +290,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
             </div>
             <div class="modal-body">
                 <p>Möchten Sie den Mängelbericht speichern?</p>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" checked>
-                    <label class="form-check-label" for="cbPrintAfterSave">Mängelbericht drucken</label>
-                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
@@ -377,8 +371,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
     var btn = document.getElementById('btnSaveMaengelbericht');
     var form = document.getElementById('maengelberichtForm');
     var modal = document.getElementById('saveConfirmModal');
-    var cbPrint = document.getElementById('cbPrintAfterSave');
-    var inputPrint = document.getElementById('print_after_save');
     if (btn && form) {
         btn.addEventListener('click', function() {
             if (modal) {
@@ -390,7 +382,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
         var btnConfirm = document.getElementById('btnConfirmSave');
         if (btnConfirm) {
             btnConfirm.addEventListener('click', function() {
-                if (inputPrint) inputPrint.value = (cbPrint && cbPrint.checked) ? '1' : '0';
                 form.submit();
             });
         }

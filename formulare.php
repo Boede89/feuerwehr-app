@@ -181,29 +181,6 @@ try {
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-    (function() {
-        var m = /[?&]print_maengelbericht=(\d+)/.exec(window.location.search);
-        if (m && m[1]) {
-            var id = m[1];
-            fetch('api/print-maengelbericht.php?id=' + id, { credentials: 'same-origin' })
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    if (data.success) {
-                        var msg = document.querySelector('.alert-success');
-                        if (msg) msg.textContent = (msg.textContent || '').replace('gespeichert.', 'gespeichert. Druckauftrag wurde gesendet.');
-                    } else {
-                        alert('Druck fehlgeschlagen: ' + (data.message || 'Unbekannter Fehler'));
-                    }
-                })
-                .catch(function() { alert('Druck fehlgeschlagen.'); })
-                .finally(function() {
-                    var q = window.location.search.replace(/[?&]print_maengelbericht=\d+/g, '').replace(/^&/, '?').replace(/&$/, '');
-                    if (q === '?') q = '';
-                    history.replaceState(null, '', window.location.pathname + q);
-                });
-        }
-    })();
-    </script>
+    <script></script>
 </body>
 </html>
