@@ -1371,6 +1371,25 @@ if ($is_einsatz) {
                                 <input type="time" class="form-control form-control-sm" id="modal_uhrzeit_bis" value="<?php echo htmlspecialchars(strlen($draft['uhrzeit_bis'] ?? '') >= 5 ? substr($draft['uhrzeit_bis'], 0, 5) : ($draft['uhrzeit_bis'] ?? date('H:i'))); ?>">
                             </div>
                         </div>
+                        <div class="mt-3 pt-2 border-top">
+                            <label class="form-label small mb-2">Nach Speichern drucken:</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" checked>
+                                <label class="form-check-label" for="cbPrintAfterSave">Anwesenheitsliste</label>
+                            </div>
+                            <?php if (!empty($draft['maengel']) && is_array($draft['maengel'])): ?>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="cbPrintMaengelberichtAfterSave" checked>
+                                <label class="form-check-label" for="cbPrintMaengelberichtAfterSave">Mängelbericht(e)</label>
+                            </div>
+                            <?php endif; ?>
+                            <?php $has_vehicles_for_gwm = !empty($draft['vehicles']) || !empty(array_filter($draft['member_vehicle'] ?? [])); if ($has_vehicles_for_gwm): ?>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="cbPrintGeraetewartmitteilungAfterSave" checked>
+                                <label class="form-check-label" for="cbPrintGeraetewartmitteilungAfterSave">Gerätewartmitteilung</label>
+                            </div>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1459,6 +1478,15 @@ if ($is_einsatz) {
                 var formBis = document.querySelector('[name="uhrzeit_bis"]') || form.querySelector('[name="uhrzeit_bis"]');
                 if (modalVon && formVon) formVon.value = modalVon.value || '';
                 if (modalBis && formBis) formBis.value = modalBis.value || '';
+                var cbPrint = document.getElementById('cbPrintAfterSave');
+                var cbMaengel = document.getElementById('cbPrintMaengelberichtAfterSave');
+                var cbGwm = document.getElementById('cbPrintGeraetewartmitteilungAfterSave');
+                var inpPrint = document.getElementById('print_after_save');
+                var inpMaengel = document.getElementById('print_maengelbericht_after_save');
+                var inpGwm = document.getElementById('print_geraetewartmitteilung_after_save');
+                if (inpPrint) inpPrint.value = (cbPrint && cbPrint.checked) ? '1' : '0';
+                if (inpMaengel) inpMaengel.value = (cbMaengel && cbMaengel.checked) ? '1' : '0';
+                if (inpGwm) inpGwm.value = (cbGwm && cbGwm.checked) ? '1' : '0';
                 form.submit();
             });
         }

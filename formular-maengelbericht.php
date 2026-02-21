@@ -166,7 +166,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
             }
         }
 
-        header('Location: formulare.php?message=maengelbericht_erfolg');
+        $print_after = !empty($_POST['print_after_save']);
+        header('Location: formulare.php?message=maengelbericht_erfolg' . ($print_after ? '&print_maengelbericht=' . $id : ''));
         exit;
     } catch (Exception $e) {
         $error = 'Speichern fehlgeschlagen: ' . $e->getMessage();
@@ -215,6 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                     <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
                     <form method="post" id="maengelberichtForm">
                         <input type="hidden" name="save_maengelbericht" value="1">
+                        <input type="hidden" name="print_after_save" id="print_after_save" value="1">
                         <div class="mb-3">
                             <label for="standort" class="form-label">Standort</label>
                             <select class="form-select" id="standort" name="standort" required>
@@ -290,6 +292,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
             </div>
             <div class="modal-body">
                 <p>Möchten Sie den Mängelbericht speichern?</p>
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" checked>
+                    <label class="form-check-label" for="cbPrintAfterSave">Nach Speichern drucken</label>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
@@ -380,8 +386,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
             }
         });
         var btnConfirm = document.getElementById('btnConfirmSave');
+        var cbPrint = document.getElementById('cbPrintAfterSave');
+        var inputPrint = document.getElementById('print_after_save');
         if (btnConfirm) {
             btnConfirm.addEventListener('click', function() {
+                if (inputPrint) inputPrint.value = (cbPrint && cbPrint.checked) ? '1' : '0';
                 form.submit();
             });
         }

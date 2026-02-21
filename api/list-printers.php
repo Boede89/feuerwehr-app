@@ -15,7 +15,7 @@ if (!isset($_SESSION['user_id']) || !hasAdminPermission()) {
 }
 
 $config = print_get_printer_config($db);
-$cups_server = $config['cups_server'];
+$cups_server = $config['cups_server'] ?: getenv('CUPS_SERVER') ?: ($_SERVER['CUPS_SERVER'] ?? '');
 $configured = $config['printer'];
 
 $printers = [];
@@ -23,7 +23,7 @@ $default_printer = '';
 
 $env = $cups_server ? 'CUPS_SERVER=' . escapeshellarg($cups_server) . ' ' : '';
 $out = [];
-@exec($env . 'lpstat -v 2>/dev/null', $out);
+@exec($env . 'lpstat -v 2>&1', $out);
 foreach ($out as $line) {
     if (preg_match('/device for (\S+):\s*(.+)/', $line, $m)) {
         $printers[] = ['name' => $m[1], 'device_uri' => trim($m[2])];

@@ -4,7 +4,7 @@
  */
 function print_get_printer_config($db) {
     $printer = '';
-    $cups_server = getenv('CUPS_SERVER') ?: '';
+    $cups_server = getenv('CUPS_SERVER') ?: ($_SERVER['CUPS_SERVER'] ?? '');
     try {
         $stmt = $db->prepare('SELECT setting_value FROM settings WHERE setting_key = ?');
         $stmt->execute(['printer_destination']);
@@ -13,6 +13,9 @@ function print_get_printer_config($db) {
         $override = trim($stmt->fetchColumn() ?: '');
         if ($override !== '') $cups_server = $override;
     } catch (Exception $e) {}
+    if ($cups_server === '' && (getenv('DOCKER') || file_exists('/.dockerenv'))) {
+        $cups_server = 'host.docker.internal:631';
+    }
     return ['printer' => $printer, 'cups_server' => $cups_server];
 }
 
@@ -29,9 +32,10 @@ function print_send_pdf($pdf_content, $printer_config) {
     }
     $printer = escapeshellarg($printer_config['printer']);
     $file = escapeshellarg($tmp);
+    $cups_server = $printer_config['cups_server'] ?: getenv('CUPS_SERVER') ?: ($_SERVER['CUPS_SERVER'] ?? '');
     $env = '';
-    if (!empty($printer_config['cups_server'])) {
-        $env = 'CUPS_SERVER=' . escapeshellarg($printer_config['cups_server']) . ' ';
+    if ($cups_server !== '') {
+        $env = 'CUPS_SERVER=' . escapeshellarg($cups_server) . ' ';
     }
     $cmd = $env . 'lp -d ' . $printer . ' ' . $file . ' 2>&1';
     $out = [];

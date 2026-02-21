@@ -615,5 +615,49 @@ if (isset($_SESSION['user_id'])) {
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?php include __DIR__ . '/admin/includes/print-toast.inc.php'; ?>
+    <script>
+    (function() {
+        var search = window.location.search;
+        var m = /[?&]print=(\d+)/.exec(search);
+        var mMb = /[?&]print_maengelbericht=([^&]+)/.exec(search);
+        var mGwm = /[?&]print_geraetewartmitteilung=(\d+)/.exec(search);
+        var pending = (m && m[1] ? 1 : 0) + (mMb && mMb[1] ? 1 : 0) + (mGwm && mGwm[1] ? 1 : 0);
+        var done = 0;
+        function cleanup() {
+            done++;
+            if (done >= pending) {
+                var q = search.replace(/[?&]print=\d+/g, '').replace(/[?&]print_maengelbericht=[^&]+/g, '').replace(/[?&]print_geraetewartmitteilung=\d+/g, '').replace(/^&/, '?').replace(/&$/, '');
+                if (q === '?') q = '';
+                history.replaceState(null, '', window.location.pathname + (q || '?message=erfolg'));
+            }
+        }
+        function showResult(success, msg) {
+            if (typeof showPrintToast === 'function') showPrintToast(msg || (success ? 'Druckauftrag gesendet.' : 'Druck fehlgeschlagen.'), success);
+            else alert(success ? 'Druckauftrag wurde gesendet.' : 'Fehler: ' + (msg || 'Druck fehlgeschlagen.'));
+        }
+        if (m && m[1]) {
+            fetch('api/print-anwesenheitsliste.php?id=' + m[1], { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) { showResult(data.success, data.message); })
+                .catch(function() { showResult(false, 'Verbindungsfehler'); })
+                .finally(cleanup);
+        }
+        if (mMb && mMb[1]) {
+            fetch('api/print-maengelbericht.php?ids=' + encodeURIComponent(mMb[1]), { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) { showResult(data.success, data.message); })
+                .catch(function() { showResult(false, 'Verbindungsfehler'); })
+                .finally(cleanup);
+        }
+        if (mGwm && mGwm[1]) {
+            fetch('api/print-geraetewartmitteilung.php?id=' + mGwm[1], { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) { showResult(data.success, data.message); })
+                .catch(function() { showResult(false, 'Verbindungsfehler'); })
+                .finally(cleanup);
+        }
+    })();
+    </script>
 </body>
 </html>

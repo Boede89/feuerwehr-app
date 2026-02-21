@@ -181,6 +181,29 @@ try {
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script></script>
+    <?php include __DIR__ . '/admin/includes/print-toast.inc.php'; ?>
+    <script>
+    (function() {
+        var m = /[?&]print_maengelbericht=(\d+)/.exec(window.location.search);
+        if (m && m[1]) {
+            var id = m[1];
+            fetch('api/print-maengelbericht.php?id=' + id, { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (typeof showPrintToast === 'function') showPrintToast(data.success ? 'Druckauftrag wurde gesendet.' : ('Fehler: ' + (data.message || '')), data.success);
+                    else alert(data.success ? 'Druckauftrag wurde gesendet.' : 'Fehler: ' + (data.message || ''));
+                })
+                .catch(function() {
+                    if (typeof showPrintToast === 'function') showPrintToast('Verbindungsfehler beim Drucken.', false);
+                    else alert('Druck fehlgeschlagen.');
+                })
+                .finally(function() {
+                    var q = window.location.search.replace(/[?&]print_maengelbericht=\d+/g, '').replace(/^&/, '?').replace(/&$/, '');
+                    if (q === '?') q = '';
+                    history.replaceState(null, '', window.location.pathname + q);
+                });
+        }
+    })();
+    </script>
 </body>
 </html>

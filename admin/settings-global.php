@@ -298,9 +298,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div id="printers_list" class="mt-2 small" style="display:none;"></div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">CUPS-Server (optional)</label>
-                            <input class="form-control" name="printer_cups_server" placeholder="z.B. host.docker.internal:631 (leer = CUPS_SERVER aus docker-compose)" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
-                            <small class="text-muted">Bei Docker: Host-Adresse, damit der Container den CUPS-Server des Hosts nutzt. Leer lassen, wenn bereits über Umgebungsvariable gesetzt.</small>
+                            <label class="form-label">CUPS-Server</label>
+                            <input class="form-control" name="printer_cups_server" placeholder="host.docker.internal:631" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
+                            <small class="text-muted">Bei Docker <strong>unbedingt</strong> eintragen: <code>host.docker.internal:631</code> – sonst findet „Drucker auflisten“ keine Drucker und der Druck funktioniert nicht.</small>
                         </div>
                     </div>
                 </div>
