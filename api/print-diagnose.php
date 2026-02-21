@@ -60,7 +60,7 @@ $result = [
     'cups_servers_tried' => $cups_servers,
     'default_printer' => $default_printer,
     'printers' => array_values(array_unique($printers)),
-    'configured_destination' => trim($settings['printer_destination'] ?? ''),
+    'configured_destination' => trim($settings['printer_type'] ?? '') === 'ipp' ? trim($settings['printer_ipp_destination'] ?? '') : trim($settings['printer_destination'] ?? ''),
     'lpstat_output' => $lpstat_output,
     'hints' => []
 ];
@@ -88,25 +88,13 @@ if (!empty($_GET['test']) || !empty($_POST['test'])) {
     $effective_destination = null;
 
     if ($printer_type === 'ipp') {
-        $ipp_url = trim($settings['printer_ipp_url'] ?? '');
-        $ipp_user = trim($settings['printer_username'] ?? '');
-        $ipp_pass = trim($settings['printer_password'] ?? '');
-        if ($ipp_url !== '' && $ipp_user !== '' && $ipp_pass !== '') {
-            $parsed = parse_url($ipp_url);
-            $scheme = $parsed['scheme'] ?? 'ipp';
-            $host = $parsed['host'] ?? '';
-            $path = isset($parsed['path']) ? $parsed['path'] : '/ipp/print';
-            if ($path === '' || $path[0] !== '/') $path = '/' . $path;
-            if (!empty($parsed['query'])) $path .= '?' . $parsed['query'];
-            $port = $parsed['port'] ?? ($scheme === 'ipps' ? 443 : 631);
-            $effective_destination = $scheme . '://' . rawurlencode($ipp_user) . ':' . rawurlencode($ipp_pass) . '@' . $host . ($port ? ':' . $port : '') . $path;
-        }
+        $effective_destination = trim($settings['printer_ipp_destination'] ?? '');
     } else {
         $effective_destination = trim($settings['printer_destination'] ?? '') ?: $default_printer;
     }
 
     if ($effective_destination === null || $effective_destination === '') {
-        $result['test_print'] = ['success' => false, 'message' => 'Kein Drucker verfügbar. Bei Cloud-Drucker: URL, Benutzername und Passwort in den Einstellungen eintragen.'];
+        $result['test_print'] = ['success' => false, 'message' => 'Kein Drucker verfügbar. Bei Cloud-Drucker: lpadmin auf dem Host ausführen, dann Druckernamen eintragen.'];
     } else {
         $lp_bin = (file_exists('/usr/bin/lp') && is_executable('/usr/bin/lp')) ? '/usr/bin/lp' : 'lp';
         $lp_cmd = escapeshellarg($lp_bin) . ' -d ' . escapeshellarg($effective_destination) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
@@ -117,7 +105,7 @@ if (!empty($_GET['test']) || !empty($_POST['test'])) {
             'lp_output' => $test_output,
             'job_id' => $test_ok ? print_helper_parse_job_id($test_output) : null,
             'cups_used' => $test_cups,
-            'printer_used' => $printer_type === 'ipp' ? '(Cloud-Drucker mit Anmeldung)' : $effective_destination
+            'printer_used' => $effective_destination
         ];
     }
 }

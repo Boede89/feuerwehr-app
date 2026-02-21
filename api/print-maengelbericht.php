@@ -47,11 +47,12 @@ if ($printer_cups_server === '' && getenv('CUPS_SERVER') !== false) {
     $printer_cups_server = trim(getenv('CUPS_SERVER'));
 }
 $printer_ipp_url = trim($settings['printer_ipp_url'] ?? '');
+$printer_ipp_destination = trim($settings['printer_ipp_destination'] ?? '');
 $printer_username = trim($settings['printer_username'] ?? '');
 $printer_password = trim($settings['printer_password'] ?? '');
 
 $has_printer = false;
-if ($printer_type === 'ipp' && $printer_ipp_url !== '') {
+if ($printer_type === 'ipp' && $printer_ipp_destination !== '') {
     $has_printer = true;
 } elseif ($printer_type === 'local') {
     $has_printer = true;
@@ -89,6 +90,15 @@ if (file_put_contents($pdfPath, $pdf_content) === false) {
 
 $cups_servers = print_helper_get_cups_servers($printer_cups_server);
 
+if ($printer_type === 'ipp' && $printer_ipp_destination === '') {
+    @unlink($pdfPath);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Cloud-Drucker: Bitte den Druckernamen eintragen (nach lpadmin auf dem Host). Einstellungen > Drucker > „Befehl für Host anzeigen“ ausführen, dann den Druckernamen eintragen.'
+    ]);
+    exit;
+}
+
 $effective_destination = $printer_destination;
 if ($printer_type === 'local' && $effective_destination === '') {
     $effective_destination = print_helper_get_default_printer($cups_servers);
@@ -104,19 +114,8 @@ if ($printer_type === 'local' && $effective_destination === '') {
 
 $lp_bin = (file_exists('/usr/bin/lp') && is_executable('/usr/bin/lp')) ? '/usr/bin/lp' : 'lp';
 $lp_cmd = '';
-if ($printer_type === 'ipp' && $printer_ipp_url !== '') {
-    $dest = $printer_ipp_url;
-    if ($printer_username !== '' && $printer_password !== '') {
-        $parsed = parse_url($printer_ipp_url);
-        $scheme = $parsed['scheme'] ?? 'ipp';
-        $host = $parsed['host'] ?? '';
-        $path = isset($parsed['path']) ? $parsed['path'] : '/ipp/print';
-        if ($path === '' || $path[0] !== '/') $path = '/' . $path;
-        if (!empty($parsed['query'])) $path .= '?' . $parsed['query'];
-        $port = $parsed['port'] ?? ($scheme === 'ipps' ? 443 : 631);
-        $dest = $scheme . '://' . rawurlencode($printer_username) . ':' . rawurlencode($printer_password) . '@' . $host . ($port ? ':' . $port : '') . $path;
-    }
-    $lp_cmd = escapeshellarg($lp_bin) . ' -d ' . escapeshellarg($dest) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
+if ($printer_type === 'ipp' && $printer_ipp_destination !== '') {
+    $lp_cmd = escapeshellarg($lp_bin) . ' -d ' . escapeshellarg($printer_ipp_destination) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
 } else {
     if ($effective_destination !== '') {
         $lp_cmd = escapeshellarg($lp_bin) . ' -d ' . escapeshellarg($effective_destination) . ' ' . escapeshellarg($pdfPath) . ' 2>&1';
@@ -131,13 +130,17 @@ list($success, $output, $return_var, $cups_used) = print_helper_run_lp($lp_cmd, 
 if (!$success) {
     $err = implode(' ', $output);
     error_log('print-maengelbericht lp error: ' . $err);
-    echo json_encode(['success' => false, 'message' => 'Druckauftrag fehlgeschlagen. ' . $err]);
+    $hint = (stripos($err, 'does not exist') !== false || stripos($err, 'printer or class') !== false) && $printer_type === 'ipp'
+        ? ' Der Cloud-Drucker existiert nicht in CUPS. Führen Sie den lpadmin-Befehl auf dem Host aus (Einstellungen > Drucker > „Befehl für Host anzeigen“).'
+        : '';
+    echo json_encode(['success' => false, 'message' => 'Druckauftrag fehlgeschlagen.' . $hint . ' ' . $err]);
     exit;
 }
 
 $job_id = print_helper_parse_job_id($output);
 $msg = 'Druckauftrag wurde an den Drucker gesendet.';
-if ($printer_destination === '' && $effective_destination !== '') {
+$effective_destination = ($printer_type === 'ipp') ? $printer_ipp_destination : $effective_destination;
+if ($printer_type === 'local' && $printer_destination === '' && $effective_destination !== '') {
     $msg .= ' (Standard-Drucker: ' . $effective_destination . ')';
 }
 if ($debug) {

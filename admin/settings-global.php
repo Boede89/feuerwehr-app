@@ -120,6 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'printer_destination' => sanitize_input($_POST['printer_destination'] ?? ''),
                 'printer_cups_server' => trim(sanitize_input($_POST['printer_cups_server'] ?? '')),
                 'printer_ipp_url' => sanitize_input($_POST['printer_ipp_url'] ?? ''),
+                'printer_ipp_destination' => sanitize_input($_POST['printer_ipp_destination'] ?? ''),
                 'printer_username' => sanitize_input($_POST['printer_username'] ?? ''),
             ];
             if (!empty(trim($_POST['printer_password'] ?? ''))) {
@@ -319,14 +320,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div id="printers_list" class="mt-2 small" style="display:none;"></div>
                         </div>
                         <div id="printer_ipp_wrap" style="display: <?php echo ($settings['printer_type'] ?? 'local') === 'ipp' ? 'block' : 'none'; ?>;">
-                            <p class="text-muted small mb-2"><strong>Cloud-Drucker (workplacepure, KM Cloud Print etc.):</strong> Tragen Sie die Drucker-URL und Ihre Cloud-Anmeldedaten ein. Benutzername und Passwort sind erforderlich, damit der Drucker erreichbar ist.</p>
+                            <p class="text-muted small mb-2"><strong>Cloud-Drucker (workplacepure, KM Cloud Print etc.):</strong> Der Drucker muss auf dem Host mit Anmeldedaten in CUPS angelegt werden. Führen Sie den Befehl unten auf dem Host aus, dann tragen Sie den Druckernamen ein.</p>
                             <div class="mb-3">
-                                <label class="form-label">Drucker-URL / Adresse</label>
+                                <label class="form-label">Drucker-URL (ohne Anmeldung)</label>
                                 <div class="input-group">
                                     <input class="form-control" name="printer_ipp_url" id="printer_ipp_url" placeholder="z.B. ipps://ipp.workplacepure.com/ipp/print/..." value="<?php echo htmlspecialchars($settings['printer_ipp_url'] ?? ''); ?>">
-                                    <button type="button" class="btn btn-outline-secondary" id="btn_fetch_ipp_uri" title="URI aus CUPS-Drucker übernehmen"><i class="fas fa-download"></i> URI aus CUPS übernehmen</button>
+                                    <button type="button" class="btn btn-outline-secondary" id="btn_fetch_ipp_uri" title="URI aus CUPS-Drucker übernehmen"><i class="fas fa-download"></i> URI aus CUPS</button>
                                 </div>
-                                <small class="text-muted d-block mt-1">Vollständige Adresse des Druckers. Mit „URI aus CUPS übernehmen“ können Sie die Adresse eines bereits in CUPS angelegten Druckers übernehmen.</small>
                                 <div id="ipp_uri_list" class="mt-2 small" style="display:none;"></div>
                             </div>
                             <div class="mb-3">
@@ -336,6 +336,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="mb-3">
                                 <label class="form-label">Passwort (Cloud-Login)</label>
                                 <input class="form-control" type="password" name="printer_password" id="printer_password" placeholder="Leer lassen zum Beibehalten">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Druckername (nach lpadmin auf dem Host)</label>
+                                <input class="form-control" name="printer_ipp_destination" id="printer_ipp_destination" placeholder="z.B. workplacepure oder feuerwehr_cloud" value="<?php echo htmlspecialchars($settings['printer_ipp_destination'] ?? $settings['printer_destination'] ?? ''); ?>">
+                                <small class="text-muted d-block mt-1">Der Name, den Sie beim lpadmin-Befehl verwenden (-p NAME). Muss mit dem Befehl auf dem Host übereinstimmen.</small>
+                            </div>
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-primary" id="btn_show_lpadmin"><i class="fas fa-terminal"></i> Befehl für Host anzeigen</button>
+                                <div id="lpadmin_command" class="mt-2 small font-monospace bg-light p-2 rounded" style="display:none; word-break:break-all;"></div>
                             </div>
                         </div>
                     </div>
@@ -358,6 +367,29 @@ document.getElementById('printer_type')?.addEventListener('change', function() {
     document.getElementById('printer_local_wrap2').style.display = isIpp ? 'none' : 'block';
     document.getElementById('printer_ipp_wrap').style.display = isIpp ? 'block' : 'none';
 });
+document.getElementById('btn_show_lpadmin')?.addEventListener('click', function() {
+    var url = document.getElementById('printer_ipp_url').value.trim();
+    var user = document.getElementById('printer_username').value.trim();
+    var pass = document.getElementById('printer_password').value;
+    var name = document.getElementById('printer_ipp_destination').value.trim() || 'feuerwehr_cloud';
+    var out = document.getElementById('lpadmin_command');
+    if (!url || !user || !pass) {
+        out.style.display = 'block';
+        out.innerHTML = '<span class="text-warning">Bitte zuerst URL, Benutzername und Passwort eintragen.</span>';
+        return;
+    }
+    try {
+        var parsed = new URL(url);
+        var creds = encodeURIComponent(user) + ':' + encodeURIComponent(pass);
+        var uri = (parsed.protocol || 'ipps:').replace(':','') + '://' + creds + '@' + parsed.hostname + (parsed.port ? ':' + parsed.port : '') + (parsed.pathname || '/ipp/print');
+        var cmd = 'sudo lpadmin -p ' + name + ' -E -v "' + uri.replace(/\\/g,'\\\\').replace(/"/g,'\\"') + '"';
+        out.innerHTML = 'Auf dem Host ausführen:<br><code style="word-break:break-all; white-space:pre-wrap;">' + cmd.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/&/g,'&amp;') + '</code><br><small class="text-muted">Danach: Druckername „' + name.replace(/</g,'&lt;') + '“ oben eintragen und speichern.</small>';
+        out.style.display = 'block';
+    } catch (e) {
+        out.innerHTML = '<span class="text-warning">Ungültige URL.</span>';
+        out.style.display = 'block';
+    }
+});
 document.getElementById('btn_fetch_ipp_uri')?.addEventListener('click', function() {
     var btn = this;
     var out = document.getElementById('ipp_uri_list');
@@ -373,7 +405,8 @@ document.getElementById('btn_fetch_ipp_uri')?.addEventListener('click', function
                 data.printers.forEach(function(p) {
                     var uri = (p.device_uri || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
                     if (uri && (uri.indexOf('ipp') === 0 || uri.indexOf('ipps') === 0)) {
-                        html += '<span class="badge bg-primary me-1 mb-1" style="cursor:pointer" data-uri="' + uri + '" role="button" title="' + uri + '">' + (p.name || '').replace(/</g, '&lt;') + '</span> ';
+                        var pname = (p.name || '').replace(/"/g, '&quot;');
+                        html += '<span class="badge bg-primary me-1 mb-1" style="cursor:pointer" data-uri="' + uri + '" data-name="' + pname + '" role="button" title="' + uri + '">' + (p.name || '').replace(/</g, '&lt;') + '</span> ';
                     }
                 });
                 if (html.indexOf('badge') === -1) {
@@ -382,7 +415,9 @@ document.getElementById('btn_fetch_ipp_uri')?.addEventListener('click', function
                 out.innerHTML = html;
                 out.querySelectorAll('[data-uri]').forEach(function(el) {
                     el.addEventListener('click', function() {
-                        document.getElementById('printer_ipp_url').value = this.getAttribute('data-uri');
+                        document.getElementById('printer_ipp_url').value = this.getAttribute('data-uri').replace(/&amp;/g,'&');
+                        var n = this.getAttribute('data-name');
+                        if (n) document.getElementById('printer_ipp_destination').value = n.replace(/&quot;/g,'"');
                     });
                 });
             } else {
