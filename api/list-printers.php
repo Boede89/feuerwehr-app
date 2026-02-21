@@ -68,7 +68,7 @@ if ($ret !== 0) {
     } elseif (strpos($err, 'Unable to connect') !== false || strpos($err, 'Connection refused') !== false) {
         $msg = 'CUPS nicht erreichbar. Linux-Host: sudo systemctl start cups. ' . $manual_hint;
     } elseif (stripos($err, 'Forbidden') !== false) {
-        $msg = 'CUPS blockiert Zugriff. cupsd.conf anpassen (Allow from 172.17.0.0/16). ' . $manual_hint;
+        $msg = 'CUPS blockiert Zugriff. Auf dem Host: sudo bash docker/cups-allow-docker.sh (oder cupsd.conf: Allow from 172.17.0.0/16). ' . $manual_hint;
     } elseif (stripos($err, 'Scheduler is not running') !== false || stripos($err, 'cupsd') !== false) {
         $msg = 'CUPS nicht erreichbar. ';
         $is_socket = ($printer_cups_server !== '' && strpos($printer_cups_server, '/') !== false);

@@ -160,12 +160,19 @@ Danach startet CUPS bei jedem Host-Boot automatisch. Der Container-Neustart hat 
 - **CUPS-Server (Docker)** in den globalen Einstellungen setzen: `172.17.0.1` oder die Host-IP. Damit wird der Host-CUPS explizit angesprochen.
 - Test im Container: `docker compose exec web sh -c 'CUPS_SERVER=172.17.0.1 lpstat -p'` – sollten Drucker erscheinen
 
-### „lpstat: Forbidden“ / Zugriff verweigert
+### „Forbidden“ / CUPS blockiert Zugriff
 
-- CUPS blockiert den Zugriff vom Container (Host-Header oder IP). In `/etc/cups/cupsd.conf`:
-  1. **ServerAlias \*** einfügen (z.B. nach der ersten Zeile) – erlaubt Anfragen mit Host 172.17.0.1
-  2. Im Abschnitt `<Location />` die Zeile **Allow from 172.17.0.0/16** ergänzen
-- Dann: `sudo systemctl restart cups`
+**Schnellfix:** `sudo bash docker/cups-allow-docker.sh`
+
+**Manuell:** In `/etc/cups/cupsd.conf`:
+1. `Listen localhost:631` → `Listen 0.0.0.0:631`
+2. Nach der ersten Zeile: `ServerAlias *`
+3. Im Abschnitt `<Location />` (nach `Allow from 127.0.0.1` oder `Allow from @LOCAL`):
+   ```
+   Allow from 172.17.0.0/16
+   Allow from 172.18.0.0/16
+   ```
+4. `sudo systemctl restart cups`
 
 ### „Unable to connect“ / „Connection refused“
 
