@@ -940,7 +940,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?")->execute([$draft['datum'], $draft['auswahl']]);
         } catch (Exception $e) { /* ignore */ }
         $return_fc = !empty($_POST['return']) && $_POST['return'] === 'formularcenter';
-        $redirect = $return_fc ? 'admin/formularcenter.php?tab=submissions&message=' . urlencode('Anwesenheitsliste wurde gespeichert.') : 'anwesenheitsliste.php?message=erfolg';
+        $redirect = $return_fc ? 'admin/formularcenter.php?tab=submissions&message=' . urlencode('Anwesenheitsliste wurde gespeichert.') : 'anwesenheitsliste.php?message=erfolg&datum=' . urlencode($draft['datum'] ?? date('Y-m-d'));
+        if (!$return_fc) {
+            $print_after = !empty($_POST['print_after_save']) && $_POST['print_after_save'] === '1';
+            $print_mb = !empty($_POST['print_maengelbericht_after_save']) && $_POST['print_maengelbericht_after_save'] === '1';
+            $print_gwm = !empty($_POST['print_geraetewartmitteilung_after_save']) && $_POST['print_geraetewartmitteilung_after_save'] === '1';
+            if ($print_after && $list_id) $redirect .= '&print=' . (int)$list_id;
+            if ($print_mb && !empty($maengelbericht_ids)) $redirect .= '&print_maengelbericht=' . urlencode(implode(',', array_map('intval', $maengelbericht_ids)));
+            if ($print_gwm && $gwm_id) $redirect .= '&print_geraetewartmitteilung=' . (int)$gwm_id;
+        }
         header('Location: ' . $redirect);
         exit;
     } catch (Exception $e) {
@@ -1073,6 +1081,9 @@ if ($is_einsatz) {
                         </div>
                         <form method="post" id="mainForm">
                             <input type="hidden" name="save_final" value="1">
+                            <input type="hidden" name="print_after_save" id="print_after_save" value="0">
+                            <input type="hidden" name="print_maengelbericht_after_save" id="print_maengelbericht_after_save" value="0">
+                            <input type="hidden" name="print_geraetewartmitteilung_after_save" id="print_geraetewartmitteilung_after_save" value="0">
                             <?php if ($edit_id > 0): ?><input type="hidden" name="edit_id" value="<?php echo (int)$edit_id; ?>"><?php endif; ?>
                             <?php if ($return_formularcenter): ?><input type="hidden" name="return" value="formularcenter"><?php endif; ?>
                             <?php if ($is_einsatz): 
