@@ -361,7 +361,7 @@ function has_admin_access() {
 
 /**
  * Prüft ob der Benutzer Admin-Berechtigung hat (erweiterte Prüfung)
- * Unterstützt sowohl alte role-basierte als auch neue permission-basierte Berechtigungen
+ * Unterstützt Superadmin, Einheitsadmin sowie alte role-basierte und permission-basierte Berechtigungen
  */
 function hasAdminPermission($user_id = null) {
     global $db;
@@ -375,12 +375,22 @@ function hasAdminPermission($user_id = null) {
     }
     
     try {
-        $stmt = $db->prepare("SELECT user_role, is_admin, can_settings FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT user_role, is_admin, can_settings, user_type FROM users WHERE id = ?");
         $stmt->execute([$user_id]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if (!$user) {
             return false;
+        }
+        
+        // Superadmin: Zugriff auf alles
+        if (($user['user_type'] ?? '') === 'superadmin') {
+            return true;
+        }
+        
+        // Einheitsadmin: Zugriff auf Einstellungen seiner Einheit
+        if (($user['user_type'] ?? '') === 'einheitsadmin') {
+            return true;
         }
         
         // Prüfe alte role-basierte Berechtigung
@@ -595,6 +605,119 @@ function get_admin_navigation() {
 function redirect($url) {
     header("Location: $url");
     exit();
+}
+
+/**
+ * Einheiten-System: Aktuelle Einheit aus Session
+ */
+function get_current_einheit_id() {
+    return isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : null;
+}
+
+/**
+ * Einheiten-System: Prüft ob Benutzer Superadmin ist
+ */
+function is_superadmin($user_id = null) {
+    global $db;
+    $user_id = $user_id ?? ($_SESSION['user_id'] ?? null);
+    if (!$user_id) return false;
+    try {
+        $stmt = $db->prepare("SELECT user_type FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row && ($row['user_type'] ?? '') === 'superadmin';
+    } catch (Exception $e) { return false; }
+}
+
+/**
+ * Einheiten-System: Prüft ob Benutzer Einheitsadmin ist
+ */
+function is_einheitsadmin($user_id = null) {
+    global $db;
+    $user_id = $user_id ?? ($_SESSION['user_id'] ?? null);
+    if (!$user_id) return false;
+    try {
+        $stmt = $db->prepare("SELECT user_type FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row && ($row['user_type'] ?? '') === 'einheitsadmin';
+    } catch (Exception $e) { return false; }
+}
+
+/**
+ * Einheiten-System: Prüft ob Benutzer Zugriff auf Einheit hat
+ */
+function user_has_einheit_access($user_id, $einheit_id) {
+    global $db;
+    if (!$user_id || !$einheit_id) return false;
+    if (is_superadmin($user_id)) return true;
+    try {
+        $stmt = $db->prepare("SELECT einheit_id FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $u = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($u && (int)($u['einheit_id'] ?? 0) === (int)$einheit_id) return true;
+        $stmt = $db->prepare("SELECT 1 FROM user_einheiten WHERE user_id = ? AND einheit_id = ?");
+        $stmt->execute([$user_id, $einheit_id]);
+        return (bool)$stmt->fetch();
+    } catch (Exception $e) { return false; }
+}
+
+/**
+ * Einheiten-System: Alle Einheiten, auf die der Benutzer Zugriff hat
+ */
+function get_user_einheiten($user_id = null) {
+    global $db;
+    $user_id = $user_id ?? ($_SESSION['user_id'] ?? null);
+    if (!$user_id) return [];
+    try {
+        $stmt = $db->query("SHOW TABLES LIKE 'einheiten'");
+        if (!$stmt || !$stmt->fetch()) return [];
+    } catch (Exception $e) { return []; }
+    if (is_superadmin($user_id)) {
+        $stmt = $db->query("SELECT id, name, sort_order FROM einheiten WHERE is_active = 1 ORDER BY sort_order, name");
+        return $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    }
+    $einheiten = [];
+    try {
+        $stmt = $db->prepare("SELECT e.id, e.name, e.sort_order FROM einheiten e INNER JOIN user_einheiten ue ON ue.einheit_id = e.id WHERE ue.user_id = ? AND e.is_active = 1");
+        $stmt->execute([$user_id]);
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) $einheiten[] = $row;
+        $stmt = $db->prepare("SELECT e.id, e.name, e.sort_order FROM einheiten e INNER JOIN users u ON u.einheit_id = e.id WHERE u.id = ? AND e.is_active = 1");
+        $stmt->execute([$user_id]);
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if (!in_array((int)$row['id'], array_map('intval', array_column($einheiten, 'id')))) $einheiten[] = $row;
+        }
+        usort($einheiten, fn($a,$b) => ($a['sort_order']??0) - ($b['sort_order']??0) ?: strcmp($a['name'], $b['name']));
+    } catch (Exception $e) { /* user_einheiten könnte fehlen */ }
+    return $einheiten;
+}
+
+/**
+ * Einheiten-System: Einheit-ID für Admin-Filter (null = alle, sonst nur diese Einheit)
+ */
+function get_admin_einheit_filter() {
+    if (is_superadmin()) return null;
+    if (is_einheitsadmin()) {
+        $eid = $_SESSION['einheit_id'] ?? null;
+        if ($eid) return (int)$eid;
+        $eid = get_current_einheit_id();
+        return $eid ?: null;
+    }
+    return null;
+}
+
+/**
+ * Einheiten-System: Kann Benutzer Einheit wechseln (mehrere Einheiten)?
+ */
+function can_switch_einheit() {
+    if (is_logged_in() && !is_system_user()) {
+        return count(get_user_einheiten()) > 1;
+    }
+    global $db;
+    try {
+        $stmt = $db->query("SELECT COUNT(*) FROM einheiten WHERE is_active = 1");
+        return $stmt && (int)$stmt->fetchColumn() > 1;
+    } catch (Exception $e) { return false; }
 }
 
 /**

@@ -2,7 +2,6 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
-require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -16,24 +15,19 @@ if (is_system_user()) {
     exit;
 }
 
-// Prüfe ob Benutzer Admin-Berechtigung hat
+// Prüfe ob Benutzer Admin-Berechtigung hat – Benutzerverwaltung nur für Superadmin
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 if (!hasAdminPermission()) {
     header("Location: ../login.php?error=access_denied");
+    exit;
+}
+if (!is_superadmin()) {
+    header("Location: settings.php?error=superadmin_only");
     exit;
 }
 
 $message = '';
 $error = '';
-
-$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
-$einheit = null;
-if ($einheit_id > 0) {
-    try {
-        $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
-        $stmt->execute([$einheit_id]);
-        $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {}
-}
 
 // Erfolgsmeldungen von GET-Parameter
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
@@ -63,20 +57,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $user_role = 'user';
         $is_active = isset($_POST['is_active']) ? 1 : 0;
         $password = $_POST['password'] ?? '';
+        $user_type = sanitize_input($_POST['user_type'] ?? 'user');
+        if (!in_array($user_type, ['superadmin', 'einheitsadmin', 'user'])) $user_type = 'user';
+        $einheit_id = isset($_POST['einheit_id']) && $_POST['einheit_id'] !== '' ? (int)$_POST['einheit_id'] : null;
         
         // Granular permissions
-        $is_admin = isset($_POST['is_admin']) ? 1 : 0;
+        $is_admin = ($user_type === 'superadmin') ? 1 : (isset($_POST['is_admin']) ? 1 : 0);
         $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
         $can_atemschutz = isset($_POST['can_atemschutz']) ? 1 : 0;
         $can_members = isset($_POST['can_members']) ? 1 : 0;
         $can_ric = isset($_POST['can_ric']) ? 1 : 0;
         $can_courses = isset($_POST['can_courses']) ? 1 : 0;
         $can_forms = isset($_POST['can_forms']) ? 1 : 0;
-        // Benutzerverwaltung/Einstellungen werden durch Administrator gesetzt
-        $can_users = $is_admin ? 1 : 0;
-        $can_settings = $is_admin ? 1 : 0;
-        // Fahrzeugverwaltung: nur Administratoren erhalten Zugriff (kein eigener Schalter)
-        $can_vehicles = $is_admin ? 1 : 0;
+        // Benutzerverwaltung/Einstellungen: Superadmin und Einheitsadmin
+        $can_users = ($user_type === 'superadmin' || $user_type === 'einheitsadmin') ? 1 : ($is_admin ? 1 : 0);
+        $can_settings = ($user_type === 'superadmin' || $user_type === 'einheitsadmin') ? 1 : ($is_admin ? 1 : 0);
+        $can_vehicles = ($user_type === 'superadmin' || $user_type === 'einheitsadmin') ? 1 : ($is_admin ? 1 : 0);
         
         if ($action == 'add_system_user') {
             // Systembenutzer: nur Benutzername, keine E-Mail, kein Passwort
@@ -107,13 +103,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             $days = (int)$validity;
                             $autologin_expires = $days > 0 ? date('Y-m-d H:i:s', strtotime("+{$days} days")) : null;
                         }
-                        $save_einheit_id = (int)($_POST['einheit_id'] ?? $einheit_id);
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires, einheit_id) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, ?, ?, ?)");
-                        $stmt->execute([$username, $first_name ?: $username, $last_name, $autologin_token, $autologin_expires, $save_einheit_id > 0 ? $save_einheit_id : null]);
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, ?, ?)");
+                        $stmt->execute([$username, $first_name ?: $username, $last_name, $autologin_token, $autologin_expires]);
                         log_activity($_SESSION['user_id'], 'user_added', "Systembenutzer '$username' hinzugefügt");
-                        $redir = "Location: users.php?tab=system&success=system_added";
-                        if ($save_einheit_id > 0) $redir .= "&einheit_id=" . $save_einheit_id;
-                        header($redir);
+                        header("Location: users.php?tab=system&success=system_added");
                         exit;
                     }
                 } catch (Exception $e) {
@@ -155,8 +148,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             // Spalte existiert bereits, ignoriere Fehler
                         }
                         
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $email_notifications]);
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, user_type, einheit_id, is_active, is_admin, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_type, $einheit_id, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $email_notifications]);
                         $new_user_id = $db->lastInsertId();
                         
                         // Mitglied automatisch erstellen/verknüpfen
@@ -178,9 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         log_activity($_SESSION['user_id'], 'user_added', "Benutzer '$username' hinzugefügt");
                         
                         // Weiterleitung um POST-Problem zu vermeiden
-                        $redir = "Location: users.php?success=added";
-                        if ($save_einheit_id > 0) $redir .= "&einheit_id=" . $save_einheit_id;
-                        header($redir);
+                        header("Location: users.php?success=added");
                         exit();
                     }
                 } elseif ($action == 'edit') {
@@ -208,11 +199,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     
                     if (!empty($password)) {
                         $password_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = 'user', user_type = ?, einheit_id = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_type, $einheit_id, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, 'user', $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = 'user', user_type = ?, einheit_id = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $user_type, $einheit_id, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $user_id]);
                     }
                     
                     // Mitglied aktualisieren falls vorhanden
@@ -404,30 +395,19 @@ try {
     }
     
     try { $db->exec("ALTER TABLE users ADD COLUMN is_system_user TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
-    try { $db->exec("ALTER TABLE users ADD COLUMN einheit_id INT NULL"); } catch (Exception $e) {}
-    $amern_id = get_einheit_amern_id($db);
-    if ($amern_id > 0) {
-        try { $db->exec("UPDATE users SET einheit_id = $amern_id WHERE einheit_id IS NULL"); } catch (Exception $e) {}
-    }
-    $where = "1=1";
-    $params = [];
-    if ($einheit_id > 0) {
-        if ($amern_id > 0 && $amern_id === $einheit_id) {
-            $where = "(einheit_id = ? OR einheit_id IS NULL)";
-        } else {
-            $where = "einheit_id = ?";
-        }
-        $params[] = $einheit_id;
-    }
-    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, is_active, created_at, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles FROM users WHERE $where ORDER BY created_at DESC");
-    $stmt->execute($params);
+    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, user_type, einheit_id, is_active, created_at, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
+    $stmt->execute();
     $all_users = $stmt->fetchAll();
     $users = array_filter($all_users, fn($u) => empty($u['is_system_user']));
     $system_users = array_filter($all_users, fn($u) => !empty($u['is_system_user']));
+    $einheiten = [];
+    try {
+        $stmt_e = $db->query("SELECT id, name FROM einheiten WHERE is_active = 1 ORDER BY sort_order, name");
+        $einheiten = $stmt_e ? $stmt_e->fetchAll(PDO::FETCH_ASSOC) : [];
+    } catch (Exception $e) {}
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Benutzer: " . $e->getMessage();
     $users = [];
-    $system_users = [];
 }
 ?>
 <!DOCTYPE html>
@@ -457,23 +437,12 @@ try {
     </nav>
 
     <div class="container-fluid mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-            <h1 class="h3 mb-0">
-                <i class="fas fa-users"></i> Benutzerverwaltung<?php if ($einheit): ?> <span class="text-muted">(<?php echo htmlspecialchars($einheit['name']); ?>)</span><?php endif; ?>
-            </h1>
-            <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
-        </div>
-
-        <?php if ($message): ?>
-            <?php echo show_success($message); ?>
-        <?php endif; ?>
-        <?php if ($error): ?>
-            <?php echo show_error($error); ?>
-        <?php endif; ?>
-
         <div class="row">
             <div class="col-12">
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-users"></i> Benutzerverwaltung
+                    </h1>
                     <div class="d-flex gap-2">
                         <?php if ($active_tab === 'users'): ?>
                         <button type="button" class="btn btn-primary" onclick="openUserModal()">
@@ -487,19 +456,26 @@ try {
                     </div>
                 </div>
                 
-                <?php $tab_base = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id . '&tab=' : '?tab='; ?>
                 <ul class="nav nav-tabs mb-3">
                     <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'users' ? 'active' : ''; ?>" href="<?php echo $tab_base; ?>users">
+                        <a class="nav-link <?php echo $active_tab === 'users' ? 'active' : ''; ?>" href="?tab=users">
                             <i class="fas fa-user"></i> Benutzer (<?php echo count($users); ?>)
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'system' ? 'active' : ''; ?>" href="<?php echo $tab_base; ?>system">
+                        <a class="nav-link <?php echo $active_tab === 'system' ? 'active' : ''; ?>" href="?tab=system">
                             <i class="fas fa-robot"></i> Systembenutzer (<?php echo count($system_users); ?>)
                         </a>
                     </li>
                 </ul>
+                
+                <?php if ($message): ?>
+                    <?php echo show_success($message); ?>
+                <?php endif; ?>
+                
+                <?php if ($error): ?>
+                    <?php echo show_error($error); ?>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -531,7 +507,11 @@ try {
                                             <!-- Rolle-Spalte entfernt -->
                                             <td>
                                                 <div class="d-flex flex-wrap gap-1">
-                                                    <?php if (!empty($user['is_admin'])): ?>
+                                                    <?php if (($user['user_type'] ?? '') === 'superadmin'): ?>
+                                                        <span class="badge bg-danger">Superadmin</span>
+                                                    <?php elseif (($user['user_type'] ?? '') === 'einheitsadmin'): ?>
+                                                        <span class="badge bg-warning text-dark">Einheitsadmin</span>
+                                                    <?php elseif (!empty($user['is_admin'])): ?>
                                                         <span class="badge bg-danger">Administrator</span>
                                                     <?php endif; ?>
                                                     <?php if (!empty($user['can_reservations'])): ?>
@@ -569,6 +549,8 @@ try {
                                                     data-email="<?php echo htmlspecialchars($user['email'] ?? '', ENT_QUOTES); ?>"
                                                     data-first-name="<?php echo htmlspecialchars($user['first_name'], ENT_QUOTES); ?>"
                                                     data-last-name="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES); ?>"
+                                                    data-user-type="<?php echo htmlspecialchars($user['user_type'] ?? 'user', ENT_QUOTES); ?>"
+                                                    data-einheit-id="<?php echo (int)($user['einheit_id'] ?? 0); ?>"
                                                     data-is-active="<?php echo (int)$user['is_active']; ?>"
                                                     data-is-admin="<?php echo (int)$user['is_admin']; ?>"
                                                     data-can-reservations="<?php echo (int)$user['can_reservations']; ?>"
@@ -685,7 +667,27 @@ try {
                             </div>
                         </div>
                         
-                        <!-- Rollen-Auswahl entfernt: Berechtigungen werden granular unten gesetzt -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="user_type" class="form-label">Rolle</label>
+                                <select class="form-select" id="user_type" name="user_type" onchange="toggleEinheitField(this.value)">
+                                    <option value="user">Benutzer</option>
+                                    <option value="superadmin">Superadmin</option>
+                                    <option value="einheitsadmin">Einheitsadmin</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3" id="einheit_field_wrapper" style="display:none">
+                                <label for="einheit_id" class="form-label">Einheit</label>
+                                <select class="form-select" id="einheit_id" name="einheit_id">
+                                    <option value="">— Bitte wählen —</option>
+                                    <?php foreach ($einheiten as $e): ?>
+                                        <option value="<?php echo (int)$e['id']; ?>"><?php echo htmlspecialchars($e['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Berechtigungen werden granular unten gesetzt -->
                         
                         <div class="mb-3">
                             <label class="form-label">Berechtigungen</label>
@@ -761,7 +763,6 @@ try {
                         
                         <input type="hidden" name="user_id" id="user_id">
                         <input type="hidden" name="action" id="action" value="add">
-                        <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     </div>
                     <div class="modal-footer">
@@ -779,7 +780,6 @@ try {
             <div class="modal-content">
                 <form method="POST">
                     <input type="hidden" name="action" value="add_system_user">
-                    <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     <div class="modal-header">
                         <h5 class="modal-title"><i class="fas fa-robot"></i> Systembenutzer anlegen</h5>
@@ -923,7 +923,9 @@ try {
                 document.getElementById('email').value = '';
                 document.getElementById('first_name').value = '';
                 document.getElementById('last_name').value = '';
-                // Rolle entfällt, standardmäßig 'user'
+                const ut = document.getElementById('user_type'); if (ut) ut.value = 'user';
+                const eid = document.getElementById('einheit_id'); if (eid) eid.value = '';
+                toggleEinheitField('user');
                 document.getElementById('is_active').checked = true;
                 document.getElementById('action').value = 'add';
                 document.getElementById('submitButton').textContent = 'Hinzufügen';
@@ -941,6 +943,11 @@ try {
                     document.body.classList.add('modal-open');
                 }
             }
+        }
+        
+        function toggleEinheitField(userType) {
+            const w = document.getElementById('einheit_field_wrapper');
+            if (w) w.style.display = (userType === 'einheitsadmin') ? 'block' : 'none';
         }
         
         function closeUserModal() {
@@ -1013,6 +1020,9 @@ try {
                     document.getElementById('email').value = this.dataset.email || '';
                     document.getElementById('first_name').value = this.dataset.firstName || '';
                     document.getElementById('last_name').value = this.dataset.lastName || '';
+                    const ut = document.getElementById('user_type'); if (ut) ut.value = this.dataset.userType || 'user';
+                    const eid = document.getElementById('einheit_id'); if (eid) eid.value = this.dataset.einheitId || '';
+                    toggleEinheitField(this.dataset.userType || 'user');
                     document.getElementById('is_active').checked = getBool(this.dataset.isActive);
                     document.getElementById('is_admin').checked = getBool(this.dataset.isAdmin);
                     const canRes = getBool(this.dataset.canReservations);

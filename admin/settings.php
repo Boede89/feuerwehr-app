@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -15,31 +16,24 @@ if (!hasAdminPermission()) {
     exit;
 }
 
-require_once __DIR__ . '/includes/require-unit.inc.php';
-$current_unit_id = get_current_unit_id() ?: 1;
-
 $message = '';
 $error = '';
-// Einstellungen laden (für aktuelle Einheit)
+if (isset($_GET['error']) && $_GET['error'] === 'superadmin_only') {
+    $error = 'Die Benutzerverwaltung (Superadmin/Einheitsadmin anlegen) ist nur für Superadmins zugänglich.';
+}
+
+// Einstellungen laden
 $settings = [];
 try {
-    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE COALESCE(unit_id, 1) = ?");
-    $stmt->execute([$current_unit_id]);
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings");
+    $stmt->execute();
     $settings_data = $stmt->fetchAll();
+    
     foreach ($settings_data as $setting) {
         $settings[$setting['setting_key']] = $setting['setting_value'];
     }
-} catch (Exception $e) {
-    try {
-        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings");
-        $stmt->execute();
-        $settings_data = $stmt->fetchAll();
-        foreach ($settings_data as $setting) {
-            $settings[$setting['setting_key']] = $setting['setting_value'];
-        }
-    } catch (Exception $e2) {
-        $error = "Fehler beim Laden der Einstellungen: " . $e2->getMessage();
-    }
+} catch(PDOException $e) {
+    $error = "Fehler beim Laden der Einstellungen: " . $e->getMessage();
 }
 
 // Einstellungen speichern
@@ -100,17 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $all_settings = array_merge($smtp_settings, $google_settings, $app_settings, $vehicle_settings);
             
             foreach ($all_settings as $key => $value) {
-                try {
-                    $stmt = $db->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = ? AND COALESCE(unit_id, 1) = ?");
-                    $stmt->execute([$value, $key, $current_unit_id]);
-                    if ($stmt->rowCount() === 0) {
-                        $stmt = $db->prepare("INSERT INTO settings (unit_id, setting_key, setting_value) VALUES (?, ?, ?)");
-                        $stmt->execute([$current_unit_id, $key, $value]);
-                    }
-                } catch (Exception $e) {
-                    $stmt = $db->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = ?");
-                    $stmt->execute([$value, $key]);
-                }
+                $stmt = $db->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = ?");
+                $stmt->execute([$value, $key]);
             }
             
             $db->commit();
@@ -118,8 +103,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             log_activity($_SESSION['user_id'], 'settings_updated', 'Einstellungen aktualisiert');
             
             // Einstellungen neu laden
-            $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE COALESCE(unit_id, 1) = ?");
-            $stmt->execute([$current_unit_id]);
+            $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings");
+            $stmt->execute();
             $settings_data = $stmt->fetchAll();
             
             foreach ($settings_data as $setting) {
@@ -200,26 +185,60 @@ if (isset($_POST['test_email_btn'])) {
         </div>
 
         <div class="row g-4">
-            <!-- Globale Einstellungen -->
-            <div class="col-md-6 col-lg-4">
+            <!-- Linke Spalte -->
+            <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title"><i class="fas fa-gear"></i> Globale Einstellungen</h5>
-                        <p class="text-muted">SMTP, Google Calendar, App-weite Optionen, Sicherung & Wiederherstellung.</p>
+                        <p class="text-muted">SMTP, Google Calendar, App-weite Optionen, Fahrzeug- und Benutzerverwaltung.</p>
                         <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-global.php">
-                                <i class="fas fa-wrench"></i> Öffnen
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a class="btn btn-secondary" href="settings-global.php">
+                                    <i class="fas fa-wrench"></i> Öffnen
+                                </a>
+                                <a class="btn btn-outline-primary" href="settings-backup.php">
+                                    <i class="fas fa-shield-halved"></i> Sicherung & Wiederherstellung
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Linke Spalte -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-file-alt"></i> Formularcenter</h5>
+                        <p class="text-muted">Formulare, Dienstplan und Anwesenheitsliste konfigurieren.</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-formularcenter.php">
+                                <i class="fas fa-sliders"></i> Öffnen
                             </a>
                         </div>
                     </div>
                 </div>
             </div>
-            <!-- Benutzerverwaltung -->
-            <div class="col-md-6 col-lg-4">
+            <!-- Divera 24/7 -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-calendar-plus"></i> Divera 24/7</h5>
+                        <p class="text-muted">Einstellungen für Termin-Übermittlung genehmigter Fahrzeugreservierungen an Divera.</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-divera.php">
+                                <i class="fas fa-cog"></i> Divera Einstellungen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php if (is_superadmin()): ?>
+            <!-- Benutzerverwaltung (nur Superadmin) -->
+            <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title"><i class="fas fa-users"></i> Benutzerverwaltung</h5>
-                        <p class="text-muted">Benutzer hinzufügen, bearbeiten und Berechtigungen verwalten.</p>
+                        <p class="text-muted">Superadmin & Einheitsadmin anlegen, Berechtigungen verwalten.</p>
                         <div class="mt-auto">
                             <a class="btn btn-primary" href="users.php">
                                 <i class="fas fa-users"></i> Benutzer verwalten
@@ -228,12 +247,97 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
+            <?php endif; ?>
+            <!-- Linke Spalte -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-truck"></i> Fahrzeugverwaltung</h5>
+                        <p class="text-muted">Fahrzeuge hinzufügen, bearbeiten und verwalten.</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="vehicles.php">
+                                <i class="fas fa-truck"></i> Fahrzeuge verwalten
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Rechte Spalte -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-user-shield"></i> Atemschutz – Einstellungen</h5>
+                        <p class="text-muted">Schwellwert für Ablaufwarnungen (z.B. 90 Tage) festlegen.</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-atemschutz.php">
+                                <i class="fas fa-sliders"></i> Öffnen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Linke Spalte -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-broadcast-tower"></i> RIC Verwaltung</h5>
+                        <p class="text-muted">RIC-Codes verwalten (Kurztext und Beschreibung).</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-ric.php">
+                                <i class="fas fa-cog"></i> RIC-Codes verwalten
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Rechte Spalte -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-graduation-cap"></i> Lehrgangsverwaltung</h5>
+                        <p class="text-muted">Lehrgänge definieren und Anforderungen festlegen.</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-courses.php">
+                                <i class="fas fa-cog"></i> Lehrgänge verwalten
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Mitgliederverwaltung -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-users-cog"></i> Mitgliederverwaltung</h5>
+                        <p class="text-muted">Qualifikationen für Mitglieder anlegen (z. B. für das Auswahlfeld bei Mitgliedern).</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-members.php">
+                                <i class="fas fa-certificate"></i> Qualifikationen verwalten
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Reservierungen -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-calendar-check"></i> Reservierungen</h5>
+                        <p class="text-muted">Reservierungen verwalten und konfigurieren.</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-reservations.php">
+                                <i class="fas fa-sliders"></i> Öffnen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <!-- Einheiten Verwaltung -->
-            <div class="col-md-6 col-lg-4">
+            <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title"><i class="fas fa-sitemap"></i> Einheiten Verwaltung</h5>
-                        <p class="text-muted">Einheiten verwalten. Alle einheitsspezifischen Einstellungen (Fahrzeuge, Atemschutz, Reservierungen, Formulare, Divera, RIC, Lehrgänge, Mitglieder) finden Sie unter jeder Einheit.</p>
+                        <p class="text-muted">Einheiten und Gruppierungen verwalten.</p>
                         <div class="mt-auto">
                             <a class="btn btn-primary" href="settings-einheiten.php">
                                 <i class="fas fa-sliders"></i> Öffnen
@@ -247,5 +351,35 @@ if (isset($_POST['test_email_btn'])) {
 
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Google Calendar Authentifizierung wechseln
+        document.getElementById('google_calendar_auth_type').addEventListener('change', function() {
+            const serviceAccountConfig = document.getElementById('service_account_config');
+            const apiKeyConfig = document.getElementById('api_key_config');
+            
+            if (this.value === 'service_account') {
+                serviceAccountConfig.style.display = 'block';
+                apiKeyConfig.style.display = 'none';
+            } else {
+                serviceAccountConfig.style.display = 'none';
+                apiKeyConfig.style.display = 'block';
+            }
+        });
+        
+        // Initiale Anzeige setzen
+        document.addEventListener('DOMContentLoaded', function() {
+            const authType = document.getElementById('google_calendar_auth_type').value;
+            const serviceAccountConfig = document.getElementById('service_account_config');
+            const apiKeyConfig = document.getElementById('api_key_config');
+            
+            if (authType === 'service_account') {
+                serviceAccountConfig.style.display = 'block';
+                apiKeyConfig.style.display = 'none';
+            } else {
+                serviceAccountConfig.style.display = 'none';
+                apiKeyConfig.style.display = 'block';
+            }
+        });
+    </script>
 </body>
 </html>

@@ -2,40 +2,44 @@
 session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
+require_once __DIR__ . '/includes/einheiten-setup.php';
 
 $message = '';
 $error = '';
-$unit_id = get_current_unit_id() ?: 1;
 
 // Fahrzeuge laden mit Sortierung (gefiltert nach Einheit)
 $vehicles = [];
+$einheit_filter = isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : null;
 try {
-    $sort_mode = 'manual';
-    try {
-        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'vehicle_sort_mode' AND COALESCE(unit_id, 1) = ?");
-        $stmt->execute([$unit_id]);
-        $sort_mode = $stmt->fetchColumn() ?: 'manual';
-    } catch (Exception $e) {
-        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'vehicle_sort_mode'");
-        $stmt->execute();
-        $sort_mode = $stmt->fetchColumn() ?: 'manual';
-    }
-
+    // Sortier-Modus aus Einstellungen laden
+    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'vehicle_sort_mode'");
+    $stmt->execute();
+    $sort_mode = $stmt->fetchColumn() ?: 'manual';
+    
+    // SQL-Query basierend auf Sortier-Modus
     switch ($sort_mode) {
-        case 'name': $order_by = "ORDER BY name ASC"; break;
-        case 'created': $order_by = "ORDER BY created_at ASC"; break;
-        default: $order_by = "ORDER BY sort_order ASC, name ASC"; break;
+        case 'name':
+            $order_by = "ORDER BY name ASC";
+            break;
+        case 'created':
+            $order_by = "ORDER BY created_at ASC";
+            break;
+        case 'manual':
+        default:
+            $order_by = "ORDER BY sort_order ASC, name ASC";
+            break;
     }
-
-    try {
-        $stmt = $db->prepare("SELECT * FROM vehicles WHERE is_active = 1 AND COALESCE(unit_id, 1) = ? $order_by");
-        $stmt->execute([$unit_id]);
-        $vehicles = $stmt->fetchAll();
-    } catch (Exception $e) {
-        $stmt = $db->prepare("SELECT * FROM vehicles WHERE is_active = 1 $order_by");
-        $stmt->execute();
-        $vehicles = $stmt->fetchAll();
+    
+    $sql = "SELECT * FROM vehicles WHERE is_active = 1";
+    $params = [];
+    if ($einheit_filter > 0) {
+        $sql .= " AND (einheit_id = ? OR einheit_id IS NULL)";
+        $params[] = $einheit_filter;
     }
+    $sql .= " $order_by";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $vehicles = $stmt->fetchAll();
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Fahrzeuge: " . $e->getMessage();
 }
@@ -53,7 +57,7 @@ try {
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="index.php<?php echo $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''; ?>">
+            <a class="navbar-brand" href="index.php">
                 <i class="fas fa-fire"></i> Feuerwehr App
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -62,7 +66,7 @@ try {
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="index.php<?php echo $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''; ?>">
+                        <a class="nav-link" href="index.php">
                             <i class="fas fa-home"></i> Startseite
                         </a>
                     </li>
@@ -100,7 +104,7 @@ try {
                 <div class="card shadow">
                     <div class="card-header">
                         <h3 class="mb-0">
-                            <i class="fas fa-truck"></i> Fahrzeug auswählen<?php if ($einheit): ?> <span class="text-muted">(<?php echo htmlspecialchars($einheit['name']); ?>)</span><?php endif; ?>
+                            <i class="fas fa-truck"></i> Fahrzeug auswählen
                         </h3>
                         <p class="text-muted mb-0">Wählen Sie das Fahrzeug aus, das Sie reservieren möchten</p>
                     </div>
@@ -137,7 +141,7 @@ try {
                         <?php endif; ?>
                     </div>
                     <div class="card-footer text-center">
-                        <a href="index.php<?php echo $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''; ?>" class="btn btn-outline-secondary">
+                        <a href="index.php" class="btn btn-outline-secondary">
                             <i class="fas fa-arrow-left"></i> Zurück zur Startseite
                         </a>
                     </div>
@@ -151,19 +155,23 @@ try {
         function selectVehicle(vehicleId, vehicleName, description) {
             console.log('🔍 Fahrzeug ausgewählt:', {id: vehicleId, name: vehicleName, description: description});
             
+            // Fahrzeugdaten in Session Storage speichern
             const vehicleData = {
                 id: vehicleId,
                 name: vehicleName,
                 description: description
             };
-            sessionStorage.setItem('selectedVehicle', JSON.stringify(vehicleData));
             
-            let url = 'reservation.php';
-            const einheitId = new URLSearchParams(window.location.search).get('einheit_id');
-            if (einheitId) {
-                url += '?einheit_id=' + encodeURIComponent(einheitId);
-            }
-            window.location.href = url;
+            sessionStorage.setItem('selectedVehicle', JSON.stringify(vehicleData));
+            console.log('✅ Fahrzeug in SessionStorage gespeichert:', vehicleData);
+            
+            // Prüfe ob SessionStorage funktioniert
+            const stored = sessionStorage.getItem('selectedVehicle');
+            console.log('🔍 SessionStorage Inhalt:', stored);
+            
+            // Weiterleitung zur Reservierungsseite
+            console.log('🔄 Weiterleitung zu reservation.php...');
+            window.location.href = 'reservation.php';
         }
         
         // Hover-Effekt für Fahrzeugkarten

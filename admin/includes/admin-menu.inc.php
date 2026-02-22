@@ -5,6 +5,10 @@
  */
 if (!isset($_SESSION['user_id'])) return;
 if (!function_exists('has_permission')) return;
+if (isset($db) && file_exists(__DIR__ . '/../../includes/einheiten-setup.php')) {
+    require_once __DIR__ . '/../../includes/einheiten-setup.php';
+}
+$can_switch = function_exists('can_switch_einheit') && can_switch_einheit();
 
 if (!isset($can_reservations)) {
     $u = $user ?? null;
@@ -32,6 +36,16 @@ $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
         <span class="fw-semibold">Menü</span>
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
+        <?php if ($can_switch): 
+            $user_eins = function_exists('get_user_einheiten') ? get_user_einheiten() : [];
+            $cur_eid = function_exists('get_current_einheit_id') ? get_current_einheit_id() : null;
+        ?>
+        <li><h6 class="dropdown-header"><i class="fas fa-sitemap me-2"></i>Einheit wechseln</h6></li>
+        <?php foreach ($user_eins as $ue): ?>
+        <li><a class="dropdown-item <?php echo ($cur_eid && (int)$ue['id'] === (int)$cur_eid) ? 'active' : ''; ?>" href="<?php echo htmlspecialchars($index_url); ?>?einheit_id=<?php echo (int)$ue['id']; ?>"><?php echo htmlspecialchars($ue['name']); ?></a></li>
+        <?php endforeach; ?>
+        <li><hr class="dropdown-divider"></li>
+        <?php endif; ?>
         <li><a class="dropdown-item" href="<?php echo htmlspecialchars($index_url); ?>"><i class="fas fa-home text-primary me-2"></i>Startseite</a></li>
         <li><a class="dropdown-item" href="<?php echo $base; ?>dashboard.php"><i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard</a></li>
         <?php if (function_exists('get_accessible_units') && count(get_accessible_units()) > 1): ?>

@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -55,8 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $sort_order = $max_order + 1;
                     }
                     
-                    $stmt = $db->prepare("INSERT INTO vehicles (name, description, is_active, sort_order) VALUES (?, ?, ?, ?)");
-                    $stmt->execute([$name, $description, $is_active, $sort_order]);
+                    $einheit_id = get_admin_einheit_filter();
+                    $stmt = $db->prepare("INSERT INTO vehicles (name, description, is_active, sort_order, einheit_id) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->execute([$name, $description, $is_active, $sort_order, $einheit_id]);
                     $new_id = $db->lastInsertId();
                     $message = "Fahrzeug wurde erfolgreich hinzugefügt.";
                     log_activity($_SESSION['user_id'], 'vehicle_added', "Fahrzeug '$name' hinzugefügt");
@@ -109,10 +111,16 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Fahrzeuge laden
+// Fahrzeuge laden (gefiltert nach Einheit für Einheitsadmin)
+$einheit_filter = get_admin_einheit_filter();
 try {
-    $stmt = $db->prepare("SELECT * FROM vehicles ORDER BY sort_order ASC, name ASC");
-    $stmt->execute();
+    if ($einheit_filter) {
+        $stmt = $db->prepare("SELECT * FROM vehicles WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY sort_order ASC, name ASC");
+        $stmt->execute([$einheit_filter]);
+    } else {
+        $stmt = $db->prepare("SELECT * FROM vehicles ORDER BY sort_order ASC, name ASC");
+        $stmt->execute();
+    }
     $vehicles = $stmt->fetchAll();
     
 } catch(PDOException $e) {

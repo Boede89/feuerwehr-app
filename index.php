@@ -2,10 +2,46 @@
 session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
+require_once __DIR__ . '/includes/einheiten-setup.php';
 
-// Eingeloggt (nicht Systembenutzer) ohne Einheit: zur Einheiten-Auswahl
-if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
-    redirect('unit-select.php');
+// Einheit wechseln (GET-Parameter)
+if (isset($_GET['einheit_id'])) {
+    $eid = (int)$_GET['einheit_id'];
+    if ($eid > 0) {
+        if (is_logged_in() && !is_system_user()) {
+            if (user_has_einheit_access($_SESSION['user_id'], $eid)) {
+                $_SESSION['current_einheit_id'] = $eid;
+            }
+        } else {
+            // Gäste: jede Einheit wählbar
+            $stmt = $db->prepare("SELECT id FROM einheiten WHERE id = ? AND is_active = 1");
+            $stmt->execute([$eid]);
+            if ($stmt->fetch()) {
+                $_SESSION['current_einheit_id'] = $eid;
+            }
+        }
+        header('Location: index.php');
+        exit;
+    }
+}
+
+// Verfügbare Einheiten für Auswahl
+$einheiten_fuer_auswahl = [];
+try {
+    $stmt = $db->query("SELECT id, name, sort_order FROM einheiten WHERE is_active = 1 ORDER BY sort_order, name");
+    $einheiten_fuer_auswahl = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+} catch (Exception $e) {}
+$hat_einheit = !empty($_SESSION['current_einheit_id']);
+$zeige_einheiten_auswahl = false;
+if (is_logged_in() && !is_system_user()) {
+    $user_einheiten = get_user_einheiten();
+    $zeige_einheiten_auswahl = (count($user_einheiten) > 1 && !$hat_einheit) || (count($user_einheiten) > 1 && can_switch_einheit());
+} else {
+    $zeige_einheiten_auswahl = count($einheiten_fuer_auswahl) > 1 && !$hat_einheit || count($einheiten_fuer_auswahl) > 0 && !$hat_einheit;
+}
+if (count($einheiten_fuer_auswahl) === 1 && !$hat_einheit) {
+    $_SESSION['current_einheit_id'] = (int)$einheiten_fuer_auswahl[0]['id'];
+    $hat_einheit = true;
 }
 ?>
 <!DOCTYPE html>
@@ -156,13 +192,15 @@ if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
                 include __DIR__ . '/admin/includes/admin-menu.inc.php';
                 ?>
                 </div>
-            <?php elseif (!isset($_SESSION['user_id'])): ?>
+            <?php else: ?>
+                <?php if (!isset($_SESSION['user_id'])): ?>
                 <div class="d-flex ms-auto align-items-center">
                     <a class="btn btn-outline-light btn-sm px-3 py-2 d-flex align-items-center gap-2" href="login.php">
                         <i class="fas fa-sign-in-alt"></i>
                         <span class="fw-semibold">Anmelden</span>
                     </a>
                 </div>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </nav>
@@ -171,30 +209,67 @@ if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
         <div class="row justify-content-center">
             <div class="col-12 col-md-10 col-lg-8">
                 <?php
-                    // App Name aus den Einstellungen
+                    // App Name aus den Einstellungen (nur hier auf der Startseite anzeigen)
                     $appDisplayName = 'Feuerwehr App';
-                    $unitId = get_current_unit_id() ?: 1;
                     try {
-                        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_name' AND COALESCE(unit_id, 1) = ? LIMIT 1");
-                        $stmt->execute([$unitId]);
+                        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_name'");
+                        $stmt->execute();
                         $val = trim((string)$stmt->fetchColumn());
                         if ($val !== '') {
                             $appDisplayName = $val;
                         }
-                    } catch (Exception $e) {
-                        try {
-                            $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_name'");
-                            $stmt->execute();
-                            $val = trim((string)$stmt->fetchColumn());
-                            if ($val !== '') $appDisplayName = $val;
-                        } catch (Exception $e2) { /* Fallback */ }
-                    }
+                    } catch (Exception $e) { /* Fallback beibehalten */ }
                 ?>
                 <div class="text-center mb-5">
                     <h1 class="display-4 text-primary">
                         <i class="fas fa-fire"></i> <?php echo htmlspecialchars($appDisplayName); ?>
                     </h1>
                 </div>
+
+                <?php if (!$hat_einheit && !empty($einheiten_fuer_auswahl)): ?>
+                <!-- Einheiten-Auswahl -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body text-center p-4">
+                        <h5 class="card-title mb-4"><i class="fas fa-sitemap text-primary me-2"></i>Bitte wählen Sie Ihre Einheit</h5>
+                        <div class="row g-3 justify-content-center">
+                            <?php 
+                            $auswahl_liste = (is_logged_in() && !is_system_user()) ? get_user_einheiten() : $einheiten_fuer_auswahl;
+                            foreach ($auswahl_liste as $e): ?>
+                            <div class="col-12 col-sm-6 col-md-4">
+                                <a href="index.php?einheit_id=<?php echo (int)$e['id']; ?>" class="btn btn-outline-primary btn-lg w-100 py-4 d-flex flex-column align-items-center justify-content-center">
+                                    <i class="fas fa-building mb-2" style="font-size: 2rem;"></i>
+                                    <span><?php echo htmlspecialchars($e['name']); ?></span>
+                                </a>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+                <?php else: ?>
+
+                <?php if (can_switch_einheit()): ?>
+                <div class="mb-3 d-flex justify-content-end">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-exchange-alt me-1"></i>Einheit: <?php 
+                                $cur = get_current_einheit_id();
+                                $cur_name = 'Unbekannt';
+                                foreach (is_logged_in() && !is_system_user() ? get_user_einheiten() : $einheiten_fuer_auswahl as $ee) {
+                                    if ((int)$ee['id'] === $cur) { $cur_name = $ee['name']; break; }
+                                }
+                                echo htmlspecialchars($cur_name);
+                            ?>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <?php foreach (is_logged_in() && !is_system_user() ? get_user_einheiten() : $einheiten_fuer_auswahl as $ee): ?>
+                                <?php if ((int)$ee['id'] !== get_current_einheit_id()): ?>
+                                <li><a class="dropdown-item" href="index.php?einheit_id=<?php echo (int)$ee['id']; ?>"><?php echo htmlspecialchars($ee['name']); ?></a></li>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                </div>
+                <?php endif; ?>
 
                 <div class="row g-4">
                     <div class="col-12 col-sm-6 col-lg-4">
@@ -226,7 +301,7 @@ if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
 
                     <?php if (is_logged_in()): ?>
                     <div class="col-12 col-sm-6 col-lg-4">
-                            <a href="formulare.php" class="text-decoration-none">
+                        <a href="formulare.php" class="text-decoration-none">
                             <div class="card h-100 shadow-sm feature-card clickable-card">
                                 <div class="card-body text-center p-4 d-flex flex-column">
                                     <div class="feature-icon mb-3">
@@ -239,6 +314,7 @@ if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
                     </div>
                     <?php endif; ?>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
     </main>
@@ -462,11 +538,7 @@ if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
             const traegerList = document.getElementById('traegerList');
             traegerList.innerHTML = '<div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Geräteträger...</div>';
             
-            let url = 'api/get-atemschutz-traeger.php';
-            if (window.currentEinheitId) {
-                url += '?einheit_id=' + encodeURIComponent(window.currentEinheitId);
-            }
-            fetch(url)
+            fetch('api/get-atemschutz-traeger.php')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -522,9 +594,6 @@ if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Wird gesendet...';
             
-            if (window.currentEinheitId) {
-                formData.append('einheit_id', window.currentEinheitId);
-            }
             fetch('api/create-atemschutz-entry.php', {
                 method: 'POST',
                 body: formData
