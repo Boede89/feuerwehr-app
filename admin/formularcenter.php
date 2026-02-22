@@ -458,19 +458,16 @@ try {
 
 $submissions_total = count($submissions) + count($anwesenheitslisten) + count($maengelberichte) + count($geraetewartmitteilungen);
 
-// Beschreibungen für Sonstiges-Filter-Dropdown laden (aus dienstplan + anwesenheitslisten)
+// Beschreibungen für Sonstiges-Filter-Dropdown laden – NUR aus tatsächlich vorhandenen Anwesenheitslisten
+// (nicht aus dienstplan, damit gelöschte Listen nicht mehr als Option erscheinen)
 $beschreibung_optionen_sonstiges = [];
 try {
     $stmt = $db->query("
-        SELECT DISTINCT TRIM(b) AS b FROM (
-            SELECT COALESCE(d.bezeichnung, a.bezeichnung) AS b
-            FROM anwesenheitslisten a
-            LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
-            WHERE a.typ = 'dienst' AND d.typ = 'sonstiges'
-            UNION
-            SELECT bezeichnung AS b FROM dienstplan WHERE typ = 'sonstiges'
-        ) t
-        WHERE TRIM(b) != ''
+        SELECT DISTINCT TRIM(COALESCE(a.bezeichnung, d.bezeichnung)) AS b
+        FROM anwesenheitslisten a
+        LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
+        WHERE a.typ = 'dienst' AND d.typ = 'sonstiges'
+          AND TRIM(COALESCE(a.bezeichnung, d.bezeichnung, '')) != ''
         ORDER BY b
     ");
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
