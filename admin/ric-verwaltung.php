@@ -560,9 +560,12 @@ try {
     <div class="container-fluid mt-4">
         <div class="row">
             <div class="col-12">
-                <h1 class="h3 mb-4">
-                    <i class="fas fa-broadcast-tower"></i> RIC Verwaltung (Divera)
-                </h1>
+                <div class="d-flex align-items-center mb-4">
+                    <a href="members.php" class="btn btn-outline-secondary me-3"><i class="fas fa-arrow-left"></i> Zurück</a>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-broadcast-tower"></i> RIC Verwaltung (Divera)
+                    </h1>
+                </div>
                 
                 <?php if ($message): ?>
                     <?php echo show_success($message); ?>

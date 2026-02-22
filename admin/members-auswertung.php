@@ -251,7 +251,10 @@ if ($debug_fahrzeug) {
 </nav>
 
 <div class="container-fluid mt-4">
-    <h1 class="h3 mb-4"><i class="fas fa-chart-pie"></i> Auswertung</h1>
+    <div class="d-flex align-items-center mb-4">
+        <a href="members.php" class="btn btn-outline-secondary me-3"><i class="fas fa-arrow-left"></i> Zurück</a>
+        <h1 class="h3 mb-0"><i class="fas fa-chart-pie"></i> Auswertung</h1>
+    </div>
 
     <?php if ($bereich === ''): ?>
     <!-- Übersicht: 4 Bereiche -->
