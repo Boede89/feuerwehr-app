@@ -373,10 +373,10 @@ try {
     $einheit_filter = get_admin_einheit_filter();
     
     // Alle Mitglieder laden: Benutzer aus users + zusätzliche Mitglieder aus members
-    // Einheitsadmins erscheinen nur in der Liste ihrer eigenen Einheit (nicht in anderen)
+    // Einheitsadmins und Superadmins (mit zugewiesener Einheit) erscheinen nur in der Liste ihrer Einheit
     $einheit_where = $einheit_filter ? " AND (m.einheit_id = " . (int)$einheit_filter . " OR m.einheit_id IS NULL)" : "";
     $exclude_other_einheitsadmins = $einheit_filter
-        ? " AND NOT (u.user_type = 'einheitsadmin' AND u.einheit_id IS NOT NULL AND u.einheit_id != " . (int)$einheit_filter . ")"
+        ? " AND NOT ((u.user_type = 'einheitsadmin' OR u.user_type = 'superadmin') AND u.einheit_id IS NOT NULL AND u.einheit_id != " . (int)$einheit_filter . ")"
         : "";
     $stmt = $db->query("
         SELECT 

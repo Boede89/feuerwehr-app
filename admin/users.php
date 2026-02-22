@@ -59,11 +59,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $user_type = sanitize_input($_POST['user_type'] ?? 'superadmin');
         if (!in_array($user_type, ['superadmin', 'einheitsadmin'])) $user_type = 'superadmin';
         $einheit_id = null;
-        if ($user_type === 'einheitsadmin') {
-            $einheit_id = isset($_POST['einheit_id']) && $_POST['einheit_id'] !== '' ? (int)$_POST['einheit_id'] : null;
-            if (!$einheit_id) {
-                $error = "Bitte wählen Sie eine Einheit für den Einheitsadmin.";
-            }
+        if (isset($_POST['einheit_id']) && $_POST['einheit_id'] !== '') {
+            $einheit_id = (int)$_POST['einheit_id'];
+        }
+        if ($user_type === 'einheitsadmin' && !$einheit_id) {
+            $error = "Bitte wählen Sie eine Einheit für den Einheitsadmin.";
         }
         
         // Granular permissions
@@ -605,14 +605,14 @@ try {
                                 <div class="form-text">Superadmin: Zugriff auf alle Einheiten. Einheitsadmin: nur Einstellungen der gewählten Einheit.</div>
                             </div>
                             <div class="col-md-6 mb-3" id="einheit_field_wrapper" style="display:none">
-                                <label for="einheit_id" class="form-label">Einheit *</label>
+                                <label for="einheit_id" class="form-label">Einheit <span id="einheit_required">*</span></label>
                                 <select class="form-select" id="einheit_id" name="einheit_id">
                                     <option value="">— Bitte wählen —</option>
                                     <?php foreach ($einheiten as $e): ?>
                                         <option value="<?php echo (int)$e['id']; ?>"><?php echo htmlspecialchars($e['name']); ?></option>
                                     <?php endforeach; ?>
                                 </select>
-                                <div class="form-text">Pflichtfeld bei Einheitsadmin.</div>
+                                <div class="form-text" id="einheit_help">Bei Superadmin: Einheit für Anzeige in Mitgliederliste (optional). Bei Einheitsadmin: Pflicht.</div>
                             </div>
                         </div>
                         <input type="hidden" name="is_admin" value="1">
@@ -830,7 +830,11 @@ try {
         
         function toggleEinheitField(userType) {
             const w = document.getElementById('einheit_field_wrapper');
-            if (w) w.style.display = (userType === 'einheitsadmin') ? 'block' : 'none';
+            const req = document.getElementById('einheit_required');
+            const help = document.getElementById('einheit_help');
+            if (w) w.style.display = (userType === 'einheitsadmin' || userType === 'superadmin') ? 'block' : 'none';
+            if (req) req.textContent = (userType === 'einheitsadmin') ? '*' : '(optional)';
+            if (help) help.textContent = (userType === 'einheitsadmin') ? 'Pflichtfeld bei Einheitsadmin.' : 'Einheit für Anzeige in Mitgliederliste – nur in dieser Einheit sichtbar.';
         }
         
         function closeUserModal() {
