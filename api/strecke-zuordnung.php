@@ -90,20 +90,40 @@ try {
             // - Noch gültig: Spätestmöglichen Termin VOR dem Ablauf (um das Datum so lange wie möglich hinauszuzögern)
             // - ALLE Geräteträger sollen verplant werden
             
-            // 1. Alle aktiven Geräteträger ohne Zuordnung laden
-            $stmt = $db->prepare("
-                SELECT at.id, at.first_name, at.last_name,
-                       at.strecke_am,
-                       DATE_ADD(at.strecke_am, INTERVAL 1 YEAR) as strecke_bis,
-                       DATEDIFF(DATE_ADD(at.strecke_am, INTERVAL 1 YEAR), CURDATE()) as tage_bis_ablauf
-                FROM atemschutz_traeger at
-                LEFT JOIN strecke_zuordnungen sz ON at.id = sz.traeger_id
-                WHERE at.status = 'Aktiv' AND sz.id IS NULL
-                ORDER BY 
-                    CASE WHEN at.strecke_am IS NULL THEN 2 ELSE 0 END,
-                    tage_bis_ablauf ASC
-            ");
-            $stmt->execute();
+            // 1. Alle aktiven Geräteträger ohne Zuordnung laden (gefiltert nach Einheit)
+            require_once __DIR__ . '/../includes/einheiten-setup.php';
+            $einheit_filter = get_admin_einheit_filter();
+            if ($einheit_filter) {
+                $stmt = $db->prepare("
+                    SELECT at.id, at.first_name, at.last_name,
+                           at.strecke_am,
+                           DATE_ADD(at.strecke_am, INTERVAL 1 YEAR) as strecke_bis,
+                           DATEDIFF(DATE_ADD(at.strecke_am, INTERVAL 1 YEAR), CURDATE()) as tage_bis_ablauf
+                    FROM atemschutz_traeger at
+                    LEFT JOIN members m ON at.member_id = m.id
+                    LEFT JOIN strecke_zuordnungen sz ON at.id = sz.traeger_id
+                    WHERE at.status = 'Aktiv' AND sz.id IS NULL
+                      AND at.member_id IS NOT NULL AND (m.einheit_id = ? OR m.einheit_id IS NULL)
+                    ORDER BY 
+                        CASE WHEN at.strecke_am IS NULL THEN 2 ELSE 0 END,
+                        tage_bis_ablauf ASC
+                ");
+                $stmt->execute([$einheit_filter]);
+            } else {
+                $stmt = $db->prepare("
+                    SELECT at.id, at.first_name, at.last_name,
+                           at.strecke_am,
+                           DATE_ADD(at.strecke_am, INTERVAL 1 YEAR) as strecke_bis,
+                           DATEDIFF(DATE_ADD(at.strecke_am, INTERVAL 1 YEAR), CURDATE()) as tage_bis_ablauf
+                    FROM atemschutz_traeger at
+                    LEFT JOIN strecke_zuordnungen sz ON at.id = sz.traeger_id
+                    WHERE at.status = 'Aktiv' AND sz.id IS NULL
+                    ORDER BY 
+                        CASE WHEN at.strecke_am IS NULL THEN 2 ELSE 0 END,
+                        tage_bis_ablauf ASC
+                ");
+                $stmt->execute();
+            }
             $nichtZugeordnet = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             // 2. Alle zukünftigen Termine laden (aufsteigend sortiert)

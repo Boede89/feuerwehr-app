@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 if (!isset($_SESSION['user_id']) || (!has_permission('atemschutz') && !hasAdminPermission())) {
     header('HTTP/1.1 403 Forbidden');
@@ -24,17 +25,33 @@ $stmt = $db->prepare("
 $stmt->execute();
 $termine = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Nicht zugeordnete Geräteträger
-$stmt = $db->prepare("
-    SELECT at.first_name, at.last_name, 
-           DATE_ADD(at.strecke_am, INTERVAL 1 YEAR) as strecke_bis,
-           DATEDIFF(DATE_ADD(at.strecke_am, INTERVAL 1 YEAR), CURDATE()) as tage_bis_ablauf
-    FROM atemschutz_traeger at
-    LEFT JOIN strecke_zuordnungen sz ON at.id = sz.traeger_id
-    WHERE at.status = 'Aktiv' AND sz.id IS NULL
-    ORDER BY tage_bis_ablauf ASC
-");
-$stmt->execute();
+// Nicht zugeordnete Geräteträger (gefiltert nach Einheit)
+$einheit_filter = get_admin_einheit_filter();
+if ($einheit_filter) {
+    $stmt = $db->prepare("
+        SELECT at.first_name, at.last_name, 
+               DATE_ADD(at.strecke_am, INTERVAL 1 YEAR) as strecke_bis,
+               DATEDIFF(DATE_ADD(at.strecke_am, INTERVAL 1 YEAR), CURDATE()) as tage_bis_ablauf
+        FROM atemschutz_traeger at
+        LEFT JOIN members m ON at.member_id = m.id
+        LEFT JOIN strecke_zuordnungen sz ON at.id = sz.traeger_id
+        WHERE at.status = 'Aktiv' AND sz.id IS NULL
+          AND at.member_id IS NOT NULL AND (m.einheit_id = ? OR m.einheit_id IS NULL)
+        ORDER BY tage_bis_ablauf ASC
+    ");
+    $stmt->execute([$einheit_filter]);
+} else {
+    $stmt = $db->prepare("
+        SELECT at.first_name, at.last_name, 
+               DATE_ADD(at.strecke_am, INTERVAL 1 YEAR) as strecke_bis,
+               DATEDIFF(DATE_ADD(at.strecke_am, INTERVAL 1 YEAR), CURDATE()) as tage_bis_ablauf
+        FROM atemschutz_traeger at
+        LEFT JOIN strecke_zuordnungen sz ON at.id = sz.traeger_id
+        WHERE at.status = 'Aktiv' AND sz.id IS NULL
+        ORDER BY tage_bis_ablauf ASC
+    ");
+    $stmt->execute();
+}
 $nichtZugeordnet = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Warnschwelle laden

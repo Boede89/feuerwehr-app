@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -441,12 +442,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Mitglieder laden
+// Mitglieder laden (gefiltert nach Einheit für Superadmin/Einheitsadmin)
 $members = [];
 try {
+    $einheit_filter = get_admin_einheit_filter();
+    $einheit_where = $einheit_filter ? " WHERE (m.einheit_id = " . (int)$einheit_filter . " OR m.einheit_id IS NULL)" : "";
     $stmt = $db->prepare("
         SELECT m.id, m.first_name, m.last_name, m.email, m.birthdate, m.phone
         FROM members m
+        $einheit_where
         ORDER BY m.last_name ASC, m.first_name ASC
     ");
     $stmt->execute();

@@ -9,6 +9,7 @@ require_once __DIR__ . '/../config/divera.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/dienstplan-typen.php';
 require_once __DIR__ . '/../includes/anwesenheitsliste-helper.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -542,7 +543,9 @@ $edit_submission = null;
 $members_for_ausbilder = [];
 $members_by_id = [];
 try {
-    $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    $einheit_filter = get_admin_einheit_filter();
+    $einheit_where = $einheit_filter ? " WHERE (einheit_id = " . (int)$einheit_filter . " OR einheit_id IS NULL)" : "";
+    $stmt = $db->query("SELECT id, first_name, last_name FROM members $einheit_where ORDER BY last_name, first_name");
     $members_for_ausbilder = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($members_for_ausbilder as $m) {
         $members_by_id[(int)$m['id']] = trim($m['last_name'] . ', ' . $m['first_name']);

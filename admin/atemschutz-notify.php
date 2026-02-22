@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -79,10 +80,21 @@ try {
     
     error_log("CC-Empfänger final: " . (empty($ccRecipientEmails) ? 'KEINE' : implode(', ', $ccRecipientEmails)));
 
-    // Kandidaten ermitteln
+    // Kandidaten ermitteln (gefiltert nach Einheit für Superadmin/Einheitsadmin)
     if ($sendAll) {
-        $stmt = $db->prepare("SELECT id, first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am FROM atemschutz_traeger");
-        $stmt->execute();
+        $einheit_filter = get_admin_einheit_filter();
+        if ($einheit_filter) {
+            $stmt = $db->prepare("
+                SELECT at.id, at.first_name, at.last_name, at.email, at.birthdate, at.strecke_am, at.g263_am, at.uebung_am
+                FROM atemschutz_traeger at
+                LEFT JOIN members m ON at.member_id = m.id
+                WHERE at.member_id IS NOT NULL AND (m.einheit_id = ? OR m.einheit_id IS NULL)
+            ");
+            $stmt->execute([$einheit_filter]);
+        } else {
+            $stmt = $db->prepare("SELECT id, first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am FROM atemschutz_traeger");
+            $stmt->execute();
+        }
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         // Filtern auf auffällige (wie im Dashboard)
         $nowDate = new DateTime('today');

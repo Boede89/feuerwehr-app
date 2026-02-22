@@ -5,6 +5,7 @@
 session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -21,12 +22,14 @@ if (strlen($q) < 2) {
 
 $limit = min(20, (int)($_GET['limit'] ?? 15));
 $q_esc = '%' . $q . '%';
+$einheit_filter = get_admin_einheit_filter();
+$einheit_where = $einheit_filter ? " AND (einheit_id = " . (int)$einheit_filter . " OR einheit_id IS NULL)" : "";
 
 try {
     $stmt = $db->prepare("
         SELECT id, first_name, last_name
         FROM members
-        WHERE first_name LIKE ? OR last_name LIKE ? OR CONCAT(last_name, ', ', first_name) LIKE ? OR CONCAT(first_name, ' ', last_name) LIKE ?
+        WHERE (first_name LIKE ? OR last_name LIKE ? OR CONCAT(last_name, ', ', first_name) LIKE ? OR CONCAT(first_name, ' ', last_name) LIKE ?) $einheit_where
         ORDER BY last_name, first_name
         LIMIT ?
     ");

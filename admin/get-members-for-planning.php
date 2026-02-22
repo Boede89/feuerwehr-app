@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 if (!isset($_SESSION['user_id']) || !has_permission('courses')) {
     header('Content-Type: application/json');
@@ -33,7 +34,9 @@ try {
     
     error_log("DEBUG: Voraussetzungen für Lehrgang $course_id: " . print_r($required_course_ids, true));
     
-    // Alle Mitglieder laden, die diesen Lehrgang noch nicht haben
+    // Alle Mitglieder laden, die diesen Lehrgang noch nicht haben (gefiltert nach Einheit)
+    $einheit_filter = get_admin_einheit_filter();
+    $einheit_where = $einheit_filter ? " AND (m.einheit_id = " . (int)$einheit_filter . " OR m.einheit_id IS NULL)" : "";
     $stmt = $db->prepare("
         SELECT 
             m.id,
@@ -43,7 +46,7 @@ try {
             SELECT mc.member_id 
             FROM member_courses mc 
             WHERE mc.course_id = ?
-        )
+        ) $einheit_where
         ORDER BY m.last_name, m.first_name
     ");
     $stmt->execute([$course_id]);

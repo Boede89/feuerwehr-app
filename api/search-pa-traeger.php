@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 // Berechtigung prüfen
 if (!isset($_SESSION['user_id']) || (!has_permission('atemschutz') && !hasAdminPermission())) {
@@ -45,13 +46,25 @@ try {
         $warn_days = (int)$setting['setting_value'];
     }
     
-    // Lade alle aktiven Geräteträger
-    $stmt = $db->prepare("
-        SELECT * FROM atemschutz_traeger 
-        WHERE status = 'Aktiv'
-        ORDER BY last_name ASC, first_name ASC
-    ");
-    $stmt->execute();
+    // Lade aktive Geräteträger (gefiltert nach Einheit für Superadmin/Einheitsadmin)
+    $einheit_filter = get_admin_einheit_filter();
+    if ($einheit_filter) {
+        $stmt = $db->prepare("
+            SELECT at.* FROM atemschutz_traeger at
+            LEFT JOIN members m ON at.member_id = m.id
+            WHERE at.status = 'Aktiv'
+              AND at.member_id IS NOT NULL AND (m.einheit_id = ? OR m.einheit_id IS NULL)
+            ORDER BY at.last_name ASC, at.first_name ASC
+        ");
+        $stmt->execute([$einheit_filter]);
+    } else {
+        $stmt = $db->prepare("
+            SELECT * FROM atemschutz_traeger 
+            WHERE status = 'Aktiv'
+            ORDER BY last_name ASC, first_name ASC
+        ");
+        $stmt->execute();
+    }
     $all_traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     $filtered_traeger = [];
