@@ -713,9 +713,10 @@ if ($can_atemschutz) {
                 <small class="text-muted">Willkommen, <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>!</small>
             </h1>
             <?php if ($can_reservations || $can_atemschutz || $can_settings || $can_members || $can_forms): ?>
-            <div class="dropdown">
-                <button class="btn btn-outline-primary" type="button" id="dashboardMenuBtn" data-bs-toggle="dropdown" aria-expanded="false" title="Menü">
-                    <i class="fas fa-bars fa-lg"></i>
+            <div class="dropdown ms-3">
+                <button class="btn btn-outline-primary btn-lg px-4 py-2 d-flex align-items-center gap-2" type="button" id="dashboardMenuBtn" data-bs-toggle="dropdown" aria-expanded="false" title="Menü öffnen">
+                    <i class="fas fa-bars fa-2x"></i>
+                    <span class="fw-semibold">Menü</span>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dashboardMenuBtn">
                     <?php if ($can_reservations): ?>
