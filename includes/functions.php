@@ -562,7 +562,9 @@ function is_superadmin($user_id = null) {
         $stmt->execute([$user_id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row && ($row['user_type'] ?? '') === 'superadmin';
-    } catch (Exception $e) { return false; }
+    } catch (Exception $e) {
+        return false;
+    }
 }
 
 /**
@@ -577,7 +579,9 @@ function is_einheitsadmin($user_id = null) {
         $stmt->execute([$user_id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row && ($row['user_type'] ?? '') === 'einheitsadmin';
-    } catch (Exception $e) { return false; }
+    } catch (Exception $e) {
+        return false;
+    }
 }
 
 /**

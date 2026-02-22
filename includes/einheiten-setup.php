@@ -39,7 +39,7 @@ try {
         FOREIGN KEY (einheit_id) REFERENCES einheiten(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-    // members: einheit_id
+    // members: einheit_id (FK optional – kann bei bestehenden Daten fehlschlagen)
     try { $db->exec("ALTER TABLE members ADD COLUMN einheit_id INT NULL"); } catch (Exception $e) {}
     try { $db->exec("ALTER TABLE members ADD CONSTRAINT fk_members_einheit FOREIGN KEY (einheit_id) REFERENCES einheiten(id) ON DELETE SET NULL"); } catch (Exception $e) {}
 
