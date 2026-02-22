@@ -6,6 +6,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 require_once '../config/divera.php';
 
 // Prüfe ob Benutzer eingeloggt ist
@@ -357,7 +358,8 @@ try {
     }
 } catch (Exception $e) { /* ignore */ }
 
-// Nur bearbeitete Reservierungen laden
+// Nur bearbeitete Reservierungen laden (gefiltert nach Einheit für Superadmin/Einheitsadmin)
+$einheit_filter = get_admin_einheit_filter();
 try {
     $sql = "
         SELECT r.*, v.name as vehicle_name, u.first_name, u.last_name
@@ -365,11 +367,16 @@ try {
         JOIN vehicles v ON r.vehicle_id = v.id 
         LEFT JOIN users u ON r.approved_by = u.id
         WHERE r.status IN ('approved', 'rejected', 'cancelled')
-        ORDER BY r.start_datetime ASC
     ";
+    $params = [];
+    if ($einheit_filter) {
+        $sql .= " AND (v.einheit_id = ? OR v.einheit_id IS NULL)";
+        $params[] = $einheit_filter;
+    }
+    $sql .= " ORDER BY r.start_datetime ASC";
     
     $stmt = $db->prepare($sql);
-    $stmt->execute();
+    $stmt->execute($params);
     $reservations = $stmt->fetchAll();
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Reservierungen: " . $e->getMessage();

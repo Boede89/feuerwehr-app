@@ -19,6 +19,7 @@ if (empty($_SESSION['user_id'])) {
 
 // Berechtigung: Admin hat immer Zugriff; sonst Atemschutz-Recht
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 $isAdmin = hasAdminPermission();
 $canAtemschutz = has_permission('atemschutz') || hasAdminPermission();
 $permissionWarning = null;
@@ -187,9 +188,11 @@ if (!$isAdmin && !$canAtemschutz) {
         $wanted = [
             'id','first_name','last_name','email','birthdate','strecke_am','g263_am','uebung_am','status'
         ];
+        $einheit_filter = get_admin_einheit_filter();
+        $tbl = $einheit_filter ? 'atemschutz_traeger.' : '';
         foreach ($wanted as $col) {
             if (in_array($col, $columns, true)) {
-                $selectParts[] = $col;
+                $selectParts[] = $tbl . $col;
             }
         }
         if (empty($selectParts)) {
@@ -197,25 +200,36 @@ if (!$isAdmin && !$canAtemschutz) {
         }
         // Abgeleitete Felder für Sortierung (Name und Bis-Daten)
         // Verwende IFNULL und CASE um NULL-Werte zu behandeln
+        $ln = $einheit_filter ? 'atemschutz_traeger.last_name' : 'last_name';
+        $fn = $einheit_filter ? 'atemschutz_traeger.first_name' : 'first_name';
         $select = implode(", ", $selectParts)
-            . ", CONCAT(IFNULL(last_name,''), ', ', IFNULL(first_name,'')) AS name_full"
-            . ", CASE WHEN strecke_am IS NOT NULL THEN DATE_ADD(strecke_am, INTERVAL 1 YEAR) ELSE NULL END AS strecke_bis"
-            . ", CASE WHEN g263_am IS NOT NULL AND birthdate IS NOT NULL AND TIMESTAMPDIFF(YEAR, birthdate, CURDATE()) < 50 THEN DATE_ADD(g263_am, INTERVAL 3 YEAR) WHEN g263_am IS NOT NULL THEN DATE_ADD(g263_am, INTERVAL 1 YEAR) ELSE NULL END AS g263_bis"
-            . ", CASE WHEN uebung_am IS NOT NULL THEN DATE_ADD(uebung_am, INTERVAL 1 YEAR) ELSE NULL END AS uebung_bis";
+            . ", CONCAT(IFNULL($ln,''), ', ', IFNULL($fn,'')) AS name_full"
+            . ", CASE WHEN {$tbl}strecke_am IS NOT NULL THEN DATE_ADD({$tbl}strecke_am, INTERVAL 1 YEAR) ELSE NULL END AS strecke_bis"
+            . ", CASE WHEN {$tbl}g263_am IS NOT NULL AND {$tbl}birthdate IS NOT NULL AND TIMESTAMPDIFF(YEAR, {$tbl}birthdate, CURDATE()) < 50 THEN DATE_ADD({$tbl}g263_am, INTERVAL 3 YEAR) WHEN {$tbl}g263_am IS NOT NULL THEN DATE_ADD({$tbl}g263_am, INTERVAL 1 YEAR) ELSE NULL END AS g263_bis"
+            . ", CASE WHEN {$tbl}uebung_am IS NOT NULL THEN DATE_ADD({$tbl}uebung_am, INTERVAL 1 YEAR) ELSE NULL END AS uebung_bis";
 
-        // WHERE (Suche)
+        // WHERE (Suche + Einheiten-Filter für Superadmin/Einheitsadmin)
         $where = '';
         $params = [];
+        $whereParts = [];
         if ($q !== '' && (in_array('first_name', $columns, true) || in_array('last_name', $columns, true))) {
-            $where = 'WHERE (CONCAT(IFNULL(last_name,\'\'), ", ", IFNULL(first_name,\'\')) LIKE ? OR CONCAT(IFNULL(first_name,\'\'), " ", IFNULL(last_name,\'\')) LIKE ?)';
+            $whereParts[] = '(CONCAT(IFNULL(atemschutz_traeger.last_name,\'\'), ", ", IFNULL(atemschutz_traeger.first_name,\'\')) LIKE ? OR CONCAT(IFNULL(atemschutz_traeger.first_name,\'\'), " ", IFNULL(atemschutz_traeger.last_name,\'\')) LIKE ?)';
             $params[] = "%$q%";
             $params[] = "%$q%";
         }
+        if ($einheit_filter) {
+            $whereParts[] = '(atemschutz_traeger.member_id IS NOT NULL AND (m.einheit_id = ? OR m.einheit_id IS NULL))';
+            $params[] = $einheit_filter;
+        }
+        if (!empty($whereParts)) {
+            $where = 'WHERE ' . implode(' AND ', $whereParts);
+        }
 
         // ORDER BY
+        $birthdateCol = $einheit_filter ? 'atemschutz_traeger.birthdate' : 'birthdate';
         $orderMap = [
             'name' => 'name_full',
-            'age' => 'TIMESTAMPDIFF(YEAR, birthdate, CURDATE())',
+            'age' => "TIMESTAMPDIFF(YEAR, $birthdateCol, CURDATE())",
             'strecke_bis' => 'strecke_bis',
             'g263_bis' => 'g263_bis',
             'uebung_bis' => 'uebung_bis',
@@ -224,7 +238,10 @@ if (!$isAdmin && !$canAtemschutz) {
         $orderExpr = $orderMap[$sort] ?? 'name_full';
         $order = "ORDER BY $orderExpr $dir";
 
-        $sql = "SELECT $select FROM atemschutz_traeger $where $order";
+        $from = $einheit_filter
+            ? "atemschutz_traeger LEFT JOIN members m ON atemschutz_traeger.member_id = m.id"
+            : "atemschutz_traeger";
+        $sql = "SELECT $select FROM $from $where $order";
         try {
             $stmt = $db->prepare($sql);
             $stmt->execute($params);

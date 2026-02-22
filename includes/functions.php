@@ -698,9 +698,13 @@ function get_user_einheiten($user_id = null) {
 
 /**
  * Einheiten-System: Einheit-ID für Admin-Filter (null = alle, sonst nur diese Einheit)
+ * Superadmin: filtert nach ausgewählter Einheit (current_einheit_id), wenn gesetzt
  */
 function get_admin_einheit_filter() {
-    if (is_superadmin()) return null;
+    if (is_superadmin()) {
+        $cur = get_current_einheit_id();
+        return $cur ? (int)$cur : null;
+    }
     if (is_einheitsadmin()) {
         $eid = $_SESSION['einheit_id'] ?? null;
         if ($eid) return (int)$eid;

@@ -42,7 +42,7 @@ $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
         ?>
         <li><h6 class="dropdown-header"><i class="fas fa-sitemap me-2"></i>Einheit wechseln</h6></li>
         <?php foreach ($user_eins as $ue): ?>
-        <li><a class="dropdown-item <?php echo ($cur_eid && (int)$ue['id'] === (int)$cur_eid) ? 'active' : ''; ?>" href="<?php echo htmlspecialchars($index_url); ?>?einheit_id=<?php echo (int)$ue['id']; ?>"><?php echo htmlspecialchars($ue['name']); ?></a></li>
+        <li><a class="dropdown-item <?php echo ($cur_eid && (int)$ue['id'] === (int)$cur_eid) ? 'active' : ''; ?>" href="<?php echo $base; ?>set-einheit.php?einheit_id=<?php echo (int)$ue['id']; ?>"><?php echo htmlspecialchars($ue['name']); ?></a></li>
         <?php endforeach; ?>
         <li><hr class="dropdown-divider"></li>
         <?php endif; ?>

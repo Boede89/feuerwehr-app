@@ -52,8 +52,8 @@ try {
         // Fehler ignorieren
     }
     
-    // Einheit-Filter (Session)
-    $einheit_id = isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : null;
+    // Einheit-Filter (Superadmin/Einheitsadmin über get_admin_einheit_filter)
+    $einheit_id = get_admin_einheit_filter();
     $params = [];
     if ($einheit_id > 0) {
         $stmt = $db->prepare("

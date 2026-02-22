@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 // Zugriff nur für Benutzer mit Atemschutz-Recht oder Admin-Berechtigung
 if (!isset($_SESSION['user_id']) || (!has_permission('atemschutz') && !hasAdminPermission())) {
@@ -135,9 +136,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 	if ($planDate === '') { $planDate = date('Y-m-d'); }
 
 	try {
-		// Basis: alle Träger
-		$stmt = $db->prepare("SELECT id, first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am FROM atemschutz_traeger");
-		$stmt->execute();
+		// Basis: alle Träger (gefiltert nach Einheit für Superadmin/Einheitsadmin)
+		$einheit_filter = get_admin_einheit_filter();
+		if ($einheit_filter) {
+			$stmt = $db->prepare("
+				SELECT t.id, t.first_name, t.last_name, t.email, t.birthdate, t.strecke_am, t.g263_am, t.uebung_am
+				FROM atemschutz_traeger t
+				LEFT JOIN members m ON t.member_id = m.id
+				WHERE t.member_id IS NOT NULL AND (m.einheit_id = ? OR m.einheit_id IS NULL)
+			");
+			$stmt->execute([$einheit_filter]);
+		} else {
+			$stmt = $db->prepare("SELECT id, first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am FROM atemschutz_traeger");
+			$stmt->execute();
+		}
 		$all = $stmt->fetchAll(PDO::FETCH_ASSOC);
 		
 		$warnDays = 90;
