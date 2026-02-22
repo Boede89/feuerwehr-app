@@ -5,6 +5,7 @@
 session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -13,6 +14,18 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 if (!hasAdminPermission()) {
     header('Location: ../login.php?error=access_denied');
     exit;
+}
+
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+$einheit = null;
+$show_einheit_placeholder = false;
+if ($einheit_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
+        $stmt->execute([$einheit_id]);
+        $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
+        $show_einheit_placeholder = $einheit && is_einheit_waldniel($db, $einheit_id);
+    } catch (Exception $e) {}
 }
 
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'forms';
@@ -42,18 +55,28 @@ if (!in_array($active_tab, ['forms', 'dienstplan'])) {
 
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h3 mb-0"><i class="fas fa-file-alt"></i> Formularcenter – Einstellungen</h1>
-        <a href="settings.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück zu Einstellungen</a>
+        <h1 class="h3 mb-0"><i class="fas fa-file-alt"></i> Formularcenter – Einstellungen<?php if ($einheit): ?> <span class="text-muted">(<?php echo htmlspecialchars($einheit['name']); ?>)</span><?php endif; ?></h1>
+        <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
     </div>
 
+    <?php if ($show_einheit_placeholder): ?>
+    <div class="card shadow">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+            <p class="text-muted mb-0">Einstellungen für diese Einheit – noch nicht konfiguriert.</p>
+            <p class="text-muted small mt-2">Die Konfiguration wird in Kürze verfügbar.</p>
+        </div>
+    </div>
+    <?php else: ?>
+    <?php $tab_base = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id . '&tab=' : '?tab='; ?>
     <ul class="nav nav-tabs mb-3" id="formularcenterTabs" role="tablist">
         <li class="nav-item" role="presentation">
-            <a class="nav-link <?php echo $active_tab === 'forms' ? 'active' : ''; ?>" href="?tab=forms">
+            <a class="nav-link <?php echo $active_tab === 'forms' ? 'active' : ''; ?>" href="<?php echo $tab_base; ?>forms">
                 <i class="fas fa-file-alt"></i> Formulare
             </a>
         </li>
         <li class="nav-item" role="presentation">
-            <a class="nav-link <?php echo $active_tab === 'dienstplan' ? 'active' : ''; ?>" href="?tab=dienstplan">
+            <a class="nav-link <?php echo $active_tab === 'dienstplan' ? 'active' : ''; ?>" href="<?php echo $tab_base; ?>dienstplan">
                 <i class="fas fa-calendar-alt"></i> Dienstplan
             </a>
         </li>
@@ -61,12 +84,13 @@ if (!in_array($active_tab, ['forms', 'dienstplan'])) {
 
     <div class="tab-content">
         <div class="tab-pane fade <?php echo $active_tab === 'forms' ? 'show active' : ''; ?>" id="tab-forms">
-            <iframe src="settings-forms.php?return=formularcenter" class="border-0 w-100" style="min-height: 700px;" title="Formular-Einstellungen"></iframe>
+            <iframe src="settings-forms.php?return=formularcenter<?php echo $einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : ''; ?>" class="border-0 w-100" style="min-height: 700px;" title="Formular-Einstellungen"></iframe>
         </div>
         <div class="tab-pane fade <?php echo $active_tab === 'dienstplan' ? 'show active' : ''; ?>" id="tab-dienstplan">
-            <iframe src="settings-dienstplan.php?return=formularcenter" class="border-0 w-100" style="min-height: 500px;" title="Dienstplan-Einstellungen"></iframe>
+            <iframe src="settings-dienstplan.php?return=formularcenter<?php echo $einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : ''; ?>" class="border-0 w-100" style="min-height: 500px;" title="Dienstplan-Einstellungen"></iframe>
         </div>
     </div>
+    <?php endif; ?>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

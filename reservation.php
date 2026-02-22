@@ -2,11 +2,14 @@
 session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
+require_once __DIR__ . '/includes/einheit-settings-helper.php';
 
 $message = '';
 $error = '';
 $selectedVehicle = null;
 $selectedVehicles = []; // Array für mehrere Fahrzeuge
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
+$einheit_param = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : '';
 
 // Browser Console Logging für Debugging
 echo '<script>';
@@ -39,9 +42,13 @@ if (isset($_POST['vehicle_data'])) {
     echo '<script>console.log("✅ Fahrzeug aus Session geladen:", ' . json_encode($selectedVehicle) . ');</script>';
 } else {
     // Kein Fahrzeug ausgewählt, zeige Fehlermeldung und Weiterleitung
+    $redirect_url = 'index.php';
+    if (!empty($_GET['einheit_id'])) {
+        $redirect_url .= '?einheit_id=' . (int)$_GET['einheit_id'];
+    }
     echo '<script>console.log("❌ Kein Fahrzeug ausgewählt - Prüfe SessionStorage");</script>';
     $error = "Bitte wählen Sie zuerst ein Fahrzeug aus.";
-    echo '<script>setTimeout(function() { window.location.href = "index.php"; }, 3000);</script>';
+    echo '<script>setTimeout(function() { window.location.href = ' . json_encode($redirect_url) . '; }, 3000);</script>';
 }
 
 // Konflikt-Verarbeitung (wenn Benutzer trotz Konflikt fortfahren möchte)
@@ -64,17 +71,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservati
         
         if ($vehicle_id && $requester_name && $requester_email && $reason && $start_datetime && $end_datetime) {
             try {
-                $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([]), 'pending']);
+                $res_einheit = (int)($_POST['einheit_id'] ?? $einheit_id);
+                try {
+                    $db->exec("ALTER TABLE reservations ADD COLUMN einheit_id INT NULL");
+                } catch (Exception $e) {}
+                $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts, status, einheit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([]), 'pending', $res_einheit > 0 ? $res_einheit : null]);
                 
                 echo '<script>console.log("✅ Konflikt-Reservierung erfolgreich gespeichert - Sende E-Mails");</script>';
                 
-                // E-Mail an Admins und Genehmiger mit aktivierten Benachrichtigungen senden
+                // E-Mail an Admins und Genehmiger (einheitsspezifisch oder global)
                 $admin_emails = [];
                 try {
-                    $stmt = $db->prepare("SELECT email FROM users WHERE is_active = 1 AND email_notifications = 1");
-                    $stmt->execute();
-                    $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    if ($res_einheit > 0) {
+                        $settings = load_settings_for_einheit($db, $res_einheit);
+                        $ids_json = $settings['reservation_notification_user_ids'] ?? '';
+                        if ($ids_json !== '') {
+                            $ids = json_decode($ids_json, true);
+                            if (is_array($ids) && !empty($ids)) {
+                                $ph = implode(',', array_fill(0, count($ids), '?'));
+                                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1");
+                                $stmt->execute(array_map('intval', $ids));
+                                $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                            }
+                        }
+                    }
+                    if (empty($admin_emails)) {
+                        $stmt = $db->prepare("SELECT email FROM users WHERE is_active = 1 AND email_notifications = 1");
+                        $stmt->execute();
+                        $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    }
                     echo '<script>console.log("🔍 Admin-E-Mails gefunden:", ' . count($admin_emails) . ');</script>';
                 } catch (Exception $e) {
                     echo '<script>console.log("❌ Fehler beim Laden der Admin-E-Mails:", ' . json_encode($e->getMessage()) . ');</script>';
@@ -332,11 +358,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 // Debug: Validierung erfolgreich
                 
                 // Reservierung für alle ausgewählten Fahrzeuge speichern
+                $res_einheit = (int)($_POST['einheit_id'] ?? $einheit_id);
                 foreach ($vehicle_ids as $vehicle_id) {
                     try {
-                        // Debug: Führe Datenbank-Insert aus
-                        $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([]), 'pending']);
+                        $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts, status, einheit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([]), 'pending', $res_einheit > 0 ? $res_einheit : null]);
                         $success_count++;
                         // Debug: Reservierung gespeichert
                     } catch(PDOException $e) {
@@ -510,7 +536,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="index.php">
+            <a class="navbar-brand" href="index.php<?php echo $einheit_param; ?>">
                 <i class="fas fa-fire"></i> Feuerwehr App
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -519,7 +545,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="index.php">
+                        <a class="nav-link" href="index.php<?php echo $einheit_param; ?>">
                             <i class="fas fa-home"></i> Startseite
                         </a>
                     </li>
@@ -572,6 +598,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                         
                         <form method="POST" action="" id="reservationForm">
                             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                             <input type="hidden" name="vehicle_data" value="<?php echo htmlspecialchars(json_encode($selectedVehicle)); ?>">
                             
                             <!-- Mehrfach-Fahrzeug-Auswahl -->
@@ -610,7 +637,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             <div class="alert alert-warning">
                                 <h6><i class="fas fa-exclamation-triangle"></i> Kein Fahrzeug ausgewählt</h6>
                                 <p class="mb-0">Bitte wählen Sie zuerst ein Fahrzeug aus der Fahrzeugauswahl aus.</p>
-                                <a href="index.php" class="btn btn-primary btn-sm mt-2">
+                                <a href="vehicle-selection.php<?php echo $einheit_param; ?>" class="btn btn-primary btn-sm mt-2">
                                     <i class="fas fa-truck"></i> Fahrzeug auswählen
                                 </a>
                             </div>
@@ -673,7 +700,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             </div>
                             
                             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                <a href="index.php" class="btn btn-outline-secondary me-md-2">
+                                <a href="index.php<?php echo $einheit_param; ?>" class="btn btn-outline-secondary me-md-2">
                                     <i class="fas fa-arrow-left"></i> Zurück zur Startseite
                                 </a>
                                 <?php if (isset($selectedVehicle['name'])): ?>
@@ -845,8 +872,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 }
             } else {
                 console.log('❌ Kein Fahrzeug in SessionStorage gefunden');
-                // Kein Fahrzeug ausgewählt, zurück zur Auswahl
-                window.location.href = 'index.php';
+                window.location.href = <?php echo json_encode('index.php' . $einheit_param); ?>;
             }
         });
         
@@ -928,9 +954,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         // Automatische Weiterleitung zur Startseite nach erfolgreicher Reservierung
         <?php if (isset($redirect_to_home) && $redirect_to_home): ?>
         document.addEventListener('DOMContentLoaded', function() {
-            // Nach 3 Sekunden zur Startseite weiterleiten
             setTimeout(function() {
-                window.location.href = 'index.php';
+                window.location.href = <?php echo json_encode('index.php' . $einheit_param); ?>;
             }, 3000);
             
             // Countdown-Anzeige
@@ -1020,6 +1045,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 <div class="modal-footer">
                     <form method="POST" class="d-inline">
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                         <input type="hidden" name="conflict_vehicle_id" value="<?php echo $conflict_timeframe['vehicle_id']; ?>">
                         <input type="hidden" name="conflict_start_datetime" value="<?php echo $conflict_timeframe['start']; ?>">
                         <input type="hidden" name="conflict_end_datetime" value="<?php echo $conflict_timeframe['end']; ?>">

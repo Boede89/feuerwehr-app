@@ -18,6 +18,7 @@ if (!hasAdminPermission()) {
 
 $message = '';
 $error = '';
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
 
 // Erfolgsmeldungen von GET-Parameter
 if (isset($_GET['success'])) {
@@ -63,7 +64,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     log_activity($_SESSION['user_id'], 'vehicle_added', "Fahrzeug '$name' hinzugefügt");
                     
                     // Weiterleitung um POST-Problem zu vermeiden
-                    header("Location: vehicles.php?success=added");
+                    $redir = "vehicles.php?success=added";
+                    if ($einheit_id > 0) $redir .= "&einheit_id=" . (int)$einheit_id;
+                    header("Location: " . $redir);
                     exit();
                     
                 } elseif ($action == 'edit') {
@@ -73,7 +76,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     log_activity($_SESSION['user_id'], 'vehicle_updated', "Fahrzeug '$name' aktualisiert");
                     
                     // Weiterleitung um POST-Problem zu vermeiden
-                    header("Location: vehicles.php?success=updated");
+                    $redir = "vehicles.php?success=updated";
+                    if ($einheit_id > 0) $redir .= "&einheit_id=" . (int)$einheit_id;
+                    header("Location: " . $redir);
                     exit();
                 }
             } catch(PDOException $e) {
@@ -161,13 +166,18 @@ if (isset($_GET['edit'])) {
     <div class="container-fluid mt-4">
         <div class="row">
             <div class="col-12">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h1 class="h3 mb-0">
-                        <i class="fas fa-truck"></i> Fahrzeuge
-                    </h1>
-                        <button type="button" class="btn btn-primary" onclick="openVehicleModal()">
-                            <i class="fas fa-plus"></i> Neues Fahrzeug
-                        </button>
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <?php if ($einheit_id > 0): ?>
+                            <a href="settings-einheit.php?id=<?php echo (int)$einheit_id; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
+                        <?php endif; ?>
+                        <h1 class="h3 mb-0">
+                            <i class="fas fa-truck"></i> Fahrzeuge
+                        </h1>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="openVehicleModal()">
+                        <i class="fas fa-plus"></i> Neues Fahrzeug
+                    </button>
                 </div>
                 
                 <?php if ($message): ?>
@@ -275,6 +285,7 @@ if (isset($_GET['edit'])) {
                         </div>
                         <input type="hidden" name="vehicle_id" id="vehicle_id">
                         <input type="hidden" name="action" id="action" value="add">
+                        <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     </div>
                     <div class="modal-footer">

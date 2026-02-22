@@ -14,6 +14,7 @@ if (!hasAdminPermission()) {
 
 $message = '';
 $error = '';
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 
 // Einstellungen laden
 $settings = [];
@@ -329,8 +330,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="row mt-4">
             <div class="col-12">
-                <a href="settings.php" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left"></i> Zurück zu Einstellungen
+                <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Zurück
                 </a>
             </div>
         </div>

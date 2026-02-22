@@ -16,6 +16,17 @@ if (!has_permission('forms')) {
     exit;
 }
 
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+$einheit = null;
+if ($einheit_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
+        $stmt->execute([$einheit_id]);
+        $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+}
+$einheit_param = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : '';
+
 // Tabellen existieren ggf. noch nicht (werden im Formularcenter angelegt)
 $forms = [];
 try {
@@ -48,13 +59,13 @@ try {
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="index.php"><i class="fas fa-fire"></i> Feuerwehr App</a>
+            <a class="navbar-brand" href="index.php<?php echo $einheit_param; ?>"><i class="fas fa-fire"></i> Feuerwehr App</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="index.php"><i class="fas fa-home"></i> Startseite</a></li>
+                    <li class="nav-item"><a class="nav-link" href="index.php<?php echo $einheit_param; ?>"><i class="fas fa-home"></i> Startseite</a></li>
                     <?php if (is_logged_in()): ?>
                     <?php if (!is_system_user()): ?>
                     <li class="nav-item"><a class="nav-link" href="admin/dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
@@ -96,14 +107,14 @@ try {
                 <?php endif; ?>
                 <div class="card shadow">
                     <div class="card-header">
-                        <h3 class="mb-0"><i class="fas fa-file-alt"></i> Formulare</h3>
+                        <h3 class="mb-0"><i class="fas fa-file-alt"></i> Formulare<?php if ($einheit): ?> <span class="text-muted">(<?php echo htmlspecialchars($einheit['name']); ?>)</span><?php endif; ?></h3>
                         <p class="text-muted mb-0">Wählen Sie ein Formular aus, das Sie ausfüllen möchten</p>
                     </div>
                     <div class="card-body p-4">
                         <div class="row g-4">
                             <!-- Anwesenheitsliste (fixer Eintrag) -->
                             <div class="col-md-6 col-lg-4">
-                                <a href="anwesenheitsliste.php" class="text-decoration-none">
+                                <a href="anwesenheitsliste.php<?php echo $einheit_param; ?>" class="text-decoration-none">
                                     <div class="card h-100 shadow-sm feature-card clickable-card">
                                         <div class="card-body text-center p-4 d-flex flex-column">
                                             <div class="feature-icon mb-3">
@@ -117,7 +128,7 @@ try {
                             </div>
                             <!-- Mängelbericht (Platzhalter) -->
                             <div class="col-md-6 col-lg-4">
-                                <a href="formular-maengelbericht.php" class="text-decoration-none">
+                                <a href="formular-maengelbericht.php<?php echo $einheit_param; ?>" class="text-decoration-none">
                                     <div class="card h-100 shadow-sm feature-card clickable-card">
                                         <div class="card-body text-center p-4 d-flex flex-column">
                                             <div class="feature-icon mb-3">
@@ -131,7 +142,7 @@ try {
                             </div>
                             <!-- Gerätewartmitteilung (Platzhalter) -->
                             <div class="col-md-6 col-lg-4">
-                                <a href="formular-geraetewartmitteilung.php" class="text-decoration-none">
+                                <a href="formular-geraetewartmitteilung.php<?php echo $einheit_param; ?>" class="text-decoration-none">
                                     <div class="card h-100 shadow-sm feature-card clickable-card">
                                         <div class="card-body text-center p-4 d-flex flex-column">
                                             <div class="feature-icon mb-3">
@@ -146,7 +157,7 @@ try {
                             <?php if (!empty($forms)): ?>
                                 <?php foreach ($forms as $form): ?>
                                 <div class="col-md-6 col-lg-4">
-                                    <a href="formulare-ausfuellen.php?id=<?php echo (int)$form['id']; ?>" class="text-decoration-none">
+                                    <a href="formulare-ausfuellen.php?id=<?php echo (int)$form['id']; ?><?php echo $einheit_param ? '&' . ltrim($einheit_param, '?') : ''; ?>" class="text-decoration-none">
                                         <div class="card h-100 shadow-sm feature-card clickable-card">
                                             <div class="card-body text-center p-4 d-flex flex-column">
                                                 <div class="feature-icon mb-3">

@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once '../includes/einheit-settings-helper.php';
 
 if (!isset($_SESSION['user_id']) || !hasAdminPermission()) {
     header('Location: ../login.php?error=access_denied');
@@ -10,6 +11,18 @@ if (!isset($_SESSION['user_id']) || !hasAdminPermission()) {
 
 $message = '';
 $error = '';
+
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
+$einheit = null;
+$is_waldniel = false;
+if ($einheit_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
+        $stmt->execute([$einheit_id]);
+        $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
+        $is_waldniel = $einheit && is_einheit_waldniel($db, $einheit_id);
+    } catch (Exception $e) {}
+}
 
 // Ensure settings table exists
 try {
@@ -140,35 +153,57 @@ try {
     if ($val !== false && is_numeric($val)) { $warnDays = (int)$val; }
 } catch (Exception $e) {}
 
-// E-Mail-Vorlagen laden
+// E-Mail-Vorlagen laden (für Waldniel leer)
 $emailTemplates = [];
-try {
-    $stmt = $db->prepare("SELECT * FROM email_templates ORDER BY template_key");
-    $stmt->execute();
-    $emailTemplates = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) { /* ignore */ }
+if (!$is_waldniel) {
+    try {
+        $stmt = $db->prepare("SELECT * FROM email_templates ORDER BY template_key");
+        $stmt->execute();
+        $emailTemplates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) { /* ignore */ }
+}
 
-// Benutzer für Benachrichtigungseinstellungen laden
+// Benutzer für Benachrichtigungseinstellungen laden (nur Benutzer der aktuellen Einheit)
 $users = [];
+$atemschutz_notification_ids = [];
+if ($einheit_id > 0) {
+    $settings_e = load_settings_for_einheit($db, $einheit_id);
+    $json = $settings_e['atemschutz_notification_user_ids'] ?? '';
+    if ($json !== '') {
+        $dec = json_decode($json, true);
+        $atemschutz_notification_ids = is_array($dec) ? array_map('intval', $dec) : [];
+    }
+}
 try {
     // Stelle sicher, dass die atemschutz_notifications Spalte existiert
     try {
         $db->exec("ALTER TABLE users ADD COLUMN atemschutz_notifications TINYINT(1) DEFAULT 0");
-        error_log("atemschutz_notifications Spalte hinzugefügt");
-    } catch (Exception $e) {
-        // Spalte existiert bereits, das ist OK
-        if (strpos($e->getMessage(), 'Duplicate column name') === false) {
-            error_log("Unerwarteter Fehler beim Hinzufügen der Spalte: " . $e->getMessage());
-        }
+    } catch (Exception $e) {}
+    try {
+        $db->exec("ALTER TABLE users ADD COLUMN einheit_id INT NULL");
+    } catch (Exception $e) {}
+    $amern_id = get_einheit_amern_id($db);
+    if ($amern_id > 0) {
+        try { $db->exec("UPDATE users SET einheit_id = $amern_id WHERE einheit_id IS NULL"); } catch (Exception $e) {}
     }
-    
+    $where = "is_active = 1";
+    $params = [];
+    if ($einheit_id > 0) {
+        if ($amern_id > 0 && $amern_id === $einheit_id) {
+            $where .= " AND (einheit_id = ? OR einheit_id IS NULL)";
+        } else {
+            $where .= " AND einheit_id = ?";
+        }
+        $params[] = $einheit_id;
+    }
     $stmt = $db->prepare("
         SELECT id, first_name, last_name, email, is_admin, user_role, 
                COALESCE(atemschutz_notifications, 0) as atemschutz_notifications
         FROM users 
+        WHERE $where
         ORDER BY last_name, first_name
     ");
-    $stmt->execute();
+    $stmt->execute($params);
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     error_log("Benutzer geladen: " . count($users) . " Benutzer gefunden");
@@ -182,15 +217,20 @@ try {
 
 // CC-Empfänger für Erinnerungs-E-Mails laden
 $ccRecipients = [];
-try {
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'atemschutz_cc_recipients' LIMIT 1");
-    $stmt->execute();
-    $val = $stmt->fetchColumn();
-    if ($val !== false && $val !== null) {
-        $ccRecipients = json_decode($val, true) ?: [];
+if ($einheit_id > 0) {
+    $settings_einheit = load_settings_for_einheit($db, $einheit_id);
+    if (!empty($settings_einheit['atemschutz_cc_recipients'])) {
+        $ccRecipients = json_decode($settings_einheit['atemschutz_cc_recipients'], true) ?: [];
     }
-} catch (Exception $e) {
-    error_log("Fehler beim Laden der CC-Empfänger: " . $e->getMessage());
+} else {
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'atemschutz_cc_recipients' LIMIT 1");
+        $stmt->execute();
+        $val = $stmt->fetchColumn();
+        if ($val !== false && $val !== null) {
+            $ccRecipients = json_decode($val, true) ?: [];
+        }
+    } catch (Exception $e) {}
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -200,9 +240,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Warnschwelle speichern
         $newWarn = (int)($_POST['warn_days'] ?? 90);
         if ($newWarn < 0) { $newWarn = 0; }
+        $einheit_id_post = isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0;
         try {
-            $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('atemschutz_warn_days', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-            $stmt->execute([$newWarn]);
+            if ($einheit_id_post > 0) {
+                save_setting_for_einheit($db, $einheit_id_post, 'atemschutz_warn_days', (string)$newWarn);
+            } else {
+                $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('atemschutz_warn_days', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+                $stmt->execute([$newWarn]);
+            }
             $warnDays = $newWarn;
         } catch (Exception $e) {
             $error = 'Speichern der Warnschwelle fehlgeschlagen: ' . htmlspecialchars($e->getMessage());
@@ -256,47 +301,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Atemschutz-Benachrichtigungseinstellungen speichern
         if (isset($_POST['action']) && $_POST['action'] === 'update_atemschutz_notifications') {
-            try {
-                // Stelle sicher, dass die Spalte existiert
-                $db->exec("ALTER TABLE users ADD COLUMN atemschutz_notifications TINYINT(1) DEFAULT 0");
-            } catch (Exception $e) {
-                // Spalte existiert bereits
-            }
-            
-            // Alle Benutzer auf 0 setzen
-            $stmt = $db->prepare("UPDATE users SET atemschutz_notifications = 0");
-            $stmt->execute();
-            
-            // Ausgewählte Benutzer auf 1 setzen
-            if (isset($_POST['atemschutz_notifications']) && is_array($_POST['atemschutz_notifications'])) {
-                $placeholders = str_repeat('?,', count($_POST['atemschutz_notifications']) - 1) . '?';
-                $stmt = $db->prepare("UPDATE users SET atemschutz_notifications = 1 WHERE id IN ($placeholders)");
-                $stmt->execute($_POST['atemschutz_notifications']);
-            }
-            
-            $message = "Benachrichtigungseinstellungen erfolgreich aktualisiert.";
-            
-            // Benutzerliste neu laden nach dem Speichern
-            try {
-                $stmt = $db->prepare("
-                    SELECT id, first_name, last_name, email, is_admin, user_role, 
-                           COALESCE(atemschutz_notifications, 0) as atemschutz_notifications
-                    FROM users 
-                    ORDER BY last_name, first_name
-                ");
+            $einheit_id_notif = isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0;
+            if ($einheit_id_notif > 0) {
+                $ids = isset($_POST['atemschutz_notifications']) && is_array($_POST['atemschutz_notifications']) ? array_map('intval', $_POST['atemschutz_notifications']) : [];
+                save_setting_for_einheit($db, $einheit_id_notif, 'atemschutz_notification_user_ids', json_encode($ids));
+                $atemschutz_notification_ids = $ids;
+                $message = "Benachrichtigungseinstellungen erfolgreich aktualisiert.";
+            } else {
+                try {
+                    $db->exec("ALTER TABLE users ADD COLUMN atemschutz_notifications TINYINT(1) DEFAULT 0");
+                } catch (Exception $e) {}
+                $stmt = $db->prepare("UPDATE users SET atemschutz_notifications = 0");
                 $stmt->execute();
-                $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            } catch (Exception $e) {
-                error_log("Fehler beim Neuladen der Benutzer: " . $e->getMessage());
+                if (isset($_POST['atemschutz_notifications']) && is_array($_POST['atemschutz_notifications'])) {
+                    $placeholders = str_repeat('?,', count($_POST['atemschutz_notifications']) - 1) . '?';
+                    $stmt = $db->prepare("UPDATE users SET atemschutz_notifications = 1 WHERE id IN ($placeholders)");
+                    $stmt->execute($_POST['atemschutz_notifications']);
+                }
+                $message = "Benachrichtigungseinstellungen erfolgreich aktualisiert.";
+                // Benutzerliste neu laden nach dem Speichern (Legacy)
+                try {
+                    $where = "is_active = 1";
+                    $params = [];
+                    if ($einheit_id_notif > 0) {
+                        $amern_id = get_einheit_amern_id($db);
+                        if ($amern_id > 0 && $amern_id === $einheit_id_notif) {
+                            $where .= " AND (einheit_id = ? OR einheit_id IS NULL)";
+                        } else {
+                            $where .= " AND einheit_id = ?";
+                        }
+                        $params[] = $einheit_id_notif;
+                    }
+                    $stmt = $db->prepare("
+                        SELECT id, first_name, last_name, email, is_admin, user_role,
+                               COALESCE(atemschutz_notifications, 0) as atemschutz_notifications
+                        FROM users
+                        WHERE $where
+                        ORDER BY last_name, first_name
+                    ");
+                    $stmt->execute($params);
+                    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                } catch (Exception $e) {}
             }
         }
         
         // CC-Empfänger für Erinnerungs-E-Mails speichern
         if (isset($_POST['action']) && $_POST['action'] === 'update_cc_recipients') {
+            $einheit_id_post = isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0;
             try {
-                error_log("CC-Empfänger Speichern gestartet");
-                error_log("POST cc_recipients: " . print_r($_POST['cc_recipients'] ?? 'NICHT GESETZT', true));
-                
                 $selectedCcRecipients = isset($_POST['cc_recipients']) && is_array($_POST['cc_recipients']) 
                     ? array_map('intval', $_POST['cc_recipients']) 
                     : [];
@@ -304,12 +356,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 error_log("Ausgewählte CC-Empfänger IDs: " . print_r($selectedCcRecipients, true));
                 
                 $ccJson = json_encode($selectedCcRecipients);
-                error_log("CC-JSON zum Speichern: " . $ccJson);
-                
-                $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('atemschutz_cc_recipients', ?) ON DUPLICATE KEY UPDATE setting_value = ?");
-                $stmt->execute([$ccJson, $ccJson]);
-                
-                error_log("CC-Empfänger in DB gespeichert");
+                if ($einheit_id_post > 0) {
+                    save_setting_for_einheit($db, $einheit_id_post, 'atemschutz_cc_recipients', $ccJson);
+                } else {
+                    $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('atemschutz_cc_recipients', ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+                    $stmt->execute([$ccJson, $ccJson]);
+                }
                 
                 $ccRecipients = $selectedCcRecipients;
                 $message = "CC-Empfänger erfolgreich aktualisiert (" . count($selectedCcRecipients) . " Empfänger ausgewählt).";
@@ -342,8 +394,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="container-fluid mt-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="h3 mb-0"><i class="fas fa-user-shield"></i> Atemschutz – Einstellungen</h1>
-            <a href="settings.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück zu Einstellungen</a>
+            <h1 class="h3 mb-0"><i class="fas fa-user-shield"></i> Atemschutz – Einstellungen<?php if ($einheit): ?> <span class="text-muted">(<?php echo htmlspecialchars($einheit['name']); ?>)</span><?php endif; ?></h1>
+            <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
         </div>
 
         <?php if ($message): ?>
@@ -406,6 +458,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="card-body">
                 <form method="post" id="emailTemplatesForm">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                    <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                     
                     <?php foreach ($emailTemplates as $template): ?>
                     <div class="card mb-3">
@@ -456,6 +509,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="card-body">
                 <form method="post" id="notificationsForm">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                    <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                     <input type="hidden" name="action" value="update_atemschutz_notifications">
                     
                     <div class="alert alert-info">
@@ -473,7 +527,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                name="atemschutz_notifications[]" 
                                                value="<?php echo $user['id']; ?>"
                                                id="user_<?php echo $user['id']; ?>"
-                                               <?php echo $user['atemschutz_notifications'] ? 'checked' : ''; ?>>
+                                               <?php echo ($einheit_id > 0 ? in_array($user['id'], $atemschutz_notification_ids) : $user['atemschutz_notifications']) ? 'checked' : ''; ?>>
                                         <label class="form-check-label" for="user_<?php echo $user['id']; ?>">
                                             <strong><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></strong>
                                             <br>
@@ -511,6 +565,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="card-body">
                 <form method="post" id="ccRecipientsForm">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                    <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                     <input type="hidden" name="action" value="update_cc_recipients">
                     
                     <div class="alert alert-info">

@@ -282,7 +282,71 @@ function is_admin() {
 }
 
 /**
- * Prüfen ob Benutzer Genehmiger oder Admin ist
+ * Aktuell gewählte Einheit aus Session
+ */
+function get_current_unit_id() {
+    return isset($_SESSION['current_unit_id']) ? (int)$_SESSION['current_unit_id'] : null;
+}
+
+/**
+ * Einheiten, auf die der Benutzer Zugriff hat
+ */
+function get_accessible_units() {
+    global $db;
+    if (!isset($_SESSION['user_id'])) {
+        return [];
+    }
+    try {
+        $stmt = $db->prepare("
+            SELECT u.id, u.name, u.slug FROM units u
+            INNER JOIN user_units uu ON u.id = uu.unit_id
+            WHERE uu.user_id = ?
+            ORDER BY u.name
+        ");
+        $stmt->execute([$_SESSION['user_id']]);
+        $units = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!empty($units)) return $units;
+    } catch (Exception $e) { /* Tabelle evtl. noch nicht vorhanden */ }
+    // Fallback vor Migration: Einheit 1
+    try {
+        $stmt = $db->query("SELECT id, name, slug FROM units WHERE id = 1");
+        $u = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $u ? [$u] : [['id' => 1, 'name' => 'Standard', 'slug' => 'standard']];
+    } catch (Exception $e) {
+        return [['id' => 1, 'name' => 'Standard', 'slug' => 'standard']];
+    }
+}
+
+/**
+ * Prüft ob der Benutzer Zugriff auf eine Einheit hat
+ */
+function can_access_unit($unit_id) {
+    global $db;
+    if (!isset($_SESSION['user_id'])) return false;
+    if (is_admin()) return true; // Admin hat Zugriff auf alle Einheiten
+    try {
+        $stmt = $db->prepare("SELECT 1 FROM user_units WHERE user_id = ? AND unit_id = ?");
+        $stmt->execute([$_SESSION['user_id'], (int)$unit_id]);
+        return (bool)$stmt->fetch();
+    } catch (Exception $e) {
+        // Vor Migration: Einheit 1 für alle
+        return (int)$unit_id === 1;
+    }
+}
+
+/**
+ * Prüft ob eine Einheiten-Auswahl erforderlich ist und leitet ggf. weiter
+ */
+function require_unit_selected() {
+    $unit_id = get_current_unit_id();
+    if (!$unit_id) {
+        redirect('unit-select.php');
+    }
+    return $unit_id;
+}
+
+/**
+ * Prüft ob Benutzer Genehmiger oder Admin ist
  */
 function can_approve_reservations() {
     return is_logged_in() && isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'approver']);

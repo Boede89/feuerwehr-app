@@ -103,10 +103,12 @@ try {
         throw new Exception('Mindestens ein Geräteträger muss ausgewählt werden');
     }
     
-    // Prüfe ob alle Geräteträger existieren
+    $unit_id = get_current_unit_id() ?: 1;
+
+    // Prüfe ob alle Geräteträger existieren und zur Einheit gehören
     $placeholders = str_repeat('?,', count($traeger_ids) - 1) . '?';
-    $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE id IN ($placeholders) AND status = 'Aktiv'");
-    $stmt->execute($traeger_ids);
+    $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE id IN ($placeholders) AND status = 'Aktiv' AND COALESCE(unit_id, 1) = ?");
+    $stmt->execute(array_merge($traeger_ids, [$unit_id]));
     $existing_traeger = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
     if (count($existing_traeger) !== count($traeger_ids)) {
@@ -116,17 +118,21 @@ try {
     $db->beginTransaction();
     
     try {
-        // Erstelle Atemschutzeintrag-Antrag
-        $stmt = $db->prepare("
-            INSERT INTO atemschutz_entries 
-            (entry_type, entry_date, requester_id, status, created_at) 
-            VALUES (?, ?, ?, 'pending', NOW())
-        ");
-        $stmt->execute([
-            $entry_type,
-            $entry_date,
-            $user_id
-        ]);
+        try {
+            $stmt = $db->prepare("
+                INSERT INTO atemschutz_entries 
+                (entry_type, entry_date, requester_id, status, unit_id, created_at) 
+                VALUES (?, ?, ?, 'pending', ?, NOW())
+            ");
+            $stmt->execute([$entry_type, $entry_date, $user_id, $unit_id]);
+        } catch (Exception $e) {
+            $stmt = $db->prepare("
+                INSERT INTO atemschutz_entries 
+                (entry_type, entry_date, requester_id, status, created_at) 
+                VALUES (?, ?, ?, 'pending', NOW())
+            ");
+            $stmt->execute([$entry_type, $entry_date, $user_id]);
+        }
         
         $entry_id = $db->lastInsertId();
         
@@ -142,11 +148,7 @@ try {
         }
         
         // Sende E-Mail-Benachrichtigung an Atemschutz-Admins
-        $stmt = $db->prepare("
-            SELECT u.email, u.first_name, u.last_name 
-            FROM users u 
-            WHERE u.atemschutz_notifications = 1
-        ");
+        $stmt = $db->prepare("SELECT email, first_name, last_name FROM users WHERE atemschutz_notifications = 1 AND is_active = 1");
         $stmt->execute();
         $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
