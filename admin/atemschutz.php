@@ -9,60 +9,6 @@ if (!isset($_SESSION['user_id']) || (!has_permission('atemschutz') && !hasAdminP
 	exit;
 }
 
-// POST: Geräteträger hinzufügen
-$addSuccess = null;
-$addError = null;
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_traeger') {
-	$firstName = trim($_POST['first_name'] ?? '');
-	$lastName = trim($_POST['last_name'] ?? '');
-	$email = trim($_POST['email'] ?? '');
-	$birthdate = trim($_POST['birthdate'] ?? '');
-	$streckeAm = trim($_POST['strecke_am'] ?? '');
-	$g263Am = trim($_POST['g263_am'] ?? '');
-	$uebungAm = trim($_POST['uebung_am'] ?? '');
-
-	if ($firstName === '' || $lastName === '' || $birthdate === '' || $streckeAm === '' || $g263Am === '' || $uebungAm === '') {
-		$addError = 'Bitte alle Pflichtfelder ausfüllen (Vorname, Nachname, Geburtsdatum, Strecke Am, G26.3 Am, Übung/Einsatz Am).';
-	} else {
-		try {
-			// Tabelle sicherstellen (nur anlegen, wenn sie noch nicht existiert)
-			$db->exec(
-				"CREATE TABLE IF NOT EXISTS atemschutz_traeger (
-					id INT AUTO_INCREMENT PRIMARY KEY,
-					first_name VARCHAR(100) NOT NULL,
-					last_name VARCHAR(100) NOT NULL,
-					email VARCHAR(255) NULL,
-					birthdate DATE NOT NULL,
-					strecke_am DATE NOT NULL,
-					g263_am DATE NOT NULL,
-					uebung_am DATE NOT NULL,
-					status VARCHAR(50) NOT NULL DEFAULT 'Aktiv',
-					member_id INT NULL,
-					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
-			);
-			
-			// member_id Spalte hinzufügen falls nicht vorhanden
-			try {
-				$db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN member_id INT NULL");
-			} catch (Exception $e) {
-				// Spalte existiert bereits, ignoriere Fehler
-			}
-
-			$stmt = $db->prepare("INSERT INTO atemschutz_traeger (first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'Aktiv')");
-			$stmt->execute([$firstName, $lastName, ($email !== '' ? $email : null), $birthdate, $streckeAm, $g263Am, $uebungAm]);
-			$traeger_id = $db->lastInsertId();
-			
-			// Automatisch mit Mitglied verknüpfen
-			link_traeger_to_member($traeger_id, $firstName, $lastName, ($email !== '' ? $email : null), $birthdate);
-			
-			$addSuccess = 'Geräteträger erfolgreich angelegt und mit Mitglied verknüpft.';
-		} catch (Exception $e) {
-			$addError = 'Fehler beim Speichern: ' . htmlspecialchars($e->getMessage());
-		}
-	}
-}
-
 // POST: Mehrere Daten hinterlegen (Bulk-Update für Datumsspalten)
 $bulkSuccess = null;
 $bulkError = null;
@@ -276,12 +222,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 		<div class="row g-4 mb-4">
             <div class="col-12 col-md-6 col-lg-4">
-				<button class="btn btn-primary w-100 py-4" id="btnAddTraeger" data-bs-toggle="modal" data-bs-target="#addTraegerModal">
-                    <i class="fas fa-user-plus fa-2x mb-2 d-block"></i>
-                    <span class="fs-5">Geräteträger hinzufügen</span>
-                </button>
-            </div>
-            <div class="col-12 col-md-6 col-lg-4">
                 <a class="btn btn-outline-primary w-100 py-4" href="atemschutz-liste.php" id="btnShowListLink">
                     <i class="fas fa-list fa-2x mb-2 d-block"></i>
                     <span class="fs-5">Aktuelle Liste anzeigen</span>
@@ -307,117 +247,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
-		<?php if (!empty($addSuccess)): ?>
-			<div class="alert alert-success"><?php echo htmlspecialchars($addSuccess); ?></div>
-		<?php endif; ?>
-		<?php if (!empty($addError)): ?>
-			<div class="alert alert-danger"><?php echo htmlspecialchars($addError); ?></div>
-		<?php endif; ?>
 		<?php if (!empty($bulkSuccess)): ?>
 			<div class="alert alert-success"><?php echo htmlspecialchars($bulkSuccess); ?></div>
 		<?php endif; ?>
 		<?php if (!empty($bulkError)): ?>
 			<div class="alert alert-danger"><?php echo htmlspecialchars($bulkError); ?></div>
 		<?php endif; ?>
-    </div>
-
-	<!-- Modal: Geräteträger hinzufügen -->
-	<div class="modal fade" id="addTraegerModal" tabindex="-1" aria-hidden="true">
-		<div class="modal-dialog modal-dialog-centered">
-			<div class="modal-content">
-				<div class="modal-header bg-primary text-white">
-					<h5 class="modal-title"><i class="fas fa-user-plus me-2"></i> Geräteträger hinzufügen</h5>
-					<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-				</div>
-				<form method="post" action="atemschutz.php">
-					<input type="hidden" name="action" value="add_traeger">
-					<div class="modal-body">
-						<div class="row g-3">
-							<div class="col-12">
-								<div class="border rounded p-3 bg-light">
-									<div class="row g-3">
-										<div class="col-12 col-md-6">
-											<label class="form-label">Vorname <span class="text-danger">*</span></label>
-											<div class="input-group">
-												<span class="input-group-text"><i class="fas fa-user"></i></span>
-												<input type="text" class="form-control" name="first_name" placeholder="Max" required>
-											</div>
-										</div>
-										<div class="col-12 col-md-6">
-											<label class="form-label">Nachname <span class="text-danger">*</span></label>
-											<div class="input-group">
-												<span class="input-group-text"><i class="fas fa-user"></i></span>
-												<input type="text" class="form-control" name="last_name" placeholder="Mustermann" required>
-											</div>
-										</div>
-										<div class="col-12">
-											<label class="form-label">E-Mail (optional)</label>
-											<div class="input-group">
-												<span class="input-group-text"><i class="fas fa-envelope"></i></span>
-												<input type="email" class="form-control" name="email" placeholder="name@beispiel.de">
-											</div>
-										</div>
-										<div class="col-12 col-md-6">
-											<label class="form-label">Geburtsdatum <span class="text-danger">*</span></label>
-											<div class="input-group">
-												<span class="input-group-text"><i class="fas fa-cake-candles"></i></span>
-												<input type="date" class="form-control" name="birthdate" required>
-											</div>
-											<div class="form-text">Alter wird automatisch berechnet.</div>
-										</div>
-									</div>
-								</div>
-							</div>
-
-    
-
-							<div class="col-12">
-								<div class="border rounded p-3">
-									<h6 class="mb-3"><i class="fas fa-road me-2"></i> Strecke</h6>
-									<div class="row g-3">
-										<div class="col-12 col-md-6">
-											<label class="form-label">Am <span class="text-danger">*</span></label>
-											<input type="date" class="form-control" name="strecke_am" required>
-											<div class="form-text">Bis-Datum wird automatisch auf +1 Jahr gesetzt.</div>
-										</div>
-									</div>
-								</div>
-							</div>
-
-							<div class="col-12">
-								<div class="border rounded p-3">
-									<h6 class="mb-3"><i class="fas fa-stethoscope me-2"></i> G26.3</h6>
-									<div class="row g-3">
-										<div class="col-12 col-md-6">
-											<label class="form-label">Am <span class="text-danger">*</span></label>
-											<input type="date" class="form-control" name="g263_am" required>
-											<div class="form-text">Bis-Datum: unter 50 Jahre +3 Jahre, ab 50 +1 Jahr.</div>
-										</div>
-									</div>
-								</div>
-							</div>
-
-							<div class="col-12">
-								<div class="border rounded p-3">
-									<h6 class="mb-3"><i class="fas fa-dumbbell me-2"></i> Übung/Einsatz</h6>
-									<div class="row g-3">
-										<div class="col-12 col-md-6">
-											<label class="form-label">Am <span class="text-danger">*</span></label>
-											<input type="date" class="form-control" name="uebung_am" required>
-											<div class="form-text">Bis-Datum wird automatisch auf +1 Jahr gesetzt.</div>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-					</div>
-					<div class="modal-footer">
-						<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
-						<button type="submit" class="btn btn-primary">Speichern</button>
-					</div>
-				</form>
-			</div>
-		</div>
 	</div>
 
 	<!-- Modal: Daten hinterlegen (Bulk) -->
@@ -589,7 +424,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // Button-Aktionen: Liste öffnet neue Seite
         // Kein JS-Redirect nötig – echter Link wird verwendet
 
-        // Platzhalter für andere Buttons (btnAddTraeger öffnet Modal, daher kein Alert)
+        // Platzhalter für weitere Button-Aktionen
         const other = { };
         Object.entries(other).forEach(([id,label])=>{ const el=q(id); if(el) el.addEventListener('click', onClickInfo(label)); });
 
