@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -157,7 +158,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
         } catch (Throwable $e) {
-            $db->rollBack();
+            try {
+                if ($db && $db->inTransaction()) {
+                    $db->rollBack();
+                }
+            } catch (Throwable $rb) {
+                error_log('settings-global rollBack: ' . $rb->getMessage());
+            }
+            error_log('settings-global save error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
         }
     }
