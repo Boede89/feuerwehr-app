@@ -132,9 +132,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
 </nav>
 
 <div class="container-fluid mt-4">
-    <div class="d-flex align-items-center gap-2 mb-4">
-        <a href="settings.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left"></i> Zurück zu Einstellungen</a>
+    <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0"><i class="fas fa-calendar-check"></i> Einstellungen – Reservierungen</h1>
+        <a href="settings.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück zu Einstellungen</a>
     </div>
     <?php if ($message) echo show_success($message); ?>
     <?php if ($error) echo show_error($error); ?>
