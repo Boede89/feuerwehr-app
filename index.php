@@ -4,24 +4,19 @@ require_once 'config/database.php';
 require_once 'includes/functions.php';
 require_once __DIR__ . '/includes/einheiten-setup.php';
 
-// Einheit wechseln (GET-Parameter)
-if (isset($_GET['einheit_id'])) {
-    $eid = (int)$_GET['einheit_id'];
-    if ($eid > 0) {
-        if (is_logged_in() && !is_system_user()) {
-            if (user_has_einheit_access($_SESSION['user_id'], $eid)) {
-                $_SESSION['current_einheit_id'] = $eid;
-            }
-        } else {
-            // Gäste: jede Einheit wählbar
-            $stmt = $db->prepare("SELECT id FROM einheiten WHERE id = ? AND is_active = 1");
-            $stmt->execute([$eid]);
-            if ($stmt->fetch()) {
-                $_SESSION['current_einheit_id'] = $eid;
-            }
+// Einheit aus URL: Session setzen, keine Weiterleitung (URL bleibt mit einheit_id)
+$einheit_id_url = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+if ($einheit_id_url > 0) {
+    if (is_logged_in() && !is_system_user()) {
+        if (user_has_einheit_access($_SESSION['user_id'], $einheit_id_url)) {
+            $_SESSION['current_einheit_id'] = $einheit_id_url;
         }
-        header('Location: index.php');
-        exit;
+    } else {
+        $stmt = $db->prepare("SELECT id FROM einheiten WHERE id = ? AND is_active = 1");
+        $stmt->execute([$einheit_id_url]);
+        if ($stmt->fetch()) {
+            $_SESSION['current_einheit_id'] = $einheit_id_url;
+        }
     }
 }
 
@@ -31,18 +26,11 @@ try {
     $stmt = $db->query("SELECT id, name, sort_order FROM einheiten WHERE is_active = 1 ORDER BY sort_order, name");
     $einheiten_fuer_auswahl = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
 } catch (Exception $e) {}
-$hat_einheit = !empty($_SESSION['current_einheit_id']);
-$zeige_einheiten_auswahl = false;
-if (is_logged_in() && !is_system_user()) {
-    $user_einheiten = get_user_einheiten();
-    $zeige_einheiten_auswahl = (count($user_einheiten) > 1 && !$hat_einheit) || (count($user_einheiten) > 1 && can_switch_einheit());
-} else {
-    $zeige_einheiten_auswahl = count($einheiten_fuer_auswahl) > 1 && !$hat_einheit || count($einheiten_fuer_auswahl) > 0 && !$hat_einheit;
-}
-if (count($einheiten_fuer_auswahl) === 1 && !$hat_einheit) {
-    $_SESSION['current_einheit_id'] = (int)$einheiten_fuer_auswahl[0]['id'];
-    $hat_einheit = true;
-}
+
+// index.php ohne einheit_id → immer Einheiten-Auswahl; mit einheit_id → Inhalt anzeigen (URL bleibt)
+$hat_einheit = $einheit_id_url > 0;
+$auswahl_liste_fuer_bedingung = (is_logged_in() && !is_system_user()) ? get_user_einheiten() : $einheiten_fuer_auswahl;
+$zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung);
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -226,7 +214,7 @@ if (count($einheiten_fuer_auswahl) === 1 && !$hat_einheit) {
                     </h1>
                 </div>
 
-                <?php if (!$hat_einheit && !empty($einheiten_fuer_auswahl)): ?>
+                <?php if ($zeige_einheiten_auswahl): ?>
                 <!-- Einheiten-Auswahl -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-body text-center p-4">
