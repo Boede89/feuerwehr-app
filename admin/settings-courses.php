@@ -243,7 +243,7 @@ $csrf_token = generate_csrf_token();
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
+                <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link" href="dashboard.php">Dashboard</a>
                     </li>
@@ -253,6 +253,9 @@ $csrf_token = generate_csrf_token();
                     <li class="nav-item">
                         <a class="nav-link" href="../logout.php">Abmelden</a>
                     </li>
+                </ul>
+                <ul class="navbar-nav d-flex align-items-center">
+                    <li class="nav-item d-flex align-items-center"><?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?></li>
                 </ul>
             </div>
         </div>

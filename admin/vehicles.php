@@ -175,7 +175,8 @@ if (isset($_GET['edit'])) {
                         </a>
                     </li>
                 </ul>
-                <ul class="navbar-nav">
+                <ul class="navbar-nav d-flex align-items-center">
+                    <li class="nav-item d-flex align-items-center"><?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?></li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>

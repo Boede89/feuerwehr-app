@@ -122,7 +122,8 @@ function formatDate($date) {
             <a class="navbar-brand" href="../index.php">
                 <i class="fas fa-fire me-2"></i>Feuerwehr App
             </a>
-            <div class="navbar-nav ms-auto">
+            <div class="navbar-nav ms-auto d-flex align-items-center">
+                <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
                 <span class="navbar-text me-3">
                     <i class="fas fa-user me-1"></i>
                     <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>

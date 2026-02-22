@@ -443,6 +443,7 @@ function _al_val($liste, $key, $custom_data = []) {
     <div class="container-fluid">
         <a class="navbar-brand" href="../index.php"><i class="fas fa-fire"></i> Feuerwehr App</a>
         <div class="navbar-nav ms-auto d-flex align-items-center gap-2">
+            <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
             <a class="nav-link" href="formularcenter.php?tab=submissions"><i class="fas fa-arrow-left"></i> Zurück zu eingegangenen Formularen</a>
             <form method="post" class="d-inline" onsubmit="return confirm('Anwesenheitsliste wirklich löschen?');">
                 <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf'] ?? ''); ?>">

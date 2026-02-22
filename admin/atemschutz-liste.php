@@ -58,7 +58,8 @@ if (!$isAdmin && !$canAtemschutz) {
                 <li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
                 <li class="nav-item"><a class="nav-link active" href="atemschutz-liste.php"><i class="fas fa-list"></i> Atemschutz-Liste</a></li>
             </ul>
-            <ul class="navbar-nav">
+            <ul class="navbar-nav d-flex align-items-center">
+                <li class="nav-item d-flex align-items-center"><?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?></li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                         <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['first_name'] ?? 'Benutzer'); ?>

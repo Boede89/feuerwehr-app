@@ -162,6 +162,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <ul class="navbar-nav me-auto">
                 <?php echo get_admin_navigation(); ?>
             </ul>
+            <ul class="navbar-nav d-flex align-items-center">
+                <li class="nav-item d-flex align-items-center"><?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?></li>
+            </ul>
         </div>
     </div>
     </nav>

@@ -129,6 +129,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <li class="nav-item"><a class="nav-link" href="users.php"><i class="fas fa-users"></i> Benutzer</a></li>
                 <li class="nav-item"><a class="nav-link active" href="settings.php"><i class="fas fa-cog"></i> Einstellungen</a></li>
             </ul>
+            <ul class="navbar-nav d-flex align-items-center">
+                <li class="nav-item d-flex align-items-center"><?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?></li>
+            </ul>
         </div>
     </div>
     </nav>

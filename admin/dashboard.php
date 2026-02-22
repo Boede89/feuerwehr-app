@@ -688,7 +688,8 @@ if ($can_atemschutz) {
                 <i class="fas fa-fire"></i> Feuerwehr App
             </a>
             <div class="navbar-nav ms-auto">
-                <ul class="navbar-nav">
+                <ul class="navbar-nav d-flex align-items-center">
+                    <li class="nav-item d-flex align-items-center"><?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?></li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>
@@ -712,34 +713,7 @@ if ($can_atemschutz) {
                 <i class="fas fa-tachometer-alt"></i> Dashboard
                 <small class="text-muted">Willkommen, <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>!</small>
             </h1>
-            <?php if ($can_reservations || $can_atemschutz || $can_settings || $can_members || $can_forms): ?>
-            <div class="dropdown ms-3">
-                <button class="btn btn-outline-primary btn-lg px-4 py-2 d-flex align-items-center gap-2" type="button" id="dashboardMenuBtn" data-bs-toggle="dropdown" aria-expanded="false" title="Menü öffnen">
-                    <i class="fas fa-bars fa-2x"></i>
-                    <span class="fw-semibold">Menü</span>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dashboardMenuBtn">
-                    <?php if ($can_reservations): ?>
-                    <li><a class="dropdown-item" href="reservations.php"><i class="fas fa-calendar text-primary me-2"></i>Reservierungen</a></li>
-                    <?php endif; ?>
-                    <?php if ($can_atemschutz): ?>
-                    <li><a class="dropdown-item" href="atemschutz.php"><i class="fas fa-user-shield text-danger me-2"></i>Atemschutz</a></li>
-                    <?php endif; ?>
-                    <?php if ($can_members): ?>
-                    <li><a class="dropdown-item" href="members.php"><i class="fas fa-users text-success me-2"></i>Mitgliederverwaltung</a></li>
-                    <?php endif; ?>
-                    <?php if ($can_forms): ?>
-                    <li><a class="dropdown-item" href="formularcenter.php"><i class="fas fa-file-alt text-info me-2"></i>Formularcenter</a></li>
-                    <?php endif; ?>
-                    <?php if ($can_settings): ?>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="settings.php"><i class="fas fa-cog text-secondary me-2"></i>Einstellungen</a></li>
-                    <li><a class="dropdown-item" href="feedback.php"><i class="fas fa-comment-dots text-info me-2"></i>Feedback</a></li>
-                    <li><a class="dropdown-item" href="users.php"><i class="fas fa-user-cog text-secondary me-2"></i>Benutzerverwaltung</a></li>
-                    <?php endif; ?>
-                </ul>
-            </div>
-            <?php endif; ?>
+            <?php $admin_menu_in_navbar = false; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
         </div>
 
         <!-- Feedback-Statistiken (nur für Admins) -->
