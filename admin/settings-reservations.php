@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once '../includes/einheit-settings-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -14,6 +15,15 @@ if (!hasAdminPermission()) {
 
 $message = '';
 $error = '';
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
+$einheit = null;
+if ($einheit_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
+        $stmt->execute([$einheit_id]);
+        $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+}
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'fahrzeug';
 if (!in_array($active_tab, ['fahrzeug', 'raum'])) {
     $active_tab = 'fahrzeug';
@@ -48,11 +58,17 @@ try {
 
 // Aktuelle E-Mail-Benachrichtigungseinstellungen laden
 $notification_users = [];
-try {
-    $stmt = $db->query("SELECT id FROM users WHERE email_notifications = 1 AND is_active = 1");
-    $notification_users = $stmt->fetchAll(PDO::FETCH_COLUMN);
-} catch (Exception $e) {
-    // Ignoriere Fehler
+if ($einheit_id > 0) {
+    $json = $settings['reservation_notification_user_ids'] ?? '';
+    if ($json !== '') {
+        $dec = json_decode($json, true);
+        $notification_users = is_array($dec) ? array_map('intval', $dec) : [];
+    }
+} else {
+    try {
+        $stmt = $db->query("SELECT id FROM users WHERE email_notifications = 1 AND is_active = 1");
+        $notification_users = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Exception $e) {}
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isset($_POST['tab']) && $_POST['tab'] === 'fahrzeug')) {
@@ -70,39 +86,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
                 'divera_reservation_default_group_id' => trim((string)($_POST['divera_reservation_default_group_id'] ?? '')),
             ];
 
-            // Persistieren: Upsert je Einstellung
-            $stmtUpsert = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
-            foreach ($veh as $k => $v) {
-                $stmtUpsert->execute([$k, $v]);
+            // Persistieren
+            if ($einheit_id > 0) {
+                save_settings_bulk_for_einheit($db, $einheit_id, $veh);
+            } else {
+                $stmtUpsert = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+                foreach ($veh as $k => $v) {
+                    $stmtUpsert->execute([$k, $v]);
+                }
             }
 
             // E-Mail-Benachrichtigungen speichern
-            $notification_users = $_POST['notification_users'] ?? [];
-
-            // Alle Benutzer auf 0 setzen
-            $stmt = $db->prepare("UPDATE users SET email_notifications = 0");
-            $stmt->execute();
-
-            // Ausgewählte Benutzer auf 1 setzen
-            if (!empty($notification_users)) {
-                $placeholders = str_repeat('?,', count($notification_users) - 1) . '?';
-                $stmt = $db->prepare("UPDATE users SET email_notifications = 1 WHERE id IN ($placeholders)");
-                $stmt->execute($notification_users);
+            $notification_users_post = $_POST['notification_users'] ?? [];
+            if ($einheit_id > 0) {
+                save_setting_for_einheit($db, $einheit_id, 'reservation_notification_user_ids', json_encode(array_values(array_map('intval', $notification_users_post))));
+                $notification_users = $notification_users_post;
+            } else {
+                $stmt = $db->prepare("UPDATE users SET email_notifications = 0");
+                $stmt->execute();
+                if (!empty($notification_users_post)) {
+                    $placeholders = str_repeat('?,', count($notification_users_post) - 1) . '?';
+                    $stmt = $db->prepare("UPDATE users SET email_notifications = 1 WHERE id IN ($placeholders)");
+                    $stmt->execute($notification_users_post);
+                }
+                $stmt = $db->query("SELECT id FROM users WHERE email_notifications = 1 AND is_active = 1");
+                $notification_users = $stmt->fetchAll(PDO::FETCH_COLUMN);
             }
 
             $db->commit();
             $message = 'Fahrzeugreservierungs-Einstellungen gespeichert.';
 
             // Nach dem Speichern neu laden
-            $stmt = $db->prepare('SELECT setting_key, setting_value FROM settings');
-            $stmt->execute();
-            $settings = [];
-            foreach ($stmt->fetchAll() as $row) {
-                $settings[$row['setting_key']] = $row['setting_value'];
+            $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+            if ($einheit_id > 0) {
+                $json = $settings['reservation_notification_user_ids'] ?? '';
+                $notification_users = ($json !== '' && ($dec = json_decode($json, true)) && is_array($dec)) ? array_map('intval', $dec) : [];
             }
-
-            $stmt = $db->query("SELECT id FROM users WHERE email_notifications = 1 AND is_active = 1");
-            $notification_users = $stmt->fetchAll(PDO::FETCH_COLUMN);
         } catch (Exception $e) {
             $db->rollBack();
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
@@ -141,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
 
     <ul class="nav nav-tabs mb-4">
         <li class="nav-item">
-            <a class="nav-link <?php echo $active_tab === 'fahrzeug' ? 'active' : ''; ?>" href="?tab=fahrzeug">
+            <a class="nav-link <?php echo $active_tab === 'fahrzeug' ? 'active' : ''; ?>" href="?tab=fahrzeug<?php if ($einheit_id > 0): ?>&einheit_id=<?php echo (int)$einheit_id; ?><?php endif; ?>">
                 <i class="fas fa-truck"></i> Fahrzeugreservierung
             </a>
         </li>
@@ -153,8 +172,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
     </ul>
 
     <?php if ($active_tab === 'fahrzeug'): ?>
-    <form method="POST" action="?tab=fahrzeug">
+    <form method="POST" action="?tab=fahrzeug<?php if ($einheit_id > 0): ?>&einheit_id=<?php echo (int)$einheit_id; ?><?php endif; ?>">
         <input type="hidden" name="tab" value="fahrzeug">
+        <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
         <div class="card mb-4">
             <div class="card-header"><i class="fas fa-list-ol"></i> Anzeige und Sortierung</div>
             <div class="card-body">

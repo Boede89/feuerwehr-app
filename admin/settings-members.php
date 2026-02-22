@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -14,6 +15,17 @@ if (!has_permission('members')) {
 
 $message = '';
 $error = '';
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+$einheit = null;
+$show_einheit_placeholder = false;
+if ($einheit_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
+        $stmt->execute([$einheit_id]);
+        $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
+        $show_einheit_placeholder = $einheit && is_einheit_waldniel($db, $einheit_id);
+    } catch (Exception $e) {}
+}
 
 // Tabelle member_qualifications sicherstellen
 try {
@@ -42,17 +54,8 @@ try {
 }
 
 // Standardqualifikation laden
-$default_qualification_id = '';
-try {
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = ?");
-    $stmt->execute(['member_default_qualification_id']);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($row && $row['setting_value'] !== '') {
-        $default_qualification_id = $row['setting_value'];
-    }
-} catch (Exception $e) {
-    // settings-Tabelle oder Eintrag fehlt
-}
+$member_settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+$default_qualification_id = $member_settings['member_default_qualification_id'] ?? '';
 
 // Qualifikation hinzufügen/bearbeiten
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -144,11 +147,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_missing_qualific
                 // Spalte existiert bereits
             }
             $default_id = null;
-            $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = ?");
-            $stmt->execute(['member_default_qualification_id']);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row && $row['setting_value'] !== '') {
-                $default_id = (int)$row['setting_value'];
+            $sync_einheit_id = (int)($_POST['einheit_id'] ?? 0);
+            $sync_settings = load_settings_for_einheit($db, $sync_einheit_id > 0 ? $sync_einheit_id : null);
+            $def_val = $sync_settings['member_default_qualification_id'] ?? '';
+            if ($def_val !== '') {
+                $default_id = (int)$def_val;
                 if ($default_id <= 0) {
                     $default_id = null;
                 }
@@ -210,7 +213,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sync_agt_pa'])) {
                     $stmt_ins->execute([(int)$m['id'], $agt_id]);
                     $count++;
                 }
-                header("Location: settings-members.php?success=agt_sync&count=" . $count);
+                $agt_params = ['success' => 'agt_sync', 'count' => $count];
+                $agt_einheit = (int)($_POST['einheit_id'] ?? 0);
+                if ($agt_einheit > 0) $agt_params['einheit_id'] = $agt_einheit;
+                header("Location: settings-members.php?" . http_build_query($agt_params));
                 exit;
             }
         } catch (Exception $e) {
@@ -262,29 +268,34 @@ if (isset($_GET['success']) && $_GET['success'] === 'agt_sync') {
     </nav>
 
     <div class="container-fluid mt-4">
-        <div class="row">
-            <div class="col-12">
-                <h1 class="h3 mb-4">
-                    <i class="fas fa-users-cog"></i> Mitgliederverwaltung – Einstellungen
-                </h1>
-
-                <?php if ($message): ?>
-                    <?php echo show_success($message); ?>
-                <?php endif; ?>
-
-                <?php if ($error): ?>
-                    <?php echo show_error($error); ?>
-                <?php endif; ?>
-            </div>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3 mb-0"><i class="fas fa-users-cog"></i> Mitgliederverwaltung – Einstellungen<?php if ($einheit): ?> <span class="text-muted">(<?php echo htmlspecialchars($einheit['name']); ?>)</span><?php endif; ?></h1>
+            <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
         </div>
 
+        <?php if ($message): ?>
+            <?php echo show_success($message); ?>
+        <?php endif; ?>
+        <?php if ($error): ?>
+            <?php echo show_error($error); ?>
+        <?php endif; ?>
+
+        <?php if ($show_einheit_placeholder): ?>
+        <div class="card shadow">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                <p class="text-muted mb-0">Einstellungen für diese Einheit – noch nicht konfiguriert.</p>
+                <p class="text-muted small mt-2">Die Konfiguration wird in Kürze verfügbar.</p>
+            </div>
+        </div>
+        <?php else: ?>
         <div class="row mb-4">
             <div class="col-12">
                 <a href="members.php" class="btn btn-primary me-2">
                     <i class="fas fa-users"></i> Mitglieder verwalten
                 </a>
-                <a href="settings.php" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left"></i> Zurück zu Einstellungen
+                <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Zurück
                 </a>
             </div>
         </div>
@@ -301,6 +312,7 @@ if (isset($_GET['success']) && $_GET['success'] === 'agt_sync') {
                         <p class="text-muted small">Diese Qualifikation wird bei neuen Mitgliedern vorausgewählt und gespeichert, wenn beim Anlegen oder Bearbeiten keine andere gewählt wird.</p>
                         <form method="POST" action="">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                            <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                             <div class="mb-3">
                                 <label for="default_qualification_id" class="form-label">Standardqualifikation</label>
                                 <select class="form-select" name="default_qualification_id" id="default_qualification_id">
@@ -328,6 +340,7 @@ if (isset($_GET['success']) && $_GET['success'] === 'agt_sync') {
                         <p class="text-muted small">Setzt bei allen <strong>bereits vorhandenen</strong> Mitgliedern ohne Qualifikation eine Qualifikation: zuerst aus zugewiesenen Lehrgängen (nach Reihenfolge), sonst die Standardqualifikation aus der Mitgliederverwaltung.</p>
                         <form method="POST" action="" onsubmit="return confirm('Qualifikation für alle Mitglieder ohne Eintrag jetzt nachziehen?');">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                            <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                             <button type="submit" name="sync_missing_qualifications" class="btn btn-warning">
                                 <i class="fas fa-sync-alt"></i> Jetzt nachziehen
                             </button>
@@ -349,6 +362,7 @@ if (isset($_GET['success']) && $_GET['success'] === 'agt_sync') {
                         <p class="text-muted small">Hinterlegt den Lehrgang <strong>AGT</strong> bei allen Mitgliedern, die als Atemschutzgeräteträger geführt sind, falls der Lehrgang dort noch fehlt. (Der Lehrgang „AGT“ muss in der Lehrgangsverwaltung existieren.)</p>
                         <form method="POST" action="" onsubmit="return confirm('AGT-Lehrgang bei allen Atemschutzgeräteträgern nachziehen?');">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                            <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                             <button type="submit" name="sync_agt_pa" class="btn btn-secondary">
                                 <i class="fas fa-sync-alt"></i> AGT bei PA-Trägern nachziehen
                             </button>
@@ -396,6 +410,7 @@ if (isset($_GET['success']) && $_GET['success'] === 'agt_sync') {
                                                 </button>
                                                 <form method="POST" style="display: inline;" onsubmit="return confirm('Diese Qualifikation wirklich löschen?');">
                                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                                                    <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                                                     <input type="hidden" name="qual_id" value="<?php echo $q['id']; ?>">
                                                     <button type="submit" name="delete_qual" class="btn btn-sm btn-outline-danger">
                                                         <i class="fas fa-trash"></i>
@@ -422,6 +437,7 @@ if (isset($_GET['success']) && $_GET['success'] === 'agt_sync') {
                     <div class="card-body">
                         <form method="POST" action="" id="qualForm">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                            <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                             <input type="hidden" name="qual_id" id="qual_id" value="">
 
                             <div class="mb-3">
@@ -451,9 +467,11 @@ if (isset($_GET['success']) && $_GET['success'] === 'agt_sync') {
                 </div>
             </div>
         </div>
+        <?php endif; ?>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?php if (!$show_einheit_placeholder): ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.edit-qual-btn').forEach(function(btn) {
@@ -479,5 +497,6 @@ if (isset($_GET['success']) && $_GET['success'] === 'agt_sync') {
             });
         });
     </script>
+    <?php endif; ?>
 </body>
 </html>

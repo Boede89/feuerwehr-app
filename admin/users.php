@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -23,6 +24,18 @@ if (!hasAdminPermission()) {
 
 $message = '';
 $error = '';
+
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+$einheit = null;
+$show_einheit_placeholder = false;
+if ($einheit_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
+        $stmt->execute([$einheit_id]);
+        $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
+        $show_einheit_placeholder = $einheit && is_einheit_waldniel($db, $einheit_id);
+    } catch (Exception $e) {}
+}
 
 // Erfolgsmeldungen von GET-Parameter
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
@@ -425,12 +438,32 @@ try {
     </nav>
 
     <div class="container-fluid mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <h1 class="h3 mb-0">
+                <i class="fas fa-users"></i> Benutzerverwaltung<?php if ($einheit): ?> <span class="text-muted">(<?php echo htmlspecialchars($einheit['name']); ?>)</span><?php endif; ?>
+            </h1>
+            <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
+        </div>
+
+        <?php if ($message): ?>
+            <?php echo show_success($message); ?>
+        <?php endif; ?>
+        <?php if ($error): ?>
+            <?php echo show_error($error); ?>
+        <?php endif; ?>
+
+        <?php if ($show_einheit_placeholder): ?>
+        <div class="card shadow">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                <p class="text-muted mb-0">Einstellungen für diese Einheit – noch nicht konfiguriert.</p>
+                <p class="text-muted small mt-2">Die Konfiguration wird in Kürze verfügbar.</p>
+            </div>
+        </div>
+        <?php else: ?>
         <div class="row">
             <div class="col-12">
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                    <h1 class="h3 mb-0">
-                        <i class="fas fa-users"></i> Benutzerverwaltung
-                    </h1>
                     <div class="d-flex gap-2">
                         <?php if ($active_tab === 'users'): ?>
                         <button type="button" class="btn btn-primary" onclick="openUserModal()">
@@ -444,26 +477,19 @@ try {
                     </div>
                 </div>
                 
+                <?php $tab_base = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id . '&tab=' : '?tab='; ?>
                 <ul class="nav nav-tabs mb-3">
                     <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'users' ? 'active' : ''; ?>" href="?tab=users">
+                        <a class="nav-link <?php echo $active_tab === 'users' ? 'active' : ''; ?>" href="<?php echo $tab_base; ?>users">
                             <i class="fas fa-user"></i> Benutzer (<?php echo count($users); ?>)
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'system' ? 'active' : ''; ?>" href="?tab=system">
+                        <a class="nav-link <?php echo $active_tab === 'system' ? 'active' : ''; ?>" href="<?php echo $tab_base; ?>system">
                             <i class="fas fa-robot"></i> Systembenutzer (<?php echo count($system_users); ?>)
                         </a>
                     </li>
                 </ul>
-                
-                <?php if ($message): ?>
-                    <?php echo show_success($message); ?>
-                <?php endif; ?>
-                
-                <?php if ($error): ?>
-                    <?php echo show_error($error); ?>
-                <?php endif; ?>
             </div>
         </div>
 
