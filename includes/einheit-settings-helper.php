@@ -167,7 +167,7 @@ function ensure_einheit_id_in_tables($db) {
             $default_einheit = $row ? (int)$row['id'] : 0;
         } catch (Exception $e) {}
     }
-    foreach (['vehicles', 'members', 'atemschutz_traeger'] as $table) {
+    foreach (['vehicles', 'members', 'atemschutz_traeger', 'users'] as $table) {
         try {
             $db->exec("ALTER TABLE $table ADD COLUMN einheit_id INT NULL");
         } catch (Exception $e) {}
