@@ -48,9 +48,6 @@ $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
         <?php endif; ?>
         <li><a class="dropdown-item" href="<?php echo htmlspecialchars($index_url); ?>"><i class="fas fa-home text-primary me-2"></i>Startseite</a></li>
         <li><a class="dropdown-item" href="<?php echo $base; ?>dashboard.php"><i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard</a></li>
-        <?php if (function_exists('get_accessible_units') && count(get_accessible_units()) > 1): ?>
-        <li><a class="dropdown-item" href="<?php echo ($base === 'admin/' || $base === 'admin') ? '../unit-select.php' : 'unit-select.php'; ?>"><i class="fas fa-building me-2"></i>Einheit wechseln</a></li>
-        <?php endif; ?>
         <li><hr class="dropdown-divider"></li>
         <?php if ($can_reservations): ?>
         <li><a class="dropdown-item" href="<?php echo $base; ?>reservations.php"><i class="fas fa-calendar text-primary me-2"></i>Reservierungen</a></li>
