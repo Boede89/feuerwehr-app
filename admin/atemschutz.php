@@ -307,10 +307,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
         </div>
 
-		<div class="alert alert-info">
-			Funktionen werden als nächstes implementiert. Wählen Sie einen Button, um fortzufahren.
-		</div>
-
 		<?php if (!empty($addSuccess)): ?>
 			<div class="alert alert-success"><?php echo htmlspecialchars($addSuccess); ?></div>
 		<?php endif; ?>
