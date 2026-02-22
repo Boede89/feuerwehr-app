@@ -75,8 +75,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'google_calendar_auth_type' => sanitize_input($_POST['google_calendar_auth_type'] ?? 'service_account'),
                 ];
                 $app = [
-                    'app_name' => sanitize_input($_POST['app_name'] ?? ''),
-                    'app_url' => sanitize_input($_POST['app_url'] ?? ''),
                     'geraetehaus_adresse' => trim(sanitize_input($_POST['geraetehaus_adresse'] ?? '')),
                 ];
                 $upload_err = $_FILES['app_logo']['error'] ?? UPLOAD_ERR_NO_FILE;
@@ -285,8 +283,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="card h-100">
                     <div class="card-header"><i class="fas fa-cog"></i> App (Einheit)</div>
                     <div class="card-body">
-                        <div class="mb-3"><label class="form-label">App Name</label><input class="form-control" name="app_name" value="<?php echo htmlspecialchars($settings['app_name'] ?? ''); ?>"></div>
-                        <div class="mb-3"><label class="form-label">App URL</label><input class="form-control" name="app_url" value="<?php echo htmlspecialchars($settings['app_url'] ?? ''); ?>"></div>
                         <div class="mb-3">
                             <label class="form-label">Adresse Gerätehaus</label>
                             <input class="form-control" name="geraetehaus_adresse" placeholder="z.B. Musterstraße 1, 12345 Musterstadt" value="<?php echo htmlspecialchars($settings['geraetehaus_adresse'] ?? ''); ?>">
