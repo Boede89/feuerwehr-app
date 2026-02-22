@@ -56,16 +56,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $sort_order = $max_order + 1;
                     }
                     
-                    $einheit_id = get_admin_einheit_filter();
+                    $add_einheit = ($einheit_id > 0 && user_has_einheit_access($_SESSION['user_id'], $einheit_id)) ? $einheit_id : get_admin_einheit_filter();
                     $stmt = $db->prepare("INSERT INTO vehicles (name, description, is_active, sort_order, einheit_id) VALUES (?, ?, ?, ?, ?)");
-                    $stmt->execute([$name, $description, $is_active, $sort_order, $einheit_id]);
+                    $stmt->execute([$name, $description, $is_active, $sort_order, $add_einheit]);
                     $new_id = $db->lastInsertId();
                     $message = "Fahrzeug wurde erfolgreich hinzugefügt.";
                     log_activity($_SESSION['user_id'], 'vehicle_added', "Fahrzeug '$name' hinzugefügt");
                     
                     // Weiterleitung um POST-Problem zu vermeiden
                     $redir = "vehicles.php?success=added";
-                    if ($einheit_id > 0) $redir .= "&einheit_id=" . (int)$einheit_id;
+                    if ($add_einheit > 0) $redir .= "&einheit_id=" . (int)$add_einheit;
                     header("Location: " . $redir);
                     exit();
                     
@@ -111,8 +111,8 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Fahrzeuge laden (gefiltert nach Einheit für Einheitsadmin)
-$einheit_filter = get_admin_einheit_filter();
+// Fahrzeuge laden (gefiltert nach Einheit)
+$einheit_filter = ($einheit_id > 0 && user_has_einheit_access($_SESSION['user_id'], $einheit_id)) ? $einheit_id : get_admin_einheit_filter();
 try {
     if ($einheit_filter) {
         $stmt = $db->prepare("SELECT * FROM vehicles WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY sort_order ASC, name ASC");
@@ -232,7 +232,7 @@ if (isset($_GET['edit'])) {
                                                             onclick="editVehicle(<?php echo $vehicle['id']; ?>, '<?php echo htmlspecialchars($vehicle['name'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars($vehicle['description'], ENT_QUOTES, 'UTF-8'); ?>', <?php echo $vehicle['sort_order'] ?? 0; ?>, <?php echo $vehicle['is_active']; ?>)">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
-                                                    <a href="?delete=<?php echo $vehicle['id']; ?>" 
+                                                    <a href="?delete=<?php echo $vehicle['id']; ?><?php if ($einheit_id > 0) echo '&einheit_id=' . (int)$einheit_id; ?>" 
                                                        class="btn btn-outline-danger btn-sm"
                                                        onclick="return confirm('Sind Sie sicher, dass Sie dieses Fahrzeug löschen möchten?')">
                                                         <i class="fas fa-trash"></i>

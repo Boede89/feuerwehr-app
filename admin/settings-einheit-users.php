@@ -39,6 +39,52 @@ if (!$einheit) {
     exit;
 }
 
+// Neuer Benutzer
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_user') {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = "Ungültiger Sicherheitstoken.";
+    } else {
+        $username = sanitize_input($_POST['username'] ?? '');
+        $email = sanitize_input($_POST['email'] ?? '');
+        $first_name = sanitize_input($_POST['first_name'] ?? '');
+        $last_name = sanitize_input($_POST['last_name'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
+        $can_atemschutz = isset($_POST['can_atemschutz']) ? 1 : 0;
+        $can_members = isset($_POST['can_members']) ? 1 : 0;
+        $can_ric = isset($_POST['can_ric']) ? 1 : 0;
+        $can_courses = isset($_POST['can_courses']) ? 1 : 0;
+        $can_forms = isset($_POST['can_forms']) ? 1 : 0;
+        if (empty($username) || empty($email) || empty($first_name) || empty($last_name) || empty($password)) {
+            $error = "Alle Pflichtfelder sind erforderlich.";
+        } elseif (!validate_email($email)) {
+            $error = "Bitte geben Sie eine gültige E-Mail-Adresse ein.";
+        } else {
+            try {
+                $stmt_check = $db->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+                $stmt_check->execute([$username, $email]);
+                if ($stmt_check->fetch()) {
+                    $error = "Benutzername oder E-Mail existiert bereits.";
+                } else {
+                    $password_hash = hash_password($password);
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, user_type, einheit_id, is_active, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', 'user', ?, 1, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)");
+                    $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $einheit_id, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms]);
+                    $new_id = $db->lastInsertId();
+                    try {
+                        $stmt_m = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, einheit_id) VALUES (?, ?, ?, ?, ?)");
+                        $stmt_m->execute([$new_id, $first_name, $last_name, $email, $einheit_id]);
+                    } catch (Exception $e) {}
+                    log_activity($_SESSION['user_id'], 'user_added', "Benutzer '$username' für Einheit {$einheit['name']} angelegt");
+                    header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=user_added");
+                    exit;
+                }
+            } catch (Exception $e) {
+                $error = "Fehler: " . $e->getMessage();
+            }
+        }
+    }
+}
+
 // Benutzer bearbeiten (Berechtigungen)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_user') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -81,8 +127,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-if (isset($_GET['success']) && $_GET['success'] === 'updated') {
-    $message = "Benutzer wurde erfolgreich aktualisiert.";
+if (isset($_GET['success'])) {
+    if ($_GET['success'] === 'updated') $message = "Benutzer wurde erfolgreich aktualisiert.";
+    if ($_GET['success'] === 'user_added') $message = "Benutzer wurde erfolgreich angelegt.";
 }
 
 // Benutzer dieser Einheit laden (mit Berechtigungen)
@@ -137,13 +184,18 @@ try {
             <?php echo show_error($error); ?>
         <?php endif; ?>
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h1 class="h3 mb-0">
                 <i class="fas fa-users-cog text-success me-2"></i>Benutzerverwaltung – <?php echo htmlspecialchars($einheit['name']); ?>
             </h1>
-            <a href="settings-einheit.php?id=<?php echo $einheit_id; ?>" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left"></i> Zurück zur Einheit
-            </a>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                    <i class="fas fa-plus"></i> Neuer Benutzer
+                </button>
+                <a href="settings-einheit.php?id=<?php echo $einheit_id; ?>" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Zurück zur Einheit
+                </a>
+            </div>
         </div>
 
         <div class="card">
@@ -272,6 +324,79 @@ try {
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
                         <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Neuer Benutzer -->
+    <div class="modal fade" id="addUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="action" value="add_user">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-user-plus"></i> Neuer Benutzer für <?php echo htmlspecialchars($einheit['name']); ?></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="add_username" class="form-label">Benutzername *</label>
+                                <input type="text" class="form-control" name="username" id="add_username" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="add_email" class="form-label">E-Mail *</label>
+                                <input type="email" class="form-control" name="email" id="add_email" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="add_first_name" class="form-label">Vorname *</label>
+                                <input type="text" class="form-control" name="first_name" id="add_first_name" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="add_last_name" class="form-label">Nachname *</label>
+                                <input type="text" class="form-control" name="last_name" id="add_last_name" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="add_password" class="form-label">Passwort *</label>
+                            <input type="password" class="form-control" name="password" id="add_password" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Berechtigungen</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_reservations" id="add_can_reservations">
+                                <label class="form-check-label" for="add_can_reservations">Fahrzeugreservierungen</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_atemschutz" id="add_can_atemschutz">
+                                <label class="form-check-label" for="add_can_atemschutz">Atemschutz</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_members" id="add_can_members">
+                                <label class="form-check-label" for="add_can_members">Mitgliederverwaltung</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_ric" id="add_can_ric">
+                                <label class="form-check-label" for="add_can_ric">RIC Verwaltung</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_courses" id="add_can_courses">
+                                <label class="form-check-label" for="add_can_courses">Lehrgangsverwaltung</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_forms" id="add_can_forms" checked>
+                                <label class="form-check-label" for="add_can_forms">Formularcenter</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Anlegen</button>
                     </div>
                 </form>
             </div>
