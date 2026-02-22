@@ -52,8 +52,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
         try {
-            $db->beginTransaction();
             $save_einheit_id = (int)($_POST['einheit_id'] ?? 0);
+            // Tabelle vorher sicherstellen (CREATE TABLE verursacht implizites COMMIT – keine Transaktion verwenden)
+            if ($save_einheit_id > 0) {
+                ensure_einheit_settings_table($db);
+            }
 
             if ($save_einheit_id > 0) {
                 // Einheitenspezifisch: alle Einstellungen
@@ -138,7 +141,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $db->commit();
             $message = $save_einheit_id > 0 ? 'Einstellungen gespeichert.' : 'Globale Einstellungen gespeichert.';
             $had_error = !empty($error);
             if ($had_error) {
@@ -158,13 +160,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
         } catch (Throwable $e) {
-            try {
-                if ($db && $db->inTransaction()) {
-                    $db->rollBack();
-                }
-            } catch (Throwable $rb) {
-                error_log('settings-global rollBack: ' . $rb->getMessage());
-            }
             error_log('settings-global save error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
         }
