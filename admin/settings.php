@@ -326,6 +326,34 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
+            <!-- Reservierungen -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-calendar-check"></i> Reservierungen</h5>
+                        <p class="text-muted">Reservierungen verwalten und konfigurieren.</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-reservations.php">
+                                <i class="fas fa-sliders"></i> Öffnen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Einheiten Verwaltung -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-sitemap"></i> Einheiten Verwaltung</h5>
+                        <p class="text-muted">Einheiten und Gruppierungen verwalten.</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-einheiten.php">
+                                <i class="fas fa-sliders"></i> Öffnen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
