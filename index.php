@@ -2,6 +2,47 @@
 session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
+require_once __DIR__ . '/includes/einheiten-setup.php';
+
+// Einheit wechseln (GET-Parameter)
+if (isset($_GET['einheit_id'])) {
+    $eid = (int)$_GET['einheit_id'];
+    if ($eid > 0) {
+        if (is_logged_in() && !is_system_user()) {
+            if (user_has_einheit_access($_SESSION['user_id'], $eid)) {
+                $_SESSION['current_einheit_id'] = $eid;
+            }
+        } else {
+            // Gäste: jede Einheit wählbar
+            $stmt = $db->prepare("SELECT id FROM einheiten WHERE id = ? AND is_active = 1");
+            $stmt->execute([$eid]);
+            if ($stmt->fetch()) {
+                $_SESSION['current_einheit_id'] = $eid;
+            }
+        }
+        header('Location: index.php');
+        exit;
+    }
+}
+
+// Verfügbare Einheiten für Auswahl
+$einheiten_fuer_auswahl = [];
+try {
+    $stmt = $db->query("SELECT id, name, sort_order FROM einheiten WHERE is_active = 1 ORDER BY sort_order, name");
+    $einheiten_fuer_auswahl = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+} catch (Exception $e) {}
+$hat_einheit = !empty($_SESSION['current_einheit_id']);
+$zeige_einheiten_auswahl = false;
+if (is_logged_in() && !is_system_user()) {
+    $user_einheiten = get_user_einheiten();
+    $zeige_einheiten_auswahl = (count($user_einheiten) > 1 && !$hat_einheit) || (count($user_einheiten) > 1 && can_switch_einheit());
+} else {
+    $zeige_einheiten_auswahl = count($einheiten_fuer_auswahl) > 1 && !$hat_einheit || count($einheiten_fuer_auswahl) > 0 && !$hat_einheit;
+}
+if (count($einheiten_fuer_auswahl) === 1 && !$hat_einheit) {
+    $_SESSION['current_einheit_id'] = (int)$einheiten_fuer_auswahl[0]['id'];
+    $hat_einheit = true;
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -185,6 +226,51 @@ require_once 'includes/functions.php';
                     </h1>
                 </div>
 
+                <?php if (!$hat_einheit && !empty($einheiten_fuer_auswahl)): ?>
+                <!-- Einheiten-Auswahl -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body text-center p-4">
+                        <h5 class="card-title mb-4"><i class="fas fa-sitemap text-primary me-2"></i>Bitte wählen Sie Ihre Einheit</h5>
+                        <div class="row g-3 justify-content-center">
+                            <?php 
+                            $auswahl_liste = (is_logged_in() && !is_system_user()) ? get_user_einheiten() : $einheiten_fuer_auswahl;
+                            foreach ($auswahl_liste as $e): ?>
+                            <div class="col-12 col-sm-6 col-md-4">
+                                <a href="index.php?einheit_id=<?php echo (int)$e['id']; ?>" class="btn btn-outline-primary btn-lg w-100 py-4 d-flex flex-column align-items-center justify-content-center">
+                                    <i class="fas fa-building mb-2" style="font-size: 2rem;"></i>
+                                    <span><?php echo htmlspecialchars($e['name']); ?></span>
+                                </a>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+                <?php else: ?>
+
+                <?php if (can_switch_einheit()): ?>
+                <div class="mb-3 d-flex justify-content-end">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-exchange-alt me-1"></i>Einheit: <?php 
+                                $cur = get_current_einheit_id();
+                                $cur_name = 'Unbekannt';
+                                foreach (is_logged_in() && !is_system_user() ? get_user_einheiten() : $einheiten_fuer_auswahl as $ee) {
+                                    if ((int)$ee['id'] === $cur) { $cur_name = $ee['name']; break; }
+                                }
+                                echo htmlspecialchars($cur_name);
+                            ?>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <?php foreach (is_logged_in() && !is_system_user() ? get_user_einheiten() : $einheiten_fuer_auswahl as $ee): ?>
+                                <?php if ((int)$ee['id'] !== get_current_einheit_id()): ?>
+                                <li><a class="dropdown-item" href="index.php?einheit_id=<?php echo (int)$ee['id']; ?>"><?php echo htmlspecialchars($ee['name']); ?></a></li>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <div class="row g-4">
                     <div class="col-12 col-sm-6 col-lg-4">
                         <a href="vehicle-selection.php" class="text-decoration-none">
@@ -228,6 +314,7 @@ require_once 'includes/functions.php';
                     </div>
                     <?php endif; ?>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
     </main>

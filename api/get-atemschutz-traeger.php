@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 header('Content-Type: application/json');
 
@@ -51,21 +52,42 @@ try {
         // Fehler ignorieren
     }
     
-    // Lade nur aktive Atemschutzgeräteträger, deren Mitglied is_pa_traeger = 1 hat
-    $stmt = $db->prepare("
-        SELECT at.id, at.first_name, at.last_name
-        FROM atemschutz_traeger at
-        LEFT JOIN members m ON at.member_id = m.id
-        WHERE at.status = 'Aktiv' 
-        AND (m.is_pa_traeger = 1 OR (at.member_id IS NULL AND EXISTS (
-            SELECT 1 FROM members m2 
-            WHERE m2.first_name = at.first_name 
-            AND m2.last_name = at.last_name 
-            AND m2.is_pa_traeger = 1
-        )))
-        ORDER BY at.last_name, at.first_name
-    ");
-    $stmt->execute();
+    // Einheit-Filter (Session)
+    $einheit_id = isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : null;
+    $params = [];
+    if ($einheit_id > 0) {
+        $stmt = $db->prepare("
+            SELECT at.id, at.first_name, at.last_name
+            FROM atemschutz_traeger at
+            LEFT JOIN members m ON at.member_id = m.id
+            WHERE at.status = 'Aktiv' 
+            AND (
+                (at.member_id IS NOT NULL AND m.is_pa_traeger = 1 AND (m.einheit_id = ? OR m.einheit_id IS NULL))
+                OR (at.member_id IS NULL AND EXISTS (
+                    SELECT 1 FROM members m2 
+                    WHERE m2.first_name = at.first_name AND m2.last_name = at.last_name 
+                    AND m2.is_pa_traeger = 1 AND (m2.einheit_id = ? OR m2.einheit_id IS NULL)
+                ))
+            )
+            ORDER BY at.last_name, at.first_name
+        ");
+        $stmt->execute([$einheit_id, $einheit_id]);
+    } else {
+        $stmt = $db->prepare("
+            SELECT at.id, at.first_name, at.last_name
+            FROM atemschutz_traeger at
+            LEFT JOIN members m ON at.member_id = m.id
+            WHERE at.status = 'Aktiv' 
+            AND (m.is_pa_traeger = 1 OR (at.member_id IS NULL AND EXISTS (
+                SELECT 1 FROM members m2 
+                WHERE m2.first_name = at.first_name 
+                AND m2.last_name = at.last_name 
+                AND m2.is_pa_traeger = 1
+            )))
+            ORDER BY at.last_name, at.first_name
+        ");
+        $stmt->execute();
+    }
     $traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Debug-Log

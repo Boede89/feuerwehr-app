@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -17,6 +18,9 @@ if (!hasAdminPermission()) {
 
 $message = '';
 $error = '';
+if (isset($_GET['error']) && $_GET['error'] === 'superadmin_only') {
+    $error = 'Die Benutzerverwaltung (Superadmin/Einheitsadmin anlegen) ist nur für Superadmins zugänglich.';
+}
 
 // Einstellungen laden
 $settings = [];
@@ -228,12 +232,13 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
-            <!-- Rechte Spalte -->
+            <?php if (is_superadmin()): ?>
+            <!-- Benutzerverwaltung (nur Superadmin) -->
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title"><i class="fas fa-users"></i> Benutzerverwaltung</h5>
-                        <p class="text-muted">Benutzer hinzufügen, bearbeiten und Berechtigungen verwalten.</p>
+                        <p class="text-muted">Superadmin & Einheitsadmin anlegen, Berechtigungen verwalten.</p>
                         <div class="mt-auto">
                             <a class="btn btn-primary" href="users.php">
                                 <i class="fas fa-users"></i> Benutzer verwalten
@@ -242,6 +247,7 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
+            <?php endif; ?>
             <!-- Linke Spalte -->
             <div class="col-md-6">
                 <div class="card h-100">

@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -368,8 +369,11 @@ try {
         // Fehler ignorieren
     }
     
+    // Einheit-Filter für Einheitsadmin
+    $einheit_filter = get_admin_einheit_filter();
+    
     // Alle Mitglieder laden: Benutzer aus users + zusätzliche Mitglieder aus members
-    // Zuerst alle Benutzer als Mitglieder (mit is_pa_traeger aus members, prüfe auch ob Geräteträger existiert)
+    $einheit_where = $einheit_filter ? " AND (m.einheit_id = " . (int)$einheit_filter . " OR m.einheit_id IS NULL)" : "";
     $stmt = $db->query("
         SELECT 
             u.id as user_id,
@@ -394,12 +398,12 @@ try {
         INNER JOIN members m ON m.user_id = u.id
         LEFT JOIN member_qualifications q ON q.id = m.qualification_id
         LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
-        WHERE u.is_active = 1
+        WHERE u.is_active = 1 $einheit_where
         ORDER BY u.last_name, u.first_name
     ");
     $user_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Dann zusätzliche Mitglieder (ohne user_id Verknüpfung, prüfe auch ob Geräteträger existiert)
+    // Dann zusätzliche Mitglieder (ohne user_id Verknüpfung)
     $stmt = $db->query("
         SELECT 
             NULL as user_id,
@@ -423,7 +427,7 @@ try {
         FROM members m
         LEFT JOIN member_qualifications q ON q.id = m.qualification_id
         LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
-        WHERE m.user_id IS NULL
+        WHERE m.user_id IS NULL $einheit_where
         ORDER BY m.last_name, m.first_name
     ");
     $additional_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -889,8 +893,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (empty($error)) {
                     // Mitglied erstellen
                     $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
+                    $einheit_id = get_admin_einheit_filter() ?? get_current_einheit_id();
                     
-                    $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, qualification_id, is_pa_traeger) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, qualification_id, is_pa_traeger, einheit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                     $stmt->execute([
                         $user_id,
                         $first_name,
@@ -899,7 +904,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         !empty($birthdate) ? $birthdate : null,
                         !empty($phone) ? $phone : null,
                         $qualification_id,
-                        $is_pa_traeger
+                        $is_pa_traeger,
+                        $einheit_id
                     ]);
                     
                     $new_member_id = $db->lastInsertId();

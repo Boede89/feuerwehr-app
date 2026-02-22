@@ -114,7 +114,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && (!isset($_POST['action']) || $_POST[
         $error = "Bitte geben Sie Benutzername und Passwort ein.";
     } else {
         try {
-            $stmt = $db->prepare("SELECT id, username, email, password_hash, first_name, last_name, is_admin, is_active, user_role, email_notifications, can_reservations, can_users, can_settings, can_vehicles FROM users WHERE username = ? OR email = ?");
+            require_once __DIR__ . '/includes/einheiten-setup.php';
+            $stmt = $db->prepare("SELECT id, username, email, password_hash, first_name, last_name, is_admin, is_active, user_role, COALESCE(user_type,'user') AS user_type, einheit_id, email_notifications, can_reservations, can_users, can_settings, can_vehicles FROM users WHERE username = ? OR email = ?");
             $stmt->execute([$username, $username]);
             $user = $stmt->fetch();
             
@@ -126,16 +127,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && (!isset($_POST['action']) || $_POST[
                 $_SESSION['last_name'] = $user['last_name'];
                 $_SESSION['is_admin'] = $user['is_admin'];
                 $_SESSION['role'] = $user['user_role'] ?? 'user';
+                $_SESSION['user_type'] = $user['user_type'] ?? 'user';
+                $_SESSION['einheit_id'] = $user['einheit_id'] ?? null;
                 $_SESSION['email_notifications'] = $user['email_notifications'] ?? 1;
                 $_SESSION['can_reservations'] = $user['can_reservations'] ?? 0;
                 $_SESSION['can_users'] = $user['can_users'] ?? 0;
                 $_SESSION['can_settings'] = $user['can_settings'] ?? 0;
                 $_SESSION['can_vehicles'] = $user['can_vehicles'] ?? 0;
                 
+                // Einheit setzen: Superadmin/Einheitsadmin mit Einheit oder erste verfügbare
+                $einheiten = get_user_einheiten($user['id']);
+                if (!empty($einheiten)) {
+                    $_SESSION['current_einheit_id'] = (int)$einheiten[0]['id'];
+                } else {
+                    $_SESSION['current_einheit_id'] = null;
+                }
+                
                 // Aktivität loggen
                 log_activity($user['id'], 'login', 'Benutzer angemeldet');
                 
-                redirect('admin/dashboard.php');
+                redirect('index.php');
             } else {
                 $error = "Ungültige Anmeldedaten oder Benutzer ist deaktiviert.";
             }

@@ -2,12 +2,14 @@
 session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
+require_once __DIR__ . '/includes/einheiten-setup.php';
 
 $message = '';
 $error = '';
 
-// Fahrzeuge laden mit Sortierung
+// Fahrzeuge laden mit Sortierung (gefiltert nach Einheit)
 $vehicles = [];
+$einheit_filter = isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : null;
 try {
     // Sortier-Modus aus Einstellungen laden
     $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'vehicle_sort_mode'");
@@ -28,8 +30,15 @@ try {
             break;
     }
     
-    $stmt = $db->prepare("SELECT * FROM vehicles WHERE is_active = 1 $order_by");
-    $stmt->execute();
+    $sql = "SELECT * FROM vehicles WHERE is_active = 1";
+    $params = [];
+    if ($einheit_filter > 0) {
+        $sql .= " AND (einheit_id = ? OR einheit_id IS NULL)";
+        $params[] = $einheit_filter;
+    }
+    $sql .= " $order_by";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
     $vehicles = $stmt->fetchAll();
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Fahrzeuge: " . $e->getMessage();
