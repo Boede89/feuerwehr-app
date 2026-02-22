@@ -33,6 +33,7 @@ $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
         <li><a class="dropdown-item" href="<?php echo htmlspecialchars($index_url); ?>"><i class="fas fa-home text-primary me-2"></i>Startseite</a></li>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>dashboard.php"><i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard</a></li>
         <li><hr class="dropdown-divider"></li>
         <?php if ($can_reservations): ?>
         <li><a class="dropdown-item" href="<?php echo $base; ?>reservations.php"><i class="fas fa-calendar text-primary me-2"></i>Reservierungen</a></li>
@@ -50,10 +51,8 @@ $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item" href="<?php echo $base; ?>settings.php"><i class="fas fa-cog text-secondary me-2"></i>Einstellungen</a></li>
         <li><a class="dropdown-item" href="<?php echo $base; ?>feedback.php"><i class="fas fa-comment-dots text-info me-2"></i>Feedback</a></li>
-        <li><a class="dropdown-item" href="<?php echo $base; ?>users.php"><i class="fas fa-user-cog text-secondary me-2"></i>Benutzerverwaltung</a></li>
         <?php endif; ?>
         <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="<?php echo $base; ?>dashboard.php"><i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard</a></li>
         <li><a class="dropdown-item" href="<?php echo $base; ?>profile.php"><i class="fas fa-user-edit me-2"></i>Profil</a></li>
         <li><a class="dropdown-item" href="<?php echo htmlspecialchars($logout_url); ?>"><i class="fas fa-sign-out-alt me-2"></i>Abmelden</a></li>
     </ul>
