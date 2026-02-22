@@ -376,9 +376,10 @@ try {
         } elseif ($filter_typ === 'uebungsdienst') {
             $sql .= " AND (a.typ = 'dienst' AND d.typ IN ('uebungsdienst','dienst','uebung'))";
         } elseif ($filter_typ === 'sonstiges') {
-            $sql .= " AND a.typ = 'dienst' AND d.typ = 'sonstiges'";
+            $sql .= " AND ((a.typ = 'dienst' AND d.typ IN ('sonstiges', 'jahreshauptversammlung')) OR (a.typ = 'manuell' AND (a.bezeichnung IN ('Sonstiges', 'Jahreshauptversammlung') OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) IN ('sonstiges', 'jahreshauptversammlung')))))";
             if ($filter_beschreibung !== '') {
-                $sql .= " AND (a.bezeichnung = ? OR d.bezeichnung = ?)";
+                $sql .= " AND (a.bezeichnung = ? OR d.bezeichnung = ? OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung')) = ?))";
+                $params[] = $filter_beschreibung;
                 $params[] = $filter_beschreibung;
                 $params[] = $filter_beschreibung;
             }
@@ -458,21 +459,26 @@ try {
 
 $submissions_total = count($submissions) + count($anwesenheitslisten) + count($maengelberichte) + count($geraetewartmitteilungen);
 
-// Beschreibungen für Sonstiges-Filter-Dropdown laden – NUR aus tatsächlich vorhandenen Anwesenheitslisten
-// (nicht aus dienstplan, damit gelöschte Listen nicht mehr als Option erscheinen)
+// Beschreibungen für Sonstiges-Filter-Dropdown laden – aus allen Quellen in vorhandenen Anwesenheitslisten
+// Quellen: a.bezeichnung, d.bezeichnung, custom_data->beschreibung
+// Typen: dienst (sonstiges, jahreshauptversammlung) + manuell Sonstiges/JHV
 $beschreibung_optionen_sonstiges = [];
+$typ_cond_sonst = "((a.typ = 'dienst' AND d.typ IN ('sonstiges', 'jahreshauptversammlung')) OR (a.typ = 'manuell' AND (a.bezeichnung IN ('Sonstiges', 'Jahreshauptversammlung') OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) IN ('sonstiges', 'jahreshauptversammlung')))))";
 try {
-    $stmt = $db->query("
-        SELECT DISTINCT TRIM(COALESCE(a.bezeichnung, d.bezeichnung)) AS b
-        FROM anwesenheitslisten a
-        LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
-        WHERE a.typ = 'dienst' AND d.typ = 'sonstiges'
-          AND TRIM(COALESCE(a.bezeichnung, d.bezeichnung, '')) != ''
-        ORDER BY b
-    ");
+    $seen = [];
+    $stmt = $db->prepare("SELECT DISTINCT TRIM(COALESCE(a.bezeichnung, d.bezeichnung)) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE " . $typ_cond_sonst . " AND TRIM(COALESCE(a.bezeichnung, d.bezeichnung, '')) != '' ORDER BY b");
+    $stmt->execute();
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $beschreibung_optionen_sonstiges[] = $row['b'];
+        $b = trim($row['b'] ?? '');
+        if ($b !== '' && !in_array($b, $seen)) { $seen[] = $b; $beschreibung_optionen_sonstiges[] = $b; }
     }
+    $stmt2 = $db->prepare("SELECT DISTINCT TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE " . $typ_cond_sonst . " AND a.custom_data IS NOT NULL AND JSON_EXTRACT(a.custom_data, '$.beschreibung') IS NOT NULL AND TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) != '' ORDER BY b");
+    $stmt2->execute();
+    while ($row = $stmt2->fetch(PDO::FETCH_ASSOC)) {
+        $b = trim($row['b'] ?? '');
+        if ($b !== '' && !in_array($b, $seen)) { $seen[] = $b; $beschreibung_optionen_sonstiges[] = $b; }
+    }
+    sort($beschreibung_optionen_sonstiges);
 } catch (Exception $e) {
     // Tabellen können fehlen
 }

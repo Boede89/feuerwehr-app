@@ -42,9 +42,10 @@ if ($filter_typ !== '') {
     } elseif ($filter_typ === 'uebungsdienst') {
         $sql .= " AND (a.typ = 'dienst' AND d.typ IN ('uebungsdienst','dienst','uebung'))";
     } elseif ($filter_typ === 'sonstiges') {
-        $sql .= " AND a.typ = 'dienst' AND d.typ = 'sonstiges'";
+        $sql .= " AND ((a.typ = 'dienst' AND d.typ IN ('sonstiges', 'jahreshauptversammlung')) OR (a.typ = 'manuell' AND (a.bezeichnung IN ('Sonstiges', 'Jahreshauptversammlung') OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) IN ('sonstiges', 'jahreshauptversammlung')))))";
         if ($filter_beschreibung !== '') {
-            $sql .= " AND (a.bezeichnung = ? OR d.bezeichnung = ?)";
+            $sql .= " AND (a.bezeichnung = ? OR d.bezeichnung = ? OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung')) = ?))";
+            $params[] = $filter_beschreibung;
             $params[] = $filter_beschreibung;
             $params[] = $filter_beschreibung;
         }
