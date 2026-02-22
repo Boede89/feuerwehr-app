@@ -369,6 +369,14 @@ try {
         // Fehler ignorieren
     }
     
+    // user_type und einheit_id in users sicherstellen (falls einheiten-setup nicht gelaufen)
+    try {
+        $db->exec("ALTER TABLE users ADD COLUMN user_type VARCHAR(30) DEFAULT 'user'");
+    } catch (Exception $e) {}
+    try {
+        $db->exec("ALTER TABLE users ADD COLUMN einheit_id INT NULL");
+    } catch (Exception $e) {}
+    
     // Einheit-Filter für Einheitsadmin/Superadmin
     $einheit_filter = get_admin_einheit_filter();
     
