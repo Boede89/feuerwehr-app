@@ -709,9 +709,9 @@ try {
                         <?php endif; ?>
                         <input type="date" name="filter_datum_von" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($filter_datum_von); ?>" placeholder="Von" onchange="this.form.submit()">
                         <input type="date" name="filter_datum_bis" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($filter_datum_bis); ?>" placeholder="Bis" onchange="this.form.submit()">
-                        <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="fas fa-filter"></i> Filtern</button>
+                        <button type="submit" class="btn btn-outline-dark btn-sm"><i class="fas fa-filter"></i> Filtern</button>
                         <?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== '' || $filter_beschreibung !== ''): ?>
-                        <a href="?tab=submissions" class="btn btn-outline-secondary btn-sm">Zurücksetzen</a>
+                        <a href="?tab=submissions" class="btn btn-outline-dark btn-sm">Zurücksetzen</a>
                         <?php endif; ?>
                     </form>
                     </div>
