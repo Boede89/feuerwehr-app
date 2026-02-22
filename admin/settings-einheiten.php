@@ -13,6 +13,12 @@ if (!hasAdminPermission()) {
     exit;
 }
 
+// Einheitenverwaltung nur für Superadmins
+if (!is_superadmin()) {
+    header("Location: settings.php");
+    exit;
+}
+
 $message = '';
 $error = '';
 
