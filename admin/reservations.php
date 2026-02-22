@@ -409,7 +409,7 @@ try {
         JOIN vehicles v ON r.vehicle_id = v.id 
         LEFT JOIN users u ON r.approved_by = u.id
         WHERE r.status IN ('approved', 'rejected', 'cancelled')
-        ORDER BY r.created_at DESC
+        ORDER BY r.start_datetime DESC
     ";
     
     $stmt = $db->prepare($sql);
