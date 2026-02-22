@@ -30,8 +30,7 @@ $message = '';
 $error = '';
 
 // Erfolgsmeldungen von GET-Parameter
-$active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
-if (!in_array($active_tab, ['users', 'system'])) $active_tab = 'users';
+$active_tab = 'users'; // Nur Admin-Benutzer (Superadmin/Einheitsadmin), kein Systembenutzer-Tab
 if (isset($_GET['success'])) {
     if ($_GET['success'] == 'added') {
         $message = "Benutzer wurde erfolgreich hinzugefügt.";
@@ -57,9 +56,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $user_role = 'user';
         $is_active = isset($_POST['is_active']) ? 1 : 0;
         $password = $_POST['password'] ?? '';
-        $user_type = sanitize_input($_POST['user_type'] ?? 'user');
-        if (!in_array($user_type, ['superadmin', 'einheitsadmin', 'user'])) $user_type = 'user';
-        $einheit_id = isset($_POST['einheit_id']) && $_POST['einheit_id'] !== '' ? (int)$_POST['einheit_id'] : null;
+        $user_type = sanitize_input($_POST['user_type'] ?? 'superadmin');
+        if (!in_array($user_type, ['superadmin', 'einheitsadmin'])) $user_type = 'superadmin';
+        $einheit_id = null;
+        if ($user_type === 'einheitsadmin') {
+            $einheit_id = isset($_POST['einheit_id']) && $_POST['einheit_id'] !== '' ? (int)$_POST['einheit_id'] : null;
+            if (!$einheit_id) {
+                $error = "Bitte wählen Sie eine Einheit für den Einheitsadmin.";
+            }
+        }
         
         // Granular permissions
         $is_admin = ($user_type === 'superadmin') ? 1 : (isset($_POST['is_admin']) ? 1 : 0);
@@ -113,6 +118,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $error = "Fehler: " . $e->getMessage();
                 }
             }
+        } elseif (!empty($error)) {
+            // Fehler bereits gesetzt (z.B. Einheit fehlt bei Einheitsadmin)
         } elseif (empty($username) || empty($email) || empty($first_name) || empty($last_name)) {
             $error = "Alle Felder sind erforderlich.";
         } elseif (!validate_email($email)) {
@@ -398,8 +405,8 @@ try {
     $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, user_type, einheit_id, is_active, created_at, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
     $stmt->execute();
     $all_users = $stmt->fetchAll();
-    $users = array_filter($all_users, fn($u) => empty($u['is_system_user']));
-    $system_users = array_filter($all_users, fn($u) => !empty($u['is_system_user']));
+    // Nur Superadmins und Einheitsadmins in der Globalen Benutzerverwaltung anzeigen
+    $users = array_filter($all_users, fn($u) => empty($u['is_system_user']) && in_array($u['user_type'] ?? '', ['superadmin', 'einheitsadmin']));
     $einheiten = [];
     try {
         $stmt_e = $db->query("SELECT id, name FROM einheiten WHERE is_active = 1 ORDER BY sort_order, name");
@@ -440,34 +447,16 @@ try {
         <div class="row">
             <div class="col-12">
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                    <h1 class="h3 mb-0">
-                        <i class="fas fa-users"></i> Benutzerverwaltung
-                    </h1>
-                    <div class="d-flex gap-2">
-                        <?php if ($active_tab === 'users'): ?>
-                        <button type="button" class="btn btn-primary" onclick="openUserModal()">
-                            <i class="fas fa-plus"></i> Neuer Benutzer
-                        </button>
-                        <?php else: ?>
-                        <button type="button" class="btn btn-primary" onclick="openSystemUserModal()">
-                            <i class="fas fa-robot"></i> Systembenutzer anlegen
-                        </button>
-                        <?php endif; ?>
+                    <div class="d-flex align-items-center gap-2">
+                        <a href="settings.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
+                        <h1 class="h3 mb-0">
+                            <i class="fas fa-users"></i> Benutzerverwaltung (Global)
+                        </h1>
                     </div>
+                    <button type="button" class="btn btn-primary" onclick="openUserModal()">
+                        <i class="fas fa-plus"></i> Neuer Admin
+                    </button>
                 </div>
-                
-                <ul class="nav nav-tabs mb-3">
-                    <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'users' ? 'active' : ''; ?>" href="?tab=users">
-                            <i class="fas fa-user"></i> Benutzer (<?php echo count($users); ?>)
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'system' ? 'active' : ''; ?>" href="?tab=system">
-                            <i class="fas fa-robot"></i> Systembenutzer (<?php echo count($system_users); ?>)
-                        </a>
-                    </li>
-                </ul>
                 
                 <?php if ($message): ?>
                     <?php echo show_success($message); ?>
@@ -484,7 +473,7 @@ try {
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
-                        <?php if ($active_tab === 'users'): ?>
+                        <p class="text-muted mb-3">Superadmins haben Zugriff auf alle Einheiten und Einstellungen. Einheitsadmins haben nur Zugriff auf die Einstellungen ihrer zugewiesenen Einheit.</p>
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
@@ -492,7 +481,8 @@ try {
                                         <th>Benutzername</th>
                                         <th>E-Mail</th>
                                         <th>Name</th>
-                                        <th>Berechtigungen</th>
+                                        <th>Rolle</th>
+                                        <th>Einheit</th>
                                         <th>Status</th>
                                         <th>Erstellt</th>
                                         <th>Aktionen</th>
@@ -504,35 +494,26 @@ try {
                                             <td><strong><?php echo htmlspecialchars($user['username']); ?></strong></td>
                                             <td><?php echo htmlspecialchars($user['email'] ?? ''); ?></td>
                                             <td><?php echo htmlspecialchars(trim($user['first_name'] . ' ' . $user['last_name']) ?: $user['username']); ?></td>
-                                            <!-- Rolle-Spalte entfernt -->
                                             <td>
-                                                <div class="d-flex flex-wrap gap-1">
-                                                    <?php if (($user['user_type'] ?? '') === 'superadmin'): ?>
-                                                        <span class="badge bg-danger">Superadmin</span>
-                                                    <?php elseif (($user['user_type'] ?? '') === 'einheitsadmin'): ?>
-                                                        <span class="badge bg-warning text-dark">Einheitsadmin</span>
-                                                    <?php elseif (!empty($user['is_admin'])): ?>
-                                                        <span class="badge bg-danger">Administrator</span>
-                                                    <?php endif; ?>
-                                                    <?php if (!empty($user['can_reservations'])): ?>
-                                                        <span class="badge bg-primary">Fahrzeugreservierungen</span>
-                                                    <?php endif; ?>
-                                                    <?php if (!empty($user['can_atemschutz'])): ?>
-                                                        <span class="badge bg-success">Atemschutz</span>
-                                                    <?php endif; ?>
-                                                    <?php if (!empty($user['can_members'])): ?>
-                                                        <span class="badge bg-info">Mitgliederverwaltung</span>
-                                                    <?php endif; ?>
-                                                    <?php if (!empty($user['can_ric'])): ?>
-                                                        <span class="badge bg-warning">RIC Verwaltung</span>
-                                                    <?php endif; ?>
-                                                    <?php if (!empty($user['can_courses'])): ?>
-                                                        <span class="badge bg-purple">Lehrgangsverwaltung</span>
-                                                    <?php endif; ?>
-                                                    <?php if (!empty($user['can_forms'])): ?>
-                                                        <span class="badge bg-secondary">Formularcenter</span>
-                                                    <?php endif; ?>
-                                                </div>
+                                                <?php if (($user['user_type'] ?? '') === 'superadmin'): ?>
+                                                    <span class="badge bg-danger">Superadmin</span>
+                                                <?php elseif (($user['user_type'] ?? '') === 'einheitsadmin'): ?>
+                                                    <span class="badge bg-warning text-dark">Einheitsadmin</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-secondary">—</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <?php
+                                                $eid = (int)($user['einheit_id'] ?? 0);
+                                                if ($eid && isset($einheiten)) {
+                                                    $ename = '';
+                                                    foreach ($einheiten as $e) { if ((int)$e['id'] === $eid) { $ename = $e['name']; break; } }
+                                                    echo $ename ? htmlspecialchars($ename) : '—';
+                                                } else {
+                                                    echo ($user['user_type'] ?? '') === 'superadmin' ? '<em>Alle Einheiten</em>' : '—';
+                                                }
+                                                ?>
                                             </td>
                                             <td>
                                                 <?php if ($user['is_active']): ?>
@@ -549,17 +530,9 @@ try {
                                                     data-email="<?php echo htmlspecialchars($user['email'] ?? '', ENT_QUOTES); ?>"
                                                     data-first-name="<?php echo htmlspecialchars($user['first_name'], ENT_QUOTES); ?>"
                                                     data-last-name="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES); ?>"
-                                                    data-user-type="<?php echo htmlspecialchars($user['user_type'] ?? 'user', ENT_QUOTES); ?>"
+                                                    data-user-type="<?php echo htmlspecialchars($user['user_type'] ?? 'superadmin', ENT_QUOTES); ?>"
                                                     data-einheit-id="<?php echo (int)($user['einheit_id'] ?? 0); ?>"
-                                                    data-is-active="<?php echo (int)$user['is_active']; ?>"
-                                                    data-is-admin="<?php echo (int)$user['is_admin']; ?>"
-                                                    data-can-reservations="<?php echo (int)$user['can_reservations']; ?>"
-                                                    data-can-atemschutz="<?php echo (int)$user['can_atemschutz']; ?>"
-                                                    data-can-members="<?php echo (int)($user['can_members'] ?? 0); ?>"
-                                                    data-can-ric="<?php echo (int)($user['can_ric'] ?? 0); ?>"
-                                                    data-can-courses="<?php echo (int)($user['can_courses'] ?? 0); ?>"
-                                                    data-can-forms="<?php echo (int)($user['can_forms'] ?? 0); ?>"
-                                                    data-can-vehicles="<?php echo (int)($user['can_vehicles'] ?? 0); ?>">
+                                                    data-is-active="<?php echo (int)$user['is_active']; ?>">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
                                                 <?php if (!empty($user['email'])): ?>
@@ -581,53 +554,8 @@ try {
                                 </tbody>
                             </table>
                         </div>
-                        <?php else: ?>
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Benutzername</th>
-                                        <th>Name</th>
-                                        <th>Status</th>
-                                        <th>Erstellt</th>
-                                        <th>Aktionen</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($system_users as $user): ?>
-                                        <tr>
-                                            <td><strong><?php echo htmlspecialchars($user['username']); ?></strong></td>
-                                            <td><?php echo htmlspecialchars(trim($user['first_name'] . ' ' . $user['last_name']) ?: $user['username']); ?></td>
-                                            <td>
-                                                <?php if ($user['is_active']): ?>
-                                                    <span class="badge bg-success">Aktiv</span>
-                                                <?php else: ?>
-                                                    <span class="badge bg-secondary">Inaktiv</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td><?php echo format_date($user['created_at']); ?></td>
-                                            <td>
-                                                <button type="button" class="btn btn-outline-info btn-sm btn-show-autologin" data-user-id="<?php echo (int)$user['id']; ?>" data-username="<?php echo htmlspecialchars($user['username'], ENT_QUOTES); ?>" title="Autologin-Link anzeigen">
-                                                    <i class="fas fa-link"></i> Link anzeigen
-                                                </button>
-                                                <button type="button" class="btn btn-outline-warning btn-sm btn-regenerate-link" data-user-id="<?php echo (int)$user['id']; ?>" title="Neuen Link generieren">
-                                                    <i class="fas fa-sync-alt"></i>
-                                                </button>
-                                                <?php if ($user['id'] != $_SESSION['user_id']): ?>
-                                                    <a href="?delete=<?php echo $user['id']; ?>&tab=system" class="btn btn-outline-danger btn-sm" 
-                                                       onclick="return confirm('Sind Sie sicher, dass Sie diesen Systembenutzer löschen möchten?')">
-                                                        <i class="fas fa-trash"></i>
-                                                    </a>
-                                                <?php endif; ?>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                        <?php if (empty($system_users)): ?>
-                        <p class="text-muted mb-0">Noch keine Systembenutzer. Klicken Sie auf „Systembenutzer anlegen“.</p>
-                        <?php endif; ?>
+                        <?php if (empty($users)): ?>
+                        <p class="text-muted mb-0">Noch keine Superadmins oder Einheitsadmins. Klicken Sie auf „Neuer Admin“.</p>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -669,79 +597,34 @@ try {
                         
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="user_type" class="form-label">Rolle</label>
-                                <select class="form-select" id="user_type" name="user_type" onchange="toggleEinheitField(this.value)">
-                                    <option value="user">Benutzer</option>
+                                <label for="user_type" class="form-label">Rolle *</label>
+                                <select class="form-select" id="user_type" name="user_type" required onchange="toggleEinheitField(this.value)">
                                     <option value="superadmin">Superadmin</option>
                                     <option value="einheitsadmin">Einheitsadmin</option>
                                 </select>
+                                <div class="form-text">Superadmin: Zugriff auf alle Einheiten. Einheitsadmin: nur Einstellungen der gewählten Einheit.</div>
                             </div>
                             <div class="col-md-6 mb-3" id="einheit_field_wrapper" style="display:none">
-                                <label for="einheit_id" class="form-label">Einheit</label>
+                                <label for="einheit_id" class="form-label">Einheit *</label>
                                 <select class="form-select" id="einheit_id" name="einheit_id">
                                     <option value="">— Bitte wählen —</option>
                                     <?php foreach ($einheiten as $e): ?>
                                         <option value="<?php echo (int)$e['id']; ?>"><?php echo htmlspecialchars($e['name']); ?></option>
                                     <?php endforeach; ?>
                                 </select>
+                                <div class="form-text">Pflichtfeld bei Einheitsadmin.</div>
                             </div>
                         </div>
-                        
-                        <!-- Berechtigungen werden granular unten gesetzt -->
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Berechtigungen</label>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="is_admin" name="is_admin" onchange="toggleAdminPermissions(this.checked)">
-                                        <label class="form-check-label" for="is_admin">
-                                            <strong>Administrator</strong>
-                                        </label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="can_reservations" name="can_reservations">
-                                        <label class="form-check-label" for="can_reservations">
-                                            Fahrzeugreservierungen
-                                        </label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="can_atemschutz" name="can_atemschutz">
-                                        <label class="form-check-label" for="can_atemschutz">
-                                            Atemschutz
-                                        </label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="can_members" name="can_members">
-                                        <label class="form-check-label" for="can_members">
-                                            Mitgliederverwaltung
-                                        </label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="can_ric" name="can_ric">
-                                        <label class="form-check-label" for="can_ric">
-                                            RIC Verwaltung
-                                        </label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="can_courses" name="can_courses">
-                                        <label class="form-check-label" for="can_courses">
-                                            Lehrgangsverwaltung
-                                        </label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="can_forms" name="can_forms">
-                                        <label class="form-check-label" for="can_forms">
-                                            Formularcenter
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <!-- Benutzerverwaltung/Einstellungen werden automatisch durch Administrator gesetzt -->
-                                    <!-- Fahrzeugverwaltung wird automatisch über Administrator gesetzt -->
-                                </div>
-                            </div>
-                        </div>
+                        <input type="hidden" name="is_admin" value="1">
+                        <input type="hidden" name="can_reservations" value="1">
+                        <input type="hidden" name="can_atemschutz" value="1">
+                        <input type="hidden" name="can_members" value="1">
+                        <input type="hidden" name="can_ric" value="1">
+                        <input type="hidden" name="can_courses" value="1">
+                        <input type="hidden" name="can_forms" value="1">
+                        <input type="hidden" name="can_users" value="1">
+                        <input type="hidden" name="can_settings" value="1">
+                        <input type="hidden" name="can_vehicles" value="1">
                         
                         <div class="mb-3">
                             <label for="password" class="form-label">Passwort <span id="password-required">*</span></label>
@@ -923,9 +806,9 @@ try {
                 document.getElementById('email').value = '';
                 document.getElementById('first_name').value = '';
                 document.getElementById('last_name').value = '';
-                const ut = document.getElementById('user_type'); if (ut) ut.value = 'user';
+                const ut = document.getElementById('user_type'); if (ut) ut.value = 'superadmin';
                 const eid = document.getElementById('einheit_id'); if (eid) eid.value = '';
-                toggleEinheitField('user');
+                toggleEinheitField('superadmin');
                 document.getElementById('is_active').checked = true;
                 document.getElementById('action').value = 'add';
                 document.getElementById('submitButton').textContent = 'Hinzufügen';
@@ -959,54 +842,6 @@ try {
             }
         }
         
-        function editUser(userId, username, email, firstName, lastName, userRole, emailNotifications, isActive, isAdmin, canReservations, canAtemschutz, canMembers, canRic, canCourses, canForms, canUsers, canSettings, canVehicles) {
-            // Modal anzeigen
-            const modal = document.getElementById('userModal');
-            if (modal) {
-                // Bearbeitung vorbereiten
-                document.getElementById('userModalTitle').textContent = 'Benutzer bearbeiten';
-                document.getElementById('user_id').value = userId;
-                document.getElementById('username').value = username;
-                document.getElementById('email').value = email;
-                document.getElementById('first_name').value = firstName;
-                document.getElementById('last_name').value = lastName;
-                // Rolle entfällt
-                document.getElementById('is_active').checked = isActive == 1;
-                
-                // Berechtigungen setzen
-                document.getElementById('is_admin').checked = isAdmin == 1;
-                document.getElementById('can_reservations').checked = canReservations == 1;
-                if (document.getElementById('can_atemschutz')) {
-                    document.getElementById('can_atemschutz').checked = canAtemschutz == 1;
-                }
-                if (document.getElementById('can_members')) {
-                    document.getElementById('can_members').checked = canMembers == 1;
-                }
-                if (document.getElementById('can_ric')) {
-                    document.getElementById('can_ric').checked = canRic == 1;
-                }
-                if (document.getElementById('can_courses')) {
-                    document.getElementById('can_courses').checked = canCourses == 1;
-                }
-                if (document.getElementById('can_forms')) {
-                    document.getElementById('can_forms').checked = canForms == 1;
-                }
-                // Benutzerverwaltung/Einstellungen werden von Admin-Checkbox bestimmt
-                document.getElementById('can_vehicles').checked = canVehicles == 1;
-                toggleAdminPermissions(isAdmin == 1);
-                
-                document.getElementById('action').value = 'edit';
-                document.getElementById('submitButton').textContent = 'Aktualisieren';
-                document.getElementById('password-required').textContent = '';
-                document.getElementById('password-help').style.display = 'block';
-                
-                // Modal anzeigen
-                modal.style.display = 'block';
-                modal.classList.add('show');
-                document.body.classList.add('modal-open');
-            }
-        }
-        
         // Event Listener für Modal-Schließung & Edit-Buttons hinzufügen
         document.addEventListener('DOMContentLoaded', function() {
             // Click-Delegation: Falls einzelne Buttons vom Overlay überdeckt würden
@@ -1020,46 +855,16 @@ try {
                     document.getElementById('email').value = this.dataset.email || '';
                     document.getElementById('first_name').value = this.dataset.firstName || '';
                     document.getElementById('last_name').value = this.dataset.lastName || '';
-                    const ut = document.getElementById('user_type'); if (ut) ut.value = this.dataset.userType || 'user';
+                    const ut = document.getElementById('user_type'); if (ut) ut.value = this.dataset.userType || 'superadmin';
                     const eid = document.getElementById('einheit_id'); if (eid) eid.value = this.dataset.einheitId || '';
-                    toggleEinheitField(this.dataset.userType || 'user');
+                    toggleEinheitField(this.dataset.userType || 'superadmin');
                     document.getElementById('is_active').checked = getBool(this.dataset.isActive);
-                    document.getElementById('is_admin').checked = getBool(this.dataset.isAdmin);
-                    const canRes = getBool(this.dataset.canReservations);
-                    const canAtm = getBool(this.dataset.canAtemschutz);
-                    const canMem = getBool(this.dataset.canMembers);
-                    const canRic = getBool(this.dataset.canRic);
-                    const canCourses = getBool(this.dataset.canCourses);
-                    const canForms = getBool(this.dataset.canForms);
-                    document.getElementById('can_reservations').checked = canRes;
-                    const atmEl = document.getElementById('can_atemschutz');
-                    if (atmEl) atmEl.checked = canAtm;
-                    const memEl = document.getElementById('can_members');
-                    if (memEl) memEl.checked = canMem;
-                    const ricEl = document.getElementById('can_ric');
-                    if (ricEl) ricEl.checked = canRic;
-                    const coursesEl = document.getElementById('can_courses');
-                    if (coursesEl) coursesEl.checked = canCourses;
-                    const formsEl = document.getElementById('can_forms');
-                    if (formsEl) formsEl.checked = canForms;
-                    const canVeh = getBool(this.dataset.canVehicles);
-                    const vehiclesEl = document.getElementById('can_vehicles');
-                    if (vehiclesEl) vehiclesEl.checked = canVeh;
-                    toggleAdminPermissions(getBool(this.dataset.isAdmin));
                     document.getElementById('action').value = 'edit';
                     document.getElementById('submitButton').textContent = 'Aktualisieren';
                     document.getElementById('password-required').textContent = '';
                     const help = document.getElementById('password-help'); if (help) help.style.display = 'block';
                 });
             });
-            // Admin-Checkbox initial toggeln
-            const adminCheckbox = document.getElementById('is_admin');
-            if (adminCheckbox) {
-                toggleAdminPermissions(adminCheckbox.checked);
-                adminCheckbox.addEventListener('change', function(){
-                    toggleAdminPermissions(this.checked);
-                });
-            }
                 // Abbrechen Button
             const cancelButton = document.querySelector('#userModal .btn-secondary');
             if (cancelButton) {
@@ -1152,28 +957,17 @@ try {
         });
     </script>
         <script>
-        function toggleAdminPermissions(isAdmin) {
-            const permIds = ['can_reservations', 'can_atemschutz', 'can_users', 'can_settings', 'can_vehicles'];
-            permIds.forEach(id => {
-                const el = document.getElementById(id);
-                if (!el) return;
-                if (isAdmin) {
-                    el.checked = true;
-                    el.disabled = true;
-                } else {
-                    el.disabled = false;
-                }
-            });
-        }
         </script>
         <script>
-        // Client-Validierung: Passwort beim Anlegen erforderlich, Modal bleibt offen
+        // Client-Validierung: Passwort beim Anlegen, Einheit bei Einheitsadmin
         document.addEventListener('DOMContentLoaded', function(){
             const form = document.getElementById('userForm');
             if (!form) return;
             form.addEventListener('submit', function(e){
                 const action = document.getElementById('action').value;
                 const pwd = document.getElementById('password').value;
+                const userType = document.getElementById('user_type').value;
+                const einheitId = document.getElementById('einheit_id').value;
                 if (action === 'add' && (!pwd || pwd.trim() === '')) {
                     e.preventDefault();
                     const help = document.getElementById('password-help');
@@ -1181,6 +975,12 @@ try {
                     if (help) help.style.display = 'block';
                     if (req) req.textContent = '* (erforderlich)';
                     alert('Bitte ein Passwort setzen.');
+                    return false;
+                }
+                if (userType === 'einheitsadmin' && (!einheitId || einheitId === '')) {
+                    e.preventDefault();
+                    document.getElementById('einheit_field_wrapper').style.display = 'block';
+                    alert('Bitte wählen Sie eine Einheit für den Einheitsadmin.');
                     return false;
                 }
             });

@@ -16,6 +16,15 @@ if (!hasAdminPermission()) {
     exit;
 }
 
+// Einheitsadmins werden zu ihren Einheiten-Einstellungen weitergeleitet
+if (is_einheitsadmin()) {
+    $eid = get_current_einheit_id();
+    if ($eid) {
+        header("Location: settings-einheit.php?id=" . (int)$eid);
+        exit;
+    }
+}
+
 $message = '';
 $error = '';
 if (isset($_GET['error']) && $_GET['error'] === 'superadmin_only') {
@@ -185,18 +194,18 @@ if (isset($_POST['test_email_btn'])) {
         </div>
 
         <div class="row g-4">
-            <!-- Linke Spalte -->
-            <div class="col-md-6">
+            <!-- Globale Einstellungen -->
+            <div class="col-md-6 col-lg-4">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title"><i class="fas fa-gear"></i> Globale Einstellungen</h5>
-                        <p class="text-muted">SMTP, Google Calendar, App-weite Optionen, Fahrzeug- und Benutzerverwaltung.</p>
+                        <p class="text-muted">SMTP, Google Calendar, App-weite Optionen, Sicherung & Wiederherstellung.</p>
                         <div class="mt-auto">
                             <div class="d-flex gap-2 flex-wrap">
-                                <a class="btn btn-secondary" href="settings-global.php">
+                                <a class="btn btn-primary" href="settings-global.php">
                                     <i class="fas fa-wrench"></i> Öffnen
                                 </a>
-                                <a class="btn btn-outline-primary" href="settings-backup.php">
+                                <a class="btn btn-outline-secondary" href="settings-backup.php">
                                     <i class="fas fa-shield-halved"></i> Sicherung & Wiederherstellung
                                 </a>
                             </div>
@@ -204,41 +213,12 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
-            <!-- Linke Spalte -->
-            <div class="col-md-6">
+            <!-- Benutzerverwaltung (Global) – Superadmin & Einheitsadmin anlegen -->
+            <div class="col-md-6 col-lg-4">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-file-alt"></i> Formularcenter</h5>
-                        <p class="text-muted">Formulare, Dienstplan und Anwesenheitsliste konfigurieren.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-formularcenter.php">
-                                <i class="fas fa-sliders"></i> Öffnen
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Divera 24/7 -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-calendar-plus"></i> Divera 24/7</h5>
-                        <p class="text-muted">Einstellungen für Termin-Übermittlung genehmigter Fahrzeugreservierungen an Divera.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-divera.php">
-                                <i class="fas fa-cog"></i> Divera Einstellungen
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <?php if (is_superadmin()): ?>
-            <!-- Benutzerverwaltung (nur Superadmin) -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-users"></i> Benutzerverwaltung</h5>
-                        <p class="text-muted">Superadmin & Einheitsadmin anlegen, Berechtigungen verwalten.</p>
+                        <h5 class="card-title"><i class="fas fa-users"></i> Benutzerverwaltung (Global)</h5>
+                        <p class="text-muted">Superadmins (Zugriff auf alle Einheiten) und Einheitsadmins (nur Einstellungen der gewählten Einheit) anlegen.</p>
                         <div class="mt-auto">
                             <a class="btn btn-primary" href="users.php">
                                 <i class="fas fa-users"></i> Benutzer verwalten
@@ -247,96 +227,11 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
-            <?php endif; ?>
-            <!-- Linke Spalte -->
-            <div class="col-md-6">
+            <!-- Einheitenverwaltung -->
+            <div class="col-md-6 col-lg-4">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-truck"></i> Fahrzeugverwaltung</h5>
-                        <p class="text-muted">Fahrzeuge hinzufügen, bearbeiten und verwalten.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="vehicles.php">
-                                <i class="fas fa-truck"></i> Fahrzeuge verwalten
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Rechte Spalte -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-user-shield"></i> Atemschutz – Einstellungen</h5>
-                        <p class="text-muted">Schwellwert für Ablaufwarnungen (z.B. 90 Tage) festlegen.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-atemschutz.php">
-                                <i class="fas fa-sliders"></i> Öffnen
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Linke Spalte -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-broadcast-tower"></i> RIC Verwaltung</h5>
-                        <p class="text-muted">RIC-Codes verwalten (Kurztext und Beschreibung).</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-ric.php">
-                                <i class="fas fa-cog"></i> RIC-Codes verwalten
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Rechte Spalte -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-graduation-cap"></i> Lehrgangsverwaltung</h5>
-                        <p class="text-muted">Lehrgänge definieren und Anforderungen festlegen.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-courses.php">
-                                <i class="fas fa-cog"></i> Lehrgänge verwalten
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Mitgliederverwaltung -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-users-cog"></i> Mitgliederverwaltung</h5>
-                        <p class="text-muted">Qualifikationen für Mitglieder anlegen (z. B. für das Auswahlfeld bei Mitgliedern).</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-members.php">
-                                <i class="fas fa-certificate"></i> Qualifikationen verwalten
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Reservierungen -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-calendar-check"></i> Reservierungen</h5>
-                        <p class="text-muted">Reservierungen verwalten und konfigurieren.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-reservations.php">
-                                <i class="fas fa-sliders"></i> Öffnen
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Einheiten Verwaltung -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-sitemap"></i> Einheiten Verwaltung</h5>
+                        <h5 class="card-title"><i class="fas fa-sitemap"></i> Einheitenverwaltung</h5>
                         <p class="text-muted">Einheiten und Gruppierungen verwalten.</p>
                         <div class="mt-auto">
                             <a class="btn btn-primary" href="settings-einheiten.php">
@@ -351,35 +246,5 @@ if (isset($_POST['test_email_btn'])) {
 
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Google Calendar Authentifizierung wechseln
-        document.getElementById('google_calendar_auth_type').addEventListener('change', function() {
-            const serviceAccountConfig = document.getElementById('service_account_config');
-            const apiKeyConfig = document.getElementById('api_key_config');
-            
-            if (this.value === 'service_account') {
-                serviceAccountConfig.style.display = 'block';
-                apiKeyConfig.style.display = 'none';
-            } else {
-                serviceAccountConfig.style.display = 'none';
-                apiKeyConfig.style.display = 'block';
-            }
-        });
-        
-        // Initiale Anzeige setzen
-        document.addEventListener('DOMContentLoaded', function() {
-            const authType = document.getElementById('google_calendar_auth_type').value;
-            const serviceAccountConfig = document.getElementById('service_account_config');
-            const apiKeyConfig = document.getElementById('api_key_config');
-            
-            if (authType === 'service_account') {
-                serviceAccountConfig.style.display = 'block';
-                apiKeyConfig.style.display = 'none';
-            } else {
-                serviceAccountConfig.style.display = 'none';
-                apiKeyConfig.style.display = 'block';
-            }
-        });
-    </script>
 </body>
 </html>
