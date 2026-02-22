@@ -17,6 +17,9 @@ try {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+    // is_active Spalte nachträglich hinzufügen (falls Tabelle älter)
+    try { $db->exec("ALTER TABLE einheiten ADD COLUMN is_active TINYINT(1) DEFAULT 1"); } catch (Exception $e) {}
+
     // Standard-Einheiten anlegen falls leer
     $stmt = $db->query("SELECT COUNT(*) FROM einheiten");
     if ($stmt && (int)$stmt->fetchColumn() === 0) {
