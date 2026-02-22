@@ -341,7 +341,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </nav>
 
     <div class="container-fluid mt-4">
-        <h1 class="h3 mb-4"><i class="fas fa-user-shield"></i> Atemschutz – Einstellungen</h1>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3 mb-0"><i class="fas fa-user-shield"></i> Atemschutz – Einstellungen</h1>
+            <a href="settings.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück zu Einstellungen</a>
+        </div>
 
         <?php if ($message): ?>
             <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>
