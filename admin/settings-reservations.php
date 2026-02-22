@@ -36,21 +36,28 @@ try {
     // Spalte existiert bereits, ignoriere Fehler
 }
 
-$settings = [];
-try {
-    $stmt = $db->prepare('SELECT setting_key, setting_value FROM settings');
-    $stmt->execute();
-    foreach ($stmt->fetchAll() as $row) {
-        $settings[$row['setting_key']] = $row['setting_value'];
-    }
-} catch (Exception $e) {
-    $error = 'Fehler beim Laden der Einstellungen: ' . $e->getMessage();
-}
+$settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
 
-// Alle Benutzer laden für E-Mail-Benachrichtigungen
+// Benutzer für E-Mail-Benachrichtigungen laden (nur Benutzer der aktuellen Einheit)
 $users = [];
 try {
-    $stmt = $db->query("SELECT id, first_name, last_name, email, user_role, is_admin, email_notifications FROM users WHERE is_active = 1 ORDER BY first_name, last_name");
+    ensure_einheit_id_in_tables($db);
+    $amern_id = get_einheit_amern_id($db);
+    if ($amern_id > 0) {
+        try { $db->exec("UPDATE users SET einheit_id = $amern_id WHERE einheit_id IS NULL"); } catch (Exception $e) {}
+    }
+    $where = "is_active = 1";
+    $params = [];
+    if ($einheit_id > 0) {
+        if ($amern_id > 0 && $amern_id === $einheit_id) {
+            $where .= " AND (einheit_id = ? OR einheit_id IS NULL)";
+        } else {
+            $where .= " AND einheit_id = ?";
+        }
+        $params[] = $einheit_id;
+    }
+    $stmt = $db->prepare("SELECT id, first_name, last_name, email, user_role, is_admin, email_notifications FROM users WHERE $where ORDER BY first_name, last_name");
+    $stmt->execute($params);
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $error = "Fehler beim Laden der Benutzer: " . $e->getMessage();

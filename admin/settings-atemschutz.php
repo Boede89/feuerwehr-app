@@ -163,10 +163,10 @@ if (!$is_waldniel) {
     } catch (Exception $e) { /* ignore */ }
 }
 
-// Benutzer für Benachrichtigungseinstellungen laden (für Waldniel: keine vorausgewählt)
+// Benutzer für Benachrichtigungseinstellungen laden (nur Benutzer der aktuellen Einheit)
 $users = [];
 $atemschutz_notification_ids = [];
-if ($einheit_id > 0 && !$is_waldniel) {
+if ($einheit_id > 0) {
     $settings_e = load_settings_for_einheit($db, $einheit_id);
     $json = $settings_e['atemschutz_notification_user_ids'] ?? '';
     if ($json !== '') {
@@ -178,21 +178,32 @@ try {
     // Stelle sicher, dass die atemschutz_notifications Spalte existiert
     try {
         $db->exec("ALTER TABLE users ADD COLUMN atemschutz_notifications TINYINT(1) DEFAULT 0");
-        error_log("atemschutz_notifications Spalte hinzugefügt");
-    } catch (Exception $e) {
-        // Spalte existiert bereits, das ist OK
-        if (strpos($e->getMessage(), 'Duplicate column name') === false) {
-            error_log("Unerwarteter Fehler beim Hinzufügen der Spalte: " . $e->getMessage());
-        }
+    } catch (Exception $e) {}
+    try {
+        $db->exec("ALTER TABLE users ADD COLUMN einheit_id INT NULL");
+    } catch (Exception $e) {}
+    $amern_id = get_einheit_amern_id($db);
+    if ($amern_id > 0) {
+        try { $db->exec("UPDATE users SET einheit_id = $amern_id WHERE einheit_id IS NULL"); } catch (Exception $e) {}
     }
-    
+    $where = "is_active = 1";
+    $params = [];
+    if ($einheit_id > 0) {
+        if ($amern_id > 0 && $amern_id === $einheit_id) {
+            $where .= " AND (einheit_id = ? OR einheit_id IS NULL)";
+        } else {
+            $where .= " AND einheit_id = ?";
+        }
+        $params[] = $einheit_id;
+    }
     $stmt = $db->prepare("
         SELECT id, first_name, last_name, email, is_admin, user_role, 
                COALESCE(atemschutz_notifications, 0) as atemschutz_notifications
         FROM users 
+        WHERE $where
         ORDER BY last_name, first_name
     ");
-    $stmt->execute();
+    $stmt->execute($params);
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     error_log("Benutzer geladen: " . count($users) . " Benutzer gefunden");
@@ -310,13 +321,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = "Benachrichtigungseinstellungen erfolgreich aktualisiert.";
                 // Benutzerliste neu laden nach dem Speichern (Legacy)
                 try {
+                    $where = "is_active = 1";
+                    $params = [];
+                    if ($einheit_id_notif > 0) {
+                        $amern_id = get_einheit_amern_id($db);
+                        if ($amern_id > 0 && $amern_id === $einheit_id_notif) {
+                            $where .= " AND (einheit_id = ? OR einheit_id IS NULL)";
+                        } else {
+                            $where .= " AND einheit_id = ?";
+                        }
+                        $params[] = $einheit_id_notif;
+                    }
                     $stmt = $db->prepare("
                         SELECT id, first_name, last_name, email, is_admin, user_role,
                                COALESCE(atemschutz_notifications, 0) as atemschutz_notifications
                         FROM users
+                        WHERE $where
                         ORDER BY last_name, first_name
                     ");
-                    $stmt->execute();
+                    $stmt->execute($params);
                     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 } catch (Exception $e) {}
             }
