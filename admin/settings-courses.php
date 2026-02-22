@@ -14,6 +14,7 @@ if (!hasAdminPermission()) {
 
 $message = '';
 $error = '';
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 
 // Tabellen erstellen
 try {
@@ -248,9 +249,14 @@ $csrf_token = generate_csrf_token();
     <div class="container-fluid mt-4">
         <div class="row">
             <div class="col-12">
-                <h1 class="h3 mb-4">
-                    <i class="fas fa-graduation-cap"></i> Lehrgangsverwaltung - Einstellungen
-                </h1>
+                <div class="d-flex align-items-center gap-2 mb-4">
+                    <?php if ($einheit_id > 0): ?>
+                        <a href="settings-einheit.php?id=<?php echo (int)$einheit_id; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
+                    <?php endif; ?>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-graduation-cap"></i> Lehrgangsverwaltung - Einstellungen
+                    </h1>
+                </div>
                 
                 <?php if ($message): ?>
                     <?php echo show_success($message); ?>
