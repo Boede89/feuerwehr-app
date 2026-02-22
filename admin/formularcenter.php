@@ -378,10 +378,9 @@ try {
         } elseif ($filter_typ === 'sonstiges') {
             $sql .= " AND a.typ = 'dienst' AND d.typ = 'sonstiges'";
             if ($filter_beschreibung !== '') {
-                $sql .= " AND (a.bezeichnung LIKE ? OR d.bezeichnung LIKE ?)";
-                $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filter_beschreibung) . '%';
-                $params[] = $like;
-                $params[] = $like;
+                $sql .= " AND (a.bezeichnung = ? OR d.bezeichnung = ?)";
+                $params[] = $filter_beschreibung;
+                $params[] = $filter_beschreibung;
             }
         }
     }
@@ -458,6 +457,28 @@ try {
 }
 
 $submissions_total = count($submissions) + count($anwesenheitslisten) + count($maengelberichte) + count($geraetewartmitteilungen);
+
+// Beschreibungen für Sonstiges-Filter-Dropdown laden (aus dienstplan + anwesenheitslisten)
+$beschreibung_optionen_sonstiges = [];
+try {
+    $stmt = $db->query("
+        SELECT DISTINCT TRIM(b) AS b FROM (
+            SELECT COALESCE(d.bezeichnung, a.bezeichnung) AS b
+            FROM anwesenheitslisten a
+            LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
+            WHERE a.typ = 'dienst' AND d.typ = 'sonstiges'
+            UNION
+            SELECT bezeichnung AS b FROM dienstplan WHERE typ = 'sonstiges'
+        ) t
+        WHERE TRIM(b) != ''
+        ORDER BY b
+    ");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $beschreibung_optionen_sonstiges[] = $row['b'];
+    }
+} catch (Exception $e) {
+    // Tabellen können fehlen
+}
 
 // Zähler für Formular-Buttons (vor Filterung)
 $form_counts_for_buttons = [];
@@ -704,7 +725,12 @@ try {
                             <option value="sonstiges" <?php echo $filter_typ === 'sonstiges' ? 'selected' : ''; ?>>Sonstiges</option>
                         </select>
                         <div id="filter-beschreibung-wrap" class="<?php echo $filter_typ === 'sonstiges' ? '' : 'd-none'; ?>">
-                            <input type="text" name="filter_beschreibung" class="form-control form-control-sm" style="width: 160px;" value="<?php echo htmlspecialchars($filter_beschreibung); ?>" placeholder="Beschreibung filtern" title="Nach Beschreibung filtern (nur bei Sonstiges)">
+                            <select name="filter_beschreibung" class="form-select form-select-sm" style="width: auto; min-width: 180px;" title="Nach Beschreibung filtern (nur bei Sonstiges)" onchange="this.form.submit();">
+                                <option value="">Alle Beschreibungen</option>
+                                <?php foreach ($beschreibung_optionen_sonstiges as $opt): ?>
+                                <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo $filter_beschreibung === $opt ? 'selected' : ''; ?>><?php echo htmlspecialchars($opt); ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                         <?php endif; ?>
                         <input type="date" name="filter_datum_von" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($filter_datum_von); ?>" placeholder="Von" onchange="this.form.submit()">

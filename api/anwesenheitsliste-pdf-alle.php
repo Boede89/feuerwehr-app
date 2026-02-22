@@ -44,10 +44,9 @@ if ($filter_typ !== '') {
     } elseif ($filter_typ === 'sonstiges') {
         $sql .= " AND a.typ = 'dienst' AND d.typ = 'sonstiges'";
         if ($filter_beschreibung !== '') {
-            $sql .= " AND (a.bezeichnung LIKE ? OR d.bezeichnung LIKE ?)";
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filter_beschreibung) . '%';
-            $params[] = $like;
-            $params[] = $like;
+            $sql .= " AND (a.bezeichnung = ? OR d.bezeichnung = ?)";
+            $params[] = $filter_beschreibung;
+            $params[] = $filter_beschreibung;
         }
     }
 }
