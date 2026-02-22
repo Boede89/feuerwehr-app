@@ -26,8 +26,8 @@ $base = isset($admin_menu_base) ? $admin_menu_base : '';
 $logout_url = isset($admin_menu_logout) ? $admin_menu_logout : '../logout.php';
 $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
 ?>
-<div class="dropdown ms-2">
-    <button class="btn <?php echo $btn_class; ?> btn-sm px-3 py-2 d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Menü öffnen">
+<div class="dropdown ms-2" data-bs-boundary="viewport">
+    <button class="btn <?php echo $btn_class; ?> btn-sm px-3 py-2 d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" title="Menü öffnen">
         <i class="fas fa-bars"></i>
         <span class="fw-semibold">Menü</span>
     </button>

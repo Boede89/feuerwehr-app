@@ -139,6 +139,7 @@ $stats = $stats_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     <title>Feedback-Verwaltung - Feuerwehr App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="../assets/css/style.css" rel="stylesheet">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -146,7 +147,7 @@ $stats = $stats_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             <a class="navbar-brand" href="../index.php">
                 <i class="fas fa-fire"></i> Feuerwehr App
             </a>
-            <div class="navbar-nav ms-auto d-flex align-items-center">
+            <div class="d-flex ms-auto align-items-center">
                 <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
             </div>
         </div>

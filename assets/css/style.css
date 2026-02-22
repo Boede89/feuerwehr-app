@@ -27,6 +27,19 @@ body {
     margin-right: 0.5rem;
 }
 
+/* Navbar: Dropdown soll auf Mobile nicht das blaue Feld strecken (wie auf Startseite) */
+@media (max-width: 991.98px) {
+    .navbar {
+        overflow: visible;
+        flex-wrap: nowrap;
+    }
+    .navbar .container,
+    .navbar .container-fluid {
+        overflow: visible;
+        flex-wrap: nowrap;
+    }
+}
+
 /* Feature Cards */
 .feature-card {
     border: none;

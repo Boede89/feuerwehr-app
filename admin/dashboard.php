@@ -435,6 +435,7 @@ if ($can_atemschutz) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.css" rel="stylesheet">
+    <link href="../assets/css/style.css" rel="stylesheet">
     <style>
         .bis-badge { 
             padding: .25rem .5rem; 
@@ -687,7 +688,7 @@ if ($can_atemschutz) {
             <a class="navbar-brand" href="../index.php">
                 <i class="fas fa-fire"></i> Feuerwehr App
             </a>
-            <div class="navbar-nav ms-auto d-flex align-items-center">
+            <div class="d-flex ms-auto align-items-center">
                 <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
             </div>
         </div>

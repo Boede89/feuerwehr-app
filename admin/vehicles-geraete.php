@@ -410,7 +410,7 @@ try {
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
         <a class="navbar-brand" href="../index.php"><i class="fas fa-fire"></i> Feuerwehr App</a>
-        <div class="navbar-nav ms-auto d-flex align-items-center">
+        <div class="d-flex ms-auto align-items-center">
             <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
         </div>
     </div>
