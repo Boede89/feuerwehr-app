@@ -15,21 +15,32 @@ if (!hasAdminPermission()) {
     exit;
 }
 
+require_once __DIR__ . '/includes/require-unit.inc.php';
+$current_unit_id = get_current_unit_id() ?: 1;
+
 $message = '';
 $error = '';
 
-// Einstellungen laden
+// Einstellungen laden (für aktuelle Einheit)
 $settings = [];
 try {
-    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings");
-    $stmt->execute();
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE COALESCE(unit_id, 1) = ?");
+    $stmt->execute([$current_unit_id]);
     $settings_data = $stmt->fetchAll();
-    
     foreach ($settings_data as $setting) {
         $settings[$setting['setting_key']] = $setting['setting_value'];
     }
-} catch(PDOException $e) {
-    $error = "Fehler beim Laden der Einstellungen: " . $e->getMessage();
+} catch (Exception $e) {
+    try {
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings");
+        $stmt->execute();
+        $settings_data = $stmt->fetchAll();
+        foreach ($settings_data as $setting) {
+            $settings[$setting['setting_key']] = $setting['setting_value'];
+        }
+    } catch (Exception $e2) {
+        $error = "Fehler beim Laden der Einstellungen: " . $e2->getMessage();
+    }
 }
 
 // Einstellungen speichern
@@ -90,8 +101,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $all_settings = array_merge($smtp_settings, $google_settings, $app_settings, $vehicle_settings);
             
             foreach ($all_settings as $key => $value) {
-                $stmt = $db->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = ?");
-                $stmt->execute([$value, $key]);
+                try {
+                    $stmt = $db->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = ? AND COALESCE(unit_id, 1) = ?");
+                    $stmt->execute([$value, $key, $current_unit_id]);
+                    if ($stmt->rowCount() === 0) {
+                        $stmt = $db->prepare("INSERT INTO settings (unit_id, setting_key, setting_value) VALUES (?, ?, ?)");
+                        $stmt->execute([$current_unit_id, $key, $value]);
+                    }
+                } catch (Exception $e) {
+                    $stmt = $db->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = ?");
+                    $stmt->execute([$value, $key]);
+                }
             }
             
             $db->commit();
@@ -99,8 +119,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             log_activity($_SESSION['user_id'], 'settings_updated', 'Einstellungen aktualisiert');
             
             // Einstellungen neu laden
-            $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings");
-            $stmt->execute();
+            $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE COALESCE(unit_id, 1) = ?");
+            $stmt->execute([$current_unit_id]);
             $settings_data = $stmt->fetchAll();
             
             foreach ($settings_data as $setting) {

@@ -2,6 +2,11 @@
 session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
+
+// Eingeloggt (nicht Systembenutzer) ohne Einheit: zur Einheiten-Auswahl
+if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
+    redirect('unit-select.php');
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -170,14 +175,22 @@ require_once 'includes/functions.php';
                 <?php
                     // App Name aus den Einstellungen (nur hier auf der Startseite anzeigen)
                     $appDisplayName = 'Feuerwehr App';
+                    $unitId = get_current_unit_id() ?: 1;
                     try {
-                        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_name'");
-                        $stmt->execute();
+                        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_name' AND COALESCE(unit_id, 1) = ? LIMIT 1");
+                        $stmt->execute([$unitId]);
                         $val = trim((string)$stmt->fetchColumn());
                         if ($val !== '') {
                             $appDisplayName = $val;
                         }
-                    } catch (Exception $e) { /* Fallback beibehalten */ }
+                    } catch (Exception $e) {
+                        try {
+                            $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_name'");
+                            $stmt->execute();
+                            $val = trim((string)$stmt->fetchColumn());
+                            if ($val !== '') $appDisplayName = $val;
+                        } catch (Exception $e2) { /* Fallback */ }
+                    }
                 ?>
                 <div class="text-center mb-5">
                     <h1 class="display-4 text-primary">

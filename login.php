@@ -6,9 +6,10 @@ require_once 'includes/functions.php';
 // Bereits eingeloggt? Weiterleitung
 if (is_logged_in()) {
     if (is_system_user()) {
+        $_SESSION['current_unit_id'] = 1;
         redirect('formulare.php');
     } else {
-        redirect('admin/dashboard.php');
+        redirect('unit-select.php');
     }
 }
 
@@ -23,6 +24,8 @@ if (isset($_GET['error'])) {
         $error = "Ungültiger oder abgelaufener Autologin-Link. Bitte fordern Sie einen neuen Link an.";
     } elseif ($_GET['error'] === 'token_expired') {
         $error = "Der Autologin-Link ist abgelaufen. Bitte fordern Sie einen neuen Link an.";
+    } elseif ($_GET['error'] === 'no_units') {
+        $error = "Keine Einheit zugewiesen. Bitte führen Sie die Migration aus: <a href=\"add-units-support.php\">add-units-support.php</a>";
     }
 }
 
@@ -135,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && (!isset($_POST['action']) || $_POST[
                 // Aktivität loggen
                 log_activity($user['id'], 'login', 'Benutzer angemeldet');
                 
-                redirect('admin/dashboard.php');
+                redirect('unit-select.php');
             } else {
                 $error = "Ungültige Anmeldedaten oder Benutzer ist deaktiviert.";
             }

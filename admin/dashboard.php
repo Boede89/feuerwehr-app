@@ -48,21 +48,29 @@ if (!isset($_SESSION["user_id"])) {
     exit();
 }
 
+// Einheit muss gewählt sein
+$current_unit_id = function_exists('get_current_unit_id') ? get_current_unit_id() : null;
+if (!$current_unit_id) {
+    echo '<script>window.location.href = "../unit-select.php";</script>';
+    exit();
+}
+
 // Dashboard-Einstellungen laden
 $dashboard_preferences = [];
 try {
-    $stmt = $db->prepare("SELECT section_name, is_collapsed FROM dashboard_preferences WHERE user_id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
+    $stmt = $db->prepare("SELECT section_name, is_collapsed FROM dashboard_preferences WHERE user_id = ? AND COALESCE(unit_id, 1) = ?");
+    $stmt->execute([$_SESSION['user_id'], $current_unit_id]);
+} catch (Exception $e) {
+    try {
+        $stmt = $db->prepare("SELECT section_name, is_collapsed FROM dashboard_preferences WHERE user_id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+    } catch (Exception $e2) { $stmt = null; }
+}
+if ($stmt) {
     $preferences = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
     foreach ($preferences as $pref) {
         $dashboard_preferences[$pref['section_name']] = $pref['is_collapsed'];
     }
-    
-    // Debug: Einstellungen loggen
-    error_log("Dashboard-Einstellungen für User " . $_SESSION['user_id'] . ": " . json_encode($dashboard_preferences));
-} catch (Exception $e) {
-    error_log("Fehler beim Laden der Dashboard-Einstellungen: " . $e->getMessage());
 }
 
 // Benutzer laden
@@ -164,10 +172,11 @@ if ($can_reservations) {
             FROM reservations r 
             JOIN vehicles v ON r.vehicle_id = v.id 
             WHERE r.status = 'pending' 
+            AND COALESCE(r.unit_id, 1) = ? AND COALESCE(v.unit_id, 1) = ?
             ORDER BY r.created_at DESC 
             LIMIT 10
         ");
-        $stmt->execute();
+        $stmt->execute([$current_unit_id, $current_unit_id]);
         $pending_reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
         echo '<script>console.log("🔍 Reservierungen geladen:", ' . count($pending_reservations) . ');</script>';
         echo '<script>console.log("Reservierungen:", ' . json_encode($pending_reservations) . ');</script>';
@@ -242,11 +251,11 @@ if ($can_atemschutz) {
                         LEFT JOIN users u ON ae.requester_id = u.id
                         LEFT JOIN atemschutz_entry_traeger aet ON ae.id = aet.entry_id
                         LEFT JOIN atemschutz_traeger at ON aet.traeger_id = at.id
-                        WHERE ae.status = 'pending'
+                        WHERE ae.status = 'pending' AND COALESCE(ae.unit_id, 1) = ?
                         GROUP BY ae.id
                         ORDER BY ae.created_at DESC
                     ");
-        $stmt->execute();
+        $stmt->execute([$current_unit_id]);
         $atemschutz_entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         error_log("Atemschutzeintrag-Anträge geladen: " . count($atemschutz_entries));
@@ -338,7 +347,7 @@ if ($can_atemschutz) {
         
         $warn_date = date('Y-m-d', strtotime("+{$warn_days} days"));
         
-        // Lade alle aktiven Geräteträger mit letzter E-Mail-Versendung und filtere dann in PHP
+        // Lade alle aktiven Geräteträger der Einheit
         $stmt = $db->prepare("
             SELECT t.*, 
                    el.sent_at as last_email_sent
@@ -348,10 +357,10 @@ if ($can_atemschutz) {
                        ROW_NUMBER() OVER (PARTITION BY traeger_id ORDER BY sent_at DESC) as rn
                 FROM email_log
             ) el ON t.id = el.traeger_id AND el.rn = 1
-            WHERE t.status = 'Aktiv'
+            WHERE t.status = 'Aktiv' AND COALESCE(t.unit_id, 1) = ?
             ORDER BY t.last_name ASC, t.first_name ASC
         ");
-        $stmt->execute();
+        $stmt->execute([$current_unit_id]);
         $all_traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Filtere nur die wirklich auffälligen Geräteträger

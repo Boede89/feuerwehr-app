@@ -15,6 +15,9 @@ if (!has_permission('members')) {
     exit;
 }
 
+require_once __DIR__ . '/includes/require-unit.inc.php';
+$current_unit_id = get_current_unit_id() ?: 1;
+
 $message = '';
 $error = '';
 
@@ -368,9 +371,8 @@ try {
         // Fehler ignorieren
     }
     
-    // Alle Mitglieder laden: Benutzer aus users + zusätzliche Mitglieder aus members
-    // Zuerst alle Benutzer als Mitglieder (mit is_pa_traeger aus members, prüfe auch ob Geräteträger existiert)
-    $stmt = $db->query("
+    // Alle Mitglieder laden: Benutzer aus users + zusätzliche Mitglieder aus members (gefiltert nach Einheit)
+    $stmt = $db->prepare("
         SELECT 
             u.id as user_id,
             u.first_name,
@@ -381,7 +383,7 @@ try {
             m.qualification_id,
             q.name as qualification_name,
             CASE 
-                WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
+                WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id AND COALESCE(at2.unit_id, 1) = ?) THEN 1
                 ELSE COALESCE(m.is_pa_traeger, 0)
             END as is_pa_traeger,
             m.id as member_id,
@@ -391,16 +393,16 @@ try {
             at.uebung_am,
             'user' as source
         FROM users u
-        INNER JOIN members m ON m.user_id = u.id
+        INNER JOIN members m ON m.user_id = u.id AND COALESCE(m.unit_id, 1) = ?
         LEFT JOIN member_qualifications q ON q.id = m.qualification_id
-        LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
+        LEFT JOIN atemschutz_traeger at ON at.member_id = m.id AND COALESCE(at.unit_id, 1) = ?
         WHERE u.is_active = 1
         ORDER BY u.last_name, u.first_name
     ");
+    $stmt->execute([$current_unit_id, $current_unit_id, $current_unit_id]);
     $user_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Dann zusätzliche Mitglieder (ohne user_id Verknüpfung, prüfe auch ob Geräteträger existiert)
-    $stmt = $db->query("
+    $stmt = $db->prepare("
         SELECT 
             NULL as user_id,
             m.first_name,
@@ -411,7 +413,7 @@ try {
             m.qualification_id,
             q.name as qualification_name,
             CASE 
-                WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
+                WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id AND COALESCE(at2.unit_id, 1) = ?) THEN 1
                 ELSE COALESCE(m.is_pa_traeger, 0)
             END as is_pa_traeger,
             m.id as member_id,
@@ -422,10 +424,11 @@ try {
             'member' as source
         FROM members m
         LEFT JOIN member_qualifications q ON q.id = m.qualification_id
-        LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
-        WHERE m.user_id IS NULL
+        LEFT JOIN atemschutz_traeger at ON at.member_id = m.id AND COALESCE(at.unit_id, 1) = ?
+        WHERE m.user_id IS NULL AND COALESCE(m.unit_id, 1) = ?
         ORDER BY m.last_name, m.first_name
     ");
+    $stmt->execute([$current_unit_id, $current_unit_id, $current_unit_id]);
     $additional_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Kombiniere beide Listen
@@ -890,17 +893,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     // Mitglied erstellen
                     $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
                     
-                    $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, qualification_id, is_pa_traeger) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([
-                        $user_id,
-                        $first_name,
-                        $last_name,
-                        !empty($email) ? $email : null,
-                        !empty($birthdate) ? $birthdate : null,
-                        !empty($phone) ? $phone : null,
-                        $qualification_id,
-                        $is_pa_traeger
-                    ]);
+                    try {
+                        $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, qualification_id, is_pa_traeger, unit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([
+                            $user_id,
+                            $first_name,
+                            $last_name,
+                            !empty($email) ? $email : null,
+                            !empty($birthdate) ? $birthdate : null,
+                            !empty($phone) ? $phone : null,
+                            $qualification_id,
+                            $is_pa_traeger,
+                            $current_unit_id
+                        ]);
+                    } catch (Exception $e) {
+                        $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, qualification_id, is_pa_traeger) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([
+                            $user_id,
+                            $first_name,
+                            $last_name,
+                            !empty($email) ? $email : null,
+                            !empty($birthdate) ? $birthdate : null,
+                            !empty($phone) ? $phone : null,
+                            $qualification_id,
+                            $is_pa_traeger
+                        ]);
+                    }
                     
                     $new_member_id = $db->lastInsertId();
                     

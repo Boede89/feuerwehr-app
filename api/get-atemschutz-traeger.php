@@ -51,21 +51,27 @@ try {
         // Fehler ignorieren
     }
     
-    // Lade nur aktive Atemschutzgeräteträger, deren Mitglied is_pa_traeger = 1 hat
-    $stmt = $db->prepare("
+    // Aktuelle Einheit (Gast = 1)
+    $unit_id = get_current_unit_id() ?: 1;
+
+    // Lade nur aktive Atemschutzgeräteträger der Einheit
+    $sql = "
         SELECT at.id, at.first_name, at.last_name
         FROM atemschutz_traeger at
         LEFT JOIN members m ON at.member_id = m.id
-        WHERE at.status = 'Aktiv' 
+        WHERE at.status = 'Aktiv'
+        AND (COALESCE(at.unit_id, 1) = ?)
         AND (m.is_pa_traeger = 1 OR (at.member_id IS NULL AND EXISTS (
-            SELECT 1 FROM members m2 
-            WHERE m2.first_name = at.first_name 
-            AND m2.last_name = at.last_name 
+            SELECT 1 FROM members m2
+            WHERE m2.first_name = at.first_name
+            AND m2.last_name = at.last_name
             AND m2.is_pa_traeger = 1
+            AND COALESCE(m2.unit_id, 1) = ?
         )))
         ORDER BY at.last_name, at.first_name
-    ");
-    $stmt->execute();
+    ";
+    $stmt = $db->prepare($sql);
+    $stmt->execute([$unit_id, $unit_id]);
     $traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Debug-Log

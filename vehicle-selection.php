@@ -5,32 +5,37 @@ require_once 'includes/functions.php';
 
 $message = '';
 $error = '';
+$unit_id = get_current_unit_id() ?: 1;
 
-// Fahrzeuge laden mit Sortierung
+// Fahrzeuge laden mit Sortierung (gefiltert nach Einheit)
 $vehicles = [];
 try {
-    // Sortier-Modus aus Einstellungen laden
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'vehicle_sort_mode'");
-    $stmt->execute();
-    $sort_mode = $stmt->fetchColumn() ?: 'manual';
-    
-    // SQL-Query basierend auf Sortier-Modus
-    switch ($sort_mode) {
-        case 'name':
-            $order_by = "ORDER BY name ASC";
-            break;
-        case 'created':
-            $order_by = "ORDER BY created_at ASC";
-            break;
-        case 'manual':
-        default:
-            $order_by = "ORDER BY sort_order ASC, name ASC";
-            break;
+    $sort_mode = 'manual';
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'vehicle_sort_mode' AND COALESCE(unit_id, 1) = ?");
+        $stmt->execute([$unit_id]);
+        $sort_mode = $stmt->fetchColumn() ?: 'manual';
+    } catch (Exception $e) {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'vehicle_sort_mode'");
+        $stmt->execute();
+        $sort_mode = $stmt->fetchColumn() ?: 'manual';
     }
-    
-    $stmt = $db->prepare("SELECT * FROM vehicles WHERE is_active = 1 $order_by");
-    $stmt->execute();
-    $vehicles = $stmt->fetchAll();
+
+    switch ($sort_mode) {
+        case 'name': $order_by = "ORDER BY name ASC"; break;
+        case 'created': $order_by = "ORDER BY created_at ASC"; break;
+        default: $order_by = "ORDER BY sort_order ASC, name ASC"; break;
+    }
+
+    try {
+        $stmt = $db->prepare("SELECT * FROM vehicles WHERE is_active = 1 AND COALESCE(unit_id, 1) = ? $order_by");
+        $stmt->execute([$unit_id]);
+        $vehicles = $stmt->fetchAll();
+    } catch (Exception $e) {
+        $stmt = $db->prepare("SELECT * FROM vehicles WHERE is_active = 1 $order_by");
+        $stmt->execute();
+        $vehicles = $stmt->fetchAll();
+    }
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Fahrzeuge: " . $e->getMessage();
 }
