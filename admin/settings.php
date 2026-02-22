@@ -185,20 +185,6 @@ if (isset($_POST['test_email_btn'])) {
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-truck"></i> Fahrzeugreservierungen</h5>
-                        <p class="text-muted">Einstellungen speziell für die Fahrzeugreservierungen.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-vehicle-reservations.php">
-                                <i class="fas fa-sliders"></i> Öffnen
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Rechte Spalte -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
                         <h5 class="card-title"><i class="fas fa-gear"></i> Globale Einstellungen</h5>
                         <p class="text-muted">SMTP, Google Calendar, App-weite Optionen, Fahrzeug- und Benutzerverwaltung.</p>
                         <div class="mt-auto">
