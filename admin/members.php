@@ -379,45 +379,81 @@ try {
     
     // Einheit-Filter für Einheitsadmin/Superadmin
     $einheit_filter = get_admin_einheit_filter();
-    
-    // Alle Mitglieder laden: Benutzer aus users + zusätzliche Mitglieder aus members
-    // Einheitsadmins und Superadmins (mit zugewiesener Einheit) erscheinen nur in der Liste ihrer Einheit
-    // User-Members: Mitglied gehört zur Einheit ODER User ist Admin dieser Einheit (u.einheit_id = filter)
     $ef = (int)$einheit_filter;
-    $einheit_where = $einheit_filter
-        ? " AND ((m.einheit_id = $ef OR m.einheit_id IS NULL) OR ((u.user_type = 'einheitsadmin' OR u.user_type = 'superadmin') AND u.einheit_id = $ef))"
+    
+    // Einheit-Filter: mit user_type (Einheitsadmin/Superadmin-Logik) oder vereinfacht
+    $einheit_where_full = $einheit_filter
+        ? " AND ((m.einheit_id = $ef OR m.einheit_id IS NULL) OR ((COALESCE(u.user_type,'user') = 'einheitsadmin' OR COALESCE(u.user_type,'user') = 'superadmin') AND u.einheit_id = $ef))"
         : "";
-    $exclude_other_einheitsadmins = $einheit_filter
-        ? " AND NOT ((u.user_type = 'einheitsadmin' OR u.user_type = 'superadmin') AND u.einheit_id IS NOT NULL AND u.einheit_id != $ef)"
+    $exclude_other_full = $einheit_filter
+        ? " AND NOT ((COALESCE(u.user_type,'user') = 'einheitsadmin' OR COALESCE(u.user_type,'user') = 'superadmin') AND u.einheit_id IS NOT NULL AND u.einheit_id != $ef)"
         : "";
-    $stmt = $db->query("
-        SELECT 
-            u.id as user_id,
-            u.first_name,
-            u.last_name,
-            u.email,
-            m.birthdate,
-            m.phone,
-            m.qualification_id,
-            q.name as qualification_name,
-            CASE 
-                WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
-                ELSE COALESCE(m.is_pa_traeger, 0)
-            END as is_pa_traeger,
-            m.id as member_id,
-            u.created_at,
-            at.strecke_am,
-            at.g263_am,
-            at.uebung_am,
-            'user' as source
-        FROM users u
-        INNER JOIN members m ON m.user_id = u.id
-        LEFT JOIN member_qualifications q ON q.id = m.qualification_id
-        LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
-        WHERE u.is_active = 1 $einheit_where $exclude_other_einheitsadmins
-        ORDER BY u.last_name, u.first_name
-    ");
-    $user_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $einheit_where_simple = $einheit_filter ? " AND (m.einheit_id = $ef OR m.einheit_id IS NULL)" : "";
+    
+    $user_members = [];
+    try {
+        $stmt = $db->query("
+            SELECT 
+                u.id as user_id,
+                u.first_name,
+                u.last_name,
+                u.email,
+                m.birthdate,
+                m.phone,
+                m.qualification_id,
+                q.name as qualification_name,
+                CASE 
+                    WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
+                    ELSE COALESCE(m.is_pa_traeger, 0)
+                END as is_pa_traeger,
+                m.id as member_id,
+                u.created_at,
+                at.strecke_am,
+                at.g263_am,
+                at.uebung_am,
+                'user' as source
+            FROM users u
+            INNER JOIN members m ON m.user_id = u.id
+            LEFT JOIN member_qualifications q ON q.id = m.qualification_id
+            LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
+            WHERE u.is_active = 1 $einheit_where_full $exclude_other_full
+            ORDER BY u.last_name, u.first_name
+        ");
+        $user_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'user_type') !== false || strpos($e->getMessage(), 'Unknown column') !== false) {
+            $stmt = $db->query("
+                SELECT 
+                    u.id as user_id,
+                    u.first_name,
+                    u.last_name,
+                    u.email,
+                    m.birthdate,
+                    m.phone,
+                    m.qualification_id,
+                    q.name as qualification_name,
+                    CASE 
+                        WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
+                        ELSE COALESCE(m.is_pa_traeger, 0)
+                    END as is_pa_traeger,
+                    m.id as member_id,
+                    u.created_at,
+                    at.strecke_am,
+                    at.g263_am,
+                    at.uebung_am,
+                    'user' as source
+                FROM users u
+                INNER JOIN members m ON m.user_id = u.id
+                LEFT JOIN member_qualifications q ON q.id = m.qualification_id
+                LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
+                WHERE u.is_active = 1 $einheit_where_simple
+                ORDER BY u.last_name, u.first_name
+            ");
+            $user_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } else {
+            throw $e;
+        }
+    }
     
     // Dann zusätzliche Mitglieder (ohne user_id Verknüpfung)
     $stmt = $db->query("
@@ -443,7 +479,7 @@ try {
         FROM members m
         LEFT JOIN member_qualifications q ON q.id = m.qualification_id
         LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
-        WHERE m.user_id IS NULL $einheit_where
+        WHERE m.user_id IS NULL $einheit_where_simple
         ORDER BY m.last_name, m.first_name
     ");
     $additional_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
