@@ -551,13 +551,8 @@ try {
             <a class="navbar-brand" href="../index.php">
                 <i class="fas fa-fire"></i> Feuerwehr App
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <div class="navbar-nav ms-auto d-flex align-items-center">
-                    <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
-                </div>
+            <div class="navbar-nav ms-auto d-flex align-items-center">
+                <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
             </div>
         </div>
     </nav>

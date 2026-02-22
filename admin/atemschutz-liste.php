@@ -50,13 +50,8 @@ if (!$isAdmin && !$canAtemschutz) {
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
         <a class="navbar-brand" href="dashboard.php"><i class="fas fa-fire"></i> Feuerwehr App</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="nav">
-            <div class="navbar-nav ms-auto d-flex align-items-center">
-                <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
-            </div>
+        <div class="navbar-nav ms-auto d-flex align-items-center">
+            <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
         </div>
     </div>
     </nav>
