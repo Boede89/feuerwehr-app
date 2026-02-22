@@ -707,13 +707,12 @@ if ($can_atemschutz) {
 
 
     <div class="container-fluid mt-4">
-        <!-- Header mit Menü -->
+        <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h1 class="h3 mb-0">
                 <i class="fas fa-tachometer-alt"></i> Dashboard
                 <small class="text-muted">Willkommen, <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>!</small>
             </h1>
-            <?php $admin_menu_in_navbar = false; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
         </div>
 
         <!-- Feedback-Statistiken (nur für Admins) -->
