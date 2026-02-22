@@ -51,10 +51,8 @@ try {
         // Fehler ignorieren
     }
     
-    // Aktuelle Einheit (Gast = 1)
     $unit_id = get_current_unit_id() ?: 1;
 
-    // Lade nur aktive Atemschutzgeräteträger der Einheit
     $sql = "
         SELECT at.id, at.first_name, at.last_name
         FROM atemschutz_traeger at

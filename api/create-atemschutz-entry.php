@@ -118,7 +118,6 @@ try {
     $db->beginTransaction();
     
     try {
-        // Erstelle Atemschutzeintrag-Antrag (mit unit_id falls Spalte existiert)
         try {
             $stmt = $db->prepare("
                 INSERT INTO atemschutz_entries 
@@ -149,11 +148,7 @@ try {
         }
         
         // Sende E-Mail-Benachrichtigung an Atemschutz-Admins
-        $stmt = $db->prepare("
-            SELECT u.email, u.first_name, u.last_name 
-            FROM users u 
-            WHERE u.atemschutz_notifications = 1
-        ");
+        $stmt = $db->prepare("SELECT email, first_name, last_name FROM users WHERE atemschutz_notifications = 1 AND is_active = 1");
         $stmt->execute();
         $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
         

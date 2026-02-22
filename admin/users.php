@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -23,6 +24,16 @@ if (!hasAdminPermission()) {
 
 $message = '';
 $error = '';
+
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+$einheit = null;
+if ($einheit_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
+        $stmt->execute([$einheit_id]);
+        $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+}
 
 // Erfolgsmeldungen von GET-Parameter
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
@@ -96,10 +107,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             $days = (int)$validity;
                             $autologin_expires = $days > 0 ? date('Y-m-d H:i:s', strtotime("+{$days} days")) : null;
                         }
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, ?, ?)");
-                        $stmt->execute([$username, $first_name ?: $username, $last_name, $autologin_token, $autologin_expires]);
+                        $save_einheit_id = (int)($_POST['einheit_id'] ?? $einheit_id);
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires, einheit_id) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, ?, ?, ?)");
+                        $stmt->execute([$username, $first_name ?: $username, $last_name, $autologin_token, $autologin_expires, $save_einheit_id > 0 ? $save_einheit_id : null]);
                         log_activity($_SESSION['user_id'], 'user_added', "Systembenutzer '$username' hinzugefügt");
-                        header("Location: users.php?tab=system&success=system_added");
+                        $redir = "Location: users.php?tab=system&success=system_added";
+                        if ($save_einheit_id > 0) $redir .= "&einheit_id=" . $save_einheit_id;
+                        header($redir);
                         exit;
                     }
                 } catch (Exception $e) {
@@ -164,7 +178,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         log_activity($_SESSION['user_id'], 'user_added', "Benutzer '$username' hinzugefügt");
                         
                         // Weiterleitung um POST-Problem zu vermeiden
-                        header("Location: users.php?success=added");
+                        $redir = "Location: users.php?success=added";
+                        if ($save_einheit_id > 0) $redir .= "&einheit_id=" . $save_einheit_id;
+                        header($redir);
                         exit();
                     }
                 } elseif ($action == 'edit') {
@@ -388,14 +404,30 @@ try {
     }
     
     try { $db->exec("ALTER TABLE users ADD COLUMN is_system_user TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
-    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, is_active, created_at, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
-    $stmt->execute();
+    try { $db->exec("ALTER TABLE users ADD COLUMN einheit_id INT NULL"); } catch (Exception $e) {}
+    $amern_id = get_einheit_amern_id($db);
+    if ($amern_id > 0) {
+        try { $db->exec("UPDATE users SET einheit_id = $amern_id WHERE einheit_id IS NULL"); } catch (Exception $e) {}
+    }
+    $where = "1=1";
+    $params = [];
+    if ($einheit_id > 0) {
+        if ($amern_id > 0 && $amern_id === $einheit_id) {
+            $where = "(einheit_id = ? OR einheit_id IS NULL)";
+        } else {
+            $where = "einheit_id = ?";
+        }
+        $params[] = $einheit_id;
+    }
+    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, is_active, created_at, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles FROM users WHERE $where ORDER BY created_at DESC");
+    $stmt->execute($params);
     $all_users = $stmt->fetchAll();
     $users = array_filter($all_users, fn($u) => empty($u['is_system_user']));
     $system_users = array_filter($all_users, fn($u) => !empty($u['is_system_user']));
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Benutzer: " . $e->getMessage();
     $users = [];
+    $system_users = [];
 }
 ?>
 <!DOCTYPE html>
@@ -425,12 +457,23 @@ try {
     </nav>
 
     <div class="container-fluid mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <h1 class="h3 mb-0">
+                <i class="fas fa-users"></i> Benutzerverwaltung<?php if ($einheit): ?> <span class="text-muted">(<?php echo htmlspecialchars($einheit['name']); ?>)</span><?php endif; ?>
+            </h1>
+            <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
+        </div>
+
+        <?php if ($message): ?>
+            <?php echo show_success($message); ?>
+        <?php endif; ?>
+        <?php if ($error): ?>
+            <?php echo show_error($error); ?>
+        <?php endif; ?>
+
         <div class="row">
             <div class="col-12">
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                    <h1 class="h3 mb-0">
-                        <i class="fas fa-users"></i> Benutzerverwaltung
-                    </h1>
                     <div class="d-flex gap-2">
                         <?php if ($active_tab === 'users'): ?>
                         <button type="button" class="btn btn-primary" onclick="openUserModal()">
@@ -444,26 +487,19 @@ try {
                     </div>
                 </div>
                 
+                <?php $tab_base = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id . '&tab=' : '?tab='; ?>
                 <ul class="nav nav-tabs mb-3">
                     <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'users' ? 'active' : ''; ?>" href="?tab=users">
+                        <a class="nav-link <?php echo $active_tab === 'users' ? 'active' : ''; ?>" href="<?php echo $tab_base; ?>users">
                             <i class="fas fa-user"></i> Benutzer (<?php echo count($users); ?>)
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'system' ? 'active' : ''; ?>" href="?tab=system">
+                        <a class="nav-link <?php echo $active_tab === 'system' ? 'active' : ''; ?>" href="<?php echo $tab_base; ?>system">
                             <i class="fas fa-robot"></i> Systembenutzer (<?php echo count($system_users); ?>)
                         </a>
                     </li>
                 </ul>
-                
-                <?php if ($message): ?>
-                    <?php echo show_success($message); ?>
-                <?php endif; ?>
-                
-                <?php if ($error): ?>
-                    <?php echo show_error($error); ?>
-                <?php endif; ?>
             </div>
         </div>
 
@@ -725,6 +761,7 @@ try {
                         
                         <input type="hidden" name="user_id" id="user_id">
                         <input type="hidden" name="action" id="action" value="add">
+                        <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     </div>
                     <div class="modal-footer">
@@ -742,6 +779,7 @@ try {
             <div class="modal-content">
                 <form method="POST">
                     <input type="hidden" name="action" value="add_system_user">
+                    <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     <div class="modal-header">
                         <h5 class="modal-title"><i class="fas fa-robot"></i> Systembenutzer anlegen</h5>

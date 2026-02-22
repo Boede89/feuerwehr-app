@@ -15,6 +15,7 @@ if (!hasAdminPermission()) {
 
 $message = '';
 $error = '';
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 
 $settings = [];
 $divera_debug_payloads = [];
@@ -152,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h3 mb-0"><i class="fas fa-calendar-plus"></i> Divera 24/7 Einstellungen</h1>
-        <a href="settings.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück zu Einstellungen</a>
+        <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
     </div>
     <?php if ($message) echo show_success($message); ?>
     <?php if ($error) echo show_error($error); ?>

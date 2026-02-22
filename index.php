@@ -156,15 +156,13 @@ if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
                 include __DIR__ . '/admin/includes/admin-menu.inc.php';
                 ?>
                 </div>
-            <?php else: ?>
-                <?php if (!isset($_SESSION['user_id'])): ?>
+            <?php elseif (!isset($_SESSION['user_id'])): ?>
                 <div class="d-flex ms-auto align-items-center">
                     <a class="btn btn-outline-light btn-sm px-3 py-2 d-flex align-items-center gap-2" href="login.php">
                         <i class="fas fa-sign-in-alt"></i>
                         <span class="fw-semibold">Anmelden</span>
                     </a>
                 </div>
-                <?php endif; ?>
             <?php endif; ?>
         </div>
     </nav>
@@ -173,7 +171,7 @@ if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
         <div class="row justify-content-center">
             <div class="col-12 col-md-10 col-lg-8">
                 <?php
-                    // App Name aus den Einstellungen (nur hier auf der Startseite anzeigen)
+                    // App Name aus den Einstellungen
                     $appDisplayName = 'Feuerwehr App';
                     $unitId = get_current_unit_id() ?: 1;
                     try {
@@ -228,7 +226,7 @@ if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
 
                     <?php if (is_logged_in()): ?>
                     <div class="col-12 col-sm-6 col-lg-4">
-                        <a href="formulare.php" class="text-decoration-none">
+                            <a href="formulare.php" class="text-decoration-none">
                             <div class="card h-100 shadow-sm feature-card clickable-card">
                                 <div class="card-body text-center p-4 d-flex flex-column">
                                     <div class="feature-icon mb-3">
@@ -464,7 +462,11 @@ if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
             const traegerList = document.getElementById('traegerList');
             traegerList.innerHTML = '<div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Geräteträger...</div>';
             
-            fetch('api/get-atemschutz-traeger.php')
+            let url = 'api/get-atemschutz-traeger.php';
+            if (window.currentEinheitId) {
+                url += '?einheit_id=' + encodeURIComponent(window.currentEinheitId);
+            }
+            fetch(url)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -520,6 +522,9 @@ if (is_logged_in() && !is_system_user() && !get_current_unit_id()) {
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Wird gesendet...';
             
+            if (window.currentEinheitId) {
+                formData.append('einheit_id', window.currentEinheitId);
+            }
             fetch('api/create-atemschutz-entry.php', {
                 method: 'POST',
                 body: formData
