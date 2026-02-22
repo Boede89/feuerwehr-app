@@ -115,16 +115,16 @@ $anzahlOptions = [
     <div class="container mt-4">
         <div class="row">
             <div class="col-12">
-                <div class="d-flex align-items-center mb-4">
-                    <a href="atemschutz.php" class="btn btn-outline-secondary me-3">
-                        <i class="fas fa-arrow-left me-1"></i>Zurück
-                    </a>
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <div>
                         <h2 class="mb-0">
                             <i class="fas fa-calendar-plus text-primary me-2"></i>Übung planen
                         </h2>
                         <p class="text-muted mb-0">Planen Sie eine Atemschutz-Übung und finden Sie passende PA-Träger</p>
                     </div>
+                    <a href="atemschutz.php" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>Zurück
+                    </a>
                 </div>
 
                 <form id="uebungPlanenForm">

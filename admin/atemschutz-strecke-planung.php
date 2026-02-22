@@ -407,11 +407,13 @@ try {
     </nav>
 
     <div class="container-fluid mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h1 class="h3 mb-0">
                 <i class="fas fa-calendar-check"></i> Übungsstrecke - Terminplanung
             </h1>
-            <div class="btn-group flex-wrap">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <a href="atemschutz.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
+                <div class="btn-group flex-wrap">
                 <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#terminModal">
                     <i class="fas fa-plus"></i> Neuer Termin
                 </button>
@@ -430,6 +432,7 @@ try {
                 <button class="btn btn-secondary" onclick="planungDrucken()">
                     <i class="fas fa-print"></i> PDF drucken
                 </button>
+            </div>
             </div>
         </div>
 

@@ -299,11 +299,11 @@ $view = $_GET['view'] ?? 'list'; // 'list', 'assign', 'planning'
     <div class="container-fluid mt-4">
         <div class="row">
             <div class="col-12">
-                <div class="d-flex align-items-center mb-4">
-                    <a href="members.php" class="btn btn-outline-secondary me-3"><i class="fas fa-arrow-left"></i> Zurück</a>
+                <div class="d-flex justify-content-between align-items-center mb-4">
                     <h1 class="mb-0">
                         <i class="fas fa-graduation-cap"></i> Lehrgangsverwaltung
                     </h1>
+                    <a href="members.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
                 </div>
             </div>
         </div>

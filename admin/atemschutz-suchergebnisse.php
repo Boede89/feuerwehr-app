@@ -131,16 +131,16 @@ function formatDate($date) {
     <div class="container mt-4">
         <div class="row">
             <div class="col-12">
-                <div class="d-flex align-items-center mb-4">
-                    <a href="atemschutz-uebung-planen.php" class="btn btn-outline-secondary me-3">
-                        <i class="fas fa-arrow-left me-1"></i>Zurück zur Suche
-                    </a>
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <div>
                         <h2 class="mb-0">
                             <i class="fas fa-search text-primary me-2"></i>PA-Träger Suchergebnisse
                         </h2>
                         <p class="text-muted mb-0">Gefundene Geräteträger für Ihre Übung</p>
                     </div>
+                    <a href="atemschutz-uebung-planen.php" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>Zurück zur Suche
+                    </a>
                 </div>
 
                 <!-- Suchzusammenfassung -->

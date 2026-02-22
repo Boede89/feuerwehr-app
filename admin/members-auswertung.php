@@ -251,9 +251,9 @@ if ($debug_fahrzeug) {
 </nav>
 
 <div class="container-fluid mt-4">
-    <div class="d-flex align-items-center mb-4">
-        <a href="members.php" class="btn btn-outline-secondary me-3"><i class="fas fa-arrow-left"></i> Zurück</a>
+    <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0"><i class="fas fa-chart-pie"></i> Auswertung</h1>
+        <a href="members.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
     </div>
 
     <?php if ($bereich === ''): ?>
@@ -388,7 +388,7 @@ if ($debug_fahrzeug) {
         <?php endif; ?>
     </div>
     <?php else: ?>
-    <div class="mb-3">
+    <div class="d-flex justify-content-end mb-3">
         <a href="members-auswertung.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left"></i> Zurück zur Übersicht</a>
     </div>
 
