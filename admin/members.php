@@ -369,11 +369,15 @@ try {
         // Fehler ignorieren
     }
     
-    // Einheit-Filter für Einheitsadmin
+    // Einheit-Filter für Einheitsadmin/Superadmin
     $einheit_filter = get_admin_einheit_filter();
     
     // Alle Mitglieder laden: Benutzer aus users + zusätzliche Mitglieder aus members
+    // Einheitsadmins erscheinen nur in der Liste ihrer eigenen Einheit (nicht in anderen)
     $einheit_where = $einheit_filter ? " AND (m.einheit_id = " . (int)$einheit_filter . " OR m.einheit_id IS NULL)" : "";
+    $exclude_other_einheitsadmins = $einheit_filter
+        ? " AND NOT (u.user_type = 'einheitsadmin' AND u.einheit_id IS NOT NULL AND u.einheit_id != " . (int)$einheit_filter . ")"
+        : "";
     $stmt = $db->query("
         SELECT 
             u.id as user_id,
@@ -398,7 +402,7 @@ try {
         INNER JOIN members m ON m.user_id = u.id
         LEFT JOIN member_qualifications q ON q.id = m.qualification_id
         LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
-        WHERE u.is_active = 1 $einheit_where
+        WHERE u.is_active = 1 $einheit_where $exclude_other_einheitsadmins
         ORDER BY u.last_name, u.first_name
     ");
     $user_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
