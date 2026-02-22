@@ -26,12 +26,15 @@ if ($einheit_id > 0) {
 $message = '';
 $error = '';
 
-// Import-Erfolgsmeldungen prüfen
+// Erfolgsmeldungen prüfen
 if (isset($_GET['import']) && $_GET['import'] === 'success') {
     $message = 'Einstellungen wurden erfolgreich importiert!';
 }
 if (isset($_GET['dbimport']) && $_GET['dbimport'] === 'success') {
     $message = 'Datenbank wurde erfolgreich importiert!';
+}
+if (isset($_GET['saved']) && $_GET['saved'] === '1') {
+    $message = $einheit_id > 0 ? 'Einstellungen gespeichert.' : 'Globale Einstellungen gespeichert.';
 }
 
 // Laden
@@ -136,12 +139,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $db->commit();
             $message = $save_einheit_id > 0 ? 'Einstellungen gespeichert.' : 'Globale Einstellungen gespeichert.';
-            if (!empty($error)) {
+            $had_error = !empty($error);
+            if ($had_error) {
                 $message .= ' Hinweis: ' . $error;
                 $error = '';
             }
             $settings = array_merge($settings, $all ?? []);
-        } catch (Exception $e) {
+            // Redirect nach POST (verhindert erneutes Senden bei Aktualisierung, behebt ggf. HTTP 500)
+            if (!$had_error) {
+                $redirect_url = 'settings-global.php';
+                if ($save_einheit_id > 0) {
+                    $redirect_url .= '?einheit_id=' . $save_einheit_id . '&saved=1';
+                } else {
+                    $redirect_url .= '?saved=1';
+                }
+                header('Location: ' . $redirect_url);
+                exit;
+            }
+        } catch (Throwable $e) {
             $db->rollBack();
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
         }

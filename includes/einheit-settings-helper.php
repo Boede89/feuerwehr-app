@@ -109,11 +109,12 @@ function save_settings_bulk_for_einheit($db, $einheit_id, $settings_array) {
     try {
         $stmt = $db->prepare("INSERT INTO einheit_settings (einheit_id, setting_key, setting_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
         foreach ($settings_array as $k => $v) {
-            $stmt->execute([$einheit_id, $k, $v]);
+            $stmt->execute([$einheit_id, (string)$k, $v === null ? '' : (string)$v]);
         }
         return true;
     } catch (Exception $e) {
-        return false;
+        error_log('save_settings_bulk_for_einheit: ' . $e->getMessage());
+        throw $e;
     }
 }
 
