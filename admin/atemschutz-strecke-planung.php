@@ -404,12 +404,9 @@ try {
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <?php echo get_admin_navigation(); ?>
-                </ul>
-                <ul class="navbar-nav d-flex align-items-center">
-                    <li class="nav-item d-flex align-items-center"><?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?></li>
-                </ul>
+                <div class="navbar-nav ms-auto d-flex align-items-center">
+                    <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
+                </div>
             </div>
         </div>
     </nav>

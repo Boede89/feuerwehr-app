@@ -148,12 +148,6 @@ $stats = $stats_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             </a>
             <div class="navbar-nav ms-auto d-flex align-items-center">
                 <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
-                <a class="nav-link" href="dashboard.php">
-                    <i class="fas fa-tachometer-alt"></i> Dashboard
-                </a>
-                <a class="nav-link" href="../logout.php">
-                    <i class="fas fa-sign-out-alt"></i> Abmelden
-                </a>
             </div>
         </div>
     </nav>

@@ -110,14 +110,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav me-auto">
-                <li class="nav-item"><a class="nav-link" href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li class="nav-item"><a class="nav-link active" href="profile.php"><i class="fas fa-user"></i> Profil</a></li>
-            </ul>
-            <ul class="navbar-nav d-flex align-items-center">
-                <li class="nav-item d-flex align-items-center"><?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?></li>
-                <li class="nav-item"><a class="nav-link" href="../logout.php"><i class="fas fa-sign-out-alt"></i> Abmelden</a></li>
-            </ul>
+            <div class="navbar-nav ms-auto d-flex align-items-center">
+                <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
+            </div>
         </div>
     </div>
     </nav>

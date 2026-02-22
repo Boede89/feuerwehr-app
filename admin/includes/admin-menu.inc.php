@@ -21,7 +21,6 @@ if (!isset($can_reservations)) {
     $can_forms = $is_adm ? true : has_permission('forms');
 }
 $has_any = $can_reservations || $can_atemschutz || $can_settings || $can_members || $can_forms;
-if (!$has_any) return;
 $btn_class = (!empty($admin_menu_in_navbar)) ? 'btn-outline-light' : 'btn-outline-primary';
 ?>
 <div class="dropdown ms-2">
@@ -50,5 +49,7 @@ $btn_class = (!empty($admin_menu_in_navbar)) ? 'btn-outline-light' : 'btn-outlin
         <?php endif; ?>
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item" href="dashboard.php"><i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard</a></li>
+        <li><a class="dropdown-item" href="profile.php"><i class="fas fa-user-edit me-2"></i>Profil</a></li>
+        <li><a class="dropdown-item" href="../logout.php"><i class="fas fa-sign-out-alt me-2"></i>Abmelden</a></li>
     </ul>
 </div>

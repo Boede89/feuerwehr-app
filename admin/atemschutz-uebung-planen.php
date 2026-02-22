@@ -108,13 +108,6 @@ $anzahlOptions = [
             </a>
             <div class="navbar-nav ms-auto d-flex align-items-center">
                 <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
-                <span class="navbar-text me-3">
-                    <i class="fas fa-user me-1"></i>
-                    <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>
-                </span>
-                <a href="dashboard.php" class="btn btn-outline-light btn-sm">
-                    <i class="fas fa-tachometer-alt me-1"></i>Dashboard
-                </a>
             </div>
         </div>
     </nav>

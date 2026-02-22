@@ -442,22 +442,31 @@ function _al_val($liste, $key, $custom_data = []) {
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
         <a class="navbar-brand" href="../index.php"><i class="fas fa-fire"></i> Feuerwehr App</a>
-        <div class="navbar-nav ms-auto d-flex align-items-center gap-2">
-            <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
-            <a class="nav-link" href="formularcenter.php?tab=submissions"><i class="fas fa-arrow-left"></i> Zurück zu eingegangenen Formularen</a>
-            <form method="post" class="d-inline" onsubmit="return confirm('Anwesenheitsliste wirklich löschen?');">
-                <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf'] ?? ''); ?>">
-                <input type="hidden" name="action" value="delete_anwesenheitsliste">
-                <input type="hidden" name="anwesenheitsliste_id" value="<?php echo (int)$id; ?>">
-                <input type="hidden" name="redirect" value="formularcenter">
-                <button type="submit" class="btn btn-outline-light btn-sm"><i class="fas fa-trash"></i> Löschen</button>
-            </form>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <div class="navbar-nav ms-auto d-flex align-items-center">
+                <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
+            </div>
         </div>
     </div>
 </nav>
 
 <div class="container-fluid mt-4">
-    <h1 class="h3 mb-4"><i class="fas fa-clipboard-list"></i> Anwesenheitsliste – <?php echo htmlspecialchars($liste['datum']); ?> <?php echo htmlspecialchars($liste['bezeichnung'] ?? $liste['dienst_bezeichnung'] ?? 'Anwesenheit'); ?></h1>
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h1 class="h3 mb-0"><i class="fas fa-clipboard-list"></i> Anwesenheitsliste – <?php echo htmlspecialchars($liste['datum']); ?> <?php echo htmlspecialchars($liste['bezeichnung'] ?? $liste['dienst_bezeichnung'] ?? 'Anwesenheit'); ?></h1>
+        <div class="d-flex gap-2">
+            <a href="formularcenter.php?tab=submissions" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück zu eingegangenen Formularen</a>
+            <form method="post" class="d-inline" onsubmit="return confirm('Anwesenheitsliste wirklich löschen?');">
+                <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf'] ?? ''); ?>">
+                <input type="hidden" name="action" value="delete_anwesenheitsliste">
+                <input type="hidden" name="anwesenheitsliste_id" value="<?php echo (int)$id; ?>">
+                <input type="hidden" name="redirect" value="formularcenter">
+                <button type="submit" class="btn btn-outline-danger"><i class="fas fa-trash"></i> Löschen</button>
+            </form>
+        </div>
+    </div>
     <?php if ($message): ?><div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
     <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
