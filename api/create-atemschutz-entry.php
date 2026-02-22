@@ -2,8 +2,11 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 header('Content-Type: application/json');
+
+$einheit_id = isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0;
 
 try {
     // Prüfe ob Benutzer eingeloggt ist (optional für Atemschutzeinträge)
@@ -22,6 +25,7 @@ try {
             entry_type ENUM('einsatz', 'uebung', 'atemschutzstrecke', 'g263') NOT NULL,
             entry_date DATE NOT NULL,
             requester_id INT NULL,
+            einheit_id INT NULL,
             status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
             rejection_reason TEXT NULL,
             approved_by INT NULL,
@@ -32,6 +36,9 @@ try {
             FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+    try {
+        $db->exec("ALTER TABLE atemschutz_entries ADD COLUMN einheit_id INT NULL");
+    } catch (Exception $e) {}
     
     // Stelle sicher, dass die ENUM-Werte korrekt sind
     $db->exec("ALTER TABLE atemschutz_entries MODIFY COLUMN entry_type ENUM('einsatz', 'uebung', 'atemschutzstrecke', 'g263') NOT NULL");
@@ -119,13 +126,14 @@ try {
         // Erstelle Atemschutzeintrag-Antrag
         $stmt = $db->prepare("
             INSERT INTO atemschutz_entries 
-            (entry_type, entry_date, requester_id, status, created_at) 
-            VALUES (?, ?, ?, 'pending', NOW())
+            (entry_type, entry_date, requester_id, einheit_id, status, created_at) 
+            VALUES (?, ?, ?, ?, 'pending', NOW())
         ");
         $stmt->execute([
             $entry_type,
             $entry_date,
-            $user_id
+            $user_id,
+            $einheit_id > 0 ? $einheit_id : null
         ]);
         
         $entry_id = $db->lastInsertId();
@@ -141,14 +149,24 @@ try {
             $stmt->execute([$entry_id, $traeger_id]);
         }
         
-        // Sende E-Mail-Benachrichtigung an Atemschutz-Admins
-        $stmt = $db->prepare("
-            SELECT u.email, u.first_name, u.last_name 
-            FROM users u 
-            WHERE u.atemschutz_notifications = 1
-        ");
-        $stmt->execute();
-        $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Sende E-Mail-Benachrichtigung an Atemschutz-Admins (einheitsspezifisch oder global)
+        $admins = [];
+        if ($einheit_id > 0) {
+            $settings = load_settings_for_einheit($db, $einheit_id);
+            $ids = json_decode($settings['atemschutz_notification_user_ids'] ?? '[]', true);
+            if (!empty($ids) && is_array($ids)) {
+                $ids = array_map('intval', $ids);
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                $stmt = $db->prepare("SELECT email, first_name, last_name FROM users WHERE id IN ($placeholders) AND is_active = 1");
+                $stmt->execute($ids);
+                $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+        }
+        if (empty($admins)) {
+            $stmt = $db->prepare("SELECT email, first_name, last_name FROM users WHERE atemschutz_notifications = 1 AND is_active = 1");
+            $stmt->execute();
+            $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
         
         if (!empty($admins)) {
             $entry_type_names = [

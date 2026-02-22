@@ -154,3 +154,33 @@ function migrate_settings_to_amern($db) {
         } catch (Exception $e) {}
     } catch (Exception $e) {}
 }
+
+/**
+ * Stellt sicher, dass einheit_id in den relevanten Tabellen existiert und migriert bestehende Daten.
+ * Bestehende Einträge werden der Einheit Amern zugeordnet (falls vorhanden), sonst der ersten Einheit.
+ */
+function ensure_einheit_id_in_tables($db) {
+    $default_einheit = get_einheit_amern_id($db);
+    if ($default_einheit <= 0) {
+        try {
+            $row = $db->query("SELECT id FROM einheiten ORDER BY sort_order, name LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            $default_einheit = $row ? (int)$row['id'] : 0;
+        } catch (Exception $e) {}
+    }
+    foreach (['vehicles', 'members', 'atemschutz_traeger'] as $table) {
+        try {
+            $db->exec("ALTER TABLE $table ADD COLUMN einheit_id INT NULL");
+        } catch (Exception $e) {}
+        if ($default_einheit > 0) {
+            try {
+                $db->exec("UPDATE $table SET einheit_id = $default_einheit WHERE einheit_id IS NULL");
+            } catch (Exception $e) {}
+        }
+    }
+    try {
+        $db->exec("ALTER TABLE atemschutz_entries ADD COLUMN einheit_id INT NULL");
+    } catch (Exception $e) {}
+    try {
+        $db->exec("ALTER TABLE reservations ADD COLUMN einheit_id INT NULL");
+    } catch (Exception $e) {}
+}

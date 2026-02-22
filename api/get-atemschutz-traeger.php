@@ -2,8 +2,11 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 header('Content-Type: application/json');
+
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 
 try {
     // Login ist für Atemschutzeinträge nicht erforderlich
@@ -51,21 +54,31 @@ try {
         // Fehler ignorieren
     }
     
-    // Lade nur aktive Atemschutzgeräteträger, deren Mitglied is_pa_traeger = 1 hat
-    $stmt = $db->prepare("
-        SELECT at.id, at.first_name, at.last_name
-        FROM atemschutz_traeger at
-        LEFT JOIN members m ON at.member_id = m.id
-        WHERE at.status = 'Aktiv' 
+    // einheit_id in atemschutz_traeger sicherstellen
+    try {
+        $db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN einheit_id INT NULL");
+    } catch (Exception $e) {}
+    
+    $where = "at.status = 'Aktiv' 
         AND (m.is_pa_traeger = 1 OR (at.member_id IS NULL AND EXISTS (
             SELECT 1 FROM members m2 
             WHERE m2.first_name = at.first_name 
             AND m2.last_name = at.last_name 
             AND m2.is_pa_traeger = 1
-        )))
+        )))";
+    $params = [];
+    if ($einheit_id > 0) {
+        $where .= " AND (at.einheit_id = ? OR at.einheit_id IS NULL)";
+        $params[] = $einheit_id;
+    }
+    $stmt = $db->prepare("
+        SELECT at.id, at.first_name, at.last_name
+        FROM atemschutz_traeger at
+        LEFT JOIN members m ON at.member_id = m.id
+        WHERE $where
         ORDER BY at.last_name, at.first_name
     ");
-    $stmt->execute();
+    $stmt->execute($params);
     $traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Debug-Log

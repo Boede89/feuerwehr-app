@@ -2,6 +2,44 @@
 session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
+require_once __DIR__ . '/includes/einheit-settings-helper.php';
+
+// Einheiten-Tabelle sicherstellen
+try {
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS einheiten (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            sort_order INT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+} catch (Exception $e) {}
+
+// Einheit_id in Tabellen sicherstellen (Migration)
+ensure_einheit_id_in_tables($db);
+
+// Einheit aus URL (oder Session für Rücknavigation)
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+$einheit = null;
+if ($einheit_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
+        $stmt->execute([$einheit_id]);
+        $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+}
+
+// Einheiten für Auswahl laden
+$einheiten = [];
+try {
+    $stmt = $db->query("SELECT id, name, sort_order FROM einheiten ORDER BY sort_order ASC, name ASC");
+    $einheiten = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
+// Zeige Einheitenauswahl nur wenn Einheiten existieren und keine Einheit gewählt
+$show_einheit_auswahl = !empty($einheiten) && ($einheit_id <= 0 || !$einheit);
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -138,7 +176,7 @@ require_once 'includes/functions.php';
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="index.php">
+            <a class="navbar-brand" href="index.php<?php echo $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''; ?>">
                 <i class="fas fa-fire"></i> Feuerwehr App
             </a>
             <?php if (isset($_SESSION['user_id']) && !is_system_user()): ?>
@@ -168,12 +206,11 @@ require_once 'includes/functions.php';
         <div class="row justify-content-center">
             <div class="col-12 col-md-10 col-lg-8">
                 <?php
-                    // App Name aus den Einstellungen (nur hier auf der Startseite anzeigen)
+                    // App Name aus den Einstellungen
                     $appDisplayName = 'Feuerwehr App';
                     try {
-                        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_name'");
-                        $stmt->execute();
-                        $val = trim((string)$stmt->fetchColumn());
+                        $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+                        $val = trim((string)($settings['app_name'] ?? ''));
                         if ($val !== '') {
                             $appDisplayName = $val;
                         }
@@ -183,11 +220,47 @@ require_once 'includes/functions.php';
                     <h1 class="display-4 text-primary">
                         <i class="fas fa-fire"></i> <?php echo htmlspecialchars($appDisplayName); ?>
                     </h1>
+                    <?php if ($einheit_id > 0 && $einheit): ?>
+                    <p class="lead text-muted"><?php echo htmlspecialchars($einheit['name']); ?></p>
+                    <?php endif; ?>
                 </div>
 
+                <?php if ($show_einheit_auswahl): ?>
+                <!-- Einheitenauswahl -->
+                <div class="mb-4">
+                    <p class="text-center text-muted mb-4">Wählen Sie Ihre Einheit:</p>
+                    <div class="row g-4">
+                        <?php foreach ($einheiten as $e): ?>
+                        <div class="col-12 col-sm-6 col-lg-4">
+                            <a href="index.php?einheit_id=<?php echo (int)$e['id']; ?>" class="text-decoration-none">
+                                <div class="card h-100 shadow-sm feature-card clickable-card">
+                                    <div class="card-body text-center p-4 d-flex flex-column">
+                                        <div class="feature-icon mb-3">
+                                            <i class="fas fa-truck text-primary"></i>
+                                        </div>
+                                        <h5 class="card-title"><?php echo htmlspecialchars($e['name']); ?></h5>
+                                        <p class="card-text text-muted small mb-0">Auswählen</p>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php else: ?>
+                <!-- Dashboard für gewählte Einheit -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <?php if ($einheit_id > 0 && $einheit): ?>
+                    <a href="index.php" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> Einheit wechseln
+                    </a>
+                    <?php else: ?>
+                    <span></span>
+                    <?php endif; ?>
+                </div>
                 <div class="row g-4">
                     <div class="col-12 col-sm-6 col-lg-4">
-                        <a href="vehicle-selection.php" class="text-decoration-none">
+                        <a href="vehicle-selection.php<?php echo $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''; ?>" class="text-decoration-none">
                             <div class="card h-100 shadow-sm feature-card clickable-card">
                                 <div class="card-body text-center p-4 d-flex flex-column">
                                 <div class="feature-icon mb-3">
@@ -200,7 +273,7 @@ require_once 'includes/functions.php';
                     </div>
 
                     <div class="col-12 col-sm-6 col-lg-4">
-                        <div class="card h-100 shadow-sm feature-card clickable-card" data-bs-toggle="modal" data-bs-target="#atemschutzModal" style="cursor: pointer;">
+                        <div class="card h-100 shadow-sm feature-card clickable-card" data-bs-toggle="modal" data-bs-target="#atemschutzModal" data-einheit-id="<?php echo $einheit_id > 0 ? (int)$einheit_id : ''; ?>" style="cursor: pointer;">
                             <div class="card-body text-center p-4 d-flex flex-column">
                                 <div class="feature-icon mb-3">
                                     <div class="atemschutz-icon">
@@ -215,7 +288,7 @@ require_once 'includes/functions.php';
 
                     <?php if (is_logged_in()): ?>
                     <div class="col-12 col-sm-6 col-lg-4">
-                        <a href="formulare.php" class="text-decoration-none">
+                        <a href="formulare.php<?php echo $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''; ?>" class="text-decoration-none">
                             <div class="card h-100 shadow-sm feature-card clickable-card">
                                 <div class="card-body text-center p-4 d-flex flex-column">
                                     <div class="feature-icon mb-3">
@@ -228,6 +301,7 @@ require_once 'includes/functions.php';
                     </div>
                     <?php endif; ?>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
     </main>
@@ -451,7 +525,11 @@ require_once 'includes/functions.php';
             const traegerList = document.getElementById('traegerList');
             traegerList.innerHTML = '<div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Geräteträger...</div>';
             
-            fetch('api/get-atemschutz-traeger.php')
+            let url = 'api/get-atemschutz-traeger.php';
+            if (window.currentEinheitId) {
+                url += '?einheit_id=' + encodeURIComponent(window.currentEinheitId);
+            }
+            fetch(url)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -507,6 +585,9 @@ require_once 'includes/functions.php';
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Wird gesendet...';
             
+            if (window.currentEinheitId) {
+                formData.append('einheit_id', window.currentEinheitId);
+            }
             fetch('api/create-atemschutz-entry.php', {
                 method: 'POST',
                 body: formData
