@@ -247,30 +247,6 @@ if (count($einheiten_fuer_auswahl) === 1 && !$hat_einheit) {
                 </div>
                 <?php else: ?>
 
-                <?php if (can_switch_einheit()): ?>
-                <div class="mb-3 d-flex justify-content-end">
-                    <div class="dropdown">
-                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-exchange-alt me-1"></i>Einheit: <?php 
-                                $cur = get_current_einheit_id();
-                                $cur_name = 'Unbekannt';
-                                foreach (is_logged_in() && !is_system_user() ? get_user_einheiten() : $einheiten_fuer_auswahl as $ee) {
-                                    if ((int)$ee['id'] === $cur) { $cur_name = $ee['name']; break; }
-                                }
-                                echo htmlspecialchars($cur_name);
-                            ?>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <?php foreach (is_logged_in() && !is_system_user() ? get_user_einheiten() : $einheiten_fuer_auswahl as $ee): ?>
-                                <?php if ((int)$ee['id'] !== get_current_einheit_id()): ?>
-                                <li><a class="dropdown-item" href="index.php?einheit_id=<?php echo (int)$ee['id']; ?>"><?php echo htmlspecialchars($ee['name']); ?></a></li>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        </ul>
-                    </div>
-                </div>
-                <?php endif; ?>
-
                 <div class="row g-4">
                     <div class="col-12 col-sm-6 col-lg-4">
                         <a href="vehicle-selection.php" class="text-decoration-none">
