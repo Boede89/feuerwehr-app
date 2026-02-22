@@ -49,89 +49,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         try {
             $db->beginTransaction();
-
-            // SMTP
-            $smtp = [
-                'smtp_host' => sanitize_input($_POST['smtp_host'] ?? ''),
-                'smtp_port' => sanitize_input($_POST['smtp_port'] ?? ''),
-                'smtp_username' => sanitize_input($_POST['smtp_username'] ?? ''),
-                'smtp_encryption' => sanitize_input($_POST['smtp_encryption'] ?? ''),
-                'smtp_from_email' => sanitize_input($_POST['smtp_from_email'] ?? ''),
-                'smtp_from_name' => sanitize_input($_POST['smtp_from_name'] ?? ''),
-            ];
-            if (!empty(trim($_POST['smtp_password'] ?? ''))) {
-                $smtp['smtp_password'] = trim($_POST['smtp_password']);
-            } else {
-                $smtp['smtp_password'] = $settings['smtp_password'] ?? '';
-            }
-
-            // Google
-            $json_content = trim($_POST['google_calendar_service_account_json'] ?? '');
-            $file_path = sanitize_input($_POST['google_calendar_service_account_file'] ?? '');
-            $google = [
-                'google_calendar_service_account_file' => $file_path,
-                'google_calendar_service_account_json' => $json_content,
-                'google_calendar_id' => sanitize_input($_POST['google_calendar_id'] ?? ''),
-                'google_calendar_auth_type' => sanitize_input($_POST['google_calendar_auth_type'] ?? 'service_account'),
-            ];
-
-            // App
-            $app = [
-                'app_name' => sanitize_input($_POST['app_name'] ?? ''),
-                'app_url' => sanitize_input($_POST['app_url'] ?? ''),
-                'geraetehaus_adresse' => trim(sanitize_input($_POST['geraetehaus_adresse'] ?? '')),
-            ];
-            $upload_err = $_FILES['app_logo']['error'] ?? UPLOAD_ERR_NO_FILE;
-            $logo_upload_error = '';
-            if ($upload_err === UPLOAD_ERR_OK && !empty($_FILES['app_logo']['tmp_name']) && is_uploaded_file($_FILES['app_logo']['tmp_name'])) {
-                $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/pjpeg'];
-                $finfo = @finfo_open(FILEINFO_MIME_TYPE);
-                $mime = $finfo ? @finfo_file($finfo, $_FILES['app_logo']['tmp_name']) : '';
-                if ($finfo) finfo_close($finfo);
-                if (in_array($mime, $allowed)) {
-                    $ext = ['image/jpeg' => 'jpg', 'image/pjpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'][$mime] ?? 'png';
-                    $upload_dir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
-                    if (!is_dir($upload_dir)) {
-                        if (!@mkdir($upload_dir, 0755, true)) {
-                            $logo_upload_error = 'Upload-Ordner konnte nicht erstellt werden. Bitte uploads/ manuell anlegen.';
-                        }
-                    }
-                    if (empty($logo_upload_error) && !is_writable($upload_dir)) {
-                        $logo_upload_error = 'Upload-Ordner uploads/ ist nicht beschreibbar. Schreibrechte prüfen (z.B. chmod 755).';
-                    }
-                    if (empty($logo_upload_error)) {
-                        $logo_path = $upload_dir . DIRECTORY_SEPARATOR . 'logo.' . $ext;
-                        if (move_uploaded_file($_FILES['app_logo']['tmp_name'], $logo_path)) {
-                            $app['app_logo'] = 'uploads/logo.' . $ext;
-                        } else {
-                            $logo_upload_error = 'Logo konnte nicht gespeichert werden. Schreibrechte für uploads/ prüfen (Docker: Volume-Mount).';
-                        }
-                    }
-                } else {
-                    $logo_upload_error = 'Ungültiges Bildformat. Erlaubt: JPG, PNG, GIF, WebP. Erkannt: ' . ($mime ?: 'unbekannt');
-                }
-            } elseif ($upload_err !== UPLOAD_ERR_NO_FILE && $upload_err !== UPLOAD_ERR_OK) {
-                $err_msg = [UPLOAD_ERR_INI_SIZE => 'Datei zu groß (upload_max_filesize)', UPLOAD_ERR_FORM_SIZE => 'Datei zu groß (post_max_size)', UPLOAD_ERR_PARTIAL => 'Upload unvollständig', UPLOAD_ERR_NO_TMP_DIR => 'Temporärer Ordner fehlt', UPLOAD_ERR_CANT_WRITE => 'Speichern fehlgeschlagen', UPLOAD_ERR_EXTENSION => 'Upload blockiert'];
-                $logo_upload_error = $err_msg[$upload_err] ?? 'Upload-Fehler (Code ' . $upload_err . ')';
-            }
-            if (empty($app['app_logo'])) {
-                $app['app_logo'] = $settings['app_logo'] ?? '';
-            }
-            if ($logo_upload_error !== '') {
-                $error = $logo_upload_error;
-            }
-
-            // Drucker
-            $printer = [
-                'printer_destination' => sanitize_input($_POST['printer_destination'] ?? ''),
-                'printer_cups_server' => trim(sanitize_input($_POST['printer_cups_server'] ?? '')),
-            ];
-
-            $all = array_merge($smtp, $google, $app, $printer);
             $save_einheit_id = (int)($_POST['einheit_id'] ?? 0);
+
             if ($save_einheit_id > 0) {
+                // Einheitenspezifisch: alle Einstellungen
+                $smtp = [
+                    'smtp_host' => sanitize_input($_POST['smtp_host'] ?? ''),
+                    'smtp_port' => sanitize_input($_POST['smtp_port'] ?? ''),
+                    'smtp_username' => sanitize_input($_POST['smtp_username'] ?? ''),
+                    'smtp_encryption' => sanitize_input($_POST['smtp_encryption'] ?? ''),
+                    'smtp_from_email' => sanitize_input($_POST['smtp_from_email'] ?? ''),
+                    'smtp_from_name' => sanitize_input($_POST['smtp_from_name'] ?? ''),
+                ];
+                if (!empty(trim($_POST['smtp_password'] ?? ''))) {
+                    $smtp['smtp_password'] = trim($_POST['smtp_password']);
+                } else {
+                    $smtp['smtp_password'] = $settings['smtp_password'] ?? '';
+                }
+                $json_content = trim($_POST['google_calendar_service_account_json'] ?? '');
+                $file_path = sanitize_input($_POST['google_calendar_service_account_file'] ?? '');
+                $google = [
+                    'google_calendar_service_account_file' => $file_path,
+                    'google_calendar_service_account_json' => $json_content,
+                    'google_calendar_id' => sanitize_input($_POST['google_calendar_id'] ?? ''),
+                    'google_calendar_auth_type' => sanitize_input($_POST['google_calendar_auth_type'] ?? 'service_account'),
+                ];
+                $app = [
+                    'app_name' => sanitize_input($_POST['app_name'] ?? ''),
+                    'app_url' => sanitize_input($_POST['app_url'] ?? ''),
+                    'geraetehaus_adresse' => trim(sanitize_input($_POST['geraetehaus_adresse'] ?? '')),
+                ];
+                $upload_err = $_FILES['app_logo']['error'] ?? UPLOAD_ERR_NO_FILE;
+                $logo_upload_error = '';
+                if ($upload_err === UPLOAD_ERR_OK && !empty($_FILES['app_logo']['tmp_name']) && is_uploaded_file($_FILES['app_logo']['tmp_name'])) {
+                    $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/pjpeg'];
+                    $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+                    $mime = $finfo ? @finfo_file($finfo, $_FILES['app_logo']['tmp_name']) : '';
+                    if ($finfo) finfo_close($finfo);
+                    if (in_array($mime, $allowed)) {
+                        $ext = ['image/jpeg' => 'jpg', 'image/pjpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'][$mime] ?? 'png';
+                        $upload_dir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
+                        if (!is_dir($upload_dir)) {
+                            if (!@mkdir($upload_dir, 0755, true)) {
+                                $logo_upload_error = 'Upload-Ordner konnte nicht erstellt werden. Bitte uploads/ manuell anlegen.';
+                            }
+                        }
+                        if (empty($logo_upload_error) && !is_writable($upload_dir)) {
+                            $logo_upload_error = 'Upload-Ordner uploads/ ist nicht beschreibbar. Schreibrechte prüfen (z.B. chmod 755).';
+                        }
+                        if (empty($logo_upload_error)) {
+                            $logo_path = $upload_dir . DIRECTORY_SEPARATOR . 'logo_einheit_' . $save_einheit_id . '.' . $ext;
+                            if (move_uploaded_file($_FILES['app_logo']['tmp_name'], $logo_path)) {
+                                $app['app_logo'] = 'uploads/logo_einheit_' . $save_einheit_id . '.' . $ext;
+                            } else {
+                                $logo_upload_error = 'Logo konnte nicht gespeichert werden. Schreibrechte für uploads/ prüfen (Docker: Volume-Mount).';
+                            }
+                        }
+                    } else {
+                        $logo_upload_error = 'Ungültiges Bildformat. Erlaubt: JPG, PNG, GIF, WebP. Erkannt: ' . ($mime ?: 'unbekannt');
+                    }
+                } elseif ($upload_err !== UPLOAD_ERR_NO_FILE && $upload_err !== UPLOAD_ERR_OK) {
+                    $err_msg = [UPLOAD_ERR_INI_SIZE => 'Datei zu groß (upload_max_filesize)', UPLOAD_ERR_FORM_SIZE => 'Datei zu groß (post_max_size)', UPLOAD_ERR_PARTIAL => 'Upload unvollständig', UPLOAD_ERR_NO_TMP_DIR => 'Temporärer Ordner fehlt', UPLOAD_ERR_CANT_WRITE => 'Speichern fehlgeschlagen', UPLOAD_ERR_EXTENSION => 'Upload blockiert'];
+                    $logo_upload_error = $err_msg[$upload_err] ?? 'Upload-Fehler (Code ' . $upload_err . ')';
+                }
+                if (empty($app['app_logo'])) {
+                    $app['app_logo'] = $settings['app_logo'] ?? '';
+                }
+                if ($logo_upload_error !== '') {
+                    $error = $logo_upload_error;
+                }
+                $printer = [
+                    'printer_destination' => sanitize_input($_POST['printer_destination'] ?? ''),
+                    'printer_cups_server' => trim(sanitize_input($_POST['printer_cups_server'] ?? '')),
+                ];
+                $all = array_merge($smtp, $google, $app, $printer);
                 save_settings_bulk_for_einheit($db, $save_einheit_id, $all);
             } else {
+                // Global: nur App Name und App URL
+                $all = [
+                    'app_name' => sanitize_input($_POST['app_name'] ?? ''),
+                    'app_url' => sanitize_input($_POST['app_url'] ?? ''),
+                ];
                 foreach ($all as $k => $v) {
                     $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
                     $stmt->execute([$k, $v]);
@@ -139,12 +137,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $db->commit();
-            $message = 'Globale Einstellungen gespeichert.';
+            $message = $save_einheit_id > 0 ? 'Einstellungen gespeichert.' : 'Globale Einstellungen gespeichert.';
             if (!empty($error)) {
                 $message .= ' Hinweis: ' . $error;
                 $error = '';
             }
-            $settings = array_merge($settings, $all);
+            $settings = array_merge($settings, $all ?? []);
         } catch (Exception $e) {
             $db->rollBack();
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
@@ -187,6 +185,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if ($error) echo show_error($error); ?>
 
     <form method="POST" enctype="multipart/form-data">
+        <?php if ($einheit_id <= 0): ?>
+        <!-- Globale Einstellungen: nur App Name und App URL -->
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header"><i class="fas fa-cog"></i> App</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">App Name</label>
+                            <input class="form-control" name="app_name" value="<?php echo htmlspecialchars($settings['app_name'] ?? ''); ?>" placeholder="z.B. Feuerwehr App">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">App URL</label>
+                            <input class="form-control" name="app_url" value="<?php echo htmlspecialchars($settings['app_url'] ?? ''); ?>" placeholder="z.B. https://feuerwehr.example.de">
+                            <small class="text-muted">Basis-URL der Anwendung (wird z.B. für E-Mails und Links verwendet).</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php else: ?>
+        <!-- Einheitenspezifische Einstellungen -->
         <div class="row g-4">
             <div class="col-lg-6">
                 <div class="card h-100">
@@ -263,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="row g-4 mt-1">
             <div class="col-lg-6">
                 <div class="card h-100">
-                    <div class="card-header"><i class="fas fa-cog"></i> App</div>
+                    <div class="card-header"><i class="fas fa-cog"></i> App (Einheit)</div>
                     <div class="card-body">
                         <div class="mb-3"><label class="form-label">App Name</label><input class="form-control" name="app_name" value="<?php echo htmlspecialchars($settings['app_name'] ?? ''); ?>"></div>
                         <div class="mb-3"><label class="form-label">App URL</label><input class="form-control" name="app_url" value="<?php echo htmlspecialchars($settings['app_url'] ?? ''); ?>"></div>
@@ -318,6 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
         </div>
+        <?php endif; ?>
         <div class="d-flex justify-content-end mt-3">
             <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Speichern</button>
         </div>
