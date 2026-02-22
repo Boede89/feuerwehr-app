@@ -22,6 +22,9 @@ if (!isset($can_reservations)) {
 }
 $has_any = $can_reservations || $can_atemschutz || $can_settings || $can_members || $can_forms;
 $btn_class = (!empty($admin_menu_in_navbar)) ? 'btn-outline-light' : 'btn-outline-primary';
+$base = isset($admin_menu_base) ? $admin_menu_base : '';
+$logout_url = isset($admin_menu_logout) ? $admin_menu_logout : '../logout.php';
+$index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
 ?>
 <div class="dropdown ms-2">
     <button class="btn <?php echo $btn_class; ?> btn-sm px-3 py-2 d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Menü öffnen">
@@ -29,27 +32,29 @@ $btn_class = (!empty($admin_menu_in_navbar)) ? 'btn-outline-light' : 'btn-outlin
         <span class="fw-semibold">Menü</span>
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="<?php echo htmlspecialchars($index_url); ?>"><i class="fas fa-home text-primary me-2"></i>Startseite</a></li>
+        <li><hr class="dropdown-divider"></li>
         <?php if ($can_reservations): ?>
-        <li><a class="dropdown-item" href="reservations.php"><i class="fas fa-calendar text-primary me-2"></i>Reservierungen</a></li>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>reservations.php"><i class="fas fa-calendar text-primary me-2"></i>Reservierungen</a></li>
         <?php endif; ?>
         <?php if ($can_atemschutz): ?>
-        <li><a class="dropdown-item" href="atemschutz.php"><i class="fas fa-user-shield text-danger me-2"></i>Atemschutz</a></li>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>atemschutz.php"><i class="fas fa-user-shield text-danger me-2"></i>Atemschutz</a></li>
         <?php endif; ?>
         <?php if ($can_members): ?>
-        <li><a class="dropdown-item" href="members.php"><i class="fas fa-users text-success me-2"></i>Mitgliederverwaltung</a></li>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>members.php"><i class="fas fa-users text-success me-2"></i>Mitgliederverwaltung</a></li>
         <?php endif; ?>
         <?php if ($can_forms): ?>
-        <li><a class="dropdown-item" href="formularcenter.php"><i class="fas fa-file-alt text-info me-2"></i>Formularcenter</a></li>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>formularcenter.php"><i class="fas fa-file-alt text-info me-2"></i>Formularcenter</a></li>
         <?php endif; ?>
         <?php if ($can_settings): ?>
         <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="settings.php"><i class="fas fa-cog text-secondary me-2"></i>Einstellungen</a></li>
-        <li><a class="dropdown-item" href="feedback.php"><i class="fas fa-comment-dots text-info me-2"></i>Feedback</a></li>
-        <li><a class="dropdown-item" href="users.php"><i class="fas fa-user-cog text-secondary me-2"></i>Benutzerverwaltung</a></li>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>settings.php"><i class="fas fa-cog text-secondary me-2"></i>Einstellungen</a></li>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>feedback.php"><i class="fas fa-comment-dots text-info me-2"></i>Feedback</a></li>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>users.php"><i class="fas fa-user-cog text-secondary me-2"></i>Benutzerverwaltung</a></li>
         <?php endif; ?>
         <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="dashboard.php"><i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard</a></li>
-        <li><a class="dropdown-item" href="profile.php"><i class="fas fa-user-edit me-2"></i>Profil</a></li>
-        <li><a class="dropdown-item" href="../logout.php"><i class="fas fa-sign-out-alt me-2"></i>Abmelden</a></li>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>dashboard.php"><i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard</a></li>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>profile.php"><i class="fas fa-user-edit me-2"></i>Profil</a></li>
+        <li><a class="dropdown-item" href="<?php echo htmlspecialchars($logout_url); ?>"><i class="fas fa-sign-out-alt me-2"></i>Abmelden</a></li>
     </ul>
 </div>

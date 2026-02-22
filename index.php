@@ -145,35 +145,21 @@ require_once 'includes/functions.php';
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <?php if (isset($_SESSION['user_id'])): ?>
-                        <?php if (!is_system_user()): ?>
-                        <li class="nav-item">
-                            <a class="nav-link" href="admin/dashboard.php">
-                                <i class="fas fa-tachometer-alt"></i> Dashboard
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user"></i> <?php echo htmlspecialchars(trim($_SESSION['first_name'] . ' ' . $_SESSION['last_name']) ?: $_SESSION['username']); ?>
-                            </a>
-                            <ul class="dropdown-menu">
-                                <?php if (!is_system_user()): ?>
-                                <li><a class="dropdown-item" href="admin/profile.php"><i class="fas fa-user-edit"></i> Profil</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <?php endif; ?>
-                                <li><a class="dropdown-item" href="logout.php"><i class="fas fa-sign-out-alt"></i> Abmelden</a></li>
-                            </ul>
-                        </li>
-                    <?php else: ?>
-                        <li class="nav-item">
-                            <a class="nav-link" href="login.php">
-                                <i class="fas fa-sign-in-alt"></i> Anmelden
-                            </a>
-                        </li>
+                <div class="navbar-nav ms-auto d-flex align-items-center">
+                    <?php if (isset($_SESSION['user_id']) && !is_system_user()): ?>
+                        <?php
+                        $admin_menu_in_navbar = true;
+                        $admin_menu_base = 'admin/';
+                        $admin_menu_logout = 'logout.php';
+                        $admin_menu_index = 'index.php';
+                        include __DIR__ . '/admin/includes/admin-menu.inc.php';
+                        ?>
+                    <?php elseif (!isset($_SESSION['user_id'])): ?>
+                        <a class="nav-link" href="login.php">
+                            <i class="fas fa-sign-in-alt"></i> Anmelden
+                        </a>
                     <?php endif; ?>
-                </ul>
+                </div>
             </div>
         </div>
     </nav>
