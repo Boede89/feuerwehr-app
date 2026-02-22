@@ -32,6 +32,10 @@ $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
         <span class="fw-semibold">Menü</span>
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
+        <?php if (!empty($admin_menu_show_einheit_wechseln)): ?>
+        <li><a class="dropdown-item" href="<?php echo dirname($index_url) === '.' ? 'index.php' : '../index.php'; ?>"><i class="fas fa-exchange-alt me-2"></i>Einheit wechseln</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <?php endif; ?>
         <li><a class="dropdown-item" href="<?php echo htmlspecialchars($index_url); ?>"><i class="fas fa-home text-primary me-2"></i>Startseite</a></li>
         <li><a class="dropdown-item" href="<?php echo $base; ?>dashboard.php"><i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard</a></li>
         <li><hr class="dropdown-divider"></li>

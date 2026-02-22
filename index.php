@@ -186,18 +186,31 @@ $show_einheit_auswahl = !empty($einheiten) && ($einheit_id <= 0 || !$einheit);
                 $admin_menu_base = 'admin/';
                 $admin_menu_logout = 'logout.php';
                 $admin_menu_index = 'index.php';
+                $admin_menu_show_einheit_wechseln = ($einheit_id > 0 && $einheit);
                 include __DIR__ . '/admin/includes/admin-menu.inc.php';
                 ?>
                 </div>
-            <?php else: ?>
-                <?php if (!isset($_SESSION['user_id'])): ?>
+            <?php elseif (!isset($_SESSION['user_id']) && $einheit_id > 0 && $einheit): ?>
+                <div class="d-flex ms-auto align-items-center">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light btn-sm px-3 py-2 d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-bars"></i>
+                            <span class="fw-semibold">Menü</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="index.php"><i class="fas fa-exchange-alt me-2"></i>Einheit wechseln</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="login.php"><i class="fas fa-sign-in-alt me-2"></i>Anmelden</a></li>
+                        </ul>
+                    </div>
+                </div>
+            <?php elseif (!isset($_SESSION['user_id'])): ?>
                 <div class="d-flex ms-auto align-items-center">
                     <a class="btn btn-outline-light btn-sm px-3 py-2 d-flex align-items-center gap-2" href="login.php">
                         <i class="fas fa-sign-in-alt"></i>
                         <span class="fw-semibold">Anmelden</span>
                     </a>
                 </div>
-                <?php endif; ?>
             <?php endif; ?>
         </div>
     </nav>
@@ -249,15 +262,6 @@ $show_einheit_auswahl = !empty($einheiten) && ($einheit_id <= 0 || !$einheit);
                 </div>
                 <?php else: ?>
                 <!-- Dashboard für gewählte Einheit -->
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <?php if ($einheit_id > 0 && $einheit): ?>
-                    <a href="index.php" class="btn btn-outline-secondary btn-sm">
-                        <i class="fas fa-arrow-left"></i> Einheit wechseln
-                    </a>
-                    <?php else: ?>
-                    <span></span>
-                    <?php endif; ?>
-                </div>
                 <div class="row g-4">
                     <div class="col-12 col-sm-6 col-lg-4">
                         <a href="vehicle-selection.php<?php echo $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''; ?>" class="text-decoration-none">
