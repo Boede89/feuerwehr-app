@@ -207,11 +207,26 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
                             $appDisplayName = $val;
                         }
                     } catch (Exception $e) { /* Fallback beibehalten */ }
+                    // Einheitsname anzeigen, wenn Einheit ausgewählt
+                    $einheitDisplayName = '';
+                    if ($hat_einheit && $einheit_id_url > 0) {
+                        try {
+                            $stmt = $db->prepare("SELECT name FROM einheiten WHERE id = ? AND is_active = 1");
+                            $stmt->execute([$einheit_id_url]);
+                            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                            if ($row) {
+                                $einheitDisplayName = $row['name'];
+                            }
+                        } catch (Exception $e) {}
+                    }
                 ?>
                 <div class="text-center mb-5">
                     <h1 class="display-4 text-primary">
                         <i class="fas fa-fire"></i> <?php echo htmlspecialchars($appDisplayName); ?>
                     </h1>
+                    <?php if ($einheitDisplayName !== ''): ?>
+                    <p class="h5 text-muted mt-2 mb-0"><?php echo htmlspecialchars($einheitDisplayName); ?></p>
+                    <?php endif; ?>
                 </div>
 
                 <?php if ($zeige_einheiten_auswahl): ?>
