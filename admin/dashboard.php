@@ -877,11 +877,6 @@ if ($can_atemschutz) {
                             </div>
                         <?php endif; ?>
                     </div>
-                    <div class="card-footer">
-                        <a href="reservations.php" class="btn btn-primary">
-                            <i class="fas fa-calendar-alt"></i> Alle Reservierungen verwalten
-                                                        </a>
-                                                    </div>
                 </div>
             </div>
                         </div>
@@ -986,9 +981,6 @@ if ($can_atemschutz) {
                                                         <i class="fas fa-check-double me-1"></i>Alle RICs für dieses Mitglied bestätigen
                                                     </button>
                                                 </form>
-                                                <a href="ric-verwaltung.php" class="btn btn-warning btn-sm">
-                                                    <i class="fas fa-edit me-1"></i>Zur RIC-Verwaltung
-                                                </a>
                                             </div>
                                         </div>
                                     </div>
@@ -1285,11 +1277,6 @@ if ($can_atemschutz) {
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
-                    </div>
-                    <div class="card-footer">
-                        <a href="atemschutz.php" class="btn btn-danger">
-                            <i class="fas fa-user-shield"></i> Atemschutz verwalten
-                        </a>
                     </div>
                 </div>
             </div>
