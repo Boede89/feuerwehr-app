@@ -59,11 +59,90 @@ if (!$einheit) {
         </a>
     </div>
 
-    <div class="card shadow">
-        <div class="card-body text-center py-5">
-            <i class="fas fa-cog fa-3x text-muted mb-3"></i>
-            <p class="text-muted mb-0">Einstellungen für diese Einheit – In Kürze verfügbar.</p>
-            <p class="text-muted small mt-2">Hier werden zukünftig Mitglieder, Fahrzeuge und weitere einheitsspezifische Einstellungen verwaltet.</p>
+    <div class="row g-4">
+        <!-- Reservierungen -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title"><i class="fas fa-calendar-check"></i> Reservierungen</h5>
+                    <p class="text-muted">Reservierungen verwalten und konfigurieren.</p>
+                    <div class="mt-auto">
+                        <a class="btn btn-primary" href="settings-reservations.php?einheit_id=<?php echo (int)$einheit['id']; ?>">
+                            <i class="fas fa-sliders"></i> Öffnen
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Atemschutz -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title"><i class="fas fa-user-shield"></i> Atemschutz</h5>
+                    <p class="text-muted">Schwellwert für Ablaufwarnungen festlegen.</p>
+                    <div class="mt-auto">
+                        <a class="btn btn-primary" href="settings-atemschutz.php?einheit_id=<?php echo (int)$einheit['id']; ?>">
+                            <i class="fas fa-sliders"></i> Öffnen
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Mitgliederverwaltung -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title"><i class="fas fa-users-cog"></i> Mitgliederverwaltung</h5>
+                    <p class="text-muted">Qualifikationen für Mitglieder anlegen und verwalten.</p>
+                    <div class="mt-auto">
+                        <a class="btn btn-primary" href="settings-members.php?einheit_id=<?php echo (int)$einheit['id']; ?>">
+                            <i class="fas fa-certificate"></i> Qualifikationen verwalten
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Formularcenter -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title"><i class="fas fa-file-alt"></i> Formularcenter</h5>
+                    <p class="text-muted">Formulare, Dienstplan und Anwesenheitsliste konfigurieren.</p>
+                    <div class="mt-auto">
+                        <a class="btn btn-primary" href="settings-formularcenter.php?einheit_id=<?php echo (int)$einheit['id']; ?>">
+                            <i class="fas fa-sliders"></i> Öffnen
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Globale Einstellungen -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title"><i class="fas fa-gear"></i> Globale Einstellungen</h5>
+                    <p class="text-muted">SMTP, Google Calendar, App-weite Optionen.</p>
+                    <div class="mt-auto">
+                        <a class="btn btn-secondary" href="settings-global.php?einheit_id=<?php echo (int)$einheit['id']; ?>">
+                            <i class="fas fa-wrench"></i> Öffnen
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Benutzerverwaltung -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title"><i class="fas fa-users"></i> Benutzerverwaltung</h5>
+                    <p class="text-muted">Benutzer hinzufügen, bearbeiten und Berechtigungen verwalten.</p>
+                    <div class="mt-auto">
+                        <a class="btn btn-primary" href="users.php?einheit_id=<?php echo (int)$einheit['id']; ?>">
+                            <i class="fas fa-users"></i> Benutzer verwalten
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
