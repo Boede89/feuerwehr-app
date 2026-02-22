@@ -223,11 +223,16 @@ if (is_superadmin()) {
 
         <!-- Benutzer dieser Einheit -->
         <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="mb-0"><i class="fas fa-users text-success me-2"></i>Benutzer dieser Einheit</h5>
-                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
-                    <i class="fas fa-plus"></i> Neuer Benutzer
-                </button>
+                <div class="d-flex gap-2">
+                    <a href="settings-einheit-users.php?id=<?php echo $einheit_id; ?>" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-users-cog"></i> Benutzerverwaltung
+                    </a>
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                        <i class="fas fa-plus"></i> Neuer Benutzer
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
