@@ -126,10 +126,10 @@ $error = '';
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'submissions';
 $dienstplan_jahr = isset($_GET['jahr']) ? (int)$_GET['jahr'] : (int)date('Y');
 $filter_typ = isset($_GET['filter_typ']) ? trim($_GET['filter_typ']) : '';
-$filter_datum_von = isset($_GET['filter_datum_von']) ? trim($_GET['filter_datum_von']) : '';
-$filter_datum_bis = isset($_GET['filter_datum_bis']) ? trim($_GET['filter_datum_bis']) : '';
+$filter_datum_von = isset($_GET['filter_datum_von']) ? trim($_GET['filter_datum_von']) : (date('Y') . '-01-01');
+$filter_datum_bis = isset($_GET['filter_datum_bis']) ? trim($_GET['filter_datum_bis']) : date('Y-m-d');
 $filter_formular = isset($_GET['filter_formular']) ? trim($_GET['filter_formular']) : '';
-$filter_benutzer = isset($_GET['filter_benutzer']) ? trim($_GET['filter_benutzer']) : '';
+$filter_beschreibung = isset($_GET['filter_beschreibung']) ? trim($_GET['filter_beschreibung']) : '';
 
 // CSRF-Token erzeugen
 if (empty($_SESSION['form_center_csrf'])) {
@@ -255,7 +255,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
                 if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
-                if (!empty($_POST['filter_benutzer'])) $redir .= '&filter_benutzer=' . urlencode($_POST['filter_benutzer']);
+                if (!empty($_POST['filter_beschreibung'])) $redir .= '&filter_beschreibung=' . urlencode($_POST['filter_beschreibung']);
                 header('Location: ' . $redir);
                 exit;
             } catch (Exception $e) {
@@ -274,7 +274,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
                 if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
-                if (!empty($_POST['filter_benutzer'])) $redir .= '&filter_benutzer=' . urlencode($_POST['filter_benutzer']);
+                if (!empty($_POST['filter_beschreibung'])) $redir .= '&filter_beschreibung=' . urlencode($_POST['filter_beschreibung']);
                 header('Location: ' . $redir);
                 exit;
             } catch (Exception $e) {
@@ -292,7 +292,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
                 if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
-                if (!empty($_POST['filter_benutzer'])) $redir .= '&filter_benutzer=' . urlencode($_POST['filter_benutzer']);
+                if (!empty($_POST['filter_beschreibung'])) $redir .= '&filter_beschreibung=' . urlencode($_POST['filter_beschreibung']);
                 header('Location: ' . $redir);
                 exit;
             } catch (Exception $e) {
@@ -310,7 +310,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
                 if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
-                if (!empty($_POST['filter_benutzer'])) $redir .= '&filter_benutzer=' . urlencode($_POST['filter_benutzer']);
+                if (!empty($_POST['filter_beschreibung'])) $redir .= '&filter_beschreibung=' . urlencode($_POST['filter_beschreibung']);
                 header('Location: ' . $redir);
                 exit;
             } catch (Exception $e) {
@@ -349,12 +349,6 @@ try {
         $sql .= " AND DATE(s.created_at) <= ?";
         $params[] = $filter_datum_bis;
     }
-    if ($filter_benutzer !== '') {
-        $sql .= " AND (CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) LIKE ? OR CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, '')) LIKE ?)";
-        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filter_benutzer) . '%';
-        $params[] = $like;
-        $params[] = $like;
-    }
     $sql .= " ORDER BY s.updated_at DESC";
     $stmt = $params ? $db->prepare($sql) : $db->query($sql);
     if ($params) $stmt->execute($params);
@@ -379,13 +373,16 @@ try {
     if ($filter_typ !== '') {
         if ($filter_typ === 'einsatz') {
             $sql .= " AND a.typ = 'einsatz'";
-        } elseif ($filter_typ === 'manuell') {
-            $sql .= " AND a.typ = 'manuell'";
-        } elseif ($filter_typ === 'dienst') {
-            $sql .= " AND a.typ = 'dienst'";
-        } elseif (in_array($filter_typ, ['uebungsdienst', 'sonstiges'])) {
-            $sql .= " AND a.typ = 'dienst' AND d.typ = ?";
-            $params[] = $filter_typ;
+        } elseif ($filter_typ === 'uebungsdienst') {
+            $sql .= " AND (a.typ = 'dienst' AND d.typ IN ('uebungsdienst','dienst','uebung'))";
+        } elseif ($filter_typ === 'sonstiges') {
+            $sql .= " AND a.typ = 'dienst' AND d.typ = 'sonstiges'";
+            if ($filter_beschreibung !== '') {
+                $sql .= " AND (a.bezeichnung LIKE ? OR d.bezeichnung LIKE ?)";
+                $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filter_beschreibung) . '%';
+                $params[] = $like;
+                $params[] = $like;
+            }
         }
     }
     if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
@@ -395,12 +392,6 @@ try {
     if ($filter_datum_bis !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_bis)) {
         $sql .= " AND a.datum <= ?";
         $params[] = $filter_datum_bis;
-    }
-    if ($filter_benutzer !== '') {
-        $sql .= " AND (CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) LIKE ? OR CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, '')) LIKE ?)";
-        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filter_benutzer) . '%';
-        $params[] = $like;
-        $params[] = $like;
     }
     $sql .= " ORDER BY a.datum DESC, a.created_at DESC";
     $stmt = $params ? $db->prepare($sql) : $db->query($sql);
@@ -428,12 +419,6 @@ try {
     if ($filter_datum_bis !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_bis)) {
         $sql .= " AND m.aufgenommen_am <= ?";
         $params[] = $filter_datum_bis;
-    }
-    if ($filter_benutzer !== '') {
-        $sql .= " AND (CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) LIKE ? OR CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, '')) LIKE ?)";
-        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filter_benutzer) . '%';
-        $params[] = $like;
-        $params[] = $like;
     }
     $sql .= " ORDER BY m.aufgenommen_am DESC, m.created_at DESC";
     $stmt = $params ? $db->prepare($sql) : $db->query($sql);
@@ -463,12 +448,6 @@ try {
     if ($filter_datum_bis !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_bis)) {
         $sql .= " AND g.datum <= ?";
         $params[] = $filter_datum_bis;
-    }
-    if ($filter_benutzer !== '') {
-        $sql .= " AND (CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) LIKE ? OR CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, '')) LIKE ?)";
-        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filter_benutzer) . '%';
-        $params[] = $like;
-        $params[] = $like;
     }
     $sql .= " ORDER BY g.datum DESC, g.created_at DESC";
     $stmt = $params ? $db->prepare($sql) : $db->query($sql);
@@ -701,8 +680,9 @@ try {
                     <div class="d-flex flex-wrap align-items-center gap-2">
                     <?php if ($filter_formular !== ''): ?>
                     <?php if ($filter_formular === 'anwesenheitsliste' && !empty($anwesenheitslisten)): ?>
-                    <a href="../api/anwesenheitsliste-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-success btn-sm" download title="Alle Anwesenheitslisten als PDF herunterladen"><i class="fas fa-file-pdf me-1"></i> Alle Berichte als PDF</a>
-                    <button type="button" class="btn btn-dark btn-sm" title="Alle Anwesenheitslisten drucken" onclick="druckenAnwesenheitslisteAlle('<?php echo htmlspecialchars(http_build_query(array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis]))); ?>', this)"><i class="fas fa-print me-1"></i> Alle drucken</button>
+                    <?php $anwesenheitsliste_query = array_filter(['filter_typ' => $filter_typ, 'filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis, 'filter_beschreibung' => $filter_beschreibung]); ?>
+                    <a href="../api/anwesenheitsliste-pdf-alle.php?<?php echo http_build_query($anwesenheitsliste_query); ?>" class="btn btn-success btn-sm" download title="Alle Anwesenheitslisten als PDF herunterladen"><i class="fas fa-file-pdf me-1"></i> Alle Berichte als PDF</a>
+                    <button type="button" class="btn btn-dark btn-sm" title="Alle Anwesenheitslisten drucken" onclick="druckenAnwesenheitslisteAlle('<?php echo htmlspecialchars(http_build_query($anwesenheitsliste_query)); ?>', this)"><i class="fas fa-print me-1"></i> Alle drucken</button>
                     <?php endif; ?>
                     <?php if ($filter_formular === 'maengelbericht' && !empty($maengelberichte)): ?>
                     <a href="../api/maengelbericht-pdf-alle.php?<?php echo http_build_query(array_filter(['filter_datum_von' => $filter_datum_von, 'filter_datum_bis' => $filter_datum_bis])); ?>" class="btn btn-success btn-sm" download title="Alle Mängelberichte als PDF herunterladen"><i class="fas fa-file-pdf me-1"></i> Alle Mängelberichte als PDF</a>
@@ -717,20 +697,20 @@ try {
                         <input type="hidden" name="tab" value="submissions">
                         <input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>">
                         <?php if ($filter_formular === '' || $filter_formular === 'anwesenheitsliste'): ?>
-                        <select name="filter_typ" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                        <select name="filter_typ" id="filter-typ" class="form-select form-select-sm" style="width: auto; min-width: 140px;" onchange="this.form.submit();">
                             <option value="">Alle Typen</option>
-                            <option value="einsatz" <?php echo $filter_typ === 'einsatz' ? 'selected' : ''; ?>>Einsatz</option>
-                            <option value="uebungsdienst" <?php echo $filter_typ === 'uebungsdienst' ? 'selected' : ''; ?>>Übungsdienst</option>
-                            <option value="dienst" <?php echo $filter_typ === 'dienst' ? 'selected' : ''; ?>>Dienst (alle)</option>
-                            <option value="manuell" <?php echo $filter_typ === 'manuell' ? 'selected' : ''; ?>>Manuell</option>
+                            <option value="einsatz" <?php echo $filter_typ === 'einsatz' ? 'selected' : ''; ?>>Einsätze</option>
+                            <option value="uebungsdienst" <?php echo $filter_typ === 'uebungsdienst' ? 'selected' : ''; ?>>Übungsdienste</option>
                             <option value="sonstiges" <?php echo $filter_typ === 'sonstiges' ? 'selected' : ''; ?>>Sonstiges</option>
                         </select>
+                        <div id="filter-beschreibung-wrap" class="<?php echo $filter_typ === 'sonstiges' ? '' : 'd-none'; ?>">
+                            <input type="text" name="filter_beschreibung" class="form-control form-control-sm" style="width: 160px;" value="<?php echo htmlspecialchars($filter_beschreibung); ?>" placeholder="Beschreibung filtern" title="Nach Beschreibung filtern (nur bei Sonstiges)">
+                        </div>
                         <?php endif; ?>
-                        <input type="text" name="filter_benutzer" class="form-control form-control-sm" style="width: 140px;" value="<?php echo htmlspecialchars($filter_benutzer); ?>" placeholder="Benutzer" title="Nach eingereicht von filtern">
                         <input type="date" name="filter_datum_von" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($filter_datum_von); ?>" placeholder="Von" onchange="this.form.submit()">
                         <input type="date" name="filter_datum_bis" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($filter_datum_bis); ?>" placeholder="Bis" onchange="this.form.submit()">
                         <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="fas fa-filter"></i> Filtern</button>
-                        <?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== '' || $filter_benutzer !== ''): ?>
+                        <?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== '' || $filter_beschreibung !== ''): ?>
                         <a href="?tab=submissions" class="btn btn-outline-secondary btn-sm">Zurücksetzen</a>
                         <?php endif; ?>
                     </form>
@@ -742,36 +722,38 @@ try {
                     if ($filter_typ !== '') $base_params['filter_typ'] = $filter_typ;
                     if ($filter_datum_von !== '') $base_params['filter_datum_von'] = $filter_datum_von;
                     if ($filter_datum_bis !== '') $base_params['filter_datum_bis'] = $filter_datum_bis;
-                    if ($filter_benutzer !== '') $base_params['filter_benutzer'] = $filter_benutzer;
+                    if ($filter_beschreibung !== '') $base_params['filter_beschreibung'] = $filter_beschreibung;
                     ?>
-                    <div class="mb-3">
-                        <span class="me-2 text-muted small">Formular:</span>
-                        <a href="?<?php echo http_build_query($base_params); ?>" class="btn btn-sm <?php echo $filter_formular === '' ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1">Alle</a>
-                        <?php
-                            $p = $base_params;
-                            $p['filter_formular'] = 'anwesenheitsliste';
-                        ?>
-                        <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'anwesenheitsliste' ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1"><i class="fas fa-clipboard-list me-1"></i> Anwesenheitsliste (<?php echo $anwesenheitslisten_count; ?>)</a>
-                        <?php
-                            $p = $base_params;
-                            $p['filter_formular'] = 'maengelbericht';
-                        ?>
-                        <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'maengelbericht' ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1"><i class="fas fa-exclamation-triangle me-1"></i> Mängelbericht (<?php echo $maengelberichte_count; ?>)</a>
-                        <?php
-                            $p = $base_params;
-                            $p['filter_formular'] = 'geraetewartmitteilung';
-                        ?>
-                        <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'geraetewartmitteilung' ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1"><i class="fas fa-wrench me-1"></i> Gerätewartmitteilung (<?php echo $geraetewartmitteilungen_count; ?>)</a>
-                        <?php foreach ($forms as $f):
-                            $cnt = $form_counts_for_buttons[(int)$f['id']] ?? 0;
-                            $p = $base_params;
-                            $p['filter_formular'] = 'form_' . $f['id'];
-                        ?>
-                        <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'form_' . $f['id'] ? 'btn-primary' : 'btn-outline-secondary'; ?> me-1 mb-1"><?php echo htmlspecialchars($f['title']); ?> (<?php echo $cnt; ?>)</a>
-                        <?php endforeach; ?>
+                    <div class="mb-4">
+                        <span class="me-2 text-muted small fw-semibold">Formular:</span>
+                        <div class="d-flex flex-wrap gap-2 mt-1">
+                            <a href="?<?php echo http_build_query($base_params); ?>" class="btn btn-sm <?php echo $filter_formular === '' ? 'btn-primary' : 'btn-outline-primary'; ?>"><i class="fas fa-th-list me-1"></i> Alle</a>
+                            <?php
+                                $p = $base_params;
+                                $p['filter_formular'] = 'anwesenheitsliste';
+                            ?>
+                            <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'anwesenheitsliste' ? 'btn-info' : 'btn-outline-info'; ?>"><i class="fas fa-clipboard-list me-1"></i> Anwesenheitsliste (<?php echo $anwesenheitslisten_count; ?>)</a>
+                            <?php
+                                $p = $base_params;
+                                $p['filter_formular'] = 'maengelbericht';
+                            ?>
+                            <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'maengelbericht' ? 'btn-warning text-dark' : 'btn-outline-warning'; ?>"><i class="fas fa-exclamation-triangle me-1"></i> Mängelbericht (<?php echo $maengelberichte_count; ?>)</a>
+                            <?php
+                                $p = $base_params;
+                                $p['filter_formular'] = 'geraetewartmitteilung';
+                            ?>
+                            <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'geraetewartmitteilung' ? 'btn-secondary' : 'btn-outline-secondary'; ?>"><i class="fas fa-wrench me-1"></i> Gerätewartmitteilung (<?php echo $geraetewartmitteilungen_count; ?>)</a>
+                            <?php foreach ($forms as $f):
+                                $cnt = $form_counts_for_buttons[(int)$f['id']] ?? 0;
+                                $p = $base_params;
+                                $p['filter_formular'] = 'form_' . $f['id'];
+                            ?>
+                            <a href="?<?php echo http_build_query($p); ?>" class="btn btn-sm <?php echo $filter_formular === 'form_' . $f['id'] ? 'btn-success' : 'btn-outline-success'; ?>"><?php echo htmlspecialchars($f['title']); ?> (<?php echo $cnt; ?>)</a>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                     <?php if (empty($submissions) && empty($anwesenheitslisten) && empty($maengelberichte) && empty($geraetewartmitteilungen)): ?>
-                        <p class="text-muted mb-0">Noch keine ausgefüllten Formulare, Anwesenheitslisten oder Mängelberichte vorhanden.<?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== '' || $filter_benutzer !== ''): ?> Versuchen Sie, die Filter zu ändern.<?php endif; ?></p>
+                        <p class="text-muted mb-0">Noch keine ausgefüllten Formulare, Anwesenheitslisten oder Mängelberichte vorhanden.<?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== '' || $filter_beschreibung !== ''): ?> Versuchen Sie, die Filter zu ändern.<?php endif; ?></p>
                     <?php else: ?>
                         <div class="mb-3">
                             <input type="text" id="formularcenter-suche" class="form-control form-control-sm" style="max-width: 280px;" placeholder="Berichte durchsuchen (Titel, Typ, Benutzer…)" autocomplete="off">
@@ -808,7 +790,7 @@ try {
                                                 <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
                                                 <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
                                                 <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
-                                                <?php if ($filter_benutzer !== ''): ?><input type="hidden" name="filter_benutzer" value="<?php echo htmlspecialchars($filter_benutzer); ?>"><?php endif; ?>
+                                                <?php if ($filter_beschreibung !== ''): ?><input type="hidden" name="filter_beschreibung" value="<?php echo htmlspecialchars($filter_beschreibung); ?>"><?php endif; ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sm" title="Löschen" onclick="openDeleteConfirm(this, 'Formulareingabe')"><i class="fas fa-trash"></i></button>
                                             </form>
                                         </td>
@@ -840,7 +822,7 @@ try {
                                                 <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
                                                 <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
                                                 <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
-                                                <?php if ($filter_benutzer !== ''): ?><input type="hidden" name="filter_benutzer" value="<?php echo htmlspecialchars($filter_benutzer); ?>"><?php endif; ?>
+                                                <?php if ($filter_beschreibung !== ''): ?><input type="hidden" name="filter_beschreibung" value="<?php echo htmlspecialchars($filter_beschreibung); ?>"><?php endif; ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sm" title="Löschen" onclick="openDeleteConfirm(this, 'Anwesenheitsliste')"><i class="fas fa-trash"></i></button>
                                             </form>
                                         </td>
@@ -866,7 +848,7 @@ try {
                                                 <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
                                                 <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
                                                 <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
-                                                <?php if ($filter_benutzer !== ''): ?><input type="hidden" name="filter_benutzer" value="<?php echo htmlspecialchars($filter_benutzer); ?>"><?php endif; ?>
+                                                <?php if ($filter_beschreibung !== ''): ?><input type="hidden" name="filter_beschreibung" value="<?php echo htmlspecialchars($filter_beschreibung); ?>"><?php endif; ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sm" title="Löschen" onclick="openDeleteConfirm(this, 'Mängelbericht')"><i class="fas fa-trash"></i></button>
                                             </form>
                                         </td>
@@ -892,7 +874,7 @@ try {
                                                 <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
                                                 <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
                                                 <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
-                                                <?php if ($filter_benutzer !== ''): ?><input type="hidden" name="filter_benutzer" value="<?php echo htmlspecialchars($filter_benutzer); ?>"><?php endif; ?>
+                                                <?php if ($filter_beschreibung !== ''): ?><input type="hidden" name="filter_beschreibung" value="<?php echo htmlspecialchars($filter_beschreibung); ?>"><?php endif; ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sm" title="Löschen" onclick="openDeleteConfirm(this, 'Gerätewartmitteilung')"><i class="fas fa-trash"></i></button>
                                             </form>
                                         </td>

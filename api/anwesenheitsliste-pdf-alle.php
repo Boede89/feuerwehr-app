@@ -22,6 +22,7 @@ if (!has_permission('forms')) {
 $filter_typ = trim($_GET['filter_typ'] ?? '');
 $filter_datum_von = trim($_GET['filter_datum_von'] ?? '');
 $filter_datum_bis = trim($_GET['filter_datum_bis'] ?? '');
+$filter_beschreibung = trim($_GET['filter_beschreibung'] ?? '');
 $for_print = !empty($_GET['print']);
 $return_mode = !empty($_GET['_return']);
 
@@ -36,12 +37,18 @@ $sql = "
 ";
 $params = [];
 if ($filter_typ !== '') {
-    if ($filter_typ === 'einsatz') $sql .= " AND a.typ = 'einsatz'";
-    elseif ($filter_typ === 'manuell') $sql .= " AND a.typ = 'manuell'";
-    elseif ($filter_typ === 'dienst') $sql .= " AND a.typ = 'dienst'";
-    elseif (in_array($filter_typ, ['uebungsdienst', 'jahreshauptversammlung', 'sonstiges'])) {
-        $sql .= " AND a.typ = 'dienst' AND d.typ = ?";
-        $params[] = $filter_typ;
+    if ($filter_typ === 'einsatz') {
+        $sql .= " AND a.typ = 'einsatz'";
+    } elseif ($filter_typ === 'uebungsdienst') {
+        $sql .= " AND (a.typ = 'dienst' AND d.typ IN ('uebungsdienst','dienst','uebung'))";
+    } elseif ($filter_typ === 'sonstiges') {
+        $sql .= " AND a.typ = 'dienst' AND d.typ = 'sonstiges'";
+        if ($filter_beschreibung !== '') {
+            $sql .= " AND (a.bezeichnung LIKE ? OR d.bezeichnung LIKE ?)";
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filter_beschreibung) . '%';
+            $params[] = $like;
+            $params[] = $like;
+        }
     }
 }
 if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
