@@ -989,11 +989,6 @@ if ($can_atemschutz) {
                             </div>
                         <?php endif; ?>
                     </div>
-                    <div class="card-footer">
-                        <a href="ric-verwaltung.php" class="btn btn-warning">
-                            <i class="fas fa-broadcast-tower"></i> Zur RIC-Verwaltung
-                        </a>
-                    </div>
                 </div>
             </div>
         </div>
