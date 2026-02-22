@@ -15,13 +15,11 @@ if (!hasAdminPermission()) {
 
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 $einheit = null;
-$show_einheit_placeholder = false;
 if ($einheit_id > 0) {
     try {
         $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
         $stmt->execute([$einheit_id]);
         $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
-        $show_einheit_placeholder = $einheit && is_einheit_waldniel($db, $einheit_id);
     } catch (Exception $e) {}
 }
 
@@ -179,7 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h3 mb-0"><i class="fas fa-gear"></i> Globale Einstellungen<?php if ($einheit): ?> <span class="text-muted">(<?php echo htmlspecialchars($einheit['name']); ?>)</span><?php endif; ?></h1>
         <div class="d-flex gap-2">
-            <?php if (!$show_einheit_placeholder): ?>
+            <?php if ($einheit_id <= 0): ?>
             <a href="settings-backup.php" class="btn btn-outline-primary"><i class="fas fa-shield-halved"></i> Sicherung & Wiederherstellung</a>
             <?php endif; ?>
             <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
@@ -188,15 +186,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if ($message) echo show_success($message); ?>
     <?php if ($error) echo show_error($error); ?>
 
-    <?php if ($show_einheit_placeholder): ?>
-    <div class="card shadow">
-        <div class="card-body text-center py-5">
-            <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
-            <p class="text-muted mb-0">Einstellungen für diese Einheit – noch nicht konfiguriert.</p>
-            <p class="text-muted small mt-2">Die Konfiguration wird in Kürze verfügbar.</p>
-        </div>
-    </div>
-    <?php else: ?>
     <form method="POST" enctype="multipart/form-data">
         <div class="row g-4">
             <div class="col-lg-6">
@@ -335,11 +324,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
         <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
     </form>
-    <?php endif; ?>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<?php if (!$show_einheit_placeholder): ?>
 <script>
 document.getElementById('btn_list_printers')?.addEventListener('click', function() {
     var btn = this;
@@ -378,7 +365,6 @@ document.getElementById('btn_list_printers')?.addEventListener('click', function
         });
 });
 </script>
-<?php endif; ?>
 </body>
 </html>
 

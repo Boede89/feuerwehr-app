@@ -39,9 +39,9 @@ function is_einheit_waldniel($db, $einheit_id) {
 
 /**
  * Lädt Einstellungen für eine Einheit.
- * Amern: aus einheit_settings (nach Migration aus settings).
- * Waldniel: leer (leeres Array).
- * Ohne einheit_id: aus settings (Legacy).
+ * Amern: Migration durchführen (einmalig), dann aus einheit_settings laden.
+ * Alle anderen Einheiten: aus einheit_settings (jede Einheit hat eigene Daten).
+ * Ohne einheit_id: aus settings (Legacy/ globale Einstellungen).
  */
 function load_settings_for_einheit($db, $einheit_id = null) {
     $settings = [];
@@ -55,15 +55,13 @@ function load_settings_for_einheit($db, $einheit_id = null) {
         } catch (Exception $e) {}
         return $settings;
     }
-    // Waldniel = leer
-    if (is_einheit_waldniel($db, $einheit_id)) {
-        return [];
-    }
     // Amern: Migration durchführen (einmalig), dann aus einheit_settings laden
     if (get_einheit_amern_id($db) === (int)$einheit_id) {
         migrate_settings_to_amern($db);
     }
+    // Alle Einheiten: aus einheit_settings laden (jede Einheit hat eigene Daten)
     try {
+        ensure_einheit_settings_table($db);
         $stmt = $db->prepare("SELECT setting_key, setting_value FROM einheit_settings WHERE einheit_id = ?");
         $stmt->execute([$einheit_id]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
