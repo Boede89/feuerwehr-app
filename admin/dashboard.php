@@ -1097,7 +1097,7 @@ if ($can_atemschutz) {
             <div class="col-12">
                 <div class="card shadow">
                     <div class="card-header dashboard-section-header" data-section="atemschutz_warnings" style="cursor: pointer;">
-                        <h6 class="m-0 font-weight-bold text-danger">
+                        <h6 class="m-0 font-weight-bold text-white">
                             <i class="fas fa-chevron-down collapse-icon" data-section="atemschutz_warnings"></i>
                             <i class="fas fa-user-shield"></i> Auffällige Geräteträger (<?php echo count($atemschutz_warnings); ?>)
                         </h6>
