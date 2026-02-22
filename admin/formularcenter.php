@@ -124,6 +124,7 @@ try {
 $message = isset($_GET['message']) ? trim($_GET['message']) : '';
 $error = '';
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'submissions';
+if ($active_tab === 'forms') $active_tab = 'submissions'; // Tab "Formulare verwalten" vorübergehend entfernt
 $dienstplan_jahr = isset($_GET['jahr']) ? (int)$_GET['jahr'] : (int)date('Y');
 $filter_typ = isset($_GET['filter_typ']) ? trim($_GET['filter_typ']) : '';
 $filter_datum_von = isset($_GET['filter_datum_von']) ? trim($_GET['filter_datum_von']) : (date('Y') . '-01-01');
@@ -537,7 +538,6 @@ try {
     // ignore
 }
 
-$edit_form = null;
 $edit_submission = null;
 $members_for_ausbilder = [];
 $members_by_id = [];
@@ -550,12 +550,6 @@ try {
 } catch (Exception $e) {}
 
 $edit_dienstplan = null;
-if (isset($_GET['edit_form'])) {
-    $id = (int)$_GET['edit_form'];
-    foreach ($forms as $f) {
-        if ((int)$f['id'] === $id) { $edit_form = $f; break; }
-    }
-}
 if (isset($_GET['edit_dienstplan'])) {
     $id = (int)$_GET['edit_dienstplan'];
     foreach ($dienstplan_eintraege as $e) {
@@ -645,57 +639,7 @@ try {
                     <i class="fas fa-calendar-alt"></i> Dienstplan
                 </a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link <?php echo $active_tab === 'forms' ? 'active' : ''; ?>" href="?tab=forms">
-                    <i class="fas fa-list"></i> Formulare verwalten
-                </a>
-            </li>
         </ul>
-
-        <?php if ($active_tab === 'forms'): ?>
-            <div class="card shadow">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-list"></i> Formulare</span>
-                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#formEditModal" onclick="openFormModal()">
-                        <i class="fas fa-plus"></i> Neues Formular
-                    </button>
-                </div>
-                <div class="card-body">
-                    <?php if (empty($forms)): ?>
-                        <p class="text-muted mb-0">Noch keine Formulare angelegt. Legen Sie ein Formular an, damit es auf der Formulare-Seite erscheint.</p>
-                    <?php else: ?>
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Titel</th>
-                                        <th>Aktiv</th>
-                                        <th>Eingaben</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($forms as $f):
-                                        $count_stmt = $db->prepare("SELECT COUNT(*) FROM app_form_submissions WHERE form_id = ?");
-                                        $count_stmt->execute([$f['id']]);
-                                        $sub_count = (int)$count_stmt->fetchColumn();
-                                    ?>
-                                    <tr>
-                                        <td><?php echo htmlspecialchars($f['title']); ?></td>
-                                        <td><?php echo $f['is_active'] ? '<span class="badge bg-success">Ja</span>' : '<span class="badge bg-secondary">Nein</span>'; ?></td>
-                                        <td><?php echo $sub_count; ?></td>
-                                        <td>
-                                            <a href="?tab=forms&edit_form=<?php echo (int)$f['id']; ?>#formEditModal" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#formEditModal" onclick='openFormModal(<?php echo json_encode($f); ?>)'><i class="fas fa-edit"></i></a>
-                                        </td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        <?php endif; ?>
 
         <?php if ($active_tab === 'submissions'): ?>
             <div class="card shadow mb-4">
@@ -1189,46 +1133,6 @@ try {
         </div>
     </div>
 
-    <!-- Modal: Formular anlegen/bearbeiten -->
-    <div class="modal fade" id="formEditModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <form method="post">
-                    <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
-                    <input type="hidden" name="action" value="save_form">
-                    <input type="hidden" name="form_id" id="form_id" value="">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="formEditModalTitle">Neues Formular</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="form_title" class="form-label">Titel *</label>
-                            <input type="text" class="form-control" id="form_title" name="title" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="form_description" class="form-label">Beschreibung</label>
-                            <textarea class="form-control" id="form_description" name="description" rows="2"></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label for="form_schema_json" class="form-label">Feld-Schema (JSON)</label>
-                            <textarea class="form-control font-monospace" id="form_schema_json" name="schema_json" rows="10" placeholder='[{"name":"feldname","label":"Anzeigename","type":"text","required":1}]'></textarea>
-                            <small class="text-muted">Typen: text, textarea, number, date, email, select, checkbox. Bei select: "options": ["A","B"]</small>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="is_active" id="form_is_active" value="1" checked>
-                            <label class="form-check-label" for="form_is_active">Formular ist aktiv (auf Formulare-Seite sichtbar)</label>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                        <button type="submit" class="btn btn-primary">Speichern</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
     <!-- Modal: Eingabe bearbeiten -->
     <div class="modal fade" id="submissionModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
@@ -1375,13 +1279,6 @@ try {
         document.addEventListener('DOMContentLoaded', function() {
             openDienstplanModal(<?php echo json_encode($edit_dienstplan); ?>);
             var m = document.getElementById('dienstplanModal');
-            if (m) new bootstrap.Modal(m).show();
-        });
-        <?php endif; ?>
-        <?php if ($edit_form): ?>
-        document.addEventListener('DOMContentLoaded', function() {
-            openFormModal(<?php echo json_encode($edit_form); ?>);
-            var m = document.getElementById('formEditModal');
             if (m) new bootstrap.Modal(m).show();
         });
         <?php endif; ?>
