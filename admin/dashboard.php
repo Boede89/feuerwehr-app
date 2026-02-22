@@ -133,6 +133,7 @@ if ($is_admin) {
     $can_settings = has_permission('settings');
     $can_members = has_permission('members');
     $can_forms = has_permission('forms');
+    $can_users = has_permission('users');
 }
 
 // Sicherstellen, dass Berechtigungsspalten existieren
@@ -705,61 +706,37 @@ if ($can_atemschutz) {
 
 
     <div class="container-fluid mt-4">
-        <!-- Header -->
+        <!-- Header mit Menü -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h1 class="h3 mb-0">
                 <i class="fas fa-tachometer-alt"></i> Dashboard
                 <small class="text-muted">Willkommen, <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>!</small>
             </h1>
-        </div>
-
-        <!-- Navigation Buttons -->
-        <div class="row g-2 mb-4">
-            <?php if ($can_reservations): ?>
-            <div class="col-12 col-md-4">
-                <a href="reservations.php" class="btn btn-primary w-100">
-                    <i class="fas fa-calendar"></i> Reservierungen
-                </a>
-            </div>
-            <?php endif; ?>
-            
-            <?php if ($can_atemschutz): ?>
-            <div class="col-12 col-md-4">
-                <a href="atemschutz.php" class="btn btn-outline-danger w-100">
-                    <i class="fas fa-user-shield"></i> Atemschutz
-                </a>
-            </div>
-            <?php endif; ?>
-            
-            <?php if ($can_settings): ?>
-            <div class="col-12 col-md-3">
-                <a href="settings.php" class="btn btn-outline-secondary w-100">
-                    <i class="fas fa-cog"></i> Einstellungen
-                </a>
-            </div>
-            <?php endif; ?>
-            
-            <?php if ($can_settings): ?>
-            <div class="col-12 col-md-3">
-                <a href="feedback.php" class="btn btn-outline-info w-100">
-                    <i class="fas fa-comment-dots"></i> Feedback
-                </a>
-            </div>
-            <?php endif; ?>
-            
-            <?php if ($can_members): ?>
-            <div class="col-12 col-md-3">
-                <a href="members.php" class="btn btn-outline-success w-100">
-                    <i class="fas fa-users"></i> Mitgliederverwaltung
-                </a>
-            </div>
-            <?php endif; ?>
-            
-            <?php if ($can_forms): ?>
-            <div class="col-12 col-md-3">
-                <a href="formularcenter.php" class="btn btn-outline-info w-100">
-                    <i class="fas fa-file-alt"></i> Formularcenter
-                </a>
+            <?php if ($can_reservations || $can_atemschutz || $can_settings || $can_members || $can_forms): ?>
+            <div class="dropdown">
+                <button class="btn btn-outline-primary" type="button" id="dashboardMenuBtn" data-bs-toggle="dropdown" aria-expanded="false" title="Menü">
+                    <i class="fas fa-bars fa-lg"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dashboardMenuBtn">
+                    <?php if ($can_reservations): ?>
+                    <li><a class="dropdown-item" href="reservations.php"><i class="fas fa-calendar text-primary me-2"></i>Reservierungen</a></li>
+                    <?php endif; ?>
+                    <?php if ($can_atemschutz): ?>
+                    <li><a class="dropdown-item" href="atemschutz.php"><i class="fas fa-user-shield text-danger me-2"></i>Atemschutz</a></li>
+                    <?php endif; ?>
+                    <?php if ($can_members): ?>
+                    <li><a class="dropdown-item" href="members.php"><i class="fas fa-users text-success me-2"></i>Mitgliederverwaltung</a></li>
+                    <?php endif; ?>
+                    <?php if ($can_forms): ?>
+                    <li><a class="dropdown-item" href="formularcenter.php"><i class="fas fa-file-alt text-info me-2"></i>Formularcenter</a></li>
+                    <?php endif; ?>
+                    <?php if ($can_settings): ?>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="settings.php"><i class="fas fa-cog text-secondary me-2"></i>Einstellungen</a></li>
+                    <li><a class="dropdown-item" href="feedback.php"><i class="fas fa-comment-dots text-info me-2"></i>Feedback</a></li>
+                    <li><a class="dropdown-item" href="users.php"><i class="fas fa-user-cog text-secondary me-2"></i>Benutzerverwaltung</a></li>
+                    <?php endif; ?>
+                </ul>
             </div>
             <?php endif; ?>
         </div>
