@@ -927,7 +927,7 @@ try {
                         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#dienstplanModal" onclick="openDienstplanModal()">
                             <i class="fas fa-plus"></i> Neuer Eintrag
                         </button>
-                        <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#diveraImportModal">
+                        <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#diveraImportModal">
                             <i class="fas fa-download"></i> Aus Divera importieren
                         </button>
                         <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#diveraExportModal">
