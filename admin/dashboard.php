@@ -720,14 +720,11 @@ if ($can_atemschutz) {
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center dashboard-section-header" data-section="feedback" style="cursor: pointer;">
+                    <div class="card-header dashboard-section-header" data-section="feedback" style="cursor: pointer;">
                         <h6 class="m-0 font-weight-bold text-info">
                             <i class="fas fa-chevron-down collapse-icon" data-section="feedback"></i>
                             <i class="fas fa-comment-dots"></i> Feedback-Übersicht
                         </h6>
-                        <a href="feedback.php" class="btn btn-sm btn-outline-info" onclick="event.stopPropagation();">
-                            <i class="fas fa-eye"></i> Alle anzeigen
-                        </a>
                     </div>
                     <div class="card-body dashboard-section-body" data-section="feedback" <?php echo (isset($dashboard_preferences['feedback']) && $dashboard_preferences['feedback']) ? 'style="display: none;"' : ''; ?>>
                         <div class="row text-center">
