@@ -29,7 +29,7 @@ try {
     $stmt = $db->prepare("
         SELECT id, username, first_name, last_name, is_admin, user_role, is_active, is_system_user,
                can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms,
-               can_users, can_settings, can_vehicles, email_notifications, autologin_expires
+               can_users, can_settings, can_vehicles, email_notifications, autologin_expires, einheit_id
         FROM users
         WHERE autologin_token = ? AND is_active = 1 AND is_system_user = 1
     ");
@@ -69,8 +69,9 @@ try {
 
     log_activity($user['id'], 'autologin', 'Systembenutzer per Autologin angemeldet');
 
-    $_SESSION['current_unit_id'] = 1;
-    header('Location: formulare.php');
+    $einheit_id = !empty($user['einheit_id']) ? (int)$user['einheit_id'] : 0;
+    $_SESSION['current_einheit_id'] = $einheit_id > 0 ? $einheit_id : null;
+    header('Location: formulare.php' . ($einheit_id > 0 ? '?einheit_id=' . $einheit_id : ''));
     exit;
 } catch (Exception $e) {
     error_log('Autologin Fehler: ' . $e->getMessage());

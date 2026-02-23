@@ -127,9 +127,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// Systembenutzer anlegen (nur Formulare, Autologin-Link)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_system_user') {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = "Ungültiger Sicherheitstoken.";
+    } else {
+        $username = sanitize_input($_POST['username'] ?? '');
+        $first_name = sanitize_input($_POST['first_name'] ?? '');
+        $last_name = sanitize_input($_POST['last_name'] ?? '');
+        if (empty($username)) {
+            $error = "Benutzername ist erforderlich.";
+        } else {
+            try {
+                try { $db->exec("ALTER TABLE users ADD COLUMN is_system_user TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+                try { $db->exec("ALTER TABLE users ADD COLUMN autologin_token VARCHAR(64) NULL"); } catch (Exception $e) {}
+                try { $db->exec("ALTER TABLE users ADD COLUMN autologin_expires DATETIME NULL"); } catch (Exception $e) {}
+                try { $db->exec("ALTER TABLE users MODIFY COLUMN email VARCHAR(255) NULL"); } catch (Exception $e) {}
+                try { $db->exec("ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) NULL"); } catch (Exception $e) {}
+                $stmt_check = $db->prepare("SELECT id FROM users WHERE username = ?");
+                $stmt_check->execute([$username]);
+                if ($stmt_check->fetch()) {
+                    $error = "Dieser Benutzername existiert bereits.";
+                } else {
+                    $autologin_token = bin2hex(random_bytes(32));
+                    $validity = $_POST['autologin_validity'] ?? '90';
+                    $autologin_expires = null;
+                    if ($validity !== 'unlimited') {
+                        $days = (int)$validity;
+                        $autologin_expires = $days > 0 ? date('Y-m-d H:i:s', strtotime("+{$days} days")) : null;
+                    }
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires, einheit_id) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, ?, ?, ?)");
+                    $stmt->execute([$username, $first_name ?: $username, $last_name, $autologin_token, $autologin_expires, $einheit_id]);
+                    log_activity($_SESSION['user_id'], 'user_added', "Systembenutzer '$username' für Einheit {$einheit['name']} angelegt");
+                    header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=system_added");
+                    exit;
+                }
+            } catch (Exception $e) {
+                $error = "Fehler: " . $e->getMessage();
+            }
+        }
+    }
+}
+
+// Autologin-Link neu generieren (Systembenutzer)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_token'])) {
+    $user_id = (int)$_POST['regenerate_token'];
+    if (validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        try {
+            $stmt = $db->prepare("SELECT id, username FROM users WHERE id = ? AND is_system_user = 1 AND einheit_id = ?");
+            $stmt->execute([$user_id, $einheit_id]);
+            $u = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($u) {
+                $validity = $_POST['autologin_validity'] ?? '90';
+                $autologin_token = bin2hex(random_bytes(32));
+                $autologin_expires = null;
+                if ($validity !== 'unlimited') {
+                    $days = (int)$validity;
+                    $autologin_expires = $days > 0 ? date('Y-m-d H:i:s', strtotime("+{$days} days")) : null;
+                }
+                $stmt_up = $db->prepare("UPDATE users SET autologin_token = ?, autologin_expires = ? WHERE id = ?");
+                $stmt_up->execute([$autologin_token, $autologin_expires, $user_id]);
+                log_activity($_SESSION['user_id'], 'user_updated', "Autologin-Link für Systembenutzer '{$u['username']}' neu generiert");
+                header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=system_regenerated");
+                exit;
+            }
+        } catch (Exception $e) {
+            $error = "Fehler: " . $e->getMessage();
+        }
+    }
+}
+
 if (isset($_GET['success'])) {
     if ($_GET['success'] === 'updated') $message = "Benutzer wurde erfolgreich aktualisiert.";
     if ($_GET['success'] === 'user_added') $message = "Benutzer wurde erfolgreich angelegt.";
+    if ($_GET['success'] === 'system_added') $message = "Systembenutzer wurde angelegt. Klicken Sie auf „Link anzeigen“ um den Autologin-Link zu sehen.";
+    if ($_GET['success'] === 'system_regenerated') $message = "Neuer Autologin-Link wurde generiert.";
 }
 
 // Benutzer dieser Einheit laden (mit Berechtigungen)
@@ -143,6 +215,14 @@ try {
         ORDER BY u.last_name, u.first_name");
     $stmt->execute([$einheit_id, $einheit_id]);
     $unit_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
+// Systembenutzer dieser Einheit laden
+$system_users = [];
+try {
+    $stmt = $db->prepare("SELECT id, username, first_name, last_name, is_active, autologin_token, autologin_expires, created_at FROM users WHERE einheit_id = ? AND is_system_user = 1 ORDER BY username");
+    $stmt->execute([$einheit_id]);
+    $system_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 ?>
 <!DOCTYPE html>
@@ -191,6 +271,9 @@ try {
             <div class="d-flex gap-2">
                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
                     <i class="fas fa-plus"></i> Neuer Benutzer
+                </button>
+                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addSystemUserModal">
+                    <i class="fas fa-robot"></i> Neuer Systembenutzer
                 </button>
                 <a href="settings-einheit.php?id=<?php echo $einheit_id; ?>" class="btn btn-outline-secondary">
                     <i class="fas fa-arrow-left"></i> Zurück zur Einheit
@@ -265,6 +348,166 @@ try {
                 <?php if (empty($unit_users)): ?>
                 <p class="text-muted mb-0">Noch keine Benutzer in dieser Einheit.</p>
                 <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-robot text-info"></i> Systembenutzer (Autologin)</h5>
+                <span class="badge bg-secondary">Nur Formulare ausfüllen</span>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">Systembenutzer haben keinen Login. Sie erhalten einen Link, mit dem sie direkt Formulare ausfüllen können – z.B. für Tablets am Gerätehaus.</p>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Benutzername</th>
+                                <th>Status</th>
+                                <th>Gültigkeit</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($system_users as $su): ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars(trim(($su['first_name'] ?? '') . ' ' . ($su['last_name'] ?? '')) ?: '-'); ?></td>
+                                <td><?php echo htmlspecialchars($su['username']); ?></td>
+                                <td>
+                                    <?php if ($su['is_active']): ?><span class="badge bg-success">Aktiv</span><?php else: ?><span class="badge bg-secondary">Inaktiv</span><?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php
+                                    if (empty($su['autologin_token'])) {
+                                        echo '<span class="text-warning">Kein Link</span>';
+                                    } elseif (!empty($su['autologin_expires']) && strtotime($su['autologin_expires']) < time()) {
+                                        echo '<span class="text-danger">Abgelaufen</span>';
+                                    } elseif (!empty($su['autologin_expires'])) {
+                                        echo htmlspecialchars(date('d.m.Y', strtotime($su['autologin_expires'])));
+                                    } else {
+                                        echo '<span class="text-success">Unbegrenzt</span>';
+                                    }
+                                    ?>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-outline-primary btn-sm btn-show-autologin" data-user-id="<?php echo (int)$su['id']; ?>" title="Link anzeigen">
+                                        <i class="fas fa-link"></i> Link anzeigen
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#regenerateLinkModal" data-user-id="<?php echo (int)$su['id']; ?>" title="Neuen Link generieren">
+                                        <i class="fas fa-sync-alt"></i> Neuer Link
+                                    </button>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php if (empty($system_users)): ?>
+                <p class="text-muted mb-0">Noch keine Systembenutzer. Klicken Sie auf „Neuer Systembenutzer“ um einen Autologin-Link für Tablets o.ä. anzulegen.</p>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Systembenutzer anlegen -->
+    <div class="modal fade" id="addSystemUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="action" value="add_system_user">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-robot"></i> Systembenutzer anlegen</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted small mb-3">Systembenutzer erhalten einen Autologin-Link und können nur Formulare ausfüllen – ideal für Tablets am Gerätehaus.</p>
+                        <div class="mb-3">
+                            <label for="sys_username" class="form-label">Benutzername *</label>
+                            <input type="text" class="form-control" id="sys_username" name="username" required placeholder="z.B. tablet-eingang">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="sys_first_name" class="form-label">Vorname (optional)</label>
+                                <input type="text" class="form-control" id="sys_first_name" name="first_name" placeholder="Anzeigename">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="sys_last_name" class="form-label">Nachname (optional)</label>
+                                <input type="text" class="form-control" id="sys_last_name" name="last_name">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="sys_autologin_validity" class="form-label">Gültigkeit des Autologin-Links</label>
+                            <select class="form-select" id="sys_autologin_validity" name="autologin_validity">
+                                <option value="7">7 Tage</option>
+                                <option value="30">30 Tage</option>
+                                <option value="90" selected>90 Tage</option>
+                                <option value="365">1 Jahr</option>
+                                <option value="unlimited">Unbegrenzt</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Systembenutzer anlegen</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Autologin-Link anzeigen -->
+    <div class="modal fade" id="autologinLinkModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-link"></i> Autologin-Link</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2" id="autologin-username"></p>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="autologin-url" readonly>
+                        <button type="button" class="btn btn-outline-primary" id="autologin-copy-btn" title="In Zwischenablage kopieren">
+                            <i class="fas fa-copy"></i> Kopieren
+                        </button>
+                    </div>
+                    <p class="text-muted small mt-2 mb-0" id="autologin-validity-hint"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Neuer Autologin-Link (Regenerieren) -->
+    <div class="modal fade" id="regenerateLinkModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="regenerate_token" id="regenerate_user_id" value="">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-sync-alt"></i> Neuen Autologin-Link generieren</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3">Der alte Link funktioniert danach nicht mehr.</p>
+                        <div class="mb-0">
+                            <label for="regenerate_autologin_validity" class="form-label">Gültigkeit</label>
+                            <select class="form-select" id="regenerate_autologin_validity" name="autologin_validity">
+                                <option value="7">7 Tage</option>
+                                <option value="30">30 Tage</option>
+                                <option value="90" selected>90 Tage</option>
+                                <option value="365">1 Jahr</option>
+                                <option value="unlimited">Unbegrenzt</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-sync-alt"></i> Neuen Link generieren</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -418,6 +661,39 @@ try {
             document.getElementById('edit_can_forms').checked = btn.dataset.canForms == '1';
             document.getElementById('edit_is_active').checked = btn.dataset.isActive == '1';
             document.getElementById('edit_password').value = '';
+        });
+        document.getElementById('regenerateLinkModal').addEventListener('show.bs.modal', function(e) {
+            var btn = e.relatedTarget;
+            if (btn && btn.dataset.userId) document.getElementById('regenerate_user_id').value = btn.dataset.userId;
+        });
+        document.querySelectorAll('.btn-show-autologin').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var userId = this.dataset.userId;
+                if (!userId) return;
+                fetch('get-autologin-url.php?user_id=' + encodeURIComponent(userId))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            document.getElementById('autologin-url').value = data.url;
+                            document.getElementById('autologin-username').textContent = data.username;
+                            document.getElementById('autologin-validity-hint').textContent = data.validity_hint || '';
+                            new bootstrap.Modal(document.getElementById('autologinLinkModal')).show();
+                        } else {
+                            alert(data.error || 'Fehler beim Laden des Links.');
+                        }
+                    })
+                    .catch(function() { alert('Fehler beim Laden.'); });
+            });
+        });
+        document.getElementById('autologin-copy-btn').addEventListener('click', function() {
+            var urlEl = document.getElementById('autologin-url');
+            if (urlEl && urlEl.value) {
+                navigator.clipboard.writeText(urlEl.value).then(function() {
+                    var orig = document.getElementById('autologin-copy-btn').innerHTML;
+                    document.getElementById('autologin-copy-btn').innerHTML = '<i class="fas fa-check"></i> Kopiert!';
+                    setTimeout(function() { document.getElementById('autologin-copy-btn').innerHTML = orig; }, 1500);
+                });
+            }
         });
     </script>
 </body>

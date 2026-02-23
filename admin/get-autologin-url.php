@@ -31,12 +31,16 @@ if ($user_id <= 0) {
 }
 
 try {
-    $stmt = $db->prepare("SELECT id, username, autologin_token, autologin_expires, is_system_user FROM users WHERE id = ?");
+    $stmt = $db->prepare("SELECT id, username, autologin_token, autologin_expires, is_system_user, einheit_id FROM users WHERE id = ?");
     $stmt->execute([$user_id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user || empty($user['is_system_user'])) {
         echo json_encode(['success' => false, 'error' => 'Kein Systembenutzer gefunden']);
+        exit;
+    }
+    if (!empty($user['einheit_id']) && !is_superadmin() && !user_has_einheit_access($_SESSION['user_id'], (int)$user['einheit_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Kein Zugriff auf diese Einheit']);
         exit;
     }
 
