@@ -30,28 +30,36 @@ if (!in_array($active_tab, ['ric', 'qualifikationen', 'lehrgaenge'])) {
     $active_tab = 'ric';
 }
 
-// Tabelle member_qualifications sicherstellen
+// Tabelle member_qualifications sicherstellen (einheitsspezifisch)
 try {
     $db->exec("
         CREATE TABLE IF NOT EXISTS member_qualifications (
             id INT AUTO_INCREMENT PRIMARY KEY,
+            einheit_id INT NOT NULL DEFAULT 1,
             name VARCHAR(255) NOT NULL,
             sort_order INT DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_name (name)
+            UNIQUE KEY unique_einheit_name (einheit_id, name)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
-    // Lehrgänge-Tabellen
+    try { $db->exec("ALTER TABLE member_qualifications ADD COLUMN einheit_id INT NOT NULL DEFAULT 1"); } catch (Exception $e) {}
+    try { $db->exec("ALTER TABLE member_qualifications DROP INDEX unique_name"); } catch (Exception $e) {}
+    try { $db->exec("ALTER TABLE member_qualifications ADD UNIQUE KEY unique_einheit_name (einheit_id, name)"); } catch (Exception $e) {}
+    // Lehrgänge-Tabellen (einheitsspezifisch)
     $db->exec("CREATE TABLE IF NOT EXISTS courses (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        einheit_id INT NOT NULL DEFAULT 1,
         name VARCHAR(255) NOT NULL,
         description TEXT,
         qualification_id INT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_name (name)
+        UNIQUE KEY unique_einheit_name (einheit_id, name)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    try { $db->exec("ALTER TABLE courses ADD COLUMN einheit_id INT NOT NULL DEFAULT 1"); } catch (Exception $e) {}
     try { $db->exec("ALTER TABLE courses ADD COLUMN qualification_id INT NULL"); } catch (Exception $e) {}
+    try { $db->exec("ALTER TABLE courses DROP INDEX unique_name"); } catch (Exception $e) {}
+    try { $db->exec("ALTER TABLE courses ADD UNIQUE KEY unique_einheit_name (einheit_id, name)"); } catch (Exception $e) {}
     $db->exec("CREATE TABLE IF NOT EXISTS course_requirements (
         id INT AUTO_INCREMENT PRIMARY KEY,
         course_id INT NOT NULL,
@@ -65,13 +73,13 @@ try {
     error_log("Fehler beim Erstellen der member_qualifications Tabelle: " . $e->getMessage());
 }
 
-// Qualifikationen laden
+// Qualifikationen laden (einheitsspezifisch)
 $qualifications = [];
+$qual_einheit_id = $einheit_id > 0 ? $einheit_id : 1;
 try {
-    $stmt = $db->query("SELECT id, name, sort_order FROM member_qualifications ORDER BY sort_order, name");
-    if ($stmt) {
-        $qualifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
+    $stmt = $db->prepare("SELECT id, name, sort_order FROM member_qualifications WHERE einheit_id = ? ORDER BY sort_order, name");
+    $stmt->execute([$qual_einheit_id]);
+    $qualifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $error = 'Fehler beim Laden der Qualifikationen: ' . $e->getMessage();
 }
@@ -96,13 +104,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (empty($name)) {
                     $error = 'Bitte geben Sie einen Namen für die Qualifikation ein.';
                 } else {
-                    if ($qual_id !== null) {
-                        $stmt = $db->prepare("UPDATE member_qualifications SET name = ?, sort_order = ? WHERE id = ?");
-                        $stmt->execute([$name, $sort_order, $qual_id]);
+                    $save_qual_einheit = (int)($_POST['einheit_id'] ?? $einheit_id);
+                if ($save_qual_einheit <= 0) $save_qual_einheit = 1;
+                if ($qual_id !== null) {
+                        $stmt = $db->prepare("UPDATE member_qualifications SET name = ?, sort_order = ? WHERE id = ? AND einheit_id = ?");
+                        $stmt->execute([$name, $sort_order, $qual_id, $save_qual_einheit]);
                         $message = 'Qualifikation wurde erfolgreich bearbeitet.';
                     } else {
-                        $stmt = $db->prepare("INSERT INTO member_qualifications (name, sort_order) VALUES (?, ?)");
-                        $stmt->execute([$name, $sort_order]);
+                        $stmt = $db->prepare("INSERT INTO member_qualifications (einheit_id, name, sort_order) VALUES (?, ?, ?)");
+                        $stmt->execute([$save_qual_einheit, $name, $sort_order]);
                         $message = 'Qualifikation wurde erfolgreich hinzugefügt.';
                     }
                 }
@@ -110,6 +120,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (isset($_POST['delete_qual'])) {
                 $qual_id = (int)$_POST['qual_id'];
+                $del_qual_einheit = (int)($_POST['einheit_id'] ?? $einheit_id);
+                if ($del_qual_einheit <= 0) $del_qual_einheit = 1;
                 if ((string)$qual_id === (string)$default_qualification_id) {
                     $error = 'Die Standardqualifikation kann nicht gelöscht werden. Setzen Sie zuerst eine andere Standardqualifikation oder „Keine“.';
                 } else {
@@ -119,8 +131,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($row['cnt'] > 0) {
                         $error = 'Diese Qualifikation ist noch Mitgliedern zugewiesen und kann nicht gelöscht werden.';
                     } else {
-                        $stmt = $db->prepare("DELETE FROM member_qualifications WHERE id = ?");
-                        $stmt->execute([$qual_id]);
+                        $stmt = $db->prepare("DELETE FROM member_qualifications WHERE id = ? AND einheit_id = ?");
+                        $stmt->execute([$qual_id, $del_qual_einheit]);
                         $message = 'Qualifikation wurde erfolgreich gelöscht.';
                     }
                 }
@@ -153,8 +165,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Qualifikationen nach Änderung neu laden (für Aktualisierung der Liste ohne Reload)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add_qual']) || isset($_POST['edit_qual']) || isset($_POST['delete_qual']))) {
     $qualifications = [];
+    $reload_qual_einheit = $einheit_id > 0 ? $einheit_id : 1;
     try {
-        $stmt = $db->query("SELECT id, name, sort_order FROM member_qualifications ORDER BY sort_order, name");
+        $stmt = $db->prepare("SELECT id, name, sort_order FROM member_qualifications WHERE einheit_id = ? ORDER BY sort_order, name");
+        $stmt->execute([$reload_qual_einheit]);
         if ($stmt) {
             $qualifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
@@ -179,27 +193,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array
         } else {
             try {
                 $db->beginTransaction();
+                $save_course_einheit = (int)($_POST['einheit_id'] ?? $einheit_id);
+                if ($save_course_einheit <= 0) $save_course_einheit = 1;
                 if ($course_action === 'add') {
-                    $stmt_check = $db->prepare("SELECT id FROM courses WHERE name = ?");
-                    $stmt_check->execute([$name]);
+                    $stmt_check = $db->prepare("SELECT id FROM courses WHERE name = ? AND einheit_id = ?");
+                    $stmt_check->execute([$name, $save_course_einheit]);
                     if ($stmt_check->fetch()) {
                         $error = "Ein Lehrgang mit diesem Namen existiert bereits.";
                         $db->rollBack();
                     } else {
-                        $stmt = $db->prepare("INSERT INTO courses (name, description, qualification_id) VALUES (?, ?, ?)");
-                        $stmt->execute([$name, $description, $qualification_id]);
+                        $stmt = $db->prepare("INSERT INTO courses (einheit_id, name, description, qualification_id) VALUES (?, ?, ?, ?)");
+                        $stmt->execute([$save_course_einheit, $name, $description, $qualification_id]);
                         $course_id = $db->lastInsertId();
                         $message = "Lehrgang wurde erfolgreich hinzugefügt.";
                     }
                 } elseif ($course_action === 'edit' && $course_id > 0) {
-                    $stmt_check = $db->prepare("SELECT id FROM courses WHERE name = ? AND id != ?");
-                    $stmt_check->execute([$name, $course_id]);
+                    $stmt_check = $db->prepare("SELECT id FROM courses WHERE name = ? AND id != ? AND einheit_id = ?");
+                    $stmt_check->execute([$name, $course_id, $save_course_einheit]);
                     if ($stmt_check->fetch()) {
                         $error = "Ein Lehrgang mit diesem Namen existiert bereits.";
                         $db->rollBack();
                     } else {
-                        $stmt = $db->prepare("UPDATE courses SET name = ?, description = ?, qualification_id = ? WHERE id = ?");
-                        $stmt->execute([$name, $description, $qualification_id, $course_id]);
+                        $stmt = $db->prepare("UPDATE courses SET name = ?, description = ?, qualification_id = ? WHERE id = ? AND einheit_id = ?");
+                        $stmt->execute([$name, $description, $qualification_id, $course_id, $save_course_einheit]);
                         $message = "Lehrgang wurde erfolgreich aktualisiert.";
                     }
                 }
@@ -234,10 +250,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array
 // Lehrgang löschen
 if (isset($_GET['delete']) && isset($_GET['tab']) && $_GET['tab'] === 'lehrgaenge') {
     $course_id = (int)$_GET['delete'];
+    $del_course_einheit = (int)($_GET['einheit_id'] ?? $einheit_id);
+    if ($del_course_einheit <= 0) $del_course_einheit = 1;
     if (validate_csrf_token($_GET['csrf_token'] ?? '')) {
         try {
-            $stmt = $db->prepare("DELETE FROM courses WHERE id = ?");
-            $stmt->execute([$course_id]);
+            $stmt = $db->prepare("DELETE FROM courses WHERE id = ? AND einheit_id = ?");
+            $stmt->execute([$course_id, $del_course_einheit]);
             $message = "Lehrgang wurde erfolgreich gelöscht.";
             $redirect = 'settings-members.php?tab=lehrgaenge';
             if ($einheit_id > 0) $redirect .= '&einheit_id=' . (int)$einheit_id;
@@ -249,16 +267,18 @@ if (isset($_GET['delete']) && isset($_GET['tab']) && $_GET['tab'] === 'lehrgaeng
     }
 }
 
-// Lehrgänge laden
+// Lehrgänge laden (einheitsspezifisch)
 $courses = [];
 $qualifications_for_courses = [];
+$course_einheit_id = $einheit_id > 0 ? $einheit_id : 1;
 try {
-    $q = $db->query("SELECT id, name FROM member_qualifications ORDER BY sort_order, name");
-    if ($q) $qualifications_for_courses = $q->fetchAll(PDO::FETCH_ASSOC);
+    $q = $db->prepare("SELECT id, name FROM member_qualifications WHERE einheit_id = ? ORDER BY sort_order, name");
+    $q->execute([$course_einheit_id]);
+    $qualifications_for_courses = $q->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 try {
-    $stmt = $db->prepare("SELECT c.id, c.name, c.description, c.qualification_id, c.created_at, c.updated_at, q.name AS qualification_name FROM courses c LEFT JOIN member_qualifications q ON q.id = c.qualification_id ORDER BY c.name ASC");
-    $stmt->execute();
+    $stmt = $db->prepare("SELECT c.id, c.name, c.description, c.qualification_id, c.created_at, c.updated_at, q.name AS qualification_name FROM courses c LEFT JOIN member_qualifications q ON q.id = c.qualification_id AND q.einheit_id = c.einheit_id WHERE c.einheit_id = ? ORDER BY c.name ASC");
+    $stmt->execute([$course_einheit_id]);
     $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($courses as $key => $course) {
         $stmt_req = $db->prepare("SELECT cr.required_course_id, c.name FROM course_requirements cr JOIN courses c ON c.id = cr.required_course_id WHERE cr.course_id = ?");

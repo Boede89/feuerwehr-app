@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -77,6 +78,7 @@ try {
 } catch (Exception $e) {
     error_log("Fehler beim Erstellen der Tabellen: " . $e->getMessage());
 }
+try { $db->exec("ALTER TABLE courses ADD COLUMN einheit_id INT NOT NULL DEFAULT 1"); } catch (Exception $e) {}
 
 // Lehrgang hinterlegen (POST-Handler)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course'])) {
@@ -262,13 +264,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_course'])) {
     }
 }
 
-// Lehrgänge laden
+// Lehrgänge laden (einheitsspezifisch)
 $courses = [];
+$courses_einheit_id = 1;
+if (function_exists('get_admin_einheit_filter')) {
+    $f = get_admin_einheit_filter();
+    if ($f) $courses_einheit_id = (int)$f;
+} elseif (function_exists('get_current_einheit_id')) {
+    $c = get_current_einheit_id();
+    if ($c) $courses_einheit_id = (int)$c;
+}
 try {
-    $stmt = $db->query("SELECT id, name, description FROM courses ORDER BY name");
+    $stmt = $db->prepare("SELECT id, name, description FROM courses WHERE einheit_id = ? ORDER BY name");
+    $stmt->execute([$courses_einheit_id]);
     $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    error_log("Fehler beim Laden der Lehrgänge: " . $e->getMessage());
+    try {
+        $stmt = $db->query("SELECT id, name, description FROM courses ORDER BY name");
+        $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e2) {
+        error_log("Fehler beim Laden der Lehrgänge: " . $e2->getMessage());
+    }
 }
 
 // Aktive Ansicht bestimmen

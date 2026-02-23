@@ -43,8 +43,14 @@ try {
         $is_pa = (bool)$stmt_pa->fetch();
     }
     if ($is_pa) {
-        $stmt_agt = $db->prepare("SELECT id, name, description FROM courses WHERE LOWER(TRIM(name)) = 'agt' LIMIT 1");
-        $stmt_agt->execute();
+        $member_einheit_id = 1;
+        try {
+            $stmt_m = $db->prepare("SELECT COALESCE(einheit_id, 1) FROM members WHERE id = ?");
+            $stmt_m->execute([$member_id]);
+            if ($r = $stmt_m->fetch(PDO::FETCH_COLUMN)) $member_einheit_id = (int)$r ?: 1;
+        } catch (Exception $e) {}
+        $stmt_agt = $db->prepare("SELECT id, name, description FROM courses WHERE LOWER(TRIM(name)) = 'agt' AND einheit_id = ? LIMIT 1");
+        $stmt_agt->execute([$member_einheit_id]);
         $agt = $stmt_agt->fetch(PDO::FETCH_ASSOC);
         if ($agt) {
             $has_agt = false;

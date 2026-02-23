@@ -11,8 +11,12 @@ if (!isset($_SESSION['user_id']) || !has_permission('courses')) {
 
 header('Content-Type: application/json');
 
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+$einheit_id = $einheit_id > 0 ? $einheit_id : 1;
+
 try {
-    $stmt = $db->query("SELECT id, name, description FROM courses ORDER BY name");
+    $stmt = $db->prepare("SELECT id, name, description FROM courses WHERE einheit_id = ? ORDER BY name");
+    $stmt->execute([$einheit_id]);
     $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     echo json_encode(['success' => true, 'courses' => $courses]);

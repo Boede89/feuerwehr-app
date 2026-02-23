@@ -59,11 +59,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_course_assignmen
                     $db->rollBack();
                 }
             } else {
+                $member_einheit_id = 1;
+                try {
+                    $stmt_m = $db->prepare("SELECT COALESCE(einheit_id, 1) FROM members WHERE id = ?");
+                    $stmt_m->execute([$member_id]);
+                    $row_m = $stmt_m->fetch(PDO::FETCH_COLUMN);
+                    if ($row_m !== false) $member_einheit_id = (int)$row_m ?: 1;
+                } catch (Exception $e) {}
                 $agt_course_name = 'AGT';
                 $agt_course_id = null;
                 try {
-                    $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1");
-                    $stmt_agt->execute([$agt_course_name]);
+                    $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND einheit_id = ? LIMIT 1");
+                    $stmt_agt->execute([$agt_course_name, $member_einheit_id]);
                     $row = $stmt_agt->fetch(PDO::FETCH_ASSOC);
                     if ($row) {
                         $agt_course_id = (int)$row['id'];
@@ -401,6 +408,7 @@ try {
                 m.birthdate,
                 m.phone,
                 m.qualification_id,
+                m.einheit_id,
                 q.name as qualification_name,
                 CASE 
                     WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
@@ -431,6 +439,7 @@ try {
                     m.birthdate,
                     m.phone,
                     m.qualification_id,
+                    m.einheit_id,
                     q.name as qualification_name,
                     CASE 
                         WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
@@ -465,6 +474,7 @@ try {
             m.birthdate,
             m.phone,
             m.qualification_id,
+            m.einheit_id,
             q.name as qualification_name,
             CASE 
                 WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
@@ -496,9 +506,11 @@ try {
         return $cmp;
     });
     
-    // Qualifikationen für Dropdown laden
+    // Qualifikationen für Dropdown laden (einheitsspezifisch)
+    $qual_einheit = $ef > 0 ? $ef : 1;
     try {
-        $q = $db->query("SELECT id, name FROM member_qualifications ORDER BY sort_order, name");
+        $q = $db->prepare("SELECT id, name FROM member_qualifications WHERE einheit_id = ? ORDER BY sort_order, name");
+        $q->execute([$qual_einheit]);
         if ($q) {
             $qualifications = $q->fetchAll(PDO::FETCH_ASSOC);
         }
@@ -510,16 +522,25 @@ try {
     $error = 'Fehler beim Laden der Mitglieder: ' . $e->getMessage();
 }
 
-// Standardqualifikation aus Einstellungen laden
+// Standardqualifikation aus Einstellungen laden (einheitsspezifisch)
 $default_qualification_id = null;
 try {
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = ?");
-    $stmt->execute(['member_default_qualification_id']);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($row && $row['setting_value'] !== '') {
-        $default_qualification_id = (int)$row['setting_value'];
-        if ($default_qualification_id <= 0) {
-            $default_qualification_id = null;
+    if ($ef > 0) {
+        require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+        $es = load_settings_for_einheit($db, $ef);
+        $val = $es['member_default_qualification_id'] ?? '';
+        if ($val !== '' && $val !== null) {
+            $default_qualification_id = (int)$val;
+            if ($default_qualification_id <= 0) $default_qualification_id = null;
+        }
+    }
+    if ($default_qualification_id === null) {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = ?");
+        $stmt->execute(['member_default_qualification_id']);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row && $row['setting_value'] !== '') {
+            $default_qualification_id = (int)$row['setting_value'];
+            if ($default_qualification_id <= 0) $default_qualification_id = null;
         }
     }
 } catch (Exception $e) {
@@ -588,11 +609,12 @@ if ($can_ric) {
     }
 }
 
-// Lehrgänge laden (für Modal)
+// Lehrgänge laden (für Modal, einheitsspezifisch – wird per AJAX mit einheit_id geladen)
 $courses_for_modal = [];
-if ($can_courses) {
+if ($can_courses && $ef > 0) {
     try {
-        $stmt = $db->query("SELECT id, name, description FROM courses ORDER BY name");
+        $stmt = $db->prepare("SELECT id, name, description FROM courses WHERE einheit_id = ? ORDER BY name");
+        $stmt->execute([$ef]);
         $courses_for_modal = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         error_log("Fehler beim Laden der Lehrgänge: " . $e->getMessage());
@@ -1132,8 +1154,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         ]);
                         // AGT-Lehrgang automatisch zuweisen (alle PA-Träger haben AGT)
                         try {
-                            $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' LIMIT 1");
-                            $stmt_agt->execute();
+                            $add_einheit = $einheit_id > 0 ? $einheit_id : 1;
+                            $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' AND einheit_id = ? LIMIT 1");
+                            $stmt_agt->execute([$add_einheit]);
                             $row = $stmt_agt->fetch(PDO::FETCH_ASSOC);
                             if ($row) {
                                 $agt_id = (int)$row['id'];
@@ -1417,8 +1440,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             }
                             // AGT-Lehrgang automatisch zuweisen (alle PA-Träger haben AGT)
                             try {
-                                $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' LIMIT 1");
-                                $stmt_agt->execute();
+                                $edit_member_einheit = 1;
+                                $stmt_me = $db->prepare("SELECT COALESCE(einheit_id, 1) FROM members WHERE id = ?");
+                                $stmt_me->execute([$member_id]);
+                                if ($r = $stmt_me->fetch(PDO::FETCH_COLUMN)) $edit_member_einheit = (int)$r ?: 1;
+                                $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' AND einheit_id = ? LIMIT 1");
+                                $stmt_agt->execute([$edit_member_einheit]);
                                 $row = $stmt_agt->fetch(PDO::FETCH_ASSOC);
                                 if ($row) {
                                     $agt_id = (int)$row['id'];
@@ -1441,8 +1468,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 // AGT automatisch hinzufügen wenn PA-Träger
                                 $agt_course_id = null;
                                 try {
-                                    $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' LIMIT 1");
-                                    $stmt_agt->execute();
+                                    $edit_agt_einheit = 1;
+                                    $stmt_me = $db->prepare("SELECT COALESCE(einheit_id, 1) FROM members WHERE id = ?");
+                                    $stmt_me->execute([$member_id]);
+                                    if ($r = $stmt_me->fetch(PDO::FETCH_COLUMN)) $edit_agt_einheit = (int)$r ?: 1;
+                                    $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' AND einheit_id = ? LIMIT 1");
+                                    $stmt_agt->execute([$edit_agt_einheit]);
                                     $row = $stmt_agt->fetch(PDO::FETCH_ASSOC);
                                     if ($row) $agt_course_id = (int)$row['id'];
                                 } catch (Exception $e) { /* ignore */ }
@@ -1820,8 +1851,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     }
                     // AGT-Lehrgang automatisch zuweisen (alle PA-Träger haben AGT)
                     try {
-                        $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' LIMIT 1");
-                        $stmt_agt->execute();
+                        $toggle_einheit = 1;
+                        $stmt_me = $db->prepare("SELECT COALESCE(einheit_id, 1) FROM members WHERE id = ?");
+                        $stmt_me->execute([$member_id]);
+                        if ($r = $stmt_me->fetch(PDO::FETCH_COLUMN)) $toggle_einheit = (int)$r ?: 1;
+                        $stmt_agt = $db->prepare("SELECT id FROM courses WHERE LOWER(TRIM(name)) = 'agt' AND einheit_id = ? LIMIT 1");
+                        $stmt_agt->execute([$toggle_einheit]);
                         $row = $stmt_agt->fetch(PDO::FETCH_ASSOC);
                         if ($row) {
                             $agt_id = (int)$row['id'];
@@ -1861,7 +1896,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         }
     </style>
 </head>
-<body>
+<body data-einheit-id="<?php echo (int)($ef > 0 ? $ef : 1); ?>">
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
             <a class="navbar-brand" href="../index.php">
@@ -2819,7 +2854,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         assignCoursesBtn.onclick = function() {
                             const memberId = member.member_id || member.id;
                             const memberName = (member.first_name || '') + ' ' + (member.last_name || '');
-                            openCoursesAssignmentModal(memberId, memberName);
+                            const memberEinheitId = member.einheit_id || document.body.dataset.einheitId || 1;
+                            openCoursesAssignmentModal(memberId, memberName, memberEinheitId);
                         };
                     } else {
                         assignCoursesBtn.style.display = 'none';
@@ -2877,7 +2913,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         }
         
         // Funktion zum Öffnen des Lehrgangs-Zuweisungs-Modals
-        function openCoursesAssignmentModal(memberId, memberName) {
+        function openCoursesAssignmentModal(memberId, memberName, einheitId) {
             const coursesModal = document.getElementById('assignCoursesModal');
             if (!coursesModal) {
                 alert('Lehrgangs-Zuweisungs-Modal nicht gefunden.');
@@ -2888,17 +2924,20 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             document.getElementById('modal_courses_member_id').value = memberId;
             document.getElementById('modal_courses_member_name').textContent = memberName;
             
-            // Lehrgänge laden
-            loadCoursesForModal(memberId);
+            // Lehrgänge laden (einheitsspezifisch)
+            const eid = einheitId || document.body.dataset.einheitId || 1;
+            loadCoursesForModal(memberId, eid);
             
             // Modal öffnen
             const modal = new bootstrap.Modal(coursesModal);
             modal.show();
         }
         
-        function loadCoursesForModal(memberId) {
+        function loadCoursesForModal(memberId, einheitId) {
             const container = document.getElementById('modalCoursesContainer');
             if (!container) return;
+            
+            const eid = einheitId || document.body.dataset.einheitId || 1;
             
             // Event-Delegation für Lehrgangs-Buttons (einmalig), damit Klicks zuverlässig die Markierung aktualisieren
             if (!container.dataset.delegationAdded) {
@@ -2934,9 +2973,9 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             
             container.innerHTML = '<p class="text-muted">Lade verfügbare Lehrgänge...</p>';
             
-            // Lade alle Lehrgänge und aktuelle Zuweisungen parallel
+            // Lade alle Lehrgänge (einheitsspezifisch) und aktuelle Zuweisungen parallel
             Promise.all([
-                fetch('get-courses.php').then(r => r.json()),
+                fetch('get-courses.php?einheit_id=' + eid).then(r => r.json()),
                 fetch('get-member-courses-single.php?member_id=' + memberId).then(r => r.json())
             ])
             .then(([coursesData, memberCoursesData]) => {
@@ -3166,7 +3205,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             const container = document.getElementById('addMemberCoursesContainer');
             if (!container) return;
             
-            fetch('get-courses.php')
+            const eid = document.body.dataset.einheitId || 1;
+            fetch('get-courses.php?einheit_id=' + eid)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success && data.courses && data.courses.length > 0) {

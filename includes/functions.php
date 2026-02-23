@@ -2445,8 +2445,9 @@ function get_member_qualification_from_courses($member_id, $db = null) {
             SELECT c.qualification_id
             FROM member_courses mc
             JOIN courses c ON c.id = mc.course_id AND c.qualification_id IS NOT NULL
+            JOIN members m ON m.id = mc.member_id
             JOIN member_qualifications q ON q.id = c.qualification_id
-            WHERE mc.member_id = ?
+            WHERE mc.member_id = ? AND c.einheit_id = COALESCE(m.einheit_id, 1)
             ORDER BY q.sort_order ASC
             LIMIT 1
         ");
@@ -2504,8 +2505,12 @@ function add_courses_for_qualification_to_member($member_id, $qualification_id, 
         return false;
     }
     try {
-        $stmt = $db->prepare("SELECT id FROM courses WHERE qualification_id = ?");
-        $stmt->execute([$qualification_id]);
+        $member_einheit = 1;
+        $stmt_m = $db->prepare("SELECT COALESCE(einheit_id, 1) FROM members WHERE id = ?");
+        $stmt_m->execute([$member_id]);
+        if ($r = $stmt_m->fetch(PDO::FETCH_COLUMN)) $member_einheit = (int)$r ?: 1;
+        $stmt = $db->prepare("SELECT id FROM courses WHERE qualification_id = ? AND einheit_id = ?");
+        $stmt->execute([$qualification_id, $member_einheit]);
         $courses = $stmt->fetchAll(PDO::FETCH_COLUMN);
         if (empty($courses)) {
             return true;
