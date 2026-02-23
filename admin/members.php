@@ -1902,8 +1902,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     <i class="fas fa-list"></i> <?php echo $show_list ? 'Liste ausblenden' : 'Aktuelle Liste anzeigen'; ?>
                 </a>
             </div>
-            <?php if (has_permission('members') && has_permission('ric')): 
-                $ric_einheit_id = $ef > 0 ? $ef : (get_current_einheit_id() ?: 0);
+            <?php if (has_permission('members')): 
+                $ric_einheit_id = ($ef ?? 0) > 0 ? $ef : (function_exists('get_current_einheit_id') ? (get_current_einheit_id() ?: 0) : 0);
                 $ric_url_suffix = $ric_einheit_id > 0 ? '?einheit_id=' . (int)$ric_einheit_id : '';
             ?>
             <div class="col-12 col-md-4 mb-2">
@@ -1930,6 +1930,33 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 </a>
             </div>
         </div>
+
+        <!-- RIC Verwaltung (Bereich Mitgliederverwaltung) -->
+        <?php if (has_permission('members')): 
+            $ric_einheit_id_card = ($ef ?? 0) > 0 ? $ef : (function_exists('get_current_einheit_id') ? (get_current_einheit_id() ?: 0) : 0);
+            $ric_url_suffix_card = $ric_einheit_id_card > 0 ? '?einheit_id=' . (int)$ric_einheit_id_card : '';
+        ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="card-title mb-0"><i class="fas fa-broadcast-tower me-2"></i>RIC Verwaltung</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">RIC-Codes verwalten und Mitgliedern zuweisen. Divera Admin festlegen.</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a href="ric-verwaltung.php<?php echo $ric_url_suffix_card; ?>" class="btn btn-warning">
+                                <i class="fas fa-broadcast-tower"></i> RIC-Zuweisungen
+                            </a>
+                            <a href="settings-ric.php<?php echo $ric_url_suffix_card; ?>" class="btn btn-outline-warning">
+                                <i class="fas fa-cog"></i> RIC-Codes & Divera Admin
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
         
         </div>
 
