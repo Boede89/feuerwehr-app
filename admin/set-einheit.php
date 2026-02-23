@@ -12,6 +12,11 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: ../login.php');
     exit;
 }
+// Nur Superadmin darf die Einheit wechseln
+if (!is_superadmin()) {
+    header('Location: dashboard.php');
+    exit;
+}
 
 $eid = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 if ($eid > 0 && user_has_einheit_access($_SESSION['user_id'], $eid)) {

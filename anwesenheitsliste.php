@@ -26,8 +26,28 @@ register_shutdown_function(function () {
 });
 
 require_once __DIR__ . '/config/database.php';
-require_once __DIR__ . '/config/divera.php';
 require_once __DIR__ . '/includes/functions.php';
+// Einheit VOR Divera setzen, damit einheitsspezifischer Divera-Key geladen wird
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
+if ($einheit_id <= 0 && isset($_SESSION['user_id'])) {
+    $stmt = $db->prepare("SELECT einheit_id FROM users WHERE id = ?");
+    $stmt->execute([(int)$_SESSION['user_id']]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $einheit_id = $row ? (int)($row['einheit_id'] ?? 0) : 0;
+}
+if ($einheit_id > 0) {
+    if (function_exists('user_has_einheit_access') && user_has_einheit_access($_SESSION['user_id'], $einheit_id)) {
+        $_SESSION['current_einheit_id'] = $einheit_id;
+    } elseif ($einheit_id > 0 && isset($_SESSION['user_id'])) {
+        $stmt = $db->prepare("SELECT einheit_id FROM users WHERE id = ?");
+        $stmt->execute([(int)$_SESSION['user_id']]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $user_eid = $row ? (int)($row['einheit_id'] ?? 0) : 0;
+        if ($user_eid === $einheit_id) $_SESSION['current_einheit_id'] = $einheit_id;
+        else $einheit_id = $user_eid > 0 ? $user_eid : 0;
+    }
+}
+require_once __DIR__ . '/config/divera.php';
 require_once __DIR__ . '/includes/dienstplan-typen.php';
 require_once __DIR__ . '/includes/einheiten-setup.php';
 
@@ -39,9 +59,6 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-
-$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
-if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
 $einheit_param = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : '';
 
 // Tabellen anlegen
@@ -284,8 +301,13 @@ if ($divera_key !== '') {
     $divera_alarm = null;
     if (!empty($divera_alarms)) {
         try {
-            $stmt = $db->prepare("SELECT divera_id FROM anwesenheitslisten WHERE divera_id IS NOT NULL");
-            $stmt->execute();
+            if ($einheit_id > 0) {
+                $stmt = $db->prepare("SELECT divera_id FROM anwesenheitslisten WHERE divera_id IS NOT NULL AND (einheit_id = ? OR einheit_id IS NULL)");
+                $stmt->execute([$einheit_id]);
+            } else {
+                $stmt = $db->prepare("SELECT divera_id FROM anwesenheitslisten WHERE divera_id IS NOT NULL");
+                $stmt->execute();
+            }
             $used_divera_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
         } catch (Exception $e) {
             $used_divera_ids = [];

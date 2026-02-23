@@ -16,6 +16,15 @@ if (!has_permission('forms')) {
     exit;
 }
 
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
+if ($einheit_id <= 0 && isset($_SESSION['user_id'])) {
+    $stmt = $db->prepare("SELECT einheit_id FROM users WHERE id = ?");
+    $stmt->execute([(int)$_SESSION['user_id']]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $einheit_id = $row ? (int)($row['einheit_id'] ?? 0) : 0;
+}
+if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
+
 // Tabellen anlegen
 try {
     $db->exec("
@@ -68,7 +77,12 @@ $einsatzbereitschaft_options = ['hergestellt' => 'Einsatzbereitschaft wurde herg
 $vehicles = [];
 $vehicles_with_equipment = [];
 try {
-    $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name");
+    if ($einheit_id > 0) {
+        $stmt = $db->prepare("SELECT id, name FROM vehicles WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY name");
+        $stmt->execute([$einheit_id]);
+    } else {
+        $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name");
+    }
     $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($vehicles as $v) {
         $vid = (int)$v['id'];
@@ -79,10 +93,15 @@ try {
     }
 } catch (Exception $e) {}
 
-$members_for_einsatzleiter = anwesenheitsliste_members_for_leiter($db, []);
+$members_for_einsatzleiter = anwesenheitsliste_members_for_leiter($db, [], $einheit_id);
 $members_all = [];
 try {
-    $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    if ($einheit_id > 0) {
+        $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
+        $stmt->execute([$einheit_id]);
+    } else {
+        $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    }
     $members_all = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 

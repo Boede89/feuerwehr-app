@@ -17,6 +17,12 @@ if (!has_permission('forms')) {
 }
 
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
+if ($einheit_id <= 0 && isset($_SESSION['user_id']) && (function_exists('is_superadmin') && !is_superadmin())) {
+    $stmt = $db->prepare("SELECT einheit_id FROM users WHERE id = ?");
+    $stmt->execute([(int)$_SESSION['user_id']]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $einheit_id = $row ? (int)($row['einheit_id'] ?? 0) : 0;
+}
 if ($einheit_id > 0) {
     $_SESSION['current_einheit_id'] = $einheit_id;
 }

@@ -21,6 +21,7 @@ $filter_datum_von = trim($_GET['filter_datum_von'] ?? '');
 $filter_datum_bis = trim($_GET['filter_datum_bis'] ?? '');
 $ids_param = trim($_GET['ids'] ?? '');
 $return_mode = !empty($_GET['_return']);
+$einheit_filter = function_exists('get_admin_einheit_filter') ? get_admin_einheit_filter() : null;
 
 $sql = "
     SELECT m.*, COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name
@@ -29,6 +30,10 @@ $sql = "
     WHERE 1=1
 ";
 $params = [];
+if ($einheit_filter) {
+    $sql .= " AND u.einheit_id = ?";
+    $params[] = $einheit_filter;
+}
 if ($ids_param !== '') {
     $ids = array_filter(array_map('intval', explode(',', $ids_param)), function($x) { return $x > 0; });
     if (!empty($ids)) {

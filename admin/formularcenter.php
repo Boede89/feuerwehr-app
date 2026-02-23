@@ -133,6 +133,9 @@ $filter_datum_bis = isset($_GET['filter_datum_bis']) ? trim($_GET['filter_datum_
 $filter_formular = isset($_GET['filter_formular']) ? trim($_GET['filter_formular']) : '';
 $filter_beschreibung = isset($_GET['filter_beschreibung']) ? trim($_GET['filter_beschreibung']) : '';
 
+// Einheit-Filter: strikt nach Einheit – reguläre Benutzer sehen nur ihre Einheit
+$einheit_filter = get_admin_einheit_filter();
+
 // CSRF-Token erzeugen
 if (empty($_SESSION['form_center_csrf'])) {
     $_SESSION['form_center_csrf'] = bin2hex(random_bytes(32));
@@ -207,9 +210,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
             $error = 'Bitte geben Sie eine Beschreibung ein.';
         } else {
             try {
+                $res_einheit = get_admin_einheit_filter() ?? 1;
+                try { $db->exec("ALTER TABLE dienstplan ADD COLUMN einheit_id INT NULL"); } catch (Exception $e2) {}
                 if ($id) {
-                    $stmt = $db->prepare("UPDATE dienstplan SET datum = ?, bezeichnung = ?, typ = ?, uhrzeit_dienstbeginn = ?, uhrzeit_dienstende = ? WHERE id = ?");
-                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $uhrzeit_ende_val, $id]);
+                    $stmt = $db->prepare("UPDATE dienstplan SET datum = ?, bezeichnung = ?, typ = ?, uhrzeit_dienstbeginn = ?, uhrzeit_dienstende = ?, einheit_id = ? WHERE id = ?");
+                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $uhrzeit_ende_val, $res_einheit > 0 ? $res_einheit : null, $id]);
                     $db->prepare("DELETE FROM dienstplan_ausbilder WHERE dienstplan_id = ?")->execute([$id]);
                     foreach ($ausbilder_ids as $mid) {
                         if ($mid > 0) {
@@ -218,8 +223,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                     }
                     $message = 'Dienstplan-Eintrag wurde aktualisiert.';
                 } else {
-                    $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ, uhrzeit_dienstbeginn, uhrzeit_dienstende) VALUES (?, ?, ?, ?, ?)");
-                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $uhrzeit_ende_val]);
+                    $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ, uhrzeit_dienstbeginn, uhrzeit_dienstende, einheit_id) VALUES (?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $uhrzeit_ende_val, $res_einheit > 0 ? $res_einheit : null]);
                     $new_id = (int)$db->lastInsertId();
                     foreach ($ausbilder_ids as $mid) {
                         if ($mid > 0) {
@@ -331,7 +336,7 @@ try {
     $error = $error ?: 'Formulare konnten nicht geladen werden.';
 }
 
-// Eingaben laden (mit Formtitel und Benutzer) – mit Datum-Filter
+// Eingaben laden (mit Formtitel und Benutzer) – mit Datum-Filter, einheitsspezifisch
 $submissions = [];
 try {
     $sql = "
@@ -343,6 +348,10 @@ try {
         WHERE 1=1
     ";
     $params = [];
+    if ($einheit_filter) {
+        $sql .= " AND u.einheit_id = ?";
+        $params[] = $einheit_filter;
+    }
     if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
         $sql .= " AND DATE(s.created_at) >= ?";
         $params[] = $filter_datum_von;
@@ -359,7 +368,7 @@ try {
     // Tabelle kann fehlen
 }
 
-// Anwesenheitslisten laden (als "eingegangene Formulare") – mit Typ- und Datum-Filter
+// Anwesenheitslisten laden (als "eingegangene Formulare") – mit Typ- und Datum-Filter, einheitsspezifisch
 $anwesenheitslisten = [];
 try {
     $sql = "
@@ -372,6 +381,10 @@ try {
         WHERE 1=1
     ";
     $params = [];
+    if ($einheit_filter) {
+        $sql .= " AND (a.einheit_id = ? OR a.einheit_id IS NULL)";
+        $params[] = $einheit_filter;
+    }
     if ($filter_typ !== '') {
         if ($filter_typ === 'einsatz') {
             $sql .= " AND a.typ = 'einsatz'";
@@ -403,7 +416,7 @@ try {
     // Tabelle kann fehlen
 }
 
-// Mängelberichte laden
+// Mängelberichte laden – einheitsspezifisch (über user.einheit_id)
 $maengelberichte = [];
 try {
     $sql = "
@@ -414,6 +427,10 @@ try {
         WHERE 1=1
     ";
     $params = [];
+    if ($einheit_filter) {
+        $sql .= " AND u.einheit_id = ?";
+        $params[] = $einheit_filter;
+    }
     if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
         $sql .= " AND m.aufgenommen_am >= ?";
         $params[] = $filter_datum_von;
@@ -443,6 +460,10 @@ try {
         WHERE 1=1
     ";
     $params = [];
+    if ($einheit_filter) {
+        $sql .= " AND u.einheit_id = ?";
+        $params[] = $einheit_filter;
+    }
     if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
         $sql .= " AND g.datum >= ?";
         $params[] = $filter_datum_von;
@@ -519,21 +540,31 @@ if ($filter_formular === 'anwesenheitsliste') {
     $geraetewartmitteilungen = [];
 }
 
-// Dienstplan-Einträge und Themen für Dropdown
+// Dienstplan-Einträge und Themen für Dropdown – einheitsspezifisch
 $dienstplan_eintraege = [];
 $dienstplan_themen = [];
 try {
-    $stmt = $db->prepare("
+    $dp_sql = "
         SELECT d.*, GROUP_CONCAT(da.member_id) AS ausbilder_ids
         FROM dienstplan d
         LEFT JOIN dienstplan_ausbilder da ON da.dienstplan_id = d.id
         WHERE d.datum >= ? AND d.datum <= ?
-        GROUP BY d.id
-        ORDER BY d.datum, d.bezeichnung
-    ");
-    $stmt->execute([$dienstplan_jahr . '-01-01', $dienstplan_jahr . '-12-31']);
+    ";
+    $dp_params = [$dienstplan_jahr . '-01-01', $dienstplan_jahr . '-12-31'];
+    if ($einheit_filter) {
+        $dp_sql .= " AND (d.einheit_id = ? OR d.einheit_id IS NULL)";
+        $dp_params[] = $einheit_filter;
+    }
+    $dp_sql .= " GROUP BY d.id ORDER BY d.datum, d.bezeichnung";
+    $stmt = $db->prepare($dp_sql);
+    $stmt->execute($dp_params);
     $dienstplan_eintraege = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $stmt = $db->query("SELECT DISTINCT bezeichnung FROM dienstplan ORDER BY bezeichnung");
+    if ($einheit_filter) {
+        $stmt = $db->prepare("SELECT DISTINCT bezeichnung FROM dienstplan WHERE (einheit_id = ? OR einheit_id IS NULL) ORDER BY bezeichnung");
+        $stmt->execute([$einheit_filter]);
+    } else {
+        $stmt = $db->query("SELECT DISTINCT bezeichnung FROM dienstplan ORDER BY bezeichnung");
+    }
     $dienstplan_themen = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch (Exception $e) {
     // ignore
@@ -543,7 +574,6 @@ $edit_submission = null;
 $members_for_ausbilder = [];
 $members_by_id = [];
 try {
-    $einheit_filter = get_admin_einheit_filter();
     $einheit_where = $einheit_filter ? " WHERE (einheit_id = " . (int)$einheit_filter . " OR einheit_id IS NULL)" : "";
     $stmt = $db->query("SELECT id, first_name, last_name FROM members $einheit_where ORDER BY last_name, first_name");
     $members_for_ausbilder = $stmt->fetchAll(PDO::FETCH_ASSOC);

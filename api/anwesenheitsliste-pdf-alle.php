@@ -25,6 +25,7 @@ $filter_datum_bis = trim($_GET['filter_datum_bis'] ?? '');
 $filter_beschreibung = trim($_GET['filter_beschreibung'] ?? '');
 $for_print = !empty($_GET['print']);
 $return_mode = !empty($_GET['_return']);
+$einheit_filter = function_exists('get_admin_einheit_filter') ? get_admin_einheit_filter() : null;
 
 $sql = "
     SELECT a.id, a.datum, a.bezeichnung, a.typ, a.created_at, a.*,
@@ -36,6 +37,10 @@ $sql = "
     WHERE 1=1
 ";
 $params = [];
+if ($einheit_filter) {
+    $sql .= " AND (a.einheit_id = ? OR a.einheit_id IS NULL)";
+    $params[] = $einheit_filter;
+}
 if ($filter_typ !== '') {
     if ($filter_typ === 'einsatz') {
         $sql .= " AND a.typ = 'einsatz'";

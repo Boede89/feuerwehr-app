@@ -27,9 +27,17 @@ try {
     $einheiten_fuer_auswahl = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
 } catch (Exception $e) {}
 
-// index.php ohne einheit_id → immer Einheiten-Auswahl; mit einheit_id → Inhalt anzeigen (URL bleibt)
+// index.php ohne einheit_id → Einheiten-Auswahl; mit einheit_id → Inhalt anzeigen (URL bleibt)
+// Reguläre Benutzer (nicht Superadmin) mit genau einer Einheit: automatisch zu ihrer Einheit weiterleiten
 $hat_einheit = $einheit_id_url > 0;
 $auswahl_liste_fuer_bedingung = (is_logged_in() && !is_system_user()) ? get_user_einheiten() : $einheiten_fuer_auswahl;
+if (!$hat_einheit && is_logged_in() && !is_system_user() && !is_superadmin() && count($auswahl_liste_fuer_bedingung) === 1) {
+    $eid = (int)($auswahl_liste_fuer_bedingung[0]['id'] ?? 0);
+    if ($eid > 0) {
+        header('Location: index.php?einheit_id=' . $eid);
+        exit;
+    }
+}
 $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung);
 ?>
 <!DOCTYPE html>

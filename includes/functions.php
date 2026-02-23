@@ -699,33 +699,40 @@ function get_user_einheiten($user_id = null) {
 /**
  * Einheiten-System: Einheit-ID für Admin-Filter (null = alle, sonst nur diese Einheit)
  * Superadmin: filtert nach ausgewählter Einheit (current_einheit_id), wenn gesetzt
+ * Einheitsadmin/User: IMMER strikt nach Benutzer-Einheit filtern – keine Daten anderer Einheiten
  */
 function get_admin_einheit_filter() {
-    if (is_superadmin()) {
+    global $db;
+    $user_id = $_SESSION['user_id'] ?? null;
+    if (!$user_id) return null;
+    if (is_superadmin($user_id)) {
         $cur = get_current_einheit_id();
         return $cur ? (int)$cur : null;
     }
-    if (is_einheitsadmin()) {
+    if (is_einheitsadmin($user_id)) {
         $eid = $_SESSION['einheit_id'] ?? null;
         if ($eid) return (int)$eid;
         $eid = get_current_einheit_id();
-        return $eid ?: null;
+        if ($eid) return (int)$eid;
     }
-    return null;
+    // Reguläre Benutzer und Einheitsadmins ohne Session: strikt nach Benutzer-Einheit
+    try {
+        $stmt = $db->prepare("SELECT einheit_id FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $eid = $row ? (int)($row['einheit_id'] ?? 0) : 0;
+        return $eid > 0 ? $eid : null;
+    } catch (Exception $e) {
+        return null;
+    }
 }
 
 /**
- * Einheiten-System: Kann Benutzer Einheit wechseln (mehrere Einheiten)?
+ * Einheiten-System: Kann Benutzer Einheit wechseln?
+ * Nur Superadmin darf die Einheit im Menü wechseln – reguläre Benutzer sehen ausschließlich ihre Einheit.
  */
 function can_switch_einheit() {
-    if (is_logged_in() && !is_system_user()) {
-        return count(get_user_einheiten()) > 1;
-    }
-    global $db;
-    try {
-        $stmt = $db->query("SELECT COUNT(*) FROM einheiten WHERE is_active = 1");
-        return $stmt && (int)$stmt->fetchColumn() > 1;
-    } catch (Exception $e) { return false; }
+    return is_logged_in() && !is_system_user() && is_superadmin();
 }
 
 /**

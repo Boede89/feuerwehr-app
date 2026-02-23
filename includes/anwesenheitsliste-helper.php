@@ -39,19 +39,24 @@ function get_anwesenheitsliste_typ_label($row) {
  * @param int[] $members_selected_ids IDs der im Personal ausgewählten Mitglieder (leeres Array = alle gleich)
  * @return array Mitglieder mit id, first_name, last_name
  */
-function anwesenheitsliste_members_for_leiter($db, $members_selected_ids = []) {
+function anwesenheitsliste_members_for_leiter($db, $members_selected_ids = [], $einheit_id = 0) {
     $selected_map = array_flip(array_map('intval', $members_selected_ids));
     try {
-        $stmt = $db->query("
-            SELECT m.id, m.first_name, m.last_name, COALESCE(q.sort_order, 999) AS qual_sort_order
-            FROM members m
-            LEFT JOIN member_qualifications q ON q.id = m.qualification_id
-            ORDER BY m.last_name, m.first_name
-        ");
+        if ($einheit_id > 0) {
+            $stmt = $db->prepare("SELECT m.id, m.first_name, m.last_name, COALESCE(q.sort_order, 999) AS qual_sort_order FROM members m LEFT JOIN member_qualifications q ON q.id = m.qualification_id WHERE (m.einheit_id = ? OR m.einheit_id IS NULL) ORDER BY m.last_name, m.first_name");
+            $stmt->execute([$einheit_id]);
+        } else {
+            $stmt = $db->query("SELECT m.id, m.first_name, m.last_name, COALESCE(q.sort_order, 999) AS qual_sort_order FROM members m LEFT JOIN member_qualifications q ON q.id = m.qualification_id ORDER BY m.last_name, m.first_name");
+        }
         $all = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         try {
-            $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+            if ($einheit_id > 0) {
+                $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
+                $stmt->execute([$einheit_id]);
+            } else {
+                $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+            }
             $all = array_map(function ($r) { $r['qual_sort_order'] = 999; return $r; }, $stmt->fetchAll(PDO::FETCH_ASSOC));
         } catch (Exception $e2) {
             return [];
