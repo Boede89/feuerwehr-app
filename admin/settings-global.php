@@ -27,6 +27,80 @@ if ($einheit_id > 0) {
 $message = '';
 $error = '';
 
+// Fahrzeugverwaltung: POST (add/edit) und GET (delete) vor dem Hauptformular verarbeiten
+$vehicle_action = $_POST['action'] ?? '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($vehicle_action, ['add', 'edit'], true) && $einheit_id > 0) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        $name = sanitize_input($_POST['name'] ?? '');
+        $description = sanitize_input($_POST['description'] ?? '');
+        $is_active = isset($_POST['is_active']) ? 1 : 0;
+        $sort_order = (int)($_POST['sort_order'] ?? 0);
+        $vehicle_id = (int)($_POST['vehicle_id'] ?? 0);
+        if (empty($name)) {
+            $error = 'Name ist erforderlich.';
+        } else {
+            try {
+                if ($vehicle_action === 'add') {
+                    if ($sort_order == 0) {
+                        $stmt = $db->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 as next_order FROM vehicles WHERE einheit_id = ? OR einheit_id IS NULL");
+                        $stmt->execute([$einheit_id]);
+                        $sort_order = (int)($stmt->fetch(PDO::FETCH_ASSOC)['next_order'] ?? 1);
+                    }
+                    $stmt = $db->prepare("INSERT INTO vehicles (name, description, is_active, sort_order, einheit_id) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->execute([$name, $description, $is_active, $sort_order, $einheit_id]);
+                    log_activity($_SESSION['user_id'], 'vehicle_added', "Fahrzeug '$name' hinzugefügt");
+                    header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&vehicle_success=added');
+                    exit;
+                } elseif ($vehicle_action === 'edit' && $vehicle_id > 0) {
+                    $stmt = $db->prepare("UPDATE vehicles SET name = ?, description = ?, is_active = ?, sort_order = ? WHERE id = ? AND (einheit_id = ? OR einheit_id IS NULL)");
+                    $stmt->execute([$name, $description, $is_active, $sort_order, $vehicle_id, $einheit_id]);
+                    if ($stmt->rowCount() > 0) {
+                        log_activity($_SESSION['user_id'], 'vehicle_updated', "Fahrzeug '$name' aktualisiert");
+                    }
+                    header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&vehicle_success=updated');
+                    exit;
+                }
+            } catch (PDOException $e) {
+                $error = 'Fehler beim Speichern des Fahrzeugs: ' . $e->getMessage();
+            }
+        }
+    }
+}
+if (isset($_GET['vehicle_delete']) && $einheit_id > 0) {
+    $vid = (int)$_GET['vehicle_delete'];
+    try {
+        $stmt = $db->prepare("SELECT COUNT(*) as c FROM reservations WHERE vehicle_id = ?");
+        $stmt->execute([$vid]);
+        if ((int)($stmt->fetch(PDO::FETCH_ASSOC)['c'] ?? 0) > 0) {
+            $error = 'Das Fahrzeug kann nicht gelöscht werden, da es in Reservierungen verwendet wird.';
+        } else {
+            $stmt = $db->prepare("DELETE FROM vehicles WHERE id = ? AND (einheit_id = ? OR einheit_id IS NULL)");
+            $stmt->execute([$vid, $einheit_id]);
+            if ($stmt->rowCount() > 0) {
+                log_activity($_SESSION['user_id'], 'vehicle_deleted', "Fahrzeug ID $vid gelöscht");
+                header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&vehicle_success=deleted');
+                exit;
+            }
+        }
+    } catch (PDOException $e) {
+        $error = 'Fehler beim Löschen: ' . $e->getMessage();
+    }
+}
+
+// Fahrzeuge laden (nur bei Einheiten-Einstellungen)
+$vehicles = [];
+if ($einheit_id > 0 && user_has_einheit_access($_SESSION['user_id'], $einheit_id)) {
+    try {
+        $stmt = $db->prepare("SELECT * FROM vehicles WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY sort_order ASC, name ASC");
+        $stmt->execute([$einheit_id]);
+        $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        $error = ($error ? $error . ' ' : '') . 'Fehler beim Laden der Fahrzeuge: ' . $e->getMessage();
+    }
+}
+
 // Erfolgsmeldungen prüfen
 if (isset($_GET['import']) && $_GET['import'] === 'success') {
     $message = 'Einstellungen wurden erfolgreich importiert!';
@@ -36,6 +110,11 @@ if (isset($_GET['dbimport']) && $_GET['dbimport'] === 'success') {
 }
 if (isset($_GET['saved']) && $_GET['saved'] === '1') {
     $message = $einheit_id > 0 ? 'Einstellungen gespeichert.' : 'Globale Einstellungen gespeichert.';
+}
+if (isset($_GET['vehicle_success'])) {
+    if ($_GET['vehicle_success'] === 'added') $message = 'Fahrzeug wurde erfolgreich hinzugefügt.';
+    elseif ($_GET['vehicle_success'] === 'updated') $message = 'Fahrzeug wurde erfolgreich aktualisiert.';
+    elseif ($_GET['vehicle_success'] === 'deleted') $message = 'Fahrzeug wurde erfolgreich gelöscht.';
 }
 
 // Laden
@@ -581,6 +660,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
         </div>
+
+        <!-- Fahrzeugverwaltung -->
+        <div class="row g-4 mt-1" id="fahrzeuge">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-truck me-2"></i>Fahrzeugverwaltung</span>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="openVehicleModal()">
+                            <i class="fas fa-plus"></i> Neues Fahrzeug
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Beschreibung</th>
+                                        <th>Sortierung</th>
+                                        <th>Status</th>
+                                        <th>Erstellt</th>
+                                        <th>Aktionen</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($vehicles as $v): ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($v['name']); ?></strong></td>
+                                        <td><?php echo htmlspecialchars($v['description'] ?? ''); ?></td>
+                                        <td><span class="badge bg-info"><?php echo (int)($v['sort_order'] ?? 0); ?></span></td>
+                                        <td>
+                                            <?php if (!empty($v['is_active'])): ?>
+                                                <span class="badge bg-success">Aktiv</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-secondary">Inaktiv</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><?php echo !empty($v['created_at']) ? format_date($v['created_at']) : ''; ?></td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <a href="vehicles-geraete.php?vehicle_id=<?php echo (int)$v['id']; ?>" class="btn btn-outline-secondary btn-sm" title="Geräte verwalten">
+                                                    <i class="fas fa-tools"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-outline-primary btn-sm" data-vehicle-id="<?php echo (int)$v['id']; ?>" data-name="<?php echo htmlspecialchars($v['name'], ENT_QUOTES, 'UTF-8'); ?>" data-desc="<?php echo htmlspecialchars($v['description'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" data-sort="<?php echo (int)($v['sort_order'] ?? 0); ?>" data-active="<?php echo !empty($v['is_active']) ? 1 : 0; ?>" onclick="editVehicle(this)">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <a href="?einheit_id=<?php echo (int)$einheit_id; ?>&vehicle_delete=<?php echo (int)$v['id']; ?>" class="btn btn-outline-danger btn-sm" onclick="return confirm('Sind Sie sicher, dass Sie dieses Fahrzeug löschen möchten?')">
+                                                    <i class="fas fa-trash"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                    <?php if (empty($vehicles)): ?>
+                                    <tr><td colspan="6" class="text-muted">Keine Fahrzeuge angelegt. Klicken Sie auf „Neues Fahrzeug“.</td></tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <?php endif; ?>
         <div class="d-flex justify-content-end mt-3">
             <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Speichern</button>
@@ -588,6 +730,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
         <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
     </form>
+
+    <?php if ($einheit_id > 0): ?>
+    <!-- Fahrzeug Modal -->
+    <div class="modal fade" id="vehicleModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" id="vehicleForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="vehicleModalTitle">Neues Fahrzeug</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="vehicle_name" class="form-label">Name *</label>
+                            <input type="text" class="form-control" id="vehicle_name" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="vehicle_description" class="form-label">Beschreibung</label>
+                            <textarea class="form-control" id="vehicle_description" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="vehicle_sort_order" class="form-label">Sortier-Reihenfolge</label>
+                            <input type="number" class="form-control" id="vehicle_sort_order" name="sort_order" min="0" value="0">
+                            <div class="form-text">Niedrigere Zahlen werden zuerst angezeigt. 0 = automatisch am Ende.</div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="vehicle_is_active" name="is_active" checked>
+                                <label class="form-check-label" for="vehicle_is_active">Aktiv</label>
+                            </div>
+                        </div>
+                        <input type="hidden" name="vehicle_id" id="vehicle_id">
+                        <input type="hidden" name="action" id="vehicle_action" value="add">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary" id="vehicleSubmitBtn">Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -610,6 +796,31 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+<?php if ($einheit_id > 0): ?>
+function openVehicleModal() {
+    document.getElementById('vehicleModalTitle').textContent = 'Neues Fahrzeug';
+    document.getElementById('vehicle_id').value = '';
+    document.getElementById('vehicle_name').value = '';
+    document.getElementById('vehicle_description').value = '';
+    document.getElementById('vehicle_sort_order').value = '0';
+    document.getElementById('vehicle_is_active').checked = true;
+    document.getElementById('vehicle_action').value = 'add';
+    document.getElementById('vehicleSubmitBtn').textContent = 'Speichern';
+    new bootstrap.Modal(document.getElementById('vehicleModal')).show();
+}
+function editVehicle(btn) {
+    var d = btn.dataset;
+    document.getElementById('vehicleModalTitle').textContent = 'Fahrzeug bearbeiten';
+    document.getElementById('vehicle_id').value = d.vehicleId || '';
+    document.getElementById('vehicle_name').value = d.name || '';
+    document.getElementById('vehicle_description').value = d.desc || '';
+    document.getElementById('vehicle_sort_order').value = d.sort || 0;
+    document.getElementById('vehicle_is_active').checked = d.active == 1;
+    document.getElementById('vehicle_action').value = 'edit';
+    document.getElementById('vehicleSubmitBtn').textContent = 'Aktualisieren';
+    new bootstrap.Modal(document.getElementById('vehicleModal')).show();
+}
+<?php endif; ?>
 document.getElementById('btn_list_printers')?.addEventListener('click', function() {
     var btn = this;
     var out = document.getElementById('printers_list');

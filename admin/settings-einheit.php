@@ -184,7 +184,7 @@ $einheit_param = '&einheit_id=' . $einheit_id;
                         <h5 class="card-title"><i class="fas fa-truck me-2"></i>Fahrzeugverwaltung</h5>
                         <p class="text-muted">Fahrzeuge dieser Einheit hinzufügen und verwalten.</p>
                         <div class="mt-auto">
-                            <a class="btn btn-primary" href="vehicles.php?einheit_id=<?php echo $einheit_id; ?>">
+                            <a class="btn btn-primary" href="settings-global.php?einheit_id=<?php echo $einheit_id; ?>#fahrzeuge">
                                 <i class="fas fa-truck"></i> Fahrzeuge verwalten
                             </a>
                         </div>

@@ -20,6 +20,12 @@ $message = '';
 $error = '';
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
 
+// Redirect: Fahrzeugverwaltung liegt jetzt in den globalen Einstellungen der Einheit
+if ($einheit_id > 0 && user_has_einheit_access($_SESSION['user_id'], $einheit_id)) {
+    header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '#fahrzeuge');
+    exit;
+}
+
 // Erfolgsmeldungen von GET-Parameter
 if (isset($_GET['success'])) {
     if ($_GET['success'] == 'added') {
