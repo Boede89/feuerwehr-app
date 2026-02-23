@@ -29,6 +29,7 @@ require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/config/divera.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/dienstplan-typen.php';
+require_once __DIR__ . '/includes/einheiten-setup.php';
 
 if (!$db) {
     header('Content-Type: text/html; charset=utf-8');
@@ -38,7 +39,10 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-// Systembenutzer mit can_forms dürfen Anwesenheitsliste ausfüllen
+
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
+if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
+$einheit_param = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : '';
 
 // Tabellen anlegen
 try {
@@ -59,6 +63,9 @@ try {
     } catch (Exception $e2) {
         /* Spalte existiert bereits */
     }
+    try {
+        $db->exec("ALTER TABLE dienstplan ADD COLUMN einheit_id INT NOT NULL DEFAULT 1");
+    } catch (Exception $e2) {}
     try {
         $db->exec("ALTER TABLE dienstplan ADD COLUMN uhrzeit_dienstende TIME NULL AFTER uhrzeit_dienstbeginn");
     } catch (Exception $e2) {
@@ -119,6 +126,9 @@ try {
     } catch (Exception $e2) {
         // Spalte existiert bereits
     }
+    try {
+        $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN einheit_id INT NOT NULL DEFAULT 1");
+    } catch (Exception $e2) {}
     $anwesenheit_extra_columns = [
         "einsatzstichwort VARCHAR(100) NULL",
         "einsatzbericht_nummer VARCHAR(50) NULL",
@@ -185,6 +195,7 @@ try {
                 dienstplan_id INT NULL,
                 typ VARCHAR(50) NOT NULL DEFAULT 'dienst',
                 bezeichnung VARCHAR(255) NULL,
+                einheit_id INT NOT NULL DEFAULT 1,
                 draft_data JSON NOT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY unique_datum_auswahl (datum, auswahl)
@@ -206,6 +217,9 @@ try {
     try {
         $db->exec("ALTER TABLE anwesenheitsliste_drafts ADD UNIQUE KEY unique_datum_auswahl (datum, auswahl)");
     } catch (Exception $e) { /* Unique evtl. schon vorhanden */ }
+    try {
+        $db->exec("ALTER TABLE anwesenheitsliste_drafts ADD COLUMN einheit_id INT NOT NULL DEFAULT 1");
+    } catch (Exception $e2) {}
 } catch (Exception $e) {
     error_log('Anwesenheitsliste Tabellen: ' . $e->getMessage());
 }
@@ -216,8 +230,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_draft' && isset($_SESS
     $del_auswahl = isset($_GET['auswahl']) ? trim($_GET['auswahl']) : '';
     if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $del_datum) && $del_auswahl !== '') {
         try {
-            $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?");
-            $stmt->execute([$del_datum, $del_auswahl]);
+            if ($einheit_id > 0) {
+                $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ? AND einheit_id = ?");
+                $stmt->execute([$del_datum, $del_auswahl, $einheit_id]);
+            } else {
+                $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?");
+                $stmt->execute([$del_datum, $del_auswahl]);
+            }
             if ($del_datum === ($_SESSION['anwesenheit_draft']['datum'] ?? '') && $del_auswahl === ($_SESSION['anwesenheit_draft']['auswahl'] ?? '')) {
                 unset($_SESSION['anwesenheit_draft']);
             }
@@ -225,7 +244,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_draft' && isset($_SESS
             // ignore
         }
     }
-    header('Location: anwesenheitsliste.php');
+    header('Location: anwesenheitsliste.php' . $einheit_param);
     exit;
 }
 
@@ -285,14 +304,23 @@ if ($divera_key !== '') {
 $dienste_fuer_tag = [];
 $vorschlag = null;
 try {
+    $dienstplan_where = "d.datum = ? AND a.id IS NULL";
+    $dienstplan_params = [$datum];
+    $join_einheit = "";
+    if ($einheit_id > 0) {
+        $dienstplan_where .= " AND (d.einheit_id = ? OR d.einheit_id IS NULL)";
+        $dienstplan_params[] = $einheit_id;
+        $join_einheit = " AND (a.einheit_id = ? OR a.einheit_id IS NULL)";
+        $dienstplan_params[] = $einheit_id; // für JOIN-Bedingung
+    }
     $stmt = $db->prepare("
         SELECT d.id, d.bezeichnung, d.typ, d.datum
         FROM dienstplan d
-        LEFT JOIN anwesenheitslisten a ON a.dienstplan_id = d.id
-        WHERE d.datum = ? AND a.id IS NULL
+        LEFT JOIN anwesenheitslisten a ON a.dienstplan_id = d.id $join_einheit
+        WHERE $dienstplan_where
         ORDER BY d.bezeichnung
     ");
-    $stmt->execute([$datum]);
+    $stmt->execute($dienstplan_params);
     $dienste_fuer_tag = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $vorschlag = $dienste_fuer_tag[0] ?? null;
 } catch (Exception $e) {
@@ -302,14 +330,23 @@ try {
 // Alle Dienste ohne Anwesenheitsliste (für "Dienst auswählen") - nur bis heute, keine Zukunft
 $andere_dienste = [];
 try {
+    $andere_where = "a.id IS NULL AND d.datum <= ?";
+    $andere_params = [$datum];
+    $andere_join = "";
+    if ($einheit_id > 0) {
+        $andere_where .= " AND (d.einheit_id = ? OR d.einheit_id IS NULL)";
+        $andere_params[] = $einheit_id;
+        $andere_join = " AND (a.einheit_id = ? OR a.einheit_id IS NULL)";
+        $andere_params[] = $einheit_id;
+    }
     $stmt = $db->prepare("
         SELECT d.id, d.datum, d.bezeichnung
         FROM dienstplan d
-        LEFT JOIN anwesenheitslisten a ON a.dienstplan_id = d.id
-        WHERE a.id IS NULL AND d.datum <= ?
+        LEFT JOIN anwesenheitslisten a ON a.dienstplan_id = d.id" . $andere_join . "
+        WHERE $andere_where
         ORDER BY d.datum DESC, d.bezeichnung
     ");
-    $stmt->execute([$datum]);
+    $stmt->execute($andere_params);
     $andere_dienste = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // ignore
@@ -317,26 +354,43 @@ try {
 
 // Speichern erfolgt auf der nächsten Seite (anwesenheitsliste-eingaben.php)
 
-// Letzte abgeschlossene Anwesenheitsliste (nur 1)
+// Letzte abgeschlossene Anwesenheitsliste (nur 1, einheitsspezifisch)
 $letzte_abgeschlossen = null;
 try {
-    $stmt = $db->query("
-        SELECT a.*, d.bezeichnung AS dienst_bezeichnung
-        FROM anwesenheitslisten a
-        LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
-        ORDER BY a.created_at DESC
-        LIMIT 1
-    ");
+    if ($einheit_id > 0) {
+        $stmt = $db->prepare("
+            SELECT a.*, d.bezeichnung AS dienst_bezeichnung
+            FROM anwesenheitslisten a
+            LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
+            WHERE a.einheit_id = ? OR a.einheit_id IS NULL
+            ORDER BY a.created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$einheit_id]);
+    } else {
+        $stmt = $db->query("
+            SELECT a.*, d.bezeichnung AS dienst_bezeichnung
+            FROM anwesenheitslisten a
+            LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
+            ORDER BY a.created_at DESC
+            LIMIT 1
+        ");
+    }
     $letzte_abgeschlossen = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // ignore
 }
 
-// Alle Entwürfe laden (für alle Benutzer sichtbar, damit jeder weitermachen kann)
+// Alle Entwürfe laden (einheitsspezifisch)
 $alle_entwuerfe = [];
 if (isset($_SESSION['user_id'])) {
     try {
-        $stmt = $db->query("SELECT * FROM anwesenheitsliste_drafts ORDER BY updated_at DESC");
+        if ($einheit_id > 0) {
+            $stmt = $db->prepare("SELECT * FROM anwesenheitsliste_drafts WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY updated_at DESC");
+            $stmt->execute([$einheit_id]);
+        } else {
+            $stmt = $db->query("SELECT * FROM anwesenheitsliste_drafts ORDER BY updated_at DESC");
+        }
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             if (empty($row['draft_data'])) continue;
             $d = json_decode($row['draft_data'], true);
@@ -412,7 +466,7 @@ if (isset($_SESSION['user_id'])) {
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="index.php"><i class="fas fa-home"></i> Startseite</a></li>
-                    <li class="nav-item"><a class="nav-link" href="formulare.php"><i class="fas fa-file-alt"></i> Formulare</a></li>
+                    <li class="nav-item"><a class="nav-link" href="formulare.php<?php echo $einheit_param; ?>"><i class="fas fa-file-alt"></i> Formulare</a></li>
                     <?php if (!is_system_user()): ?>
                     <li class="nav-item"><a class="nav-link" href="admin/dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
                     <?php endif; ?>
@@ -463,7 +517,7 @@ if (isset($_SESSION['user_id'])) {
                                         <?php if ($has_draft): ?>
                                         <button type="button" class="btn btn-danger w-100 h-100 anwesenheits-btn text-decoration-none" data-bs-toggle="modal" data-bs-target="#draftHinweisModal">
                                         <?php else: ?>
-                                        <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($alarm_datum); ?>&auswahl=einsatz&divera_id=<?php echo (int)$divera_alarm['id']; ?>" class="btn btn-danger w-100 h-100 anwesenheits-btn text-decoration-none">
+                                        <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($alarm_datum); ?>&auswahl=einsatz&divera_id=<?php echo (int)$divera_alarm['id']; ?><?php echo $einheit_param ? '&einheit_id=' . (int)$einheit_id : ''; ?>" class="btn btn-danger w-100 h-100 anwesenheits-btn text-decoration-none">
                                         <?php endif; ?>
                                             <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
                                             <h5 class="card-title mb-1"><?php echo htmlspecialchars($alarm_stichwort ?: 'Aktueller Einsatz'); ?></h5>
@@ -477,7 +531,7 @@ if (isset($_SESSION['user_id'])) {
                                         <?php if (!empty($alle_entwuerfe)): ?>
                                         <button type="button" class="btn btn-primary w-100 h-100 anwesenheits-btn text-decoration-none" data-bs-toggle="modal" data-bs-target="#draftHinweisModal">
                                         <?php else: ?>
-                                        <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=<?php echo (int)$vorschlag['id']; ?>" class="btn btn-primary w-100 h-100 anwesenheits-btn text-decoration-none">
+                                        <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=<?php echo (int)$vorschlag['id']; ?><?php echo $einheit_param ? '&einheit_id=' . (int)$einheit_id : ''; ?>" class="btn btn-primary w-100 h-100 anwesenheits-btn text-decoration-none">
                                         <?php endif; ?>
                                             <div class="feature-icon mb-2"><i class="fas fa-check"></i></div>
                                             <h5 class="card-title mb-1"><?php echo htmlspecialchars($vorschlag['bezeichnung']); ?></h5>
@@ -490,7 +544,7 @@ if (isset($_SESSION['user_id'])) {
                                     <?php if (!empty($alle_entwuerfe)): ?>
                                     <button type="button" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn text-decoration-none" data-bs-toggle="modal" data-bs-target="#draftHinweisModal">
                                     <?php else: ?>
-                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=einsatz&neu=1" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn text-decoration-none">
+                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($datum); ?>&auswahl=einsatz&neu=1<?php echo $einheit_param ? '&einheit_id=' . (int)$einheit_id : ''; ?>" class="btn btn-outline-danger w-100 h-100 anwesenheits-btn text-decoration-none">
                                     <?php endif; ?>
                                         <div class="feature-icon mb-2"><i class="fas fa-exclamation-triangle"></i></div>
                                         <h5 class="card-title mb-0">Manuelle Anwesenheit</h5>
@@ -525,7 +579,7 @@ if (isset($_SESSION['user_id'])) {
                             </div>
                         </div>
 
-                        <a href="formulare.php" class="btn btn-link">Zurück zu Formulare</a>
+                        <a href="formulare.php<?php echo $einheit_param; ?>" class="btn btn-link">Zurück zu Formulare</a>
 
                         <!-- Modal: Dienst auswählen -->
                         <div class="modal fade" id="andereDiensteModal" tabindex="-1">
@@ -542,7 +596,7 @@ if (isset($_SESSION['user_id'])) {
                                         <?php else: ?>
                                             <div class="list-group">
                                                 <?php foreach ($andere_dienste as $d): ?>
-                                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($d['datum']); ?>&auswahl=<?php echo (int)$d['id']; ?>" class="list-group-item list-group-item-action">
+                                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($d['datum']); ?>&auswahl=<?php echo (int)$d['id']; ?><?php echo $einheit_param ? '&einheit_id=' . (int)$einheit_id : ''; ?>" class="list-group-item list-group-item-action">
                                                         <strong><?php echo date('d.m.Y', strtotime($d['datum'])); ?></strong> — <?php echo htmlspecialchars($d['bezeichnung']); ?>
                                                     </a>
                                                 <?php endforeach; ?>
@@ -579,7 +633,7 @@ if (isset($_SESSION['user_id'])) {
                                     <?php echo $label; ?>
                                 </span>
                                 <span class="d-flex align-items-center gap-2">
-                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($e['datum']); ?>&auswahl=<?php echo urlencode($e['auswahl']); ?>" class="btn btn-sm btn-outline-primary">Fortsetzen</a>
+                                    <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($e['datum']); ?>&auswahl=<?php echo urlencode($e['auswahl']); ?><?php echo $einheit_param ? '&einheit_id=' . (int)$einheit_id : ''; ?>" class="btn btn-sm btn-outline-primary">Fortsetzen</a>
                                     <a href="anwesenheitsliste.php?action=delete_draft&amp;datum=<?php echo urlencode($e['datum']); ?>&amp;auswahl=<?php echo urlencode($e['auswahl']); ?>" class="btn btn-sm btn-outline-danger" title="Entwurf löschen" onclick="return confirm('Entwurf wirklich löschen?');"><i class="fas fa-trash"></i></a>
                                 </span>
                             </li>

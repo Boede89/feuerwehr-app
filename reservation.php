@@ -9,6 +9,10 @@ $error = '';
 $selectedVehicle = null;
 $selectedVehicles = []; // Array für mehrere Fahrzeuge
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
+if ($einheit_id > 0) {
+    $_SESSION['current_einheit_id'] = $einheit_id;
+}
+$einheit_id = $einheit_id > 0 ? $einheit_id : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
 $einheit_param = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : '';
 
 // Browser Console Logging für Debugging
@@ -1119,9 +1123,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         addVehicleBtnEl.addEventListener('click', showVehicleButtons);
         cancelVehicleBtnEl.addEventListener('click', hideVehicleButtons);
         
-        // Lade verfügbare Fahrzeuge vom Server
+        // Lade verfügbare Fahrzeuge vom Server (einheitsspezifisch)
         function loadAvailableVehicles() {
-            fetch('get-available-vehicles.php')
+            const einheitParam = <?php echo json_encode($einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''); ?>;
+            fetch('get-available-vehicles.php' + einheitParam)
                 .then(response => response.json())
                 .then(data => {
                     availableVehicles = data;

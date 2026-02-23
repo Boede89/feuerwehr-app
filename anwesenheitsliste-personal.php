@@ -16,9 +16,11 @@ $datum = isset($_GET['datum']) ? trim($_GET['datum']) : '';
 $auswahl = isset($_GET['auswahl']) ? trim($_GET['auswahl']) : '';
 $edit_id = isset($_GET['edit_id']) ? (int)$_GET['edit_id'] : 0;
 $return_formularcenter = isset($_GET['return']) && $_GET['return'] === 'formularcenter';
-$url_suffix = ($edit_id > 0 ? '&edit_id=' . $edit_id : '') . ($return_formularcenter ? '&return=formularcenter' : '');
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
+if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
+$url_suffix = ($edit_id > 0 ? '&edit_id=' . $edit_id : '') . ($return_formularcenter ? '&return=formularcenter' : '') . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '');
 if ($datum === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum) || $auswahl === '') {
-    header('Location: anwesenheitsliste.php?error=datum');
+    header('Location: anwesenheitsliste.php?error=datum' . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : ''));
     exit;
 }
 
@@ -41,18 +43,28 @@ if (($draft['typ'] ?? '') === 'einsatz' || $is_uebungsdienst_draft) {
     }
 }
 
-// Mitglieder laden (alle aus members, sortiert)
+// Mitglieder laden (einheitsspezifisch)
 $members = [];
 try {
-    $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    if ($einheit_id > 0) {
+        $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
+        $stmt->execute([$einheit_id]);
+    } else {
+        $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    }
     $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Tabelle members evtl. in anderem Schema
 }
-// Fahrzeuge laden
+// Fahrzeuge laden (einheitsspezifisch)
 $vehicles = [];
 try {
-    $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name ASC");
+    if ($einheit_id > 0) {
+        $stmt = $db->prepare("SELECT id, name FROM vehicles WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY name ASC");
+        $stmt->execute([$einheit_id]);
+    } else {
+        $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name ASC");
+    }
     $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $vehicles = [];

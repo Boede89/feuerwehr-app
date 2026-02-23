@@ -16,7 +16,10 @@ if (!has_permission('forms')) {
     exit;
 }
 
-$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
+if ($einheit_id > 0) {
+    $_SESSION['current_einheit_id'] = $einheit_id;
+}
 $einheit = null;
 if ($einheit_id > 0) {
     try {

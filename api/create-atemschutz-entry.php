@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 header('Content-Type: application/json');
 
@@ -103,12 +104,26 @@ try {
         throw new Exception('Mindestens ein Geräteträger muss ausgewählt werden');
     }
     
-    $unit_id = get_current_unit_id() ?: 1;
+    $einheit_id = isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0;
+    if ($einheit_id <= 0) $einheit_id = function_exists('get_current_einheit_id') ? get_current_einheit_id() : null;
+    if (!$einheit_id) $einheit_id = function_exists('get_current_unit_id') ? get_current_unit_id() : null;
+    $einheit_id = $einheit_id ?: 1;
 
-    // Prüfe ob alle Geräteträger existieren und zur Einheit gehören
+    // Prüfe ob alle Geräteträger existieren und zur Einheit gehören (über members.einheit_id)
     $placeholders = str_repeat('?,', count($traeger_ids) - 1) . '?';
-    $stmt = $db->prepare("SELECT id FROM atemschutz_traeger WHERE id IN ($placeholders) AND status = 'Aktiv' AND COALESCE(unit_id, 1) = ?");
-    $stmt->execute(array_merge($traeger_ids, [$unit_id]));
+    $stmt = $db->prepare("
+        SELECT at.id FROM atemschutz_traeger at
+        LEFT JOIN members m ON at.member_id = m.id
+        WHERE at.id IN ($placeholders) AND at.status = 'Aktiv'
+        AND (
+            (at.member_id IS NOT NULL AND (m.einheit_id = ? OR m.einheit_id IS NULL))
+            OR (at.member_id IS NULL AND EXISTS (
+                SELECT 1 FROM members m2 WHERE m2.first_name = at.first_name AND m2.last_name = at.last_name
+                AND (m2.einheit_id = ? OR m2.einheit_id IS NULL)
+            ))
+        )
+    ");
+    $stmt->execute(array_merge($traeger_ids, [$einheit_id, $einheit_id]));
     $existing_traeger = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
     if (count($existing_traeger) !== count($traeger_ids)) {
@@ -119,19 +134,31 @@ try {
     
     try {
         try {
+            $db->exec("ALTER TABLE atemschutz_entries ADD COLUMN einheit_id INT NULL");
+        } catch (Exception $e) {}
+        try {
             $stmt = $db->prepare("
                 INSERT INTO atemschutz_entries 
-                (entry_type, entry_date, requester_id, status, unit_id, created_at) 
+                (entry_type, entry_date, requester_id, status, einheit_id, created_at) 
                 VALUES (?, ?, ?, 'pending', ?, NOW())
             ");
-            $stmt->execute([$entry_type, $entry_date, $user_id, $unit_id]);
+            $stmt->execute([$entry_type, $entry_date, $user_id, $einheit_id]);
         } catch (Exception $e) {
-            $stmt = $db->prepare("
-                INSERT INTO atemschutz_entries 
-                (entry_type, entry_date, requester_id, status, created_at) 
-                VALUES (?, ?, ?, 'pending', NOW())
-            ");
-            $stmt->execute([$entry_type, $entry_date, $user_id]);
+            try {
+                $stmt = $db->prepare("
+                    INSERT INTO atemschutz_entries 
+                    (entry_type, entry_date, requester_id, status, unit_id, created_at) 
+                    VALUES (?, ?, ?, 'pending', ?, NOW())
+                ");
+                $stmt->execute([$entry_type, $entry_date, $user_id, $einheit_id]);
+            } catch (Exception $e2) {
+                $stmt = $db->prepare("
+                    INSERT INTO atemschutz_entries 
+                    (entry_type, entry_date, requester_id, status, created_at) 
+                    VALUES (?, ?, ?, 'pending', NOW())
+                ");
+                $stmt->execute([$entry_type, $entry_date, $user_id]);
+            }
         }
         
         $entry_id = $db->lastInsertId();

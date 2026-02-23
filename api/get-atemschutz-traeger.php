@@ -52,8 +52,14 @@ try {
         // Fehler ignorieren
     }
     
-    // Einheit-Filter (Superadmin/Einheitsadmin über get_admin_einheit_filter)
-    $einheit_id = get_admin_einheit_filter();
+    // Einheit-Filter: GET-Parameter, Session (Index-Auswahl) oder Admin-Filter
+    $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+    if ($einheit_id <= 0) {
+        $einheit_id = get_current_einheit_id();
+    }
+    if ($einheit_id === null || $einheit_id <= 0) {
+        $einheit_id = get_admin_einheit_filter();
+    }
     $params = [];
     if ($einheit_id > 0) {
         $stmt = $db->prepare("

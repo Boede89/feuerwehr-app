@@ -250,9 +250,10 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
                 </div>
                 <?php else: ?>
 
+                <?php $link_suffix = $hat_einheit && $einheit_id_url > 0 ? '?einheit_id=' . (int)$einheit_id_url : ''; ?>
                 <div class="row g-4">
                     <div class="col-12 col-sm-6 col-lg-4">
-                        <a href="vehicle-selection.php" class="text-decoration-none">
+                        <a href="vehicle-selection.php<?php echo $link_suffix; ?>" class="text-decoration-none">
                             <div class="card h-100 shadow-sm feature-card clickable-card">
                                 <div class="card-body text-center p-4 d-flex flex-column">
                                 <div class="feature-icon mb-3">
@@ -280,7 +281,7 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
 
                     <?php if (is_logged_in()): ?>
                     <div class="col-12 col-sm-6 col-lg-4">
-                        <a href="formulare.php" class="text-decoration-none">
+                        <a href="formulare.php<?php echo $link_suffix; ?>" class="text-decoration-none">
                             <div class="card h-100 shadow-sm feature-card clickable-card">
                                 <div class="card-body text-center p-4 d-flex flex-column">
                                     <div class="feature-icon mb-3">
@@ -310,6 +311,7 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
                 </div>
                 <div class="modal-body">
                     <form id="atemschutzForm">
+                        <?php if ($hat_einheit && $einheit_id_url > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id_url; ?>"><?php endif; ?>
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="entryType" class="form-label">
@@ -517,7 +519,7 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
             const traegerList = document.getElementById('traegerList');
             traegerList.innerHTML = '<div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Geräteträger...</div>';
             
-            fetch('api/get-atemschutz-traeger.php')
+            fetch('api/get-atemschutz-traeger.php<?php echo $hat_einheit && $einheit_id_url > 0 ? '?einheit_id=' . (int)$einheit_id_url : ''; ?>')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {

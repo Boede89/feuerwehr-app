@@ -7,9 +7,26 @@ require_once __DIR__ . '/includes/einheiten-setup.php';
 $message = '';
 $error = '';
 
+// Einheit aus URL setzen (Session aktualisieren)
+$einheit_id_url = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+if ($einheit_id_url > 0) {
+    require_once __DIR__ . '/includes/einheiten-setup.php';
+    if (is_logged_in() && !is_system_user()) {
+        if (function_exists('user_has_einheit_access') && user_has_einheit_access($_SESSION['user_id'], $einheit_id_url)) {
+            $_SESSION['current_einheit_id'] = $einheit_id_url;
+        }
+    } else {
+        try {
+            $stmt = $db->prepare("SELECT id FROM einheiten WHERE id = ? AND is_active = 1");
+            $stmt->execute([$einheit_id_url]);
+            if ($stmt->fetch()) $_SESSION['current_einheit_id'] = $einheit_id_url;
+        } catch (Exception $e) {}
+    }
+}
+
 // Fahrzeuge laden mit Sortierung (gefiltert nach Einheit)
 $vehicles = [];
-$einheit_filter = isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : null;
+$einheit_filter = $einheit_id_url > 0 ? $einheit_id_url : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : null);
 try {
     // Sortier-Modus aus Einstellungen laden
     $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'vehicle_sort_mode'");
@@ -141,7 +158,7 @@ try {
                         <?php endif; ?>
                     </div>
                     <div class="card-footer text-center">
-                        <a href="index.php" class="btn btn-outline-secondary">
+                        <a href="index.php<?php echo $einheit_filter > 0 ? '?einheit_id=' . (int)$einheit_filter : ''; ?>" class="btn btn-outline-secondary">
                             <i class="fas fa-arrow-left"></i> Zurück zur Startseite
                         </a>
                     </div>
@@ -152,6 +169,7 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        const einheitId = <?php echo json_encode($einheit_filter > 0 ? (int)$einheit_filter : null); ?>;
         function selectVehicle(vehicleId, vehicleName, description) {
             console.log('🔍 Fahrzeug ausgewählt:', {id: vehicleId, name: vehicleName, description: description});
             
@@ -169,9 +187,10 @@ try {
             const stored = sessionStorage.getItem('selectedVehicle');
             console.log('🔍 SessionStorage Inhalt:', stored);
             
-            // Weiterleitung zur Reservierungsseite
-            console.log('🔄 Weiterleitung zu reservation.php...');
-            window.location.href = 'reservation.php';
+            // Weiterleitung zur Reservierungsseite (mit einheit_id falls ausgewählt)
+            const resUrl = 'reservation.php' + (einheitId ? '?einheit_id=' + einheitId : '');
+            console.log('🔄 Weiterleitung zu', resUrl);
+            window.location.href = resUrl;
         }
         
         // Hover-Effekt für Fahrzeugkarten
