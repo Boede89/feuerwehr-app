@@ -16,6 +16,9 @@ if (!hasAdminPermission()) {
 
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 $einheit = null;
+$active_tab = isset($_GET['tab']) ? preg_replace('/[^a-z0-9_-]/', '', $_GET['tab']) : 'smtp';
+$valid_tabs = ['smtp', 'google', 'app', 'drucker', 'divera', 'fahrzeuge'];
+if (!in_array($active_tab, $valid_tabs)) $active_tab = 'smtp';
 if ($einheit_id > 0) {
     try {
         $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
@@ -321,7 +324,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$had_error) {
                 $redirect_url = 'settings-global.php';
                 if ($save_einheit_id > 0) {
-                    $redirect_url .= '?einheit_id=' . $save_einheit_id . '&saved=1';
+                    $return_tab = preg_replace('/[^a-z0-9_-]/', '', $_POST['return_tab'] ?? 'smtp');
+                    $redirect_url .= '?einheit_id=' . $save_einheit_id . '&saved=1&tab=' . $return_tab;
                 } else {
                     $redirect_url .= '?saved=1';
                 }
@@ -391,10 +395,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
         <?php else: ?>
-        <!-- Einheitenspezifische Einstellungen -->
-        <div class="row g-4">
-            <div class="col-lg-6">
-                <div class="card h-100">
+        <!-- Einheitenspezifische Einstellungen – Tab-Navigation -->
+        <ul class="nav nav-pills mb-4 flex-wrap gap-2" id="settingsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?php echo $active_tab === 'smtp' ? 'active' : ''; ?>" id="tab-smtp-btn" data-bs-toggle="tab" data-bs-target="#tab-smtp" type="button" role="tab"><i class="fas fa-envelope me-1"></i> SMTP</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?php echo $active_tab === 'google' ? 'active' : ''; ?>" id="tab-google-btn" data-bs-toggle="tab" data-bs-target="#tab-google" type="button" role="tab"><i class="fas fa-calendar me-1"></i> Google Kalender</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?php echo $active_tab === 'app' ? 'active' : ''; ?>" id="tab-app-btn" data-bs-toggle="tab" data-bs-target="#tab-app" type="button" role="tab"><i class="fas fa-cog me-1"></i> App</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?php echo $active_tab === 'drucker' ? 'active' : ''; ?>" id="tab-drucker-btn" data-bs-toggle="tab" data-bs-target="#tab-drucker" type="button" role="tab"><i class="fas fa-print me-1"></i> Drucker</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?php echo $active_tab === 'divera' ? 'active' : ''; ?>" id="tab-divera-btn" data-bs-toggle="tab" data-bs-target="#tab-divera" type="button" role="tab"><i class="fas fa-calendar-plus me-1"></i> Divera 24/7</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?php echo $active_tab === 'fahrzeuge' ? 'active' : ''; ?>" id="tab-fahrzeuge-btn" data-bs-toggle="tab" data-bs-target="#tab-fahrzeuge" type="button" role="tab"><i class="fas fa-truck me-1"></i> Fahrzeugverwaltung</button>
+            </li>
+        </ul>
+        <div class="tab-content" id="settingsTabContent">
+            <div class="tab-pane fade <?php echo $active_tab === 'smtp' ? 'show active' : ''; ?>" id="tab-smtp" role="tabpanel">
+                <div class="card">
                     <div class="card-header"><i class="fas fa-envelope"></i> SMTP</div>
                     <div class="card-body">
                         <div class="row">
@@ -438,9 +462,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6">
-                <div class="card h-100">
-                    <div class="card-header"><i class="fas fa-calendar"></i> Google Calendar</div>
+            <div class="tab-pane fade <?php echo $active_tab === 'google' ? 'show active' : ''; ?>" id="tab-google" role="tabpanel">
+                <div class="card">
+                    <div class="card-header"><i class="fas fa-calendar"></i> Google Kalender</div>
                     <div class="card-body">
                         <div class="mb-3">
                             <label class="form-label">Authentifizierung</label>
@@ -464,10 +488,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="row g-4 mt-1">
-            <div class="col-lg-6">
-                <div class="card h-100">
+            <div class="tab-pane fade <?php echo $active_tab === 'app' ? 'show active' : ''; ?>" id="tab-app" role="tabpanel">
+                <div class="card">
                     <div class="card-header"><i class="fas fa-cog"></i> App (Einheit)</div>
                     <div class="card-body">
                         <div class="mb-3">
@@ -496,10 +518,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="row g-4 mt-1">
-            <div class="col-lg-6">
-                <div class="card h-100">
+            <div class="tab-pane fade <?php echo $active_tab === 'drucker' ? 'show active' : ''; ?>" id="tab-drucker" role="tabpanel">
+                <div class="card">
                     <div class="card-header"><i class="fas fa-print"></i> Drucker</div>
                     <div class="card-body">
                         <p class="text-muted small mb-3">Der Drucker wird auf dem Host mit <code>lpadmin</code> angelegt. Hier tragen Sie den Druckernamen ein, unter dem er in CUPS registriert ist.</p>
@@ -520,8 +540,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6">
-                <div class="card h-100">
+            <div class="tab-pane fade <?php echo $active_tab === 'divera' ? 'show active' : ''; ?>" id="tab-divera" role="tabpanel">
+                <div class="card">
                     <div class="card-header"><i class="fas fa-calendar-plus"></i> Divera 24/7</div>
                     <div class="card-body">
                         <ul class="nav nav-tabs mb-3" id="diveraTabs" role="tablist">
@@ -659,10 +679,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
             </div>
-        </div>
-
+            <div class="tab-pane fade <?php echo $active_tab === 'fahrzeuge' ? 'show active' : ''; ?>" id="tab-fahrzeuge" role="tabpanel">
         <!-- Fahrzeugverwaltung -->
-        <div class="row g-4 mt-1" id="fahrzeuge">
+        <div id="fahrzeuge">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
@@ -721,14 +740,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
                 </div>
+        </div>
             </div>
         </div>
         <?php endif; ?>
-        <div class="d-flex justify-content-end mt-3">
+        <div class="d-flex justify-content-end mt-3" id="settingsSaveRow"<?php echo ($einheit_id > 0 && $active_tab === 'fahrzeuge') ? ' style="display:none"' : ''; ?>>
             <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Speichern</button>
         </div>
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-        <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
+        <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><input type="hidden" name="return_tab" id="return_tab" value="<?php echo htmlspecialchars($active_tab); ?>"><?php endif; ?>
     </form>
 
     <?php if ($einheit_id > 0): ?>
@@ -779,6 +799,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    var returnTab = document.getElementById('return_tab');
+    var tabBtns = document.querySelectorAll('#settingsTabs button[data-bs-toggle="tab"]');
+    if (returnTab && tabBtns.length) {
+        tabBtns.forEach(function(btn) {
+            btn.addEventListener('shown.bs.tab', function(e) {
+                var target = (e.target.getAttribute('data-bs-target') || '').replace('#tab-', '');
+                if (target) {
+                    returnTab.value = target;
+                    if (history.replaceState) history.replaceState(null, '', '?einheit_id=<?php echo (int)$einheit_id; ?>&tab=' + target);
+                    var saveRow = document.getElementById('settingsSaveRow');
+                    if (saveRow) saveRow.style.display = target === 'fahrzeuge' ? 'none' : 'flex';
+                }
+            });
+        });
+    }
     var container = document.getElementById('diveraGroupsContainer');
     var btnAdd = document.getElementById('btnAddGroup');
     if (container && btnAdd) {

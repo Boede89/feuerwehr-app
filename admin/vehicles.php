@@ -22,7 +22,7 @@ $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_P
 
 // Redirect: Fahrzeugverwaltung liegt jetzt in den globalen Einstellungen der Einheit
 if ($einheit_id > 0 && user_has_einheit_access($_SESSION['user_id'], $einheit_id)) {
-    header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '#fahrzeuge');
+    header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=fahrzeuge');
     exit;
 }
 

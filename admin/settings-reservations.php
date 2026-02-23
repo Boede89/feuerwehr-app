@@ -194,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
                     </select>
                 </div>
                 <div class="form-text">
-                    Reihenfolge kann in der <a href="<?php echo $einheit_id > 0 ? 'settings-global.php?einheit_id=' . (int)$einheit_id . '#fahrzeuge' : 'vehicles.php'; ?>" target="_blank">Fahrzeugverwaltung</a> angepasst werden.
+                    Reihenfolge kann in der <a href="<?php echo $einheit_id > 0 ? 'settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=fahrzeuge' : 'vehicles.php'; ?>" target="_blank">Fahrzeugverwaltung</a> angepasst werden.
                 </div>
             </div>
         </div>

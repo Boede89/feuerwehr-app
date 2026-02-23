@@ -423,7 +423,7 @@ try {
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h1 class="h3 mb-0"><i class="fas fa-tools"></i> Geräte – <?php echo htmlspecialchars($vehicle['name']); ?></h1>
-        <a href="<?php echo $vehicle_einheit_id ? 'settings-global.php?einheit_id=' . (int)$vehicle_einheit_id . '#fahrzeuge' : 'vehicles.php'; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
+        <a href="<?php echo $vehicle_einheit_id ? 'settings-global.php?einheit_id=' . (int)$vehicle_einheit_id . '&tab=fahrzeuge' : 'vehicles.php'; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
     </div>
     <?php if ($message): ?><div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
     <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
