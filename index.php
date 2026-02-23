@@ -28,6 +28,14 @@ try {
 } catch (Exception $e) {}
 
 // index.php ohne einheit_id → Einheiten-Auswahl; mit einheit_id → Inhalt anzeigen (URL bleibt)
+// Systembenutzer: immer zu ihrer Einheit weiterleiten (keine Einheiten-Auswahl)
+if (!$einheit_id_url && is_system_user() && !empty($_SESSION['current_einheit_id'])) {
+    $eid = (int)$_SESSION['current_einheit_id'];
+    if ($eid > 0) {
+        header('Location: index.php?einheit_id=' . $eid);
+        exit;
+    }
+}
 // Reguläre Benutzer (nicht Superadmin) mit genau einer Einheit: automatisch zu ihrer Einheit weiterleiten
 $hat_einheit = $einheit_id_url > 0;
 $auswahl_liste_fuer_bedingung = (is_logged_in() && !is_system_user()) ? get_user_einheiten() : $einheiten_fuer_auswahl;
