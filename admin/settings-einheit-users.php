@@ -169,6 +169,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// Systembenutzer bearbeiten
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_system_user') {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = "Ungültiger Sicherheitstoken.";
+    } else {
+        $user_id = (int)($_POST['user_id'] ?? 0);
+        $username = sanitize_input($_POST['username'] ?? '');
+        $first_name = sanitize_input($_POST['first_name'] ?? '');
+        $last_name = sanitize_input($_POST['last_name'] ?? '');
+        $is_active = isset($_POST['is_active']) ? 1 : 0;
+        if (!$user_id || empty($username)) {
+            $error = "Ungültige Anfrage.";
+        } else {
+            try {
+                $stmt = $db->prepare("SELECT id, username FROM users WHERE id = ? AND is_system_user = 1 AND einheit_id = ?");
+                $stmt->execute([$user_id, $einheit_id]);
+                $u = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (!$u) {
+                    $error = "Systembenutzer gehört nicht zu dieser Einheit.";
+                } else {
+                    $stmt_check = $db->prepare("SELECT id FROM users WHERE username = ? AND id != ?");
+                    $stmt_check->execute([$username, $user_id]);
+                    if ($stmt_check->fetch()) {
+                        $error = "Dieser Benutzername existiert bereits.";
+                    } else {
+                        $stmt_up = $db->prepare("UPDATE users SET username = ?, first_name = ?, last_name = ?, is_active = ? WHERE id = ?");
+                        $stmt_up->execute([$username, $first_name, $last_name, $is_active, $user_id]);
+                        log_activity($_SESSION['user_id'], 'user_updated', "Systembenutzer '$username' bearbeitet");
+                        header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=system_updated");
+                        exit;
+                    }
+                }
+            } catch (Exception $e) {
+                $error = "Fehler: " . $e->getMessage();
+            }
+        }
+    }
+}
+
+// Systembenutzer löschen
+if (isset($_GET['delete_system_user'])) {
+    $user_id = (int)$_GET['delete_system_user'];
+    if ($user_id > 0) {
+        try {
+            $stmt = $db->prepare("SELECT id, username FROM users WHERE id = ? AND is_system_user = 1 AND einheit_id = ?");
+            $stmt->execute([$user_id, $einheit_id]);
+            $u = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($u) {
+                $stmt_del = $db->prepare("DELETE FROM users WHERE id = ?");
+                $stmt_del->execute([$user_id]);
+                log_activity($_SESSION['user_id'], 'user_deleted', "Systembenutzer '{$u['username']}' gelöscht");
+                header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=system_deleted");
+                exit;
+            }
+        } catch (Exception $e) {
+            $error = "Fehler: " . $e->getMessage();
+        }
+    }
+}
+
 // Autologin-Link neu generieren (Systembenutzer)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_token'])) {
     $user_id = (int)$_POST['regenerate_token'];
@@ -202,6 +262,8 @@ if (isset($_GET['success'])) {
     if ($_GET['success'] === 'user_added') $message = "Benutzer wurde erfolgreich angelegt.";
     if ($_GET['success'] === 'system_added') $message = "Systembenutzer wurde angelegt. Klicken Sie auf „Link anzeigen“ um den Autologin-Link zu sehen.";
     if ($_GET['success'] === 'system_regenerated') $message = "Neuer Autologin-Link wurde generiert.";
+    if ($_GET['success'] === 'system_updated') $message = "Systembenutzer wurde aktualisiert.";
+    if ($_GET['success'] === 'system_deleted') $message = "Systembenutzer wurde gelöscht.";
 }
 
 // Benutzer dieser Einheit laden (mit Berechtigungen)
@@ -391,12 +453,24 @@ try {
                                     ?>
                                 </td>
                                 <td>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editSystemUserModal"
+                                        data-user-id="<?php echo (int)$su['id']; ?>"
+                                        data-username="<?php echo htmlspecialchars($su['username'], ENT_QUOTES); ?>"
+                                        data-first-name="<?php echo htmlspecialchars($su['first_name'] ?? '', ENT_QUOTES); ?>"
+                                        data-last-name="<?php echo htmlspecialchars($su['last_name'] ?? '', ENT_QUOTES); ?>"
+                                        data-is-active="<?php echo (int)$su['is_active']; ?>"
+                                        title="Bearbeiten">
+                                        <i class="fas fa-edit"></i> Bearbeiten
+                                    </button>
                                     <button type="button" class="btn btn-outline-primary btn-sm btn-show-autologin" data-user-id="<?php echo (int)$su['id']; ?>" title="Link anzeigen">
                                         <i class="fas fa-link"></i> Link anzeigen
                                     </button>
                                     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#regenerateLinkModal" data-user-id="<?php echo (int)$su['id']; ?>" title="Neuen Link generieren">
                                         <i class="fas fa-sync-alt"></i> Neuer Link
                                     </button>
+                                    <a href="settings-einheit-users.php?id=<?php echo $einheit_id; ?>&delete_system_user=<?php echo (int)$su['id']; ?>" class="btn btn-outline-danger btn-sm" title="Löschen" onclick="return confirm('Systembenutzer wirklich löschen? Der Autologin-Link funktioniert danach nicht mehr.');">
+                                        <i class="fas fa-trash"></i> Löschen
+                                    </a>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -451,6 +525,50 @@ try {
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
                         <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Systembenutzer anlegen</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Systembenutzer bearbeiten -->
+    <div class="modal fade" id="editSystemUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="action" value="edit_system_user">
+                    <input type="hidden" name="user_id" id="edit_sys_user_id" value="">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-robot"></i> Systembenutzer bearbeiten</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="edit_sys_username" class="form-label">Benutzername *</label>
+                            <input type="text" class="form-control" id="edit_sys_username" name="username" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="edit_sys_first_name" class="form-label">Vorname (optional)</label>
+                                <input type="text" class="form-control" id="edit_sys_first_name" name="first_name">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="edit_sys_last_name" class="form-label">Nachname (optional)</label>
+                                <input type="text" class="form-control" id="edit_sys_last_name" name="last_name">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="is_active" id="edit_sys_is_active" checked>
+                                <label class="form-check-label" for="edit_sys_is_active">Aktiv</label>
+                            </div>
+                            <small class="text-muted">Inaktive Systembenutzer können sich nicht per Autologin anmelden.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
                     </div>
                 </form>
             </div>
@@ -665,6 +783,15 @@ try {
         document.getElementById('regenerateLinkModal').addEventListener('show.bs.modal', function(e) {
             var btn = e.relatedTarget;
             if (btn && btn.dataset.userId) document.getElementById('regenerate_user_id').value = btn.dataset.userId;
+        });
+        document.getElementById('editSystemUserModal').addEventListener('show.bs.modal', function(e) {
+            var btn = e.relatedTarget;
+            if (!btn) return;
+            document.getElementById('edit_sys_user_id').value = btn.dataset.userId || '';
+            document.getElementById('edit_sys_username').value = btn.dataset.username || '';
+            document.getElementById('edit_sys_first_name').value = btn.dataset.firstName || '';
+            document.getElementById('edit_sys_last_name').value = btn.dataset.lastName || '';
+            document.getElementById('edit_sys_is_active').checked = btn.dataset.isActive == '1';
         });
         document.querySelectorAll('.btn-show-autologin').forEach(function(btn) {
             btn.addEventListener('click', function() {
