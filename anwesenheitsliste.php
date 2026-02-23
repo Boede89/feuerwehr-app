@@ -50,6 +50,10 @@ if ($einheit_id > 0) {
 require_once __DIR__ . '/config/divera.php';
 require_once __DIR__ . '/includes/dienstplan-typen.php';
 require_once __DIR__ . '/includes/einheiten-setup.php';
+// Einheitsspezifische Divera-Konfiguration explizit anwenden (falls Session noch nicht gesetzt war)
+if ($einheit_id > 0 && function_exists('apply_divera_config_for_einheit')) {
+    apply_divera_config_for_einheit($db, $einheit_id);
+}
 
 if (!$db) {
     header('Content-Type: text/html; charset=utf-8');
