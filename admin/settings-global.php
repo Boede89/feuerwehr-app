@@ -31,6 +31,54 @@ if ($einheit_id > 0) {
 $message = '';
 $error = '';
 
+// Einheit bearbeiten (eigenes Formular – action=edit_einheit, kein Formular-Verschachtelung)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_einheit' && $einheit_id > 0 && $einheit && user_has_einheit_access($_SESSION['user_id'], $einheit_id)) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        $einheit_name = trim((string)($_POST['einheit_name'] ?? ''));
+        $einheit_kurz = trim((string)($_POST['einheit_kurzbeschreibung'] ?? ''));
+        if ($einheit_name === '') {
+            $error = 'Name der Einheit ist erforderlich.';
+        } else {
+            try {
+                $stmt = $db->prepare("UPDATE einheiten SET name = ?, kurzbeschreibung = ? WHERE id = ?");
+                $stmt->execute([$einheit_name, $einheit_kurz, $einheit_id]);
+                $einheit['name'] = $einheit_name;
+                $einheit['kurzbeschreibung'] = $einheit_kurz;
+                // App-Einstellungen (Gerätehaus, Logo) ebenfalls speichern
+                ensure_einheit_settings_table($db);
+                $app = ['geraetehaus_adresse' => trim(sanitize_input($_POST['geraetehaus_adresse'] ?? ''))];
+                $upload_err = $_FILES['app_logo']['error'] ?? UPLOAD_ERR_NO_FILE;
+                if ($upload_err === UPLOAD_ERR_OK && !empty($_FILES['app_logo']['tmp_name']) && is_uploaded_file($_FILES['app_logo']['tmp_name'])) {
+                    $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/pjpeg'];
+                    $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+                    $mime = $finfo ? @finfo_file($finfo, $_FILES['app_logo']['tmp_name']) : '';
+                    if ($finfo) finfo_close($finfo);
+                    if (in_array($mime, $allowed)) {
+                        $ext = ['image/jpeg' => 'jpg', 'image/pjpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'][$mime] ?? 'png';
+                        $upload_dir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
+                        if (is_dir($upload_dir) && is_writable($upload_dir)) {
+                            $logo_path = $upload_dir . DIRECTORY_SEPARATOR . 'logo_einheit_' . $einheit_id . '.' . $ext;
+                            if (move_uploaded_file($_FILES['app_logo']['tmp_name'], $logo_path)) {
+                                $app['app_logo'] = 'uploads/logo_einheit_' . $einheit_id . '.' . $ext;
+                            }
+                        }
+                    }
+                }
+                if (empty($app['app_logo'])) {
+                    $app['app_logo'] = $settings['app_logo'] ?? '';
+                }
+                save_settings_bulk_for_einheit($db, $einheit_id, $app);
+                header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=einheit&saved=1');
+                exit;
+            } catch (Exception $e) {
+                $error = 'Fehler: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
 // Fahrzeugverwaltung: POST (add/edit) und GET (delete) vor dem Hauptformular verarbeiten
 $vehicle_action = $_POST['action'] ?? '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($vehicle_action, ['add', 'edit'], true) && $einheit_id > 0) {
@@ -232,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'google_calendar_auth_type' => sanitize_input($_POST['google_calendar_auth_type'] ?? 'service_account'),
                 ];
                 $app = [
-                    'geraetehaus_adresse' => trim(sanitize_input($_POST['geraetehaus_adresse'] ?? '')),
+                    'geraetehaus_adresse' => trim(sanitize_input($_POST['geraetehaus_adresse'] ?? ($settings['geraetehaus_adresse'] ?? ''))),
                 ];
                 $upload_err = $_FILES['app_logo']['error'] ?? UPLOAD_ERR_NO_FILE;
                 $logo_upload_error = '';
@@ -302,20 +350,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ];
                 $all = array_merge($smtp, $google, $app, $printer, $divera);
                 save_settings_bulk_for_einheit($db, $save_einheit_id, $all);
-                // Einheit (Name, Kurzbeschreibung) in Tabelle einheiten aktualisieren
-                $einheit_name = trim(sanitize_input($_POST['einheit_name'] ?? ''));
-                if ($einheit_name !== '') {
-                    try {
-                        $stmt = $db->prepare("UPDATE einheiten SET name = ?, kurzbeschreibung = ? WHERE id = ?");
-                        $stmt->execute([$einheit_name, trim(sanitize_input($_POST['einheit_kurzbeschreibung'] ?? '')), $save_einheit_id]);
-                        if ($einheit && (int)($einheit['id'] ?? 0) === $save_einheit_id) {
-                            $einheit['name'] = $einheit_name;
-                            $einheit['kurzbeschreibung'] = trim(sanitize_input($_POST['einheit_kurzbeschreibung'] ?? ''));
-                        }
-                    } catch (Exception $e) {
-                        error_log('einheiten update: ' . $e->getMessage());
-                    }
-                }
             } else {
                 // Global: nur App Name und App URL (Divera ist einheitenspezifisch)
                 $all = [
@@ -390,7 +424,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if ($message) echo show_success($message); ?>
     <?php if ($error) echo show_error($error); ?>
 
-    <form method="POST" enctype="multipart/form-data">
+    <?php if ($einheit_id > 0): ?>
+    <form id="einheitForm" method="POST" enctype="multipart/form-data" class="d-none">
+        <input type="hidden" name="action" value="edit_einheit">
+        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+        <input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>">
+    </form>
+    <?php endif; ?>
+    <form method="POST" enctype="multipart/form-data" id="mainForm">
         <?php if ($einheit_id <= 0): ?>
         <!-- Globale Einstellungen: nur App Name und App URL -->
         <div class="row g-4">
@@ -510,24 +551,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="card-header"><i class="fas fa-building"></i> Einheit bearbeiten</div>
                     <div class="card-body">
                         <p class="text-muted small mb-4">Name, Kurzbeschreibung und App-Optionen der Einheit anpassen.</p>
-                        <div class="mb-4">
-                            <label for="einheit_name" class="form-label">Name</label>
-                            <input type="text" class="form-control" id="einheit_name" name="einheit_name" value="<?php echo htmlspecialchars($einheit['name'] ?? ''); ?>" required>
-                        </div>
-                        <div class="mb-4">
-                            <label for="einheit_kurzbeschreibung" class="form-label">Kurzbeschreibung (optional)</label>
-                            <input type="text" class="form-control" id="einheit_kurzbeschreibung" name="einheit_kurzbeschreibung" value="<?php echo htmlspecialchars($einheit['kurzbeschreibung'] ?? ''); ?>">
-                        </div>
-                        <hr class="my-4">
-                        <h6 class="mb-3">App-Optionen</h6>
-                        <div class="mb-3">
-                            <label class="form-label">Adresse Gerätehaus</label>
-                            <input class="form-control" name="geraetehaus_adresse" placeholder="z.B. Musterstraße 1, 12345 Musterstadt" value="<?php echo htmlspecialchars($settings['geraetehaus_adresse'] ?? ''); ?>">
-                            <small class="text-muted">Wird als Schnellauswahl neben dem Feld „Adresse / Einsatzstelle“ in der Anwesenheitsliste angezeigt.</small>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Logo für Formulare</label>
-                            <input class="form-control" type="file" name="app_logo" accept="image/jpeg,image/png,image/gif,image/webp">
+                        <?php if ($einheit_id > 0): ?>
+                            <div class="mb-4">
+                                <label for="einheit_name" class="form-label">Name</label>
+                                <input type="text" class="form-control" id="einheit_name" name="einheit_name" form="einheitForm" value="<?php echo htmlspecialchars($einheit['name'] ?? ''); ?>" required>
+                            </div>
+                            <div class="mb-4">
+                                <label for="einheit_kurzbeschreibung" class="form-label">Kurzbeschreibung (optional)</label>
+                                <input type="text" class="form-control" id="einheit_kurzbeschreibung" name="einheit_kurzbeschreibung" form="einheitForm" value="<?php echo htmlspecialchars($einheit['kurzbeschreibung'] ?? ''); ?>">
+                            </div>
+                            <hr class="my-4">
+                            <h6 class="mb-3">App-Optionen</h6>
+                            <div class="mb-3">
+                                <label class="form-label">Adresse Gerätehaus</label>
+                                <input class="form-control" name="geraetehaus_adresse" form="einheitForm" placeholder="z.B. Musterstraße 1, 12345 Musterstadt" value="<?php echo htmlspecialchars($settings['geraetehaus_adresse'] ?? ''); ?>">
+                                <small class="text-muted">Wird als Schnellauswahl neben dem Feld „Adresse / Einsatzstelle“ in der Anwesenheitsliste angezeigt.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Logo für Formulare</label>
+                                <input class="form-control" type="file" name="app_logo" form="einheitForm" accept="image/jpeg,image/png,image/gif,image/webp">
                             <small class="text-muted">Wird auf allen PDF-Formularen (Anwesenheitsliste etc.) oben angezeigt. Empfohlen: PNG oder JPG, max. 500 KB.</small>
                             <?php
                             $ud = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
@@ -543,6 +585,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <?php endif; ?>
                         </div>
+                        <div class="mt-3">
+                            <button type="submit" form="einheitForm" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -772,7 +818,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
         <?php endif; ?>
-        <div class="d-flex justify-content-end mt-3" id="settingsSaveRow"<?php echo ($einheit_id > 0 && $active_tab === 'fahrzeuge') ? ' style="display:none"' : ''; ?>>
+        <div class="d-flex justify-content-end mt-3" id="settingsSaveRow"<?php echo ($einheit_id > 0 && in_array($active_tab, ['fahrzeuge', 'einheit'])) ? ' style="display:none"' : ''; ?>>
             <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Speichern</button>
         </div>
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
@@ -837,7 +883,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     returnTab.value = target;
                     if (history.replaceState) history.replaceState(null, '', '?einheit_id=<?php echo (int)$einheit_id; ?>&tab=' + target);
                     var saveRow = document.getElementById('settingsSaveRow');
-                    if (saveRow) saveRow.style.display = target === 'fahrzeuge' ? 'none' : 'flex';
+                    if (saveRow) saveRow.style.display = (target === 'fahrzeuge' || target === 'einheit') ? 'none' : 'flex';
                 }
             });
         });
