@@ -71,7 +71,7 @@ try {
 
     $einheit_id = !empty($user['einheit_id']) ? (int)$user['einheit_id'] : 0;
     $_SESSION['current_einheit_id'] = $einheit_id > 0 ? $einheit_id : null;
-    header('Location: formulare.php' . ($einheit_id > 0 ? '?einheit_id=' . $einheit_id : ''));
+    header('Location: index.php' . ($einheit_id > 0 ? '?einheit_id=' . $einheit_id : ''));
     exit;
 } catch (Exception $e) {
     error_log('Autologin Fehler: ' . $e->getMessage());
