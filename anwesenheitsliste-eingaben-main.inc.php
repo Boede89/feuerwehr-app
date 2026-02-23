@@ -355,12 +355,17 @@ foreach ($extra_columns as $colDef) {
 }
 
 // Mitglieder für Einsatzleiter/Übungsleiter (Personal zuerst, dann nach Qualifikation: Zugführer > Gruppenführer > Truppführer > Mannschaft)
-$members_for_einsatzleiter = anwesenheitsliste_members_for_leiter($db, $draft['members'] ?? []);
+$members_for_einsatzleiter = anwesenheitsliste_members_for_leiter($db, $draft['members'] ?? [], $einheit_id);
 
-// Mitglieder für Berichtersteller (alle Mitglieder)
+// Mitglieder für Berichtersteller (nur Einheit der aktuellen Anwesenheitsliste)
 $members_all = [];
 try {
-    $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    if ($einheit_id > 0) {
+        $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
+        $stmt->execute([$einheit_id]);
+    } else {
+        $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    }
     $members_all = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 $berichtersteller_val = $draft['berichtersteller'] ?? '';
@@ -1102,21 +1107,27 @@ if ($is_einsatz) {
                             <?php if ($is_einsatz): 
                                 $dienstplan_themen = [];
                                 $beschreibung_optionen_sonstiges = [];
+                                $einheit_where_a = $einheit_id > 0 ? " AND (a.einheit_id = " . (int)$einheit_id . " OR a.einheit_id IS NULL)" : "";
                                 try {
-                                    $stmt = $db->query("SELECT DISTINCT bezeichnung FROM dienstplan ORDER BY bezeichnung");
+                                    if ($einheit_id > 0) {
+                                        $stmt = $db->prepare("SELECT DISTINCT d.bezeichnung FROM dienstplan d WHERE d.einheit_id = ? OR d.einheit_id IS NULL ORDER BY d.bezeichnung");
+                                        $stmt->execute([$einheit_id]);
+                                    } else {
+                                        $stmt = $db->query("SELECT DISTINCT bezeichnung FROM dienstplan ORDER BY bezeichnung");
+                                    }
                                     $dienstplan_themen = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                 } catch (Exception $e) { /* ignore */ }
                                 try {
                                     $von_b = date('Y-m-d', strtotime('-5 years'));
                                     $bis_b = date('Y-m-d', strtotime('+1 day'));
                                     $typ_cond_sonst = "((a.typ = 'dienst' AND d.typ IN ('sonstiges', 'jahreshauptversammlung')) OR (a.typ = 'manuell' AND (a.bezeichnung IN ('Sonstiges', 'Jahreshauptversammlung') OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) IN ('sonstiges', 'jahreshauptversammlung')))))";
-                                    $stmt = $db->prepare("SELECT DISTINCT a.bezeichnung AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond_sonst . " AND a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '' ORDER BY b");
+                                    $stmt = $db->prepare("SELECT DISTINCT a.bezeichnung AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond_sonst . $einheit_where_a . " AND a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '' ORDER BY b");
                                     $stmt->execute([$von_b, $bis_b]);
                                     while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                                         $b = trim($r['b'] ?? '');
                                         if ($b !== '' && !in_array($b, $beschreibung_optionen_sonstiges)) $beschreibung_optionen_sonstiges[] = $b;
                                     }
-                                    $stmt2 = $db->prepare("SELECT DISTINCT TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond_sonst . " AND a.custom_data IS NOT NULL AND JSON_EXTRACT(a.custom_data, '$.beschreibung') IS NOT NULL AND TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) != '' ORDER BY b");
+                                    $stmt2 = $db->prepare("SELECT DISTINCT TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond_sonst . $einheit_where_a . " AND a.custom_data IS NOT NULL AND JSON_EXTRACT(a.custom_data, '$.beschreibung') IS NOT NULL AND TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) != '' ORDER BY b");
                                     $stmt2->execute([$von_b, $bis_b]);
                                     while ($r = $stmt2->fetch(PDO::FETCH_ASSOC)) {
                                         $b = trim($r['b'] ?? '');
@@ -1174,8 +1185,14 @@ if ($is_einsatz) {
                                 $dienst_typ = $dienst['typ'] ?? '';
                                 $is_jhv_sonstiges_dienst = ($dienst_typ === 'sonstiges');
                                 $dienstplan_themen = [];
+                                $einheit_where_a = $einheit_id > 0 ? " AND (a.einheit_id = " . (int)$einheit_id . " OR a.einheit_id IS NULL)" : "";
                                 try {
-                                    $stmt = $db->query("SELECT DISTINCT bezeichnung FROM dienstplan ORDER BY bezeichnung");
+                                    if ($einheit_id > 0) {
+                                        $stmt = $db->prepare("SELECT DISTINCT d.bezeichnung FROM dienstplan d WHERE d.einheit_id = ? OR d.einheit_id IS NULL ORDER BY d.bezeichnung");
+                                        $stmt->execute([$einheit_id]);
+                                    } else {
+                                        $stmt = $db->query("SELECT DISTINCT bezeichnung FROM dienstplan ORDER BY bezeichnung");
+                                    }
                                     $dienstplan_themen = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                 } catch (Exception $e) { /* ignore */ }
                                 $thema_dienst = trim((string)($draft['thema'] ?? $dienst['bezeichnung'] ?? ''));
@@ -1186,13 +1203,13 @@ if ($is_einsatz) {
                                     $von_b = date('Y-m-d', strtotime('-5 years'));
                                     $bis_b = date('Y-m-d', strtotime('+1 day'));
                                     $typ_cond_sonst = "((a.typ = 'dienst' AND d.typ IN ('sonstiges', 'jahreshauptversammlung')) OR (a.typ = 'manuell' AND (a.bezeichnung IN ('Sonstiges', 'Jahreshauptversammlung') OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) IN ('sonstiges', 'jahreshauptversammlung')))))";
-                                    $stmt = $db->prepare("SELECT DISTINCT a.bezeichnung AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond_sonst . " AND a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '' ORDER BY b");
+                                    $stmt = $db->prepare("SELECT DISTINCT a.bezeichnung AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond_sonst . $einheit_where_a . " AND a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '' ORDER BY b");
                                     $stmt->execute([$von_b, $bis_b]);
                                     while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                                         $b = trim($r['b'] ?? '');
                                         if ($b !== '' && !in_array($b, $beschreibung_optionen_dienst)) $beschreibung_optionen_dienst[] = $b;
                                     }
-                                    $stmt2 = $db->prepare("SELECT DISTINCT TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond_sonst . " AND a.custom_data IS NOT NULL AND JSON_EXTRACT(a.custom_data, '$.beschreibung') IS NOT NULL AND TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) != '' ORDER BY b");
+                                    $stmt2 = $db->prepare("SELECT DISTINCT TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond_sonst . $einheit_where_a . " AND a.custom_data IS NOT NULL AND JSON_EXTRACT(a.custom_data, '$.beschreibung') IS NOT NULL AND TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) != '' ORDER BY b");
                                     $stmt2->execute([$von_b, $bis_b]);
                                     while ($r = $stmt2->fetch(PDO::FETCH_ASSOC)) {
                                         $b = trim($r['b'] ?? '');

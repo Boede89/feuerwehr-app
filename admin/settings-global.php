@@ -587,8 +587,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <label class="form-label">Access Key (Einheits-Key)</label>
                                     <div class="input-group">
                                         <input class="form-control" type="password" name="divera_access_key" id="divera_access_key" value="" placeholder="Leer lassen zum Beibehalten" autocomplete="off">
-                                        <?php if ($einheit_id > 0 && !empty($settings['divera_access_key'])): ?>
-                                        <button type="button" class="btn btn-outline-danger" id="btn_divera_key_loeschen" title="Access Key für diese Einheit löschen"><i class="fas fa-trash-alt"></i> Löschen</button>
+                                        <?php if ($einheit_id > 0): ?>
+                                        <button type="button" class="btn btn-outline-danger" id="btn_divera_key_loeschen" title="Access Key für diese Einheit löschen (z.B. wenn fälschlich Key einer anderen Einheit gespeichert wurde)"><i class="fas fa-trash-alt"></i> Löschen</button>
                                         <?php endif; ?>
                                     </div>
                                     <small class="text-muted"><?php echo !empty($settings['divera_access_key']) ? 'Key ist hinterlegt. Neuen Key eintragen zum Überschreiben. Mit „Löschen“ den Key für diese Einheit entfernen.' : 'In Divera 24/7: Verwaltung → Konto (Kontakt- und Vertragsdaten).'; ?></small>

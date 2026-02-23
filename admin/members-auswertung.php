@@ -7,6 +7,7 @@ session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/dienstplan-typen.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -42,14 +43,30 @@ if (!preg_match('/^\d{1,2}:\d{2}$/', $zeit_von)) $zeit_von = '';
 if (!preg_match('/^\d{1,2}:\d{2}$/', $zeit_bis)) $zeit_bis = '';
 $zeit_filter_aktiv = $zeit_von !== '' || $zeit_bis !== '';
 
+$einheit_filter = function_exists('get_admin_einheit_filter') ? get_admin_einheit_filter() : null;
+$einheit_where_a = $einheit_filter ? " AND (a.einheit_id = " . (int)$einheit_filter . " OR a.einheit_id IS NULL)" : "";
+$einheit_where_m = $einheit_filter ? " AND (m.einheit_id = " . (int)$einheit_filter . " OR m.einheit_id IS NULL)" : "";
+$einheit_where_v = $einheit_filter ? " AND (v.einheit_id = " . (int)$einheit_filter . " OR v.einheit_id IS NULL)" : "";
+$einheit_where_d = $einheit_filter ? " AND (d.einheit_id = " . (int)$einheit_filter . " OR d.einheit_id IS NULL)" : "";
+
 $members = [];
 $vehicles = [];
 try {
-    $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    if ($einheit_filter) {
+        $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
+        $stmt->execute([$einheit_filter]);
+    } else {
+        $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    }
     $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 try {
-    $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name");
+    if ($einheit_filter) {
+        $stmt = $db->prepare("SELECT id, name FROM vehicles WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY name");
+        $stmt->execute([$einheit_filter]);
+    } else {
+        $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name");
+    }
     $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 $beschreibung_optionen = [];
@@ -57,17 +74,17 @@ $beschreibung_optionen_sonstiges = [];
 $is_jhv_sonstiges_filter = ($typ_filter === 'sonstiges');
 $is_uebungen_filter = ($typ_filter === 'uebungen');
 if ($bereich !== '') {
-    $load_beschreibung_opts = function($typ_cond) use ($db, $von, $bis) {
+    $load_beschreibung_opts = function($typ_cond) use ($db, $von, $bis, $einheit_where_a) {
         $opts = [];
         try {
-            $sql = "SELECT DISTINCT a.bezeichnung AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond . " AND a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '' ORDER BY b";
+            $sql = "SELECT DISTINCT a.bezeichnung AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond . $einheit_where_a . " AND a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '' ORDER BY b";
             $stmt = $db->prepare($sql);
             $stmt->execute([$von, $bis]);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $b = trim($r['b'] ?? '');
                 if ($b !== '' && !in_array($b, $opts)) $opts[] = $b;
             }
-            $sql2 = "SELECT DISTINCT TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond . " AND a.custom_data IS NOT NULL AND JSON_EXTRACT(a.custom_data, '$.beschreibung') IS NOT NULL AND TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) != '' ORDER BY b";
+            $sql2 = "SELECT DISTINCT TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $typ_cond . $einheit_where_a . " AND a.custom_data IS NOT NULL AND JSON_EXTRACT(a.custom_data, '$.beschreibung') IS NOT NULL AND TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.beschreibung'))) != '' ORDER BY b";
             $stmt2 = $db->prepare($sql2);
             $stmt2->execute([$von, $bis]);
             while ($r = $stmt2->fetch(PDO::FETCH_ASSOC)) {
@@ -87,7 +104,7 @@ $is_uebungen_filter = ($typ_filter === 'uebungen');
 if ($bereich !== '') {
     try {
         $ueb_cond = "((a.typ = 'dienst' AND d.typ IN ('uebungsdienst', 'dienst', 'uebung')) OR (a.typ = 'manuell' AND a.bezeichnung = 'Übungsdienst'))";
-        $stmt = $db->prepare("SELECT DISTINCT COALESCE(NULLIF(TRIM(a.bezeichnung), ''), d.bezeichnung) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $ueb_cond . " AND (a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '' OR d.bezeichnung IS NOT NULL AND TRIM(d.bezeichnung) != '') ORDER BY b");
+        $stmt = $db->prepare("SELECT DISTINCT COALESCE(NULLIF(TRIM(a.bezeichnung), ''), d.bezeichnung) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $ueb_cond . $einheit_where_a . " AND (a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '' OR d.bezeichnung IS NOT NULL AND TRIM(d.bezeichnung) != '') ORDER BY b");
         $stmt->execute([$von, $bis]);
         while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $b = trim($r['b'] ?? '');
@@ -201,7 +218,7 @@ if ($debug_fahrzeug) {
             }
         };
         // Person auf Fahrzeug (anwesenheitsliste_mitglieder)
-        $stmt = $db->prepare("SELECT am.member_id, am.vehicle_id, a.datum FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0");
+        $stmt = $db->prepare("SELECT am.member_id, am.vehicle_id, a.datum FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0" . $einheit_where_a);
         $stmt->execute([$von, $bis]);
         while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $mid = (int)$r['member_id'];
@@ -210,7 +227,7 @@ if ($debug_fahrzeug) {
             $debug_data[$mid]['auf_fahrzeug'][$vid] = ($debug_data[$mid]['auf_fahrzeug'][$vid] ?? 0) + 1;
         }
         // Maschinist/Einheitsführer aus Anwesenheitslisten – pro Fahrzeug
-        $stmt = $db->prepare("SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ?");
+        $stmt = $db->prepare("SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ?" . $einheit_where_a);
         $stmt->execute([$von, $bis]);
         while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $vid = (int)$r['vehicle_id'];
@@ -538,7 +555,7 @@ if ($debug_fahrzeug) {
         $anzahl_jhv_sonstiges = 0;
         try {
             $params_anz = [$von, $bis];
-            $sql_anz = "SELECT a.id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?" . get_zeit_filter_sql($params_anz) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_anz) . get_thema_filter_sql($params_anz);
+            $sql_anz = "SELECT a.id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?" . $einheit_where_a . get_zeit_filter_sql($params_anz) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_anz) . get_thema_filter_sql($params_anz);
             $stmt = $db->prepare($sql_anz);
             $stmt->execute($params_anz);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -547,7 +564,7 @@ if ($debug_fahrzeug) {
                 else $anzahl_uebungen++;
             }
             $anzahl_gesamt = $anzahl_einsaetze + $anzahl_uebungen;
-            $sql = "SELECT am.member_id, am.vehicle_id, a.id AS liste_id, a.datum, a.typ AS liste_typ, a.bezeichnung, a.custom_data, a.uhrzeit_von, a.uhrzeit_bis, d.typ AS dienst_typ FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?";
+            $sql = "SELECT am.member_id, am.vehicle_id, a.id AS liste_id, a.datum, a.typ AS liste_typ, a.bezeichnung, a.custom_data, a.uhrzeit_von, a.uhrzeit_bis, d.typ AS dienst_typ FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?" . $einheit_where_a;
             $params = [$von, $bis];
             $sql .= get_zeit_filter_sql($params) . get_typ_filter_sql() . get_beschreibung_filter_sql($params) . get_thema_filter_sql($params);
             if ($member_id > 0) { $sql .= " AND am.member_id = ?"; $params[] = $member_id; }
@@ -581,7 +598,7 @@ if ($debug_fahrzeug) {
                 $personen_letzte[$mid] = max($personen_letzte[$mid] ?? '', $r['datum']);
             }
             $params_af = [$von, $bis];
-            $sql_af = "SELECT af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?" . get_zeit_filter_sql($params_af) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_af) . get_thema_filter_sql($params_af);
+            $sql_af = "SELECT af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?" . $einheit_where_a . get_zeit_filter_sql($params_af) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_af) . get_thema_filter_sql($params_af);
             $stmt = $db->prepare($sql_af);
             $stmt->execute($params_af);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -888,7 +905,7 @@ if ($debug_fahrzeug) {
         $dauern = [];
         try {
             $params_listen = [$von, $bis];
-            $sql_listen = "SELECT a.id, a.datum, a.typ AS liste_typ, a.bezeichnung, a.custom_data, a.uhrzeit_von, a.uhrzeit_bis, a.klassifizierung, a.einsatzstichwort, d.typ AS dienst_typ, d.bezeichnung AS dienst_bezeichnung FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?" . get_zeit_filter_sql($params_listen) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_listen) . get_thema_filter_sql($params_listen);
+            $sql_listen = "SELECT a.id, a.datum, a.typ AS liste_typ, a.bezeichnung, a.custom_data, a.uhrzeit_von, a.uhrzeit_bis, a.klassifizierung, a.einsatzstichwort, d.typ AS dienst_typ, d.bezeichnung AS dienst_bezeichnung FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?" . $einheit_where_a . get_zeit_filter_sql($params_listen) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_listen) . get_thema_filter_sql($params_listen);
             $stmt = $db->prepare($sql_listen);
             $stmt->execute($params_listen);
             $listen = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1125,7 +1142,7 @@ if ($debug_fahrzeug) {
         $fahrzeug_besatzung_top = [];
         try {
             // 1. Fahrzeug-Stats und Durchschn. Besatzung (mit Filtern)
-            $sql_f = "SELECT af.anwesenheitsliste_id, af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0";
+            $sql_f = "SELECT af.anwesenheitsliste_id, af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0" . $einheit_where_a;
             $params_f = [$von, $bis];
             $sql_f .= get_zeit_filter_sql($params_f) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_f) . get_thema_filter_sql($params_f);
             if ($vehicle_id > 0) { $sql_f .= " AND af.vehicle_id = ?"; $params_f[] = $vehicle_id; }
@@ -1180,7 +1197,7 @@ if ($debug_fahrzeug) {
                 }
             }
             // 3. Top Besatzung pro Fahrzeug (anwesenheitsliste_mitglieder, gleiche Logik wie Debug-Tabelle)
-            $stmt_am = $db->prepare("SELECT am.member_id, am.vehicle_id FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0 AND am.member_id > 0");
+            $stmt_am = $db->prepare("SELECT am.member_id, am.vehicle_id FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0 AND am.member_id > 0" . $einheit_where_a);
             $stmt_am->execute([$von, $bis]);
             while ($r = $stmt_am->fetch(PDO::FETCH_ASSOC)) {
                 $mid = (int)$r['member_id'];
@@ -1188,7 +1205,7 @@ if ($debug_fahrzeug) {
                 if ($mid > 0 && $vid > 0) $fahrzeug_besatzung_top[$vid][$mid] = ($fahrzeug_besatzung_top[$vid][$mid] ?? 0) + 1;
             }
             // 4. Maschinist + Einheitsführer pro Fahrzeug (gleiche Logik wie Debug-Tabelle)
-            $stmt_af = $db->prepare("SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0");
+            $stmt_af = $db->prepare("SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0" . $einheit_where_a);
             $stmt_af->execute([$von, $bis]);
             while ($r = $stmt_af->fetch(PDO::FETCH_ASSOC)) {
                 $vid = (int)$r['vehicle_id'];
@@ -1349,7 +1366,7 @@ if ($debug_fahrzeug) {
         $geraete_count = [];
         try {
             $params_ger = [$von, $bis];
-            $sql_ger = "SELECT a.id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND a.custom_data IS NOT NULL AND a.custom_data != '' AND a.custom_data != 'null'" . get_zeit_filter_sql($params_ger) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_ger) . get_thema_filter_sql($params_ger);
+            $sql_ger = "SELECT a.id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND a.custom_data IS NOT NULL AND a.custom_data != '' AND a.custom_data != 'null'" . $einheit_where_a . get_zeit_filter_sql($params_ger) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_ger) . get_thema_filter_sql($params_ger);
             $stmt = $db->prepare($sql_ger);
             $stmt->execute($params_ger);
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {

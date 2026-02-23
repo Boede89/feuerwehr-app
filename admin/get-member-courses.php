@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
 
 if (!isset($_SESSION['user_id']) || !has_permission('courses')) {
     header('Content-Type: application/json');
@@ -12,12 +13,13 @@ if (!isset($_SESSION['user_id']) || !has_permission('courses')) {
 header('Content-Type: application/json');
 
 $type = $_GET['type'] ?? '';
+$einheit_filter = function_exists('get_admin_einheit_filter') ? get_admin_einheit_filter() : null;
+$einheit_where = $einheit_filter ? " AND (m.einheit_id = " . (int)$einheit_filter . " OR m.einheit_id IS NULL)" : "";
 
 try {
     if ($type === 'by_name') {
-        // Liste nach Namen: Alle Mitglieder mit ihren Lehrgängen
-        // Einzelne Zeilen pro Mitglied-Lehrgang (kein GROUP_CONCAT, kein Truncation-Problem)
-        $stmt = $db->prepare("
+        // Liste nach Namen: Alle Mitglieder mit ihren Lehrgängen (einheitsspezifisch)
+        $sql = "
             SELECT 
                 m.id,
                 CONCAT(m.first_name, ' ', m.last_name) as name,
@@ -25,10 +27,11 @@ try {
                 mc.completed_date
             FROM members m
             LEFT JOIN member_courses mc ON mc.member_id = m.id
-            LEFT JOIN courses c ON c.id = mc.course_id
+            LEFT JOIN courses c ON c.id = mc.course_id" . ($einheit_filter ? " AND (c.einheit_id = " . (int)$einheit_filter . " OR c.einheit_id IS NULL)" : "") . "
+            WHERE 1=1 $einheit_where
             ORDER BY m.last_name, m.first_name, c.name
-        ");
-        $stmt->execute();
+        ";
+        $stmt = $db->query($sql);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Nach Mitglied gruppieren
@@ -68,16 +71,27 @@ try {
             exit;
         }
         
-        $stmt = $db->prepare("
+        $course_ok = true;
+        if ($einheit_filter) {
+            $chk = $db->prepare("SELECT id FROM courses WHERE id = ? AND (einheit_id = ? OR einheit_id IS NULL)");
+            $chk->execute([$course_id, $einheit_filter]);
+            $course_ok = (bool)$chk->fetch();
+        }
+        if (!$course_ok) {
+            echo json_encode(['success' => false, 'error' => 'Lehrgang nicht gefunden']);
+            exit;
+        }
+        $sql = "
             SELECT 
                 m.id,
                 CONCAT(m.first_name, ' ', m.last_name) as name,
                 mc.completed_date
             FROM member_courses mc
             INNER JOIN members m ON m.id = mc.member_id
-            WHERE mc.course_id = ?
+            WHERE mc.course_id = ? $einheit_where
             ORDER BY m.last_name, m.first_name
-        ");
+        ";
+        $stmt = $db->prepare($sql);
         $stmt->execute([$course_id]);
         $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
