@@ -162,21 +162,6 @@ $einheit_param = '&einheit_id=' . $einheit_id;
                 </div>
             </div>
 
-            <!-- Divera 24/7 -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-calendar-plus me-2"></i>Divera 24/7</h5>
-                        <p class="text-muted">Termin-Übermittlung genehmigter Reservierungen an Divera.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-global.php?einheit_id=<?php echo (int)$einheit_id; ?>">
-                                <i class="fas fa-cog"></i> Divera Einstellungen
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Benutzerverwaltung -->
             <div class="col-md-6">
                 <div class="card h-100">
