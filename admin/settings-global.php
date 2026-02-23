@@ -40,8 +40,22 @@ if (isset($_GET['saved']) && $_GET['saved'] === '1') {
 
 // Laden
 $settings = [];
+$divera_reservation_groups = [];
 try {
     $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+    if ($einheit_id <= 0) {
+        $legacy_ids_raw = trim((string) ($settings['divera_reservation_group_ids'] ?? ''));
+        if (!empty($settings['divera_reservation_groups'])) {
+            $dec = json_decode($settings['divera_reservation_groups'], true);
+            $divera_reservation_groups = is_array($dec) ? $dec : [];
+        }
+        if (empty($divera_reservation_groups) && !empty($legacy_ids_raw)) {
+            $ids = array_filter(array_map('intval', preg_split('/[\s,;]+/', $legacy_ids_raw)));
+            foreach ($ids as $id) {
+                if ($id > 0) $divera_reservation_groups[] = ['id' => $id, 'name' => 'Gruppe ' . $id];
+            }
+        }
+    }
 } catch (Exception $e) {
     $error = 'Fehler beim Laden der Einstellungen: ' . $e->getMessage();
 }
@@ -130,10 +144,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $all = array_merge($smtp, $google, $app, $printer);
                 save_settings_bulk_for_einheit($db, $save_einheit_id, $all);
             } else {
-                // Global: nur App Name und App URL
+                // Global: App Name, App URL und Divera 24/7
+                $divera_access_key = trim($_POST['divera_access_key'] ?? '');
+                if ($divera_access_key === '') {
+                    $divera_access_key = trim((string) ($settings['divera_access_key'] ?? ''));
+                }
+                $divera_api_base_url = trim($_POST['divera_api_base_url'] ?? '') ?: 'https://app.divera247.com';
+                $group_ids = $_POST['divera_group_id'] ?? [];
+                $group_names = $_POST['divera_group_name'] ?? [];
+                $groups = [];
+                foreach ($group_ids as $i => $gid) {
+                    $gid = trim((string) $gid);
+                    $gidInt = $gid === '' ? 0 : (int) $gid;
+                    $gname = trim((string) ($group_names[$i] ?? ''));
+                    if ($gname !== '') {
+                        $groups[] = ['id' => $gidInt, 'name' => $gname];
+                    } elseif ($gidInt > 0) {
+                        $groups[] = ['id' => $gidInt, 'name' => 'Gruppe ' . $gidInt];
+                    }
+                }
+                $divera_reservation_groups_json = json_encode($groups);
                 $all = [
                     'app_name' => sanitize_input($_POST['app_name'] ?? ''),
                     'app_url' => sanitize_input($_POST['app_url'] ?? ''),
+                    'divera_access_key' => $divera_access_key,
+                    'divera_api_base_url' => $divera_api_base_url,
+                    'divera_reservation_groups' => $divera_reservation_groups_json,
                 ];
                 foreach ($all as $k => $v) {
                     $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
@@ -202,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <form method="POST" enctype="multipart/form-data">
         <?php if ($einheit_id <= 0): ?>
-        <!-- Globale Einstellungen: nur App Name und App URL -->
+        <!-- Globale Einstellungen: App, Divera 24/7 -->
         <div class="row g-4">
             <div class="col-lg-6">
                 <div class="card h-100">
@@ -216,6 +252,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="form-label">App URL</label>
                             <input class="form-control" name="app_url" value="<?php echo htmlspecialchars($settings['app_url'] ?? ''); ?>" placeholder="z.B. https://feuerwehr.example.de">
                             <small class="text-muted">Basis-URL der Anwendung (wird z.B. für E-Mails und Links verwendet).</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header"><i class="fas fa-calendar-plus"></i> Divera 24/7</div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Einstellungen für die automatische Übermittlung genehmigter Fahrzeugreservierungen und Dienstplan-Termine an Divera.</p>
+                        <div class="mb-3">
+                            <label class="form-label">Access Key (Einheits-Key)</label>
+                            <input class="form-control" type="password" name="divera_access_key" value="" placeholder="Leer lassen zum Beibehalten" autocomplete="off">
+                            <small class="text-muted"><?php echo !empty($settings['divera_access_key']) ? 'Key ist hinterlegt. Neuen Key eintragen zum Überschreiben.' : 'In Divera 24/7: Verwaltung → Konto (Kontakt- und Vertragsdaten).'; ?></small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">API-Basis-URL</label>
+                            <input class="form-control" type="url" name="divera_api_base_url" value="<?php echo htmlspecialchars($settings['divera_api_base_url'] ?? 'https://app.divera247.com'); ?>" placeholder="https://app.divera247.com">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Empfänger-Gruppen (Fahrzeugreservierungen)</label>
+                            <p class="text-muted small">Definieren Sie Divera-Gruppen mit ID und Namen. ID leer = keine Gruppen-ID an Divera (alle des Standortes). Beim Genehmigen kann die Empfänger-Gruppe ausgewählt werden.</p>
+                            <div id="diveraGroupsContainer">
+                                <?php foreach ($divera_reservation_groups as $idx => $g): ?>
+                                <div class="input-group mb-2 divera-group-row">
+                                    <input type="number" class="form-control" name="divera_group_id[]" placeholder="ID (leer = keine)" value="<?php echo (int)($g['id'] ?? 0) > 0 ? (int)$g['id'] : ''; ?>" min="0">
+                                    <input type="text" class="form-control" name="divera_group_name[]" placeholder="Name der Gruppe" value="<?php echo htmlspecialchars($g['name'] ?? ''); ?>">
+                                    <button type="button" class="btn btn-outline-danger btn-remove-group" title="Gruppe entfernen"><i class="fas fa-trash"></i></button>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAddGroup"><i class="fas fa-plus me-1"></i>Gruppe hinzufügen</button>
                         </div>
                     </div>
                 </div>
@@ -363,6 +430,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    var container = document.getElementById('diveraGroupsContainer');
+    var btnAdd = document.getElementById('btnAddGroup');
+    if (container && btnAdd) {
+        var rowTpl = function() {
+            var div = document.createElement('div');
+            div.className = 'input-group mb-2 divera-group-row';
+            div.innerHTML = '<input type="number" class="form-control" name="divera_group_id[]" placeholder="ID (leer = keine)" min="0">' +
+                '<input type="text" class="form-control" name="divera_group_name[]" placeholder="Name der Gruppe">' +
+                '<button type="button" class="btn btn-outline-danger btn-remove-group" title="Gruppe entfernen"><i class="fas fa-trash"></i></button>';
+            return div;
+        };
+        btnAdd.addEventListener('click', function() { container.appendChild(rowTpl()); });
+        container.addEventListener('click', function(e) {
+            if (e.target.closest('.btn-remove-group')) e.target.closest('.divera-group-row').remove();
+        });
+    }
+});
 document.getElementById('btn_list_printers')?.addEventListener('click', function() {
     var btn = this;
     var out = document.getElementById('printers_list');

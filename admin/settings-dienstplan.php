@@ -86,7 +86,7 @@ $default_group_id = trim((string)($settings['divera_dienstplan_default_group_id'
     <div class="card">
         <div class="card-header"><i class="fas fa-calendar-plus"></i> Divera 24/7 Export</div>
         <div class="card-body">
-            <p class="text-muted small">Beim Export von Dienstplan-Terminen nach Divera wird diese Gruppe standardmäßig ausgewählt. Gruppen werden in den <a href="settings-divera.php">Divera-Einstellungen</a> definiert.</p>
+            <p class="text-muted small">Beim Export von Dienstplan-Terminen nach Divera wird diese Gruppe standardmäßig ausgewählt. Gruppen werden in den <a href="settings-global.php">Globalen Einstellungen</a> definiert.</p>
             <form method="POST">
                 <div class="mb-3">
                     <label class="form-label">Standard-Empfänger-Gruppe (Divera)</label>
