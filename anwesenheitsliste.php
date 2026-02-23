@@ -225,7 +225,17 @@ try {
     } catch (Exception $e2) {
         error_log('anwesenheitsliste_drafts Tabelle: ' . $e2->getMessage());
     }
-    // Migration: alte unique_user_draft auf unique_datum_auswahl umstellen (Entwürfe für alle Benutzer)
+    try {
+        $db->exec("ALTER TABLE anwesenheitsliste_drafts ADD COLUMN einheit_id INT NOT NULL DEFAULT 1");
+    } catch (Exception $e2) {}
+    // Migration: unique_datum_auswahl auf (datum, auswahl, einheit_id) für einheitsspezifische Entwürfe
+    try {
+        $db->exec("ALTER TABLE anwesenheitsliste_drafts DROP INDEX unique_datum_auswahl");
+    } catch (Exception $e) { /* Index evtl. nicht vorhanden */ }
+    try {
+        $db->exec("ALTER TABLE anwesenheitsliste_drafts ADD UNIQUE KEY unique_datum_auswahl_einheit (datum, auswahl, einheit_id)");
+    } catch (Exception $e) { /* Evtl. schon vorhanden */ }
+    // Migration: alte unique_user_draft entfernen
     try {
         $db->exec("ALTER TABLE anwesenheitsliste_drafts MODIFY COLUMN user_id INT NULL");
     } catch (Exception $e) { /* Spalte evtl. schon NULL */ }
@@ -233,14 +243,8 @@ try {
         $db->exec("ALTER TABLE anwesenheitsliste_drafts DROP INDEX unique_user_draft");
     } catch (Exception $e) { /* Index existiert evtl. nicht */ }
     try {
-        $db->exec("DELETE d1 FROM anwesenheitsliste_drafts d1 INNER JOIN anwesenheitsliste_drafts d2 ON d1.datum = d2.datum AND d1.auswahl = d2.auswahl AND d1.updated_at < d2.updated_at");
+        $db->exec("DELETE d1 FROM anwesenheitsliste_drafts d1 INNER JOIN anwesenheitsliste_drafts d2 ON d1.datum = d2.datum AND d1.auswahl = d2.auswahl AND COALESCE(d1.einheit_id,1) = COALESCE(d2.einheit_id,1) AND d1.updated_at < d2.updated_at");
     } catch (Exception $e) { /* ignore */ }
-    try {
-        $db->exec("ALTER TABLE anwesenheitsliste_drafts ADD UNIQUE KEY unique_datum_auswahl (datum, auswahl)");
-    } catch (Exception $e) { /* Unique evtl. schon vorhanden */ }
-    try {
-        $db->exec("ALTER TABLE anwesenheitsliste_drafts ADD COLUMN einheit_id INT NOT NULL DEFAULT 1");
-    } catch (Exception $e2) {}
 } catch (Exception $e) {
     error_log('Anwesenheitsliste Tabellen: ' . $e->getMessage());
 }
@@ -413,7 +417,7 @@ $alle_entwuerfe = [];
 if (isset($_SESSION['user_id'])) {
     try {
         if ($einheit_id > 0) {
-            $stmt = $db->prepare("SELECT * FROM anwesenheitsliste_drafts WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY updated_at DESC");
+            $stmt = $db->prepare("SELECT * FROM anwesenheitsliste_drafts WHERE einheit_id = ? ORDER BY updated_at DESC");
             $stmt->execute([$einheit_id]);
         } else {
             $stmt = $db->query("SELECT * FROM anwesenheitsliste_drafts ORDER BY updated_at DESC");
@@ -661,7 +665,7 @@ if (isset($_SESSION['user_id'])) {
                                 </span>
                                 <span class="d-flex align-items-center gap-2">
                                     <a href="anwesenheitsliste-eingaben.php?datum=<?php echo urlencode($e['datum']); ?>&auswahl=<?php echo urlencode($e['auswahl']); ?><?php echo $einheit_param ? '&einheit_id=' . (int)$einheit_id : ''; ?>" class="btn btn-sm btn-outline-primary">Fortsetzen</a>
-                                    <a href="anwesenheitsliste.php?action=delete_draft&amp;datum=<?php echo urlencode($e['datum']); ?>&amp;auswahl=<?php echo urlencode($e['auswahl']); ?>" class="btn btn-sm btn-outline-danger" title="Entwurf löschen" onclick="return confirm('Entwurf wirklich löschen?');"><i class="fas fa-trash"></i></a>
+                                    <a href="anwesenheitsliste.php?action=delete_draft&amp;datum=<?php echo urlencode($e['datum']); ?>&amp;auswahl=<?php echo urlencode($e['auswahl']); ?><?php $eid = (int)($e['einheit_id'] ?? $einheit_id); echo $eid > 0 ? '&amp;einheit_id=' . $eid : ''; ?>" class="btn btn-sm btn-outline-danger" title="Entwurf löschen" onclick="return confirm('Entwurf wirklich löschen?');"><i class="fas fa-trash"></i></a>
                                 </span>
                             </li>
                             <?php endforeach; ?>

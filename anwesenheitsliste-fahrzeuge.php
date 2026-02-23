@@ -203,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         $draft['maengel'] = $maengel;
-        anwesenheitsliste_draft_persist($db, $draft, (int)$_SESSION['user_id']);
+        anwesenheitsliste_draft_persist($db, $draft, (int)$_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null);
     }
     // typ_sonstige und uebungsleiter aus POST übernehmen (vom Hauptformular, damit sie beim Zurückkehren erhalten bleiben)
     if (isset($_POST['typ_sonstige']) && ($draft['typ'] ?? '') === 'einsatz') {

@@ -189,8 +189,9 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
     // Bei Rückkehr von Unterseite (typ_sonstige in URL): NICHT aus DB laden – DB könnte veraltete Daten haben
     if (!$has_typ_sonstige_url && !$neu && isset($_SESSION['user_id'])) {
         try {
-            $stmt = $db->prepare("SELECT datum, auswahl, draft_data FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?");
-            $stmt->execute([$datum, $auswahl]);
+            $eid = $einheit_id > 0 ? $einheit_id : 1;
+            $stmt = $db->prepare("SELECT datum, auswahl, draft_data FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ? AND einheit_id = ?");
+            $stmt->execute([$datum, $auswahl, $eid]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($row && !empty($row['draft_data'])) {
                 $loaded = json_decode($row['draft_data'], true);

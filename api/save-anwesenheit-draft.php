@@ -10,6 +10,17 @@ require_once __DIR__ . '/../includes/dienstplan-typen.php';
 
 header('Content-Type: application/json');
 
+$einheit_id = isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0;
+if ($einheit_id <= 0 && isset($_SESSION['user_id'])) {
+    try {
+        $stmt = $db->prepare("SELECT einheit_id FROM users WHERE id = ?");
+        $stmt->execute([(int)$_SESSION['user_id']]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $einheit_id = $row ? (int)($row['einheit_id'] ?? 0) : 0;
+    } catch (Exception $e) {}
+}
+if ($einheit_id <= 0) $einheit_id = 1;
+
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Nicht angemeldet']);
     exit;
@@ -218,14 +229,18 @@ try {
             dienstplan_id INT NULL,
             typ VARCHAR(50) NOT NULL DEFAULT 'dienst',
             bezeichnung VARCHAR(255) NULL,
+            einheit_id INT NOT NULL DEFAULT 1,
             draft_data JSON NOT NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_datum_auswahl (datum, auswahl)
+            UNIQUE KEY unique_datum_auswahl_einheit (datum, auswahl, einheit_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
 } catch (Exception $e) {
     error_log('anwesenheitsliste_drafts Tabelle: ' . $e->getMessage());
 }
+try { $db->exec("ALTER TABLE anwesenheitsliste_drafts ADD COLUMN einheit_id INT NOT NULL DEFAULT 1"); } catch (Exception $e) {}
+try { $db->exec("ALTER TABLE anwesenheitsliste_drafts DROP INDEX unique_datum_auswahl"); } catch (Exception $e) {}
+try { $db->exec("ALTER TABLE anwesenheitsliste_drafts ADD UNIQUE KEY unique_datum_auswahl_einheit (datum, auswahl, einheit_id)"); } catch (Exception $e) {}
 
 // Leeren Entwurf nicht speichern (keine Daten eingegeben)
 $has_members = !empty($draft['members']);
@@ -261,8 +276,8 @@ $bezeichnung = $draft['bezeichnung_sonstige'] ?? null;
 
 if (!$draft_has_content) {
     try {
-        $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?");
-        $stmt->execute([$datum, $auswahl]);
+        $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ? AND einheit_id = ?");
+        $stmt->execute([$datum, $auswahl, $einheit_id]);
     } catch (Exception $e) { /* ignore */ }
     echo json_encode(['success' => true, 'message' => 'Leerer Entwurf nicht gespeichert']);
     exit;
@@ -270,17 +285,18 @@ if (!$draft_has_content) {
 
 try {
     $stmt = $db->prepare("
-        INSERT INTO anwesenheitsliste_drafts (user_id, datum, auswahl, dienstplan_id, typ, bezeichnung, draft_data)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO anwesenheitsliste_drafts (user_id, datum, auswahl, dienstplan_id, typ, bezeichnung, draft_data, einheit_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             user_id = VALUES(user_id),
             dienstplan_id = VALUES(dienstplan_id),
             typ = VALUES(typ),
             bezeichnung = VALUES(bezeichnung),
             draft_data = VALUES(draft_data),
+            einheit_id = VALUES(einheit_id),
             updated_at = CURRENT_TIMESTAMP
     ");
-    $stmt->execute([$user_id, $datum, $auswahl, $dienstplan_id, $typ, $bezeichnung, $draft_data]);
+    $stmt->execute([$user_id, $datum, $auswahl, $dienstplan_id, $typ, $bezeichnung, $draft_data, $einheit_id]);
     echo json_encode(['success' => true, 'message' => 'Entwurf gespeichert']);
 } catch (Exception $e) {
     error_log('save-anwesenheit-draft: ' . $e->getMessage());

@@ -165,9 +165,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             $stmt_check = $db->prepare("SELECT id FROM members WHERE user_id = ?");
                             $stmt_check->execute([$new_user_id]);
                             if (!$stmt_check->fetch()) {
-                                // Erstelle Mitglied für diesen Benutzer
-                                $stmt_member = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email) VALUES (?, ?, ?, ?)");
-                                $stmt_member->execute([$new_user_id, $first_name, $last_name, $email]);
+                                // Erstelle Mitglied für diesen Benutzer (mit einheit_id für Formular-Zuordnung)
+                                $stmt_member = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, einheit_id) VALUES (?, ?, ?, ?, ?)");
+                                $stmt_member->execute([$new_user_id, $first_name, $last_name, $email, $einheit_id ?: null]);
+                            } else {
+                                $stmt_member = $db->prepare("UPDATE members SET einheit_id = ? WHERE user_id = ?");
+                                $stmt_member->execute([$einheit_id ?: null, $new_user_id]);
                             }
                         } catch (Exception $e) {
                             // Fehler beim Erstellen des Mitglieds ignorieren (Tabelle könnte noch nicht existieren)
@@ -218,13 +221,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $stmt_check = $db->prepare("SELECT id FROM members WHERE user_id = ?");
                         $stmt_check->execute([$user_id]);
                         if ($stmt_check->fetch()) {
-                            // Mitglied existiert, aktualisiere es
-                            $stmt_member = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ? WHERE user_id = ?");
-                            $stmt_member->execute([$first_name, $last_name, $email, $user_id]);
+                            // Mitglied existiert, aktualisiere es (inkl. einheit_id für Formular-Zuordnung)
+                            $stmt_member = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ?, einheit_id = ? WHERE user_id = ?");
+                            $stmt_member->execute([$first_name, $last_name, $email, $einheit_id ?: null, $user_id]);
                         } else {
                             // Mitglied existiert nicht, erstelle es
-                            $stmt_member = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email) VALUES (?, ?, ?, ?)");
-                            $stmt_member->execute([$user_id, $first_name, $last_name, $email]);
+                            $stmt_member = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, einheit_id) VALUES (?, ?, ?, ?, ?)");
+                            $stmt_member->execute([$user_id, $first_name, $last_name, $email, $einheit_id ?: null]);
                         }
                     } catch (Exception $e) {
                         // Fehler ignorieren

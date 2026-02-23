@@ -152,9 +152,10 @@ function anwesenheitsliste_felder_laden($settings = null) {
  * @param PDO $db Datenbankverbindung
  * @param array $draft Der Draft aus $_SESSION['anwesenheit_draft']
  * @param int $user_id Benutzer-ID
+ * @param int|null $einheit_id Einheit-ID (optional, sonst aus Session)
  * @return bool true bei Erfolg
  */
-function anwesenheitsliste_draft_persist($db, $draft, $user_id) {
+function anwesenheitsliste_draft_persist($db, $draft, $user_id, $einheit_id = null) {
     if (!is_array($draft) || empty($draft)) return false;
     if (!function_exists('get_dienstplan_typen_auswahl')) {
         require_once __DIR__ . '/dienstplan-typen.php';
@@ -176,9 +177,15 @@ function anwesenheitsliste_draft_persist($db, $draft, $user_id) {
         }
     }
     $has_vehicle_equipment = (!empty($draft['vehicle_equipment']) && is_array($draft['vehicle_equipment'])) || (!empty($draft['vehicle_equipment_sonstiges']) && is_array($draft['vehicle_equipment_sonstiges']));
+    $eid = $einheit_id;
+    if ($eid === null || $eid <= 0) {
+        $eid = isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0;
+        if ($eid <= 0 && function_exists('get_current_einheit_id')) $eid = (int)get_current_einheit_id();
+        if ($eid <= 0) $eid = 1;
+    }
     if (!$has_members && !$has_vehicles && !$has_text && !$has_einsatzleiter && !$has_custom && !$has_vehicle_equipment) {
         try {
-            $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?")->execute([$draft['datum'] ?? '', $draft['auswahl'] ?? '']);
+            $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ? AND einheit_id = ?")->execute([$draft['datum'] ?? '', $draft['auswahl'] ?? '', $eid]);
         } catch (Exception $e) {}
         return true;
     }
@@ -192,12 +199,16 @@ function anwesenheitsliste_draft_persist($db, $draft, $user_id) {
                 dienstplan_id INT NULL,
                 typ VARCHAR(50) NOT NULL DEFAULT 'dienst',
                 bezeichnung VARCHAR(255) NULL,
+                einheit_id INT NOT NULL DEFAULT 1,
                 draft_data JSON NOT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY unique_datum_auswahl (datum, auswahl)
+                UNIQUE KEY unique_datum_auswahl_einheit (datum, auswahl, einheit_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
     } catch (Exception $e) { /* ignore */ }
+    try { $db->exec("ALTER TABLE anwesenheitsliste_drafts ADD COLUMN einheit_id INT NOT NULL DEFAULT 1"); } catch (Exception $e) {}
+    try { $db->exec("ALTER TABLE anwesenheitsliste_drafts DROP INDEX unique_datum_auswahl"); } catch (Exception $e) {}
+    try { $db->exec("ALTER TABLE anwesenheitsliste_drafts ADD UNIQUE KEY unique_datum_auswahl_einheit (datum, auswahl, einheit_id)"); } catch (Exception $e) {}
     try {
         $draft_data = json_encode($draft);
         $datum = $draft['datum'] ?? date('Y-m-d');
@@ -206,11 +217,11 @@ function anwesenheitsliste_draft_persist($db, $draft, $user_id) {
         $typ = $draft['typ'] ?? 'dienst';
         $bezeichnung = $draft['bezeichnung_sonstige'] ?? null;
         $stmt = $db->prepare("
-            INSERT INTO anwesenheitsliste_drafts (user_id, datum, auswahl, dienstplan_id, typ, bezeichnung, draft_data)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), dienstplan_id = VALUES(dienstplan_id), typ = VALUES(typ), bezeichnung = VALUES(bezeichnung), draft_data = VALUES(draft_data), updated_at = CURRENT_TIMESTAMP
+            INSERT INTO anwesenheitsliste_drafts (user_id, datum, auswahl, dienstplan_id, typ, bezeichnung, draft_data, einheit_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), dienstplan_id = VALUES(dienstplan_id), typ = VALUES(typ), bezeichnung = VALUES(bezeichnung), draft_data = VALUES(draft_data), einheit_id = VALUES(einheit_id), updated_at = CURRENT_TIMESTAMP
         ");
-        $stmt->execute([(int)$user_id, $datum, $auswahl, $dienstplan_id, $typ, $bezeichnung, $draft_data]);
+        $stmt->execute([(int)$user_id, $datum, $auswahl, $dienstplan_id, $typ, $bezeichnung, $draft_data, $eid]);
         return true;
     } catch (Exception $e) {
         error_log('anwesenheitsliste_draft_persist: ' . $e->getMessage());

@@ -166,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     $draft['maengel'] = $maengel;
-    anwesenheitsliste_draft_persist($db, $draft, (int)$_SESSION['user_id']);
+    anwesenheitsliste_draft_persist($db, $draft, (int)$_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null);
     $redirect = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
     if (($draft['typ'] ?? '') === 'einsatz') {
         $typen_map = get_dienstplan_typen_auswahl();

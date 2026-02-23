@@ -130,17 +130,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengel_draft'])
     $draft['maengel'] = $maengel;
     $_SESSION[$draft_key] = $draft;
     try {
-        $db->exec("CREATE TABLE IF NOT EXISTS anwesenheitsliste_drafts (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NULL, datum DATE NOT NULL, auswahl VARCHAR(50) NOT NULL, dienstplan_id INT NULL, typ VARCHAR(50) NOT NULL DEFAULT 'dienst', bezeichnung VARCHAR(255) NULL, draft_data JSON NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY unique_datum_auswahl (datum, auswahl)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-        $stmt = $db->prepare("INSERT INTO anwesenheitsliste_drafts (user_id, datum, auswahl, dienstplan_id, typ, bezeichnung, draft_data) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), dienstplan_id=VALUES(dienstplan_id), typ=VALUES(typ), bezeichnung=VALUES(bezeichnung), draft_data=VALUES(draft_data), updated_at=CURRENT_TIMESTAMP");
-        $stmt->execute([
-            (int)($_SESSION['user_id'] ?? 0),
-            $draft['datum'],
-            $draft['auswahl'],
-            $draft['dienstplan_id'] ?? null,
-            $draft['typ'] ?? 'dienst',
-            $draft['bezeichnung_sonstige'] ?? $draft['thema'] ?? null,
-            json_encode($draft)
-        ]);
+        require_once __DIR__ . '/includes/anwesenheitsliste-helper.php';
+        anwesenheitsliste_draft_persist($db, $draft, (int)($_SESSION['user_id'] ?? 0), $einheit_id > 0 ? $einheit_id : null);
     } catch (Exception $e) { error_log('anwesenheitsliste-maengel draft save: ' . $e->getMessage()); }
     header('Location: ' . $back_url);
     exit;

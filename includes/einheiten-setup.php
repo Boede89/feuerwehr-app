@@ -52,7 +52,11 @@ try {
     try { $db->exec("ALTER TABLE vehicles ADD COLUMN einheit_id INT NULL"); } catch (Exception $e) {}
     try { $db->exec("ALTER TABLE vehicles ADD CONSTRAINT fk_vehicles_einheit FOREIGN KEY (einheit_id) REFERENCES einheiten(id) ON DELETE SET NULL"); } catch (Exception $e) {}
 
-    // Bestehende Daten: Einheit 1 zuweisen (Löschzug Amern)
+    // Bestehende Daten: Members mit user_id von users.einheit_id übernehmen
+    try {
+        $db->exec("UPDATE members m INNER JOIN users u ON m.user_id = u.id SET m.einheit_id = u.einheit_id WHERE m.einheit_id IS NULL AND u.einheit_id IS NOT NULL");
+    } catch (Exception $e) {}
+    // Übrige: Einheit 1 zuweisen (Löschzug Amern)
     try {
         $db->exec("UPDATE members SET einheit_id = 1 WHERE einheit_id IS NULL");
         $db->exec("UPDATE vehicles SET einheit_id = 1 WHERE einheit_id IS NULL");
