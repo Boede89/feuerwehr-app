@@ -35,18 +35,7 @@ if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
     exit;
 }
 
-$einheit_name = trim((string)($_POST['einheit_name'] ?? ''));
-$einheit_kurz = trim((string)($_POST['einheit_kurzbeschreibung'] ?? ''));
-
-if ($einheit_name === '') {
-    header('Location: settings-global.php?einheit_id=' . $einheit_id . '&tab=einheit&error=name_required');
-    exit;
-}
-
 try {
-    $stmt = $db->prepare("UPDATE einheiten SET name = ?, kurzbeschreibung = ? WHERE id = ?");
-    $stmt->execute([$einheit_name, $einheit_kurz, $einheit_id]);
-
     $settings = load_settings_for_einheit($db, $einheit_id);
     ensure_einheit_settings_table($db);
     $app = ['geraetehaus_adresse' => trim(sanitize_input($_POST['geraetehaus_adresse'] ?? ''))];

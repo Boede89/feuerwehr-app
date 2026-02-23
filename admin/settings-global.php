@@ -507,17 +507,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="card">
                     <div class="card-header"><i class="fas fa-building"></i> Einheit bearbeiten</div>
                     <div class="card-body">
-                        <p class="text-muted small mb-4">Name, Kurzbeschreibung und App-Optionen der Einheit anpassen.</p>
+                        <p class="text-muted small mb-4">App-Optionen der Einheit anpassen. Name und Kurzbeschreibung können Sie als Superadmin unter <a href="settings-einheiten.php">Einheiten</a> im Modal „Einheit bearbeiten“ ändern.</p>
                         <?php if ($einheit_id > 0): ?>
-                            <div class="mb-4">
-                                <label for="einheit_name" class="form-label">Name</label>
-                                <input type="text" class="form-control" id="einheit_name" name="einheit_name" form="einheitForm" value="<?php echo htmlspecialchars($einheit['name'] ?? ''); ?>" required>
-                            </div>
-                            <div class="mb-4">
-                                <label for="einheit_kurzbeschreibung" class="form-label">Kurzbeschreibung (optional)</label>
-                                <input type="text" class="form-control" id="einheit_kurzbeschreibung" name="einheit_kurzbeschreibung" form="einheitForm" value="<?php echo htmlspecialchars($einheit['kurzbeschreibung'] ?? ''); ?>">
-                            </div>
-                            <hr class="my-4">
                             <h6 class="mb-3">App-Optionen</h6>
                             <div class="mb-3">
                                 <label class="form-label">Adresse Gerätehaus</label>
