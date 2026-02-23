@@ -54,11 +54,23 @@ try {
         exit;
     }
 
-    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $script_dir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
-    $app_base = rtrim(dirname($script_dir), '/');
-    $autologin_url = $protocol . '://' . $host . $app_base . '/autologin.php?token=' . urlencode($user['autologin_token']);
+    $base_url = '';
+    try {
+        $stmt_app = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_url'");
+        $stmt_app->execute();
+        $app_url = $stmt_app->fetchColumn();
+        if (!empty(trim((string)$app_url))) {
+            $base_url = rtrim(trim($app_url), '/');
+        }
+    } catch (Exception $e) {}
+    if ($base_url === '') {
+        $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $script_dir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+        $app_base = rtrim(dirname($script_dir), '/');
+        $base_url = $protocol . '://' . $host . $app_base;
+    }
+    $autologin_url = $base_url . '/autologin.php?token=' . urlencode($user['autologin_token']);
 
     $validity_hint = empty($user['autologin_expires']) ? 'Unbegrenzt gültig.' : 'Gültig bis ' . date('d.m.Y', strtotime($user['autologin_expires'])) . '.';
 
