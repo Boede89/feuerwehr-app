@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -14,14 +15,11 @@ if (!hasAdminPermission()) {
 
 $message = '';
 $error = '';
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 
 $settings = [];
 try {
-    $stmt = $db->prepare('SELECT setting_key, setting_value FROM settings');
-    $stmt->execute();
-    foreach ($stmt->fetchAll() as $row) {
-        $settings[$row['setting_key']] = $row['setting_value'];
-    }
+    $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
 } catch (Exception $e) {
     $error = 'Fehler beim Laden: ' . $e->getMessage();
 }
@@ -32,8 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         try {
             $divera_dienstplan_default_group_id = trim((string)($_POST['divera_dienstplan_default_group_id'] ?? ''));
-            $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
-            $stmt->execute(['divera_dienstplan_default_group_id', $divera_dienstplan_default_group_id]);
+            $save_einheit_id = (int)($_POST['einheit_id'] ?? $einheit_id);
+            if ($save_einheit_id > 0) {
+                save_setting_for_einheit($db, $save_einheit_id, 'divera_dienstplan_default_group_id', $divera_dienstplan_default_group_id);
+            } else {
+                $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+                $stmt->execute(['divera_dienstplan_default_group_id', $divera_dienstplan_default_group_id]);
+            }
             $message = 'Dienstplan-Einstellungen gespeichert.';
             $settings['divera_dienstplan_default_group_id'] = $divera_dienstplan_default_group_id;
         } catch (Exception $e) {
@@ -74,7 +77,7 @@ $default_group_id = trim((string)($settings['divera_dienstplan_default_group_id'
         <h1 class="h3 mb-0"><i class="fas fa-calendar-alt"></i> Dienstplan Einstellungen</h1>
         <?php
         $return_formularcenter = isset($_GET['return']) && $_GET['return'] === 'formularcenter';
-        $back_url = $return_formularcenter ? 'settings-formularcenter.php?tab=dienstplan' : 'settings.php';
+        $back_url = $return_formularcenter ? 'settings-formularcenter.php?tab=dienstplan' . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '') : 'settings.php';
         $back_label = $return_formularcenter ? 'Zurück zu Formularcenter' : 'Zurück zu Einstellungen';
         $back_target = $return_formularcenter ? ' target="_parent"' : '';
         ?>
@@ -86,8 +89,9 @@ $default_group_id = trim((string)($settings['divera_dienstplan_default_group_id'
     <div class="card">
         <div class="card-header"><i class="fas fa-calendar-plus"></i> Divera 24/7 Export</div>
         <div class="card-body">
-            <p class="text-muted small">Beim Export von Dienstplan-Terminen nach Divera wird diese Gruppe standardmäßig ausgewählt. Gruppen werden in den <a href="settings-global.php">Globalen Einstellungen</a> definiert.</p>
+            <p class="text-muted small">Beim Export von Dienstplan-Terminen nach Divera wird diese Gruppe standardmäßig ausgewählt. Gruppen werden in den <a href="settings-global.php<?php echo $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id . '&tab=divera' : ''; ?>"><?php echo $einheit_id > 0 ? 'Einheits-' : 'Globalen '; ?>Einstellungen</a> definiert.</p>
             <form method="POST">
+                <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                 <div class="mb-3">
                     <label class="form-label">Standard-Empfänger-Gruppe (Divera)</label>
                     <select class="form-select" name="divera_dienstplan_default_group_id" style="max-width: 400px;">

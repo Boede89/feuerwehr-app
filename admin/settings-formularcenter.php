@@ -18,13 +18,11 @@ if (!hasAdminPermission()) {
 
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 $einheit = null;
-$show_einheit_placeholder = false;
 if ($einheit_id > 0) {
     try {
         $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
         $stmt->execute([$einheit_id]);
         $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
-        $show_einheit_placeholder = $einheit && is_einheit_waldniel($db, $einheit_id);
     } catch (Exception $e) {}
 }
 
@@ -59,15 +57,6 @@ if (!in_array($active_tab, ['forms', 'dienstplan'])) {
         <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
     </div>
 
-    <?php if ($show_einheit_placeholder): ?>
-    <div class="card shadow">
-        <div class="card-body text-center py-5">
-            <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
-            <p class="text-muted mb-0">Einstellungen für diese Einheit – noch nicht konfiguriert.</p>
-            <p class="text-muted small mt-2">Die Konfiguration wird in Kürze verfügbar.</p>
-        </div>
-    </div>
-    <?php else: ?>
     <?php $tab_base = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id . '&tab=' : '?tab='; ?>
     <ul class="nav nav-tabs mb-3" id="formularcenterTabs" role="tablist">
         <li class="nav-item" role="presentation">
@@ -90,7 +79,6 @@ if (!in_array($active_tab, ['forms', 'dienstplan'])) {
             <iframe src="settings-dienstplan.php?return=formularcenter<?php echo $einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : ''; ?>" class="border-0 w-100" style="min-height: 500px;" title="Dienstplan-Einstellungen"></iframe>
         </div>
     </div>
-    <?php endif; ?>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

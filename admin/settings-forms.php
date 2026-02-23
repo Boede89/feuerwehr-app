@@ -38,7 +38,8 @@ $formulare = [
 ];
 
 $return_formularcenter = isset($_GET['return']) && $_GET['return'] === 'formularcenter';
-$back_url = $return_formularcenter ? 'settings-formularcenter.php?tab=forms' : 'settings.php';
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+$back_url = $return_formularcenter ? 'settings-formularcenter.php?tab=forms' . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '') : 'settings.php';
 $back_label = $return_formularcenter ? 'Zurück zu Formularcenter' : 'Zurück zu Einstellungen';
 $back_target = $return_formularcenter ? ' target="_parent"' : '';
 ?>
@@ -75,7 +76,7 @@ $back_target = $return_formularcenter ? ' target="_parent"' : '';
     <div class="row g-4">
         <?php foreach ($formulare as $key => $f): ?>
         <div class="col-md-6 col-lg-4">
-            <a href="<?php echo htmlspecialchars($f['settings_url']); ?>?return=formularcenter" class="text-decoration-none"<?php echo $return_formularcenter ? ' target="_parent"' : ''; ?>>
+            <a href="<?php echo htmlspecialchars($f['settings_url']); ?>?return=formularcenter<?php echo $einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : ''; ?>" class="text-decoration-none"<?php echo $return_formularcenter ? ' target="_parent"' : ''; ?>>
                 <div class="card h-100 shadow-sm clickable-card" style="transition: transform 0.2s, box-shadow 0.2s;">
                     <div class="card-body text-center p-4 d-flex flex-column">
                         <div class="mb-3" style="height: 60px; display: flex; align-items: center; justify-content: center;">

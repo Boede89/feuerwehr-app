@@ -14,13 +14,11 @@ $error = '';
 
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
 $einheit = null;
-$is_waldniel = false;
 if ($einheit_id > 0) {
     try {
         $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
         $stmt->execute([$einheit_id]);
         $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
-        $is_waldniel = $einheit && is_einheit_waldniel($db, $einheit_id);
     } catch (Exception $e) {}
 }
 
@@ -153,15 +151,13 @@ try {
     if ($val !== false && is_numeric($val)) { $warnDays = (int)$val; }
 } catch (Exception $e) {}
 
-// E-Mail-Vorlagen laden (für Waldniel leer)
+// E-Mail-Vorlagen laden (global, für alle Einheiten)
 $emailTemplates = [];
-if (!$is_waldniel) {
-    try {
-        $stmt = $db->prepare("SELECT * FROM email_templates ORDER BY template_key");
-        $stmt->execute();
-        $emailTemplates = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) { /* ignore */ }
-}
+try {
+    $stmt = $db->prepare("SELECT * FROM email_templates ORDER BY template_key");
+    $stmt->execute();
+    $emailTemplates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) { /* ignore */ }
 
 // Benutzer für Benachrichtigungseinstellungen laden (nur Benutzer der aktuellen Einheit)
 $users = [];

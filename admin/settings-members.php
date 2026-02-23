@@ -17,13 +17,11 @@ $message = '';
 $error = '';
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 $einheit = null;
-$show_einheit_placeholder = false;
 if ($einheit_id > 0) {
     try {
         $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
         $stmt->execute([$einheit_id]);
         $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
-        $show_einheit_placeholder = $einheit && is_einheit_waldniel($db, $einheit_id);
     } catch (Exception $e) {}
 }
 
@@ -106,8 +104,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Standardqualifikation speichern
             if (isset($_POST['save_default_qual'])) {
                 $new_default = trim($_POST['default_qualification_id'] ?? '');
-                $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-                $stmt->execute(['member_default_qualification_id', $new_default]);
+                $save_einheit_id = (int)($_POST['einheit_id'] ?? 0);
+                if ($save_einheit_id > 0) {
+                    save_setting_for_einheit($db, $save_einheit_id, 'member_default_qualification_id', $new_default);
+                } else {
+                    $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+                    $stmt->execute(['member_default_qualification_id', $new_default]);
+                }
                 $default_qualification_id = $new_default;
                 $message = 'Standardqualifikation wurde gespeichert.';
             }
@@ -171,15 +174,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add
             <?php echo show_error($error); ?>
         <?php endif; ?>
 
-        <?php if ($show_einheit_placeholder): ?>
-        <div class="card shadow">
-            <div class="card-body text-center py-5">
-                <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
-                <p class="text-muted mb-0">Einstellungen für diese Einheit – noch nicht konfiguriert.</p>
-                <p class="text-muted small mt-2">Die Konfiguration wird in Kürze verfügbar.</p>
-            </div>
-        </div>
-        <?php else: ?>
         <div class="row mb-4">
             <div class="col-12">
                 <a href="members.php" class="btn btn-primary me-2">
@@ -337,11 +331,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add
                 </div>
             </div>
         </div>
-        <?php endif; ?>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <?php if (!$show_einheit_placeholder): ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.edit-qual-btn').forEach(function(btn) {
@@ -367,6 +359,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add
             });
         });
     </script>
-    <?php endif; ?>
 </body>
 </html>

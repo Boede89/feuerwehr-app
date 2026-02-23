@@ -6,6 +6,7 @@
 session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -18,6 +19,7 @@ if (!hasAdminPermission()) {
 
 $message = '';
 $error = '';
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 
 // Standard-Felder (für Migration von alter Konfiguration)
 $standard_felder = [
@@ -39,11 +41,7 @@ $standard_felder = [
 
 $settings = [];
 try {
-    $stmt = $db->prepare('SELECT setting_key, setting_value FROM settings');
-    $stmt->execute();
-    foreach ($stmt->fetchAll() as $row) {
-        $settings[$row['setting_key']] = $row['setting_value'];
-    }
+    $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
 } catch (Exception $e) {
     $error = 'Fehler beim Laden: ' . $e->getMessage();
 }
@@ -174,16 +172,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $felder = $felder_post;
                 $message = 'Einstellungen gespeichert.';
             }
-            $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
-            $stmt->execute(['anwesenheitsliste_felder', json_encode($felder)]);
+            $save_einheit_id = (int)($_POST['einheit_id'] ?? $einheit_id);
+            $save_fn = function ($key, $val) use ($db, $save_einheit_id) {
+                if ($save_einheit_id > 0) {
+                    save_setting_for_einheit($db, $save_einheit_id, $key, $val);
+                } else {
+                    $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+                    $stmt->execute([$key, $val]);
+                }
+            };
+            $save_fn('anwesenheitsliste_felder', json_encode($felder));
             // E-Mail-Einstellungen (speichern wenn Felder im POST – felderForm wurde abgeschickt)
             if (array_key_exists('email_auto', $_POST) || array_key_exists('email_recipients', $_POST)) {
-                $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
-                $stmt->execute(['anwesenheitsliste_email_auto', isset($_POST['email_auto']) ? '1' : '0']);
+                $save_fn('anwesenheitsliste_email_auto', isset($_POST['email_auto']) ? '1' : '0');
                 $recipients = array_filter(array_map('intval', $_POST['email_recipients'] ?? []));
-                $stmt->execute(['anwesenheitsliste_email_recipients', json_encode(array_values($recipients))]);
+                $save_fn('anwesenheitsliste_email_recipients', json_encode(array_values($recipients)));
                 $manual = trim($_POST['email_manual'] ?? '');
-                $stmt->execute(['anwesenheitsliste_email_manual', $manual]);
+                $save_fn('anwesenheitsliste_email_manual', $manual);
                 $email_auto = isset($_POST['email_auto']);
                 $email_recipients = $recipients;
                 $email_manual = $manual;
@@ -223,7 +228,7 @@ function opt($arr) {
         <h1 class="h3 mb-0"><i class="fas fa-clipboard-list"></i> Anwesenheitsliste – Felder verwalten</h1>
         <?php
         $return_formularcenter = isset($_GET['return']) && $_GET['return'] === 'formularcenter';
-        $back_url = $return_formularcenter ? 'settings-formularcenter.php?tab=forms' : 'settings.php';
+        $back_url = $return_formularcenter ? 'settings-formularcenter.php?tab=forms' . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '') : 'settings.php';
         $back_label = $return_formularcenter ? 'Zurück zu Formularcenter' : 'Zurück';
         $back_target = $return_formularcenter ? ' target="_parent"' : '';
         ?>
@@ -239,6 +244,7 @@ function opt($arr) {
         <div class="card-body">
             <form method="POST" class="row g-3">
                 <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                 <input type="hidden" name="action" value="add">
                 <div class="col-md-3">
                     <label class="form-label">Bezeichnung</label>
@@ -265,6 +271,7 @@ function opt($arr) {
 
     <form method="POST" id="felderForm">
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+        <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
         <input type="hidden" name="action" value="save" id="formAction">
         <input type="hidden" name="delete_id" value="" id="deleteId">
         <div class="card mb-4">
