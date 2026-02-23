@@ -11,8 +11,15 @@ if (!isset($_SESSION['user_id']) || !hasAdminPermission()) {
 
 $message = '';
 $error = '';
+if (isset($_GET['saved']) && $_GET['saved'] === '1') {
+    $message = 'Einstellung gespeichert.';
+}
 
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
+$active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'warnschwelle';
+$valid_tabs = ['warnschwelle', 'email', 'benachrichtigungen', 'cc'];
+if (!in_array($active_tab, $valid_tabs)) $active_tab = 'warnschwelle';
+$tab_param = $einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '';
 $einheit = null;
 if ($einheit_id > 0) {
     try {
@@ -142,13 +149,19 @@ Ihre Feuerwehr'
     }
 } catch (Exception $e) { /* ignore */ }
 
-// Load current value
+// Load current value (einheitsspezifisch)
 $warnDays = 90;
 try {
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'atemschutz_warn_days' LIMIT 1");
-    $stmt->execute();
-    $val = $stmt->fetchColumn();
-    if ($val !== false && is_numeric($val)) { $warnDays = (int)$val; }
+    if ($einheit_id > 0) {
+        $es = load_settings_for_einheit($db, $einheit_id);
+        $val = $es['atemschutz_warn_days'] ?? '';
+        if ($val !== '' && is_numeric($val)) $warnDays = (int)$val;
+    } else {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'atemschutz_warn_days' LIMIT 1");
+        $stmt->execute();
+        $val = $stmt->fetchColumn();
+        if ($val !== false && is_numeric($val)) { $warnDays = (int)$val; }
+    }
 } catch (Exception $e) {}
 
 // E-Mail-Vorlagen laden (global, für alle Einheiten)
@@ -230,23 +243,29 @@ if ($einheit_id > 0) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
-        // Warnschwelle speichern
-        $newWarn = (int)($_POST['warn_days'] ?? 90);
-        if ($newWarn < 0) { $newWarn = 0; }
-        $einheit_id_post = isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0;
-        try {
-            if ($einheit_id_post > 0) {
-                save_setting_for_einheit($db, $einheit_id_post, 'atemschutz_warn_days', (string)$newWarn);
-            } else {
-                $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('atemschutz_warn_days', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-                $stmt->execute([$newWarn]);
+        // Warnschwelle speichern (nur wenn explizit von diesem Formular gesendet)
+        if (isset($_POST['save_warnschwelle'])) {
+            $newWarn = (int)($_POST['warn_days'] ?? 90);
+            if ($newWarn < 0) { $newWarn = 0; }
+            $einheit_id_post = isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0;
+            try {
+                if ($einheit_id_post > 0) {
+                    save_setting_for_einheit($db, $einheit_id_post, 'atemschutz_warn_days', (string)$newWarn);
+                } else {
+                    $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('atemschutz_warn_days', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+                    $stmt->execute([$newWarn]);
+                }
+                $warnDays = $newWarn;
+                $redirect = 'settings-atemschutz.php?tab=warnschwelle';
+                if ($einheit_id_post > 0) $redirect .= '&einheit_id=' . (int)$einheit_id_post;
+                header('Location: ' . $redirect . '&saved=1');
+                exit;
+            } catch (Exception $e) {
+                $error = 'Speichern der Warnschwelle fehlgeschlagen: ' . htmlspecialchars($e->getMessage());
             }
-            $warnDays = $newWarn;
-        } catch (Exception $e) {
-            $error = 'Speichern der Warnschwelle fehlgeschlagen: ' . htmlspecialchars($e->getMessage());
         }
         
         // Debug: POST-Daten loggen
@@ -377,6 +396,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Atemschutz – Einstellungen</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="../assets/css/style.css" rel="stylesheet">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -401,34 +421,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
-        <!-- Navigation Buttons -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="btn-group flex-wrap" role="group">
-                    <button type="button" class="btn btn-outline-primary active" id="warnschwelleBtn" onclick="showSection('warnschwelle')">
-                        <i class="fas fa-triangle-exclamation"></i> Warnschwelle
-                    </button>
-                    <button type="button" class="btn btn-outline-primary" id="emailTemplatesBtn" onclick="showSection('emailTemplates')">
-                        <i class="fas fa-envelope"></i> E-Mail-Vorlagen
-                    </button>
-                    <button type="button" class="btn btn-outline-primary" id="notificationsBtn" onclick="showSection('notifications')">
-                        <i class="fas fa-bell"></i> Benachrichtigungen
-                    </button>
-                    <button type="button" class="btn btn-outline-primary" id="ccRecipientsBtn" onclick="showSection('ccRecipients')">
-                        <i class="fas fa-copy"></i> E-Mail CC
-                    </button>
-                </div>
-            </div>
-        </div>
+        <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <a class="nav-link <?php echo $active_tab === 'warnschwelle' ? 'active' : ''; ?>" href="?tab=warnschwelle<?php echo $tab_param; ?>">
+                    <i class="fas fa-triangle-exclamation"></i> Warnschwelle
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?php echo $active_tab === 'email' ? 'active' : ''; ?>" href="?tab=email<?php echo $tab_param; ?>">
+                    <i class="fas fa-envelope"></i> E-Mail-Vorlagen
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?php echo $active_tab === 'benachrichtigungen' ? 'active' : ''; ?>" href="?tab=benachrichtigungen<?php echo $tab_param; ?>">
+                    <i class="fas fa-bell"></i> Benachrichtigungen
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?php echo $active_tab === 'cc' ? 'active' : ''; ?>" href="?tab=cc<?php echo $tab_param; ?>">
+                    <i class="fas fa-copy"></i> E-Mail CC
+                </a>
+            </li>
+        </ul>
 
+        <?php if ($active_tab === 'warnschwelle'): ?>
         <!-- Warnschwelle -->
-        <div class="card mb-4" id="warnschwelleSection">
+        <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-triangle-exclamation"></i> Warnschwelle</h5>
             </div>
             <div class="card-body">
-                <form method="post">
+                <form method="post" action="?tab=warnschwelle<?php echo $tab_param; ?>">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                    <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                     <div class="row g-3 align-items-end">
                         <div class="col-12 col-md-4">
                             <label class="form-label">Warnschwelle (Tage bis Ablauf)</label>
@@ -439,20 +464,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="form-text">Bis-Daten werden innerhalb dieser Schwelle gelb markiert.</div>
                         </div>
                         <div class="col-12 col-md-3">
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
+                            <button type="submit" name="save_warnschwelle" value="1" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
                         </div>
                     </div>
                 </form>
             </div>
         </div>
-
+        <?php elseif ($active_tab === 'email'): ?>
         <!-- E-Mail-Vorlagen -->
-        <div class="card" id="emailTemplatesSection" style="display: none;">
+        <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-envelope"></i> E-Mail-Vorlagen</h5>
             </div>
             <div class="card-body">
-                <form method="post" id="emailTemplatesForm">
+                <form method="post" id="emailTemplatesForm" action="?tab=email<?php echo $tab_param; ?>">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                     <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                     
@@ -489,21 +514,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save"></i> E-Mail-Vorlagen speichern
                         </button>
-                        <a href="settings.php" class="btn btn-outline-secondary">
+                        <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary">
                             <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
                         </a>
                     </div>
                 </form>
             </div>
         </div>
-
+        <?php elseif ($active_tab === 'benachrichtigungen'): ?>
         <!-- Benachrichtigungseinstellungen -->
-        <div class="card mb-4" id="notificationsSection" style="display: none;">
+        <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-bell"></i> Benachrichtigungseinstellungen</h5>
             </div>
             <div class="card-body">
-                <form method="post" id="notificationsForm">
+                <form method="post" id="notificationsForm" action="?tab=benachrichtigungen<?php echo $tab_param; ?>">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                     <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                     <input type="hidden" name="action" value="update_atemschutz_notifications">
@@ -545,21 +570,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save"></i> Benachrichtigungseinstellungen speichern
                         </button>
-                        <a href="settings.php" class="btn btn-outline-secondary">
+                        <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary">
                             <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
                         </a>
                     </div>
                 </form>
             </div>
         </div>
-
+        <?php elseif ($active_tab === 'cc'): ?>
         <!-- CC-Empfänger für Erinnerungs-E-Mails -->
-        <div class="card mb-4" id="ccRecipientsSection" style="display: none;">
+        <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-copy"></i> E-Mail-Kopie (CC) bei Erinnerungen</h5>
             </div>
             <div class="card-body">
-                <form method="post" id="ccRecipientsForm">
+                <form method="post" id="ccRecipientsForm" action="?tab=cc<?php echo $tab_param; ?>">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                     <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                     <input type="hidden" name="action" value="update_cc_recipients">
@@ -602,35 +627,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save"></i> CC-Empfänger speichern
                         </button>
-                        <a href="settings.php" class="btn btn-outline-secondary">
+                        <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary">
                             <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
                         </a>
                     </div>
                 </form>
             </div>
         </div>
+        <?php endif; ?>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function showSection(sectionName) {
-            // Alle Sektionen verstecken
-            document.getElementById('warnschwelleSection').style.display = 'none';
-            document.getElementById('emailTemplatesSection').style.display = 'none';
-            document.getElementById('notificationsSection').style.display = 'none';
-            document.getElementById('ccRecipientsSection').style.display = 'none';
-            
-            // Alle Buttons deaktivieren
-            document.getElementById('warnschwelleBtn').classList.remove('active');
-            document.getElementById('emailTemplatesBtn').classList.remove('active');
-            document.getElementById('notificationsBtn').classList.remove('active');
-            document.getElementById('ccRecipientsBtn').classList.remove('active');
-            
-            // Gewählte Sektion anzeigen
-            document.getElementById(sectionName + 'Section').style.display = 'block';
-            document.getElementById(sectionName + 'Btn').classList.add('active');
-        }
-    </script>
 </body>
 </html>
 
