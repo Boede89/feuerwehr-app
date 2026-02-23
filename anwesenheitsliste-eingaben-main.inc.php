@@ -958,7 +958,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?")->execute([$draft['datum'], $draft['auswahl']]);
         } catch (Exception $e) { /* ignore */ }
         $return_fc = !empty($_POST['return']) && $_POST['return'] === 'formularcenter';
-        $redirect = $return_fc ? 'admin/formularcenter.php?tab=submissions&message=' . urlencode('Anwesenheitsliste wurde gespeichert.') : 'anwesenheitsliste.php?message=erfolg&datum=' . urlencode($draft['datum'] ?? date('Y-m-d'));
+        $redirect = $return_fc ? 'admin/formularcenter.php?tab=submissions&message=' . urlencode('Anwesenheitsliste wurde gespeichert.') : 'anwesenheitsliste.php?message=erfolg&datum=' . urlencode($draft['datum'] ?? date('Y-m-d')) . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '');
         if (!$return_fc) {
             $print_after = !empty($_POST['print_after_save']) && $_POST['print_after_save'] === '1';
             $print_mb = !empty($_POST['print_maengelbericht_after_save']) && $_POST['print_maengelbericht_after_save'] === '1';
@@ -1386,7 +1386,7 @@ if ($is_einsatz) {
                             <?php endforeach; ?>
                             <div class="d-flex flex-wrap gap-2">
                                 <button type="button" class="btn btn-success" id="btnSaveAnwesenheit"><i class="fas fa-save"></i> Anwesenheitsliste speichern</button>
-                                <a href="<?php echo $return_formularcenter ? 'admin/formularcenter.php?tab=submissions' : 'anwesenheitsliste.php'; ?>" class="btn btn-secondary"><?php echo $return_formularcenter ? 'Zurück zum Formularcenter' : 'Zurück zur Auswahl'; ?></a>
+                                <a href="<?php echo $return_formularcenter ? 'admin/formularcenter.php?tab=submissions' : 'anwesenheitsliste.php' . ($einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''); ?>" class="btn btn-secondary"><?php echo $return_formularcenter ? 'Zurück zum Formularcenter' : 'Zurück zur Auswahl'; ?></a>
                             </div>
                         </form>
     <!-- Modal: Bericht absenden bestätigen -->
