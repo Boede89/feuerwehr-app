@@ -19,6 +19,8 @@ try {
 
     // is_active Spalte nachträglich hinzufügen (falls Tabelle älter)
     try { $db->exec("ALTER TABLE einheiten ADD COLUMN is_active TINYINT(1) DEFAULT 1"); } catch (Exception $e) {}
+    // kurzbeschreibung nachträglich hinzufügen (falls Tabelle älter)
+    try { $db->exec("ALTER TABLE einheiten ADD COLUMN kurzbeschreibung VARCHAR(500) NULL"); } catch (Exception $e) {}
 
     // Standard-Einheiten anlegen falls leer
     $stmt = $db->query("SELECT COUNT(*) FROM einheiten");
