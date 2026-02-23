@@ -583,6 +583,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="tab-content" id="diveraTabContent">
                             <div class="tab-pane fade show active" id="divera-verbindung" role="tabpanel">
                                 <p class="text-muted small mb-3">Einstellungen für die automatische Übermittlung genehmigter Fahrzeugreservierungen und Dienstplan-Termine an Divera (einheitenspezifisch).</p>
+                                <?php if (is_superadmin($_SESSION['user_id'] ?? 0)): ?>
+                                <p class="small mb-3"><a href="cleanup-divera-global.php">Globale Divera-Keys bereinigen</a> (falls Einsätze falscher Einheit angezeigt werden)</p>
+                                <?php endif; ?>
                                 <div class="mb-3">
                                     <label class="form-label">Access Key (Einheits-Key)</label>
                                     <div class="input-group">

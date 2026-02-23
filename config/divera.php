@@ -2,24 +2,28 @@
 /**
  * Divera 24/7 – API-Konfiguration für Termin-Webhook
  *
- * Access Key: In Divera 24/7 unter Verwaltung → API-Verwaltung / Zugangsdaten erzeugen.
- * Optional: config/divera.local.php anlegen (siehe config/divera.local.php.example),
- * dort den echten Key eintragen (divera.local.php wird von Git ignoriert).
+ * Access Key: Einheitenspezifisch in Einstellungen → Einheit → Divera.
+ * Kein globaler Key mehr – nur einheit_settings.
  * API-Dokumentation: https://api.divera247.com/ (v2/event – Termin erstellen)
  */
 $divera_config = [
     'api_base_url' => 'https://app.divera247.com',
-    'access_key'   => '', // z.B. 'Ihr-Access-Key-von-Divera'
+    'access_key'   => '',
 ];
 
-// Lokale Overrides (z.B. config/divera.local.php mit $divera_config['access_key'] = '...';)
-if (is_file(__DIR__ . '/divera.local.php')) {
-    include __DIR__ . '/divera.local.php';
-}
-
-// Einstellungen laden: zuerst global, dann Einheit (Einheit überschreibt)
 $eid = (function_exists('get_current_einheit_id')) ? get_current_einheit_id() : null;
-if (!empty($db)) {
+
+if (!empty($db) && $eid > 0) {
+    // Einheit ausgewählt: NUR einheit_settings – kein divera.local, kein settings, kein users
+    if (function_exists('apply_divera_config_for_einheit')) {
+        require_once dirname(__DIR__) . '/includes/einheit-settings-helper.php';
+        apply_divera_config_for_einheit($db, $eid);
+    }
+} elseif (!empty($db)) {
+    // Keine Einheit: Legacy-Fallback (settings, divera.local, users)
+    if (is_file(__DIR__ . '/divera.local.php')) {
+        include __DIR__ . '/divera.local.php';
+    }
     try {
         $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url')");
         $stmt->execute();
@@ -32,8 +36,4 @@ if (!empty($db)) {
             }
         }
     } catch (Exception $e) {}
-    if ($eid > 0 && function_exists('apply_divera_config_for_einheit')) {
-        require_once dirname(__DIR__) . '/includes/einheit-settings-helper.php';
-        apply_divera_config_for_einheit($db, $eid);
-    }
 }
