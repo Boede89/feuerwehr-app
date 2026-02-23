@@ -95,7 +95,7 @@ $einheit_param = '&einheit_id=' . $einheit_id;
                         <h5 class="card-title"><i class="fas fa-gear me-2"></i>Globale Einstellungen</h5>
                         <p class="text-muted">SMTP, Google Calendar, App-Optionen für diese Einheit.</p>
                         <div class="mt-auto">
-                            <a class="btn btn-secondary" href="settings-global.php?einheit_id=<?php echo $einheit_id; ?>&tab=app">
+                            <a class="btn btn-secondary" href="settings-global.php?einheit_id=<?php echo $einheit_id; ?>&tab=einheit">
                                 <i class="fas fa-wrench"></i> Öffnen
                             </a>
                         </div>

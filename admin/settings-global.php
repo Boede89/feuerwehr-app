@@ -17,8 +17,9 @@ if (!hasAdminPermission()) {
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 $einheit = null;
 $active_tab = isset($_GET['tab']) ? preg_replace('/[^a-z0-9_-]/', '', $_GET['tab']) : 'smtp';
-$valid_tabs = ['smtp', 'google', 'app', 'drucker', 'divera', 'fahrzeuge'];
+$valid_tabs = ['smtp', 'google', 'einheit', 'drucker', 'divera', 'fahrzeuge'];
 if (!in_array($active_tab, $valid_tabs)) $active_tab = 'smtp';
+if ($active_tab === 'app') $active_tab = 'einheit'; // Kompatibilität mit alten Links
 if ($einheit_id > 0) {
     try {
         $stmt = $db->prepare("SELECT id, name, kurzbeschreibung FROM einheiten WHERE id = ?");
@@ -29,32 +30,6 @@ if ($einheit_id > 0) {
 
 $message = '';
 $error = '';
-
-// Einheit bearbeiten (Name, Kurzbeschreibung)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_einheit' && $einheit_id > 0 && $einheit && user_has_einheit_access($_SESSION['user_id'], $einheit_id)) {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
-        $error = 'Ungültiger Sicherheitstoken.';
-    } else {
-        $name = trim(sanitize_input($_POST['einheit_name'] ?? ''));
-        if (empty($name)) {
-            $error = 'Name der Einheit ist erforderlich.';
-            $einheit['name'] = $_POST['einheit_name'] ?? '';
-            $einheit['kurzbeschreibung'] = $_POST['einheit_kurzbeschreibung'] ?? '';
-        } else {
-            try {
-                $kurz = trim(sanitize_input($_POST['einheit_kurzbeschreibung'] ?? ''));
-                $stmt = $db->prepare("UPDATE einheiten SET name = ?, kurzbeschreibung = ? WHERE id = ?");
-                $stmt->execute([$name, $kurz, $einheit_id]);
-                $einheit['name'] = $name;
-                $einheit['kurzbeschreibung'] = $kurz;
-                header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=app&einheit_saved=1');
-                exit;
-            } catch (Exception $e) {
-                $error = 'Fehler: ' . $e->getMessage();
-            }
-        }
-    }
-}
 
 // Fahrzeugverwaltung: POST (add/edit) und GET (delete) vor dem Hauptformular verarbeiten
 $vehicle_action = $_POST['action'] ?? '';
@@ -144,9 +119,6 @@ if (isset($_GET['vehicle_success'])) {
     if ($_GET['vehicle_success'] === 'added') $message = 'Fahrzeug wurde erfolgreich hinzugefügt.';
     elseif ($_GET['vehicle_success'] === 'updated') $message = 'Fahrzeug wurde erfolgreich aktualisiert.';
     elseif ($_GET['vehicle_success'] === 'deleted') $message = 'Fahrzeug wurde erfolgreich gelöscht.';
-}
-if (isset($_GET['einheit_saved']) && $_GET['einheit_saved'] === '1') {
-    $message = 'Einheit wurde aktualisiert.';
 }
 
 // Laden
@@ -330,6 +302,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ];
                 $all = array_merge($smtp, $google, $app, $printer, $divera);
                 save_settings_bulk_for_einheit($db, $save_einheit_id, $all);
+                // Einheit (Name, Kurzbeschreibung) in Tabelle einheiten aktualisieren
+                $einheit_name = trim(sanitize_input($_POST['einheit_name'] ?? ''));
+                if ($einheit_name !== '') {
+                    try {
+                        $stmt = $db->prepare("UPDATE einheiten SET name = ?, kurzbeschreibung = ? WHERE id = ?");
+                        $stmt->execute([$einheit_name, trim(sanitize_input($_POST['einheit_kurzbeschreibung'] ?? '')), $save_einheit_id]);
+                        if ($einheit && (int)($einheit['id'] ?? 0) === $save_einheit_id) {
+                            $einheit['name'] = $einheit_name;
+                            $einheit['kurzbeschreibung'] = trim(sanitize_input($_POST['einheit_kurzbeschreibung'] ?? ''));
+                        }
+                    } catch (Exception $e) {
+                        error_log('einheiten update: ' . $e->getMessage());
+                    }
+                }
             } else {
                 // Global: nur App Name und App URL (Divera ist einheitenspezifisch)
                 $all = [
@@ -354,6 +340,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $redirect_url = 'settings-global.php';
                 if ($save_einheit_id > 0) {
                     $return_tab = preg_replace('/[^a-z0-9_-]/', '', $_POST['return_tab'] ?? 'smtp');
+                    if ($return_tab === 'app') $return_tab = 'einheit';
+                    if (!in_array($return_tab, $valid_tabs)) $return_tab = 'smtp';
                     $redirect_url .= '?einheit_id=' . $save_einheit_id . '&saved=1&tab=' . $return_tab;
                 } else {
                     $redirect_url .= '?saved=1';
@@ -433,7 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <button class="nav-link <?php echo $active_tab === 'google' ? 'active' : ''; ?>" id="tab-google-btn" data-bs-toggle="tab" data-bs-target="#tab-google" type="button" role="tab"><i class="fas fa-calendar me-1"></i> Google Kalender</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link <?php echo $active_tab === 'app' ? 'active' : ''; ?>" id="tab-app-btn" data-bs-toggle="tab" data-bs-target="#tab-app" type="button" role="tab"><i class="fas fa-cog me-1"></i> App</button>
+                <button class="nav-link <?php echo $active_tab === 'einheit' ? 'active' : ''; ?>" id="tab-einheit-btn" data-bs-toggle="tab" data-bs-target="#tab-einheit" type="button" role="tab"><i class="fas fa-building me-1"></i> Einheit</button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link <?php echo $active_tab === 'drucker' ? 'active' : ''; ?>" id="tab-drucker-btn" data-bs-toggle="tab" data-bs-target="#tab-drucker" type="button" role="tab"><i class="fas fa-print me-1"></i> Drucker</button>
@@ -517,29 +505,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
             </div>
-            <div class="tab-pane fade <?php echo $active_tab === 'app' ? 'show active' : ''; ?>" id="tab-app" role="tabpanel">
-                <div class="card mb-4">
+            <div class="tab-pane fade <?php echo $active_tab === 'einheit' ? 'show active' : ''; ?>" id="tab-einheit" role="tabpanel">
+                <div class="card">
                     <div class="card-header"><i class="fas fa-building"></i> Einheit bearbeiten</div>
                     <div class="card-body">
-                        <p class="text-muted small mb-3">Name und Kurzbeschreibung der Einheit anpassen.</p>
-                        <form method="POST">
-                            <input type="hidden" name="action" value="edit_einheit">
-                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                            <div class="mb-3">
-                                <label for="einheit_name" class="form-label">Name</label>
-                                <input type="text" class="form-control" id="einheit_name" name="einheit_name" value="<?php echo htmlspecialchars($einheit['name'] ?? ''); ?>" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="einheit_kurzbeschreibung" class="form-label">Kurzbeschreibung (optional)</label>
-                                <input type="text" class="form-control" id="einheit_kurzbeschreibung" name="einheit_kurzbeschreibung" value="<?php echo htmlspecialchars($einheit['kurzbeschreibung'] ?? ''); ?>">
-                            </div>
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
-                        </form>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-header"><i class="fas fa-cog"></i> App (Einheit)</div>
-                    <div class="card-body">
+                        <p class="text-muted small mb-4">Name, Kurzbeschreibung und App-Optionen der Einheit anpassen.</p>
+                        <div class="mb-4">
+                            <label for="einheit_name" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="einheit_name" name="einheit_name" value="<?php echo htmlspecialchars($einheit['name'] ?? ''); ?>" required>
+                        </div>
+                        <div class="mb-4">
+                            <label for="einheit_kurzbeschreibung" class="form-label">Kurzbeschreibung (optional)</label>
+                            <input type="text" class="form-control" id="einheit_kurzbeschreibung" name="einheit_kurzbeschreibung" value="<?php echo htmlspecialchars($einheit['kurzbeschreibung'] ?? ''); ?>">
+                        </div>
+                        <hr class="my-4">
+                        <h6 class="mb-3">App-Optionen</h6>
                         <div class="mb-3">
                             <label class="form-label">Adresse Gerätehaus</label>
                             <input class="form-control" name="geraetehaus_adresse" placeholder="z.B. Musterstraße 1, 12345 Musterstadt" value="<?php echo htmlspecialchars($settings['geraetehaus_adresse'] ?? ''); ?>">
