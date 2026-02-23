@@ -6,6 +6,7 @@
  * Kein globaler Key mehr – nur einheit_settings.
  * API-Dokumentation: https://api.divera247.com/ (v2/event – Termin erstellen)
  */
+global $divera_config;
 $divera_config = [
     'api_base_url' => 'https://app.divera247.com',
     'access_key'   => '',
@@ -15,8 +16,8 @@ $eid = (function_exists('get_current_einheit_id')) ? get_current_einheit_id() : 
 
 if (!empty($db) && $eid > 0) {
     // Einheit ausgewählt: NUR einheit_settings – kein divera.local, kein settings, kein users
+    require_once dirname(__DIR__) . '/includes/einheit-settings-helper.php';
     if (function_exists('apply_divera_config_for_einheit')) {
-        require_once dirname(__DIR__) . '/includes/einheit-settings-helper.php';
         apply_divera_config_for_einheit($db, $eid);
     }
 } elseif (!empty($db)) {
