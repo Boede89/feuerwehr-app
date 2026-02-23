@@ -17,7 +17,7 @@ if (is_file(__DIR__ . '/divera.local.php')) {
     include __DIR__ . '/divera.local.php';
 }
 
-// Globale Einstellungen (Admin → Einstellungen → Globale Einstellungen) haben Vorrang
+// Globale Einstellungen (Legacy) aus settings
 if (!empty($db)) {
     try {
         $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url')");
@@ -32,5 +32,13 @@ if (!empty($db)) {
         }
     } catch (Exception $e) {
         // Tabelle/Spalte fehlt oder DB nicht erreichbar – Datei-/Standardwerte behalten
+    }
+    // Einheitenspezifische Einstellungen haben Vorrang (wenn aktuelle Einheit gesetzt)
+    if (function_exists('get_current_einheit_id') && function_exists('apply_divera_config_for_einheit')) {
+        $eid = get_current_einheit_id();
+        if ($eid > 0) {
+            require_once dirname(__DIR__) . '/includes/einheit-settings-helper.php';
+            apply_divera_config_for_einheit($db, $eid);
+        }
     }
 }

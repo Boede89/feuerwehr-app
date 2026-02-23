@@ -199,7 +199,7 @@ if (isset($_POST['test_email_btn'])) {
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title"><i class="fas fa-gear"></i> Globale Einstellungen</h5>
-                        <p class="text-muted">App, Divera 24/7, Sicherung & Wiederherstellung.</p>
+                        <p class="text-muted">App, Sicherung & Wiederherstellung. Divera 24/7 und weitere Einstellungen pro Einheit unter „Einstellungen“ der jeweiligen Einheit.</p>
                         <div class="mt-auto">
                             <div class="d-flex gap-2 flex-wrap">
                                 <a class="btn btn-primary" href="settings-global.php">

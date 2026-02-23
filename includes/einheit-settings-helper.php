@@ -155,6 +155,39 @@ function migrate_settings_to_amern($db) {
 }
 
 /**
+ * Lädt Divera-Konfiguration für eine Einheit aus einheit_settings.
+ * Gibt ['access_key' => ..., 'api_base_url' => ...] zurück (nur gesetzte Werte).
+ */
+function load_divera_config_for_einheit($db, $einheit_id) {
+    if ($einheit_id <= 0) return [];
+    $cfg = [];
+    try {
+        ensure_einheit_settings_table($db);
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key IN ('divera_access_key', 'divera_api_base_url')");
+        $stmt->execute([$einheit_id]);
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if ($row['setting_key'] === 'divera_access_key' && trim((string)$row['setting_value']) !== '') {
+                $cfg['access_key'] = trim((string)$row['setting_value']);
+            }
+            if ($row['setting_key'] === 'divera_api_base_url' && trim((string)$row['setting_value']) !== '') {
+                $cfg['api_base_url'] = rtrim(trim((string)$row['setting_value']), '/');
+            }
+        }
+    } catch (Exception $e) {}
+    return $cfg;
+}
+
+/**
+ * Wendet Divera-Konfiguration einer Einheit auf die globale $divera_config an.
+ */
+function apply_divera_config_for_einheit($db, $einheit_id) {
+    global $divera_config;
+    $cfg = load_divera_config_for_einheit($db, $einheit_id);
+    if (!empty($cfg['access_key'])) $divera_config['access_key'] = $cfg['access_key'];
+    if (!empty($cfg['api_base_url'])) $divera_config['api_base_url'] = $cfg['api_base_url'];
+}
+
+/**
  * Stellt sicher, dass einheit_id in den relevanten Tabellen existiert und migriert bestehende Daten.
  * Bestehende Einträge werden der Einheit Amern zugeordnet (falls vorhanden), sonst der ersten Einheit.
  */

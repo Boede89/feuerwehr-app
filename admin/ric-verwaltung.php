@@ -3,6 +3,7 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once __DIR__ . '/../includes/einheiten-setup.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -18,6 +19,11 @@ if (!has_permission('members') || !has_permission('ric')) {
 
 $message = '';
 $error = '';
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+if ($einheit_id <= 0 && function_exists('get_current_einheit_id')) {
+    $eid = get_current_einheit_id();
+    if ($eid > 0) $einheit_id = (int)$eid;
+}
 
 // Erfolgsmeldung anzeigen
 if (isset($_GET['success'])) {
@@ -36,17 +42,16 @@ if (isset($_GET['success'])) {
 
 // Tabellen sicherstellen
 try {
-    // RIC-Codes Tabelle
-    $db->exec("
-        CREATE TABLE IF NOT EXISTS ric_codes (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            kurztext VARCHAR(50) NOT NULL,
-            beschreibung TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_kurztext (kurztext)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    ");
+    // RIC-Codes Tabelle (einheit_id für Einheitenspezifität)
+    $db->exec("CREATE TABLE IF NOT EXISTS ric_codes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        kurztext VARCHAR(50) NOT NULL,
+        beschreibung TEXT,
+        einheit_id INT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    try { $db->exec("ALTER TABLE ric_codes ADD COLUMN einheit_id INT NULL DEFAULT 0"); } catch (Exception $e) {}
     
     // Member-RIC Verknüpfungstabelle
     $db->exec("
@@ -100,17 +105,25 @@ try {
     error_log("Fehler beim Erstellen der Tabellen: " . $e->getMessage());
 }
 
-// Divera Admin laden
+// Divera Admin laden (einheitenspezifisch)
 $divera_admin_user_id = null;
-try {
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'ric_divera_admin_user_id' LIMIT 1");
-    $stmt->execute();
-    $result = $stmt->fetchColumn();
-    if ($result !== false && !empty($result)) {
-        $divera_admin_user_id = (int)$result;
+if ($einheit_id > 0) {
+    $es = load_settings_for_einheit($db, $einheit_id);
+    if (!empty($es['ric_divera_admin_user_id'])) {
+        $divera_admin_user_id = (int)$es['ric_divera_admin_user_id'];
     }
-} catch (Exception $e) {
-    error_log("Fehler beim Laden des Divera Admins: " . $e->getMessage());
+}
+if ($divera_admin_user_id === null) {
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'ric_divera_admin_user_id' LIMIT 1");
+        $stmt->execute();
+        $result = $stmt->fetchColumn();
+        if ($result !== false && !empty($result)) {
+            $divera_admin_user_id = (int)$result;
+        }
+    } catch (Exception $e) {
+        error_log("Fehler beim Laden des Divera Admins: " . $e->getMessage());
+    }
 }
 
 $is_divera_admin = ($divera_admin_user_id && $_SESSION['user_id'] == $divera_admin_user_id);
@@ -442,10 +455,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Mitglieder laden (gefiltert nach Einheit für Superadmin/Einheitsadmin)
+// Mitglieder laden (gefiltert nach Einheit)
 $members = [];
 try {
-    $einheit_filter = get_admin_einheit_filter();
+    $einheit_filter = $einheit_id > 0 ? $einheit_id : get_admin_einheit_filter();
     $einheit_where = $einheit_filter ? " WHERE (m.einheit_id = " . (int)$einheit_filter . " OR m.einheit_id IS NULL)" : "";
     $stmt = $db->prepare("
         SELECT m.id, m.first_name, m.last_name, m.email, m.birthdate, m.phone
@@ -459,11 +472,16 @@ try {
     $error = "Fehler beim Laden der Mitglieder: " . $e->getMessage();
 }
 
-// RIC-Codes laden
+// RIC-Codes laden (einheitenspezifisch)
 $ric_codes = [];
 try {
-    $stmt = $db->prepare("SELECT id, kurztext, beschreibung FROM ric_codes ORDER BY kurztext ASC");
-    $stmt->execute();
+    if ($einheit_id > 0) {
+        $stmt = $db->prepare("SELECT id, kurztext, beschreibung FROM ric_codes WHERE einheit_id = ? ORDER BY kurztext ASC");
+        $stmt->execute([$einheit_id]);
+    } else {
+        $stmt = $db->prepare("SELECT id, kurztext, beschreibung FROM ric_codes WHERE einheit_id = 0 OR einheit_id IS NULL ORDER BY kurztext ASC");
+        $stmt->execute();
+    }
     $ric_codes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $error = "Fehler beim Laden der RIC-Codes: " . $e->getMessage();
@@ -585,7 +603,7 @@ try {
             <div class="alert alert-warning">
                 <i class="fas fa-exclamation-triangle"></i> 
                 Es sind noch keine RIC-Codes vorhanden. Bitte legen Sie zuerst RIC-Codes in den 
-                <a href="settings-ric.php">Einstellungen</a> an.
+                <a href="settings-ric.php<?php echo $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''; ?>">RIC-Codes verwalten</a> an.
             </div>
         <?php else: ?>
             <div class="row">
@@ -707,11 +725,11 @@ try {
 
         <div class="row mt-4">
             <div class="col-12">
-                <a href="members.php" class="btn btn-outline-secondary">
+                <a href="members.php<?php echo $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''; ?>" class="btn btn-outline-secondary">
                     <i class="fas fa-arrow-left"></i> Zurück zur Mitgliederverwaltung
                 </a>
                 <?php if (hasAdminPermission()): ?>
-                <a href="settings-ric.php" class="btn btn-outline-primary">
+                <a href="settings-ric.php<?php echo $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''; ?>" class="btn btn-outline-primary">
                     <i class="fas fa-cog"></i> RIC-Codes verwalten
                 </a>
                 <?php endif; ?>

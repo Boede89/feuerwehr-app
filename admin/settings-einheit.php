@@ -169,7 +169,7 @@ $einheit_param = '&einheit_id=' . $einheit_id;
                         <h5 class="card-title"><i class="fas fa-calendar-plus me-2"></i>Divera 24/7</h5>
                         <p class="text-muted">Termin-Übermittlung genehmigter Reservierungen an Divera.</p>
                         <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-global.php">
+                            <a class="btn btn-primary" href="settings-global.php?einheit_id=<?php echo (int)$einheit_id; ?>">
                                 <i class="fas fa-cog"></i> Divera Einstellungen
                             </a>
                         </div>
@@ -216,21 +216,6 @@ $einheit_param = '&einheit_id=' . $einheit_id;
                         <div class="mt-auto">
                             <a class="btn btn-primary" href="settings-atemschutz.php?einheit_id=<?php echo $einheit_id; ?>">
                                 <i class="fas fa-sliders"></i> Öffnen
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- RIC Verwaltung -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-broadcast-tower me-2"></i>RIC Verwaltung</h5>
-                        <p class="text-muted">RIC-Codes verwalten (Kurztext und Beschreibung).</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-ric.php?einheit_id=<?php echo $einheit_id; ?>">
-                                <i class="fas fa-cog"></i> RIC-Codes verwalten
                             </a>
                         </div>
                     </div>

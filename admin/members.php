@@ -536,17 +536,27 @@ $can_ric = has_permission('ric');
 $can_courses = has_permission('courses');
 
 
-// Divera Admin Info laden (für RIC-Zuweisungen)
+// Divera Admin Info laden (für RIC-Zuweisungen, einheitenspezifisch)
 $divera_admin_user_id = null;
-try {
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'ric_divera_admin_user_id' LIMIT 1");
-    $stmt->execute();
-    $result = $stmt->fetchColumn();
-    if ($result !== false && !empty($result)) {
-        $divera_admin_user_id = (int)$result;
+$ric_einheit_id = $ef > 0 ? $ef : (function_exists('get_current_einheit_id') ? (get_current_einheit_id() ?: 0) : 0);
+if ($ric_einheit_id > 0) {
+    require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+    $es = load_settings_for_einheit($db, $ric_einheit_id);
+    if (!empty($es['ric_divera_admin_user_id'])) {
+        $divera_admin_user_id = (int)$es['ric_divera_admin_user_id'];
     }
-} catch (Exception $e) {
-    error_log("Fehler beim Laden des Divera Admins: " . $e->getMessage());
+}
+if ($divera_admin_user_id === null) {
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'ric_divera_admin_user_id' LIMIT 1");
+        $stmt->execute();
+        $result = $stmt->fetchColumn();
+        if ($result !== false && !empty($result)) {
+            $divera_admin_user_id = (int)$result;
+        }
+    } catch (Exception $e) {
+        error_log("Fehler beim Laden des Divera Admins: " . $e->getMessage());
+    }
 }
 
 $is_divera_admin = ($divera_admin_user_id && $_SESSION['user_id'] == $divera_admin_user_id);
@@ -561,12 +571,17 @@ try {
     error_log("Fehler beim Laden des aktuellen Benutzers: " . $e->getMessage());
 }
 
-// RIC-Codes laden
+// RIC-Codes laden (einheitenspezifisch)
 $ric_codes = [];
 if ($can_ric) {
     try {
-        $stmt = $db->prepare("SELECT id, kurztext, beschreibung FROM ric_codes ORDER BY kurztext ASC");
-        $stmt->execute();
+        if ($ric_einheit_id > 0) {
+            $stmt = $db->prepare("SELECT id, kurztext, beschreibung FROM ric_codes WHERE einheit_id = ? ORDER BY kurztext ASC");
+            $stmt->execute([$ric_einheit_id]);
+        } else {
+            $stmt = $db->prepare("SELECT id, kurztext, beschreibung FROM ric_codes WHERE einheit_id = 0 OR einheit_id IS NULL ORDER BY kurztext ASC");
+            $stmt->execute();
+        }
         $ric_codes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         error_log("Fehler beim Laden der RIC-Codes: " . $e->getMessage());
@@ -1887,10 +1902,18 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     <i class="fas fa-list"></i> <?php echo $show_list ? 'Liste ausblenden' : 'Aktuelle Liste anzeigen'; ?>
                 </a>
             </div>
-            <?php if (has_permission('members') && has_permission('ric')): ?>
+            <?php if (has_permission('members') && has_permission('ric')): 
+                $ric_einheit_id = $ef > 0 ? $ef : (get_current_einheit_id() ?: 0);
+                $ric_url_suffix = $ric_einheit_id > 0 ? '?einheit_id=' . (int)$ric_einheit_id : '';
+            ?>
             <div class="col-12 col-md-4 mb-2">
-                <a href="ric-verwaltung.php" class="btn btn-warning w-100">
+                <a href="ric-verwaltung.php<?php echo $ric_url_suffix; ?>" class="btn btn-warning w-100">
                     <i class="fas fa-broadcast-tower"></i> RIC Verwaltung (Divera)
+                </a>
+            </div>
+            <div class="col-12 col-md-4 mb-2">
+                <a href="settings-ric.php<?php echo $ric_url_suffix; ?>" class="btn btn-outline-warning w-100">
+                    <i class="fas fa-cog"></i> RIC-Codes verwalten
                 </a>
             </div>
             <?php endif; ?>

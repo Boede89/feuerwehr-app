@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -16,17 +17,43 @@ $message = '';
 $error = '';
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 
-// Einstellungen laden
-$settings = [];
+// einheit_id aus Kontext wenn nicht übergeben
+if ($einheit_id <= 0 && function_exists('get_current_einheit_id')) {
+    $eid = get_current_einheit_id();
+    if ($eid > 0) $einheit_id = (int)$eid;
+}
+
+// RIC-Codes Tabelle erstellen/erweitern (einheit_id für Einheitenspezifität)
 try {
-    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings");
-    $stmt->execute();
-    $settings_data = $stmt->fetchAll();
-    foreach ($settings_data as $setting) {
-        $settings[$setting['setting_key']] = $setting['setting_value'];
-    }
+    $db->exec("CREATE TABLE IF NOT EXISTS ric_codes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        kurztext VARCHAR(50) NOT NULL,
+        beschreibung TEXT,
+        einheit_id INT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    try { $db->exec("ALTER TABLE ric_codes ADD COLUMN einheit_id INT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $db->exec("UPDATE ric_codes SET einheit_id = 0 WHERE einheit_id IS NULL"); } catch (Exception $e) {}
+    try { $db->exec("ALTER TABLE ric_codes DROP INDEX unique_kurztext"); } catch (Exception $e) {}
+    try { $db->exec("ALTER TABLE ric_codes ADD UNIQUE KEY unique_einheit_kurztext (einheit_id, kurztext)"); } catch (Exception $e) {}
 } catch (Exception $e) {
-    error_log("Fehler beim Laden der Einstellungen: " . $e->getMessage());
+    error_log("Fehler RIC-Codes Tabelle: " . $e->getMessage());
+}
+
+// Einstellungen laden (global + einheitenspezifisch für Divera Admin)
+$divera_admin_user_id = '';
+if ($einheit_id > 0) {
+    $settings = load_settings_for_einheit($db, $einheit_id);
+    $divera_admin_user_id = $settings['ric_divera_admin_user_id'] ?? '';
+}
+if ($divera_admin_user_id === '') {
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'ric_divera_admin_user_id' LIMIT 1");
+        $stmt->execute();
+        $r = $stmt->fetchColumn();
+        if ($r !== false && $r !== '') $divera_admin_user_id = $r;
+    } catch (Exception $e) {}
 }
 
 // Benutzer laden für Divera Admin Auswahl
@@ -39,30 +66,16 @@ try {
     error_log("Fehler beim Laden der Benutzer: " . $e->getMessage());
 }
 
-// Aktuellen Divera Admin laden
-$divera_admin_user_id = $settings['ric_divera_admin_user_id'] ?? '';
-
-// RIC-Codes Tabelle erstellen
-try {
-    $db->exec("
-        CREATE TABLE IF NOT EXISTS ric_codes (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            kurztext VARCHAR(50) NOT NULL,
-            beschreibung TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_kurztext (kurztext)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    ");
-} catch (Exception $e) {
-    error_log("Fehler beim Erstellen der RIC-Codes Tabelle: " . $e->getMessage());
-}
-
-// RIC-Codes laden
+// RIC-Codes laden (einheitenspezifisch)
 $ric_codes = [];
 try {
-    $stmt = $db->prepare("SELECT id, kurztext, beschreibung, created_at, updated_at FROM ric_codes ORDER BY kurztext ASC");
-    $stmt->execute();
+    if ($einheit_id > 0) {
+        $stmt = $db->prepare("SELECT id, kurztext, beschreibung, created_at, updated_at FROM ric_codes WHERE einheit_id = ? ORDER BY kurztext ASC");
+        $stmt->execute([$einheit_id]);
+    } else {
+        $stmt = $db->prepare("SELECT id, kurztext, beschreibung, created_at, updated_at FROM ric_codes WHERE einheit_id = 0 OR einheit_id IS NULL ORDER BY kurztext ASC");
+        $stmt->execute();
+    }
     $ric_codes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $error = 'Fehler beim Laden der RIC-Codes: ' . $e->getMessage();
@@ -80,40 +93,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ric_id = isset($_POST['edit_ric']) ? (int)$_POST['ric_id'] : null;
                 $kurztext = trim(sanitize_input($_POST['kurztext'] ?? ''));
                 $beschreibung = trim(sanitize_input($_POST['beschreibung'] ?? ''));
+                $add_einheit_id = (int)($_POST['einheit_id'] ?? $einheit_id);
                 
                 if (empty($kurztext)) {
                     $error = 'Bitte geben Sie einen Kurztext ein.';
                 } else {
                     if ($ric_id !== null) {
-                        // RIC-Code bearbeiten
-                        $stmt = $db->prepare("UPDATE ric_codes SET kurztext = ?, beschreibung = ? WHERE id = ?");
-                        $stmt->execute([$kurztext, $beschreibung, $ric_id]);
+                        if ($add_einheit_id > 0) {
+                            $stmt = $db->prepare("UPDATE ric_codes SET kurztext = ?, beschreibung = ? WHERE id = ? AND einheit_id = ?");
+                            $stmt->execute([$kurztext, $beschreibung, $ric_id, $add_einheit_id]);
+                        } else {
+                            $stmt = $db->prepare("UPDATE ric_codes SET kurztext = ?, beschreibung = ? WHERE id = ? AND (einheit_id = 0 OR einheit_id IS NULL)");
+                            $stmt->execute([$kurztext, $beschreibung, $ric_id]);
+                        }
                         $message = 'RIC-Code wurde erfolgreich bearbeitet.';
                     } else {
-                        // Neuen RIC-Code hinzufügen
-                        $stmt = $db->prepare("INSERT INTO ric_codes (kurztext, beschreibung) VALUES (?, ?)");
-                        $stmt->execute([$kurztext, $beschreibung]);
+                        $stmt = $db->prepare("INSERT INTO ric_codes (kurztext, beschreibung, einheit_id) VALUES (?, ?, ?)");
+                        $stmt->execute([$kurztext, $beschreibung, $add_einheit_id > 0 ? $add_einheit_id : 0]);
                         $message = 'RIC-Code wurde erfolgreich hinzugefügt.';
                     }
                 }
             }
             
-            // Divera Admin speichern
+            // Divera Admin speichern (einheitenspezifisch oder global)
             if (isset($_POST['save_divera_admin'])) {
                 $divera_admin_user_id = !empty($_POST['divera_admin_user_id']) ? (int)$_POST['divera_admin_user_id'] : '';
-                
-                $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-                $stmt->execute(['ric_divera_admin_user_id', $divera_admin_user_id]);
-                
+                $save_einheit_id = (int)($_POST['einheit_id'] ?? $einheit_id);
+                if ($save_einheit_id > 0) {
+                    save_setting_for_einheit($db, $save_einheit_id, 'ric_divera_admin_user_id', (string)$divera_admin_user_id);
+                } else {
+                    $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+                    $stmt->execute(['ric_divera_admin_user_id', $divera_admin_user_id]);
+                }
                 $message = 'Divera Admin wurde erfolgreich gespeichert.';
-                $settings['ric_divera_admin_user_id'] = $divera_admin_user_id;
             }
             
             // RIC-Code löschen
             if (isset($_POST['delete_ric'])) {
                 $ric_id = (int)$_POST['ric_id'];
+                $del_einheit_id = (int)($_POST['einheit_id'] ?? $einheit_id);
                 
-                // Prüfe ob RIC-Code noch zugewiesen ist
                 try {
                     $db->exec("CREATE TABLE IF NOT EXISTS member_ric (
                         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -124,9 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         FOREIGN KEY (ric_id) REFERENCES ric_codes(id) ON DELETE CASCADE,
                         UNIQUE KEY unique_member_ric (member_id, ric_id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-                } catch (Exception $e) {
-                    // Tabelle existiert bereits
-                }
+                } catch (Exception $e) {}
                 
                 $stmt = $db->prepare("SELECT COUNT(*) as count FROM member_ric WHERE ric_id = ?");
                 $stmt->execute([$ric_id]);
@@ -135,8 +152,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($result['count'] > 0) {
                     $error = 'Dieser RIC-Code ist noch Mitgliedern zugewiesen und kann nicht gelöscht werden.';
                 } else {
-                    $stmt = $db->prepare("DELETE FROM ric_codes WHERE id = ?");
-                    $stmt->execute([$ric_id]);
+                    if ($del_einheit_id > 0) {
+                        $stmt = $db->prepare("DELETE FROM ric_codes WHERE id = ? AND einheit_id = ?");
+                        $stmt->execute([$ric_id, $del_einheit_id]);
+                    } else {
+                        $stmt = $db->prepare("DELETE FROM ric_codes WHERE id = ? AND (einheit_id = 0 OR einheit_id IS NULL)");
+                        $stmt->execute([$ric_id]);
+                    }
                     $message = 'RIC-Code wurde erfolgreich gelöscht.';
                 }
             }
@@ -144,8 +166,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->commit();
             
             // RIC-Codes neu laden
-            $stmt = $db->prepare("SELECT id, kurztext, beschreibung, created_at, updated_at FROM ric_codes ORDER BY kurztext ASC");
-            $stmt->execute();
+            if ($einheit_id > 0) {
+                $stmt = $db->prepare("SELECT id, kurztext, beschreibung, created_at, updated_at FROM ric_codes WHERE einheit_id = ? ORDER BY kurztext ASC");
+                $stmt->execute([$einheit_id]);
+            } else {
+                $stmt = $db->prepare("SELECT id, kurztext, beschreibung, created_at, updated_at FROM ric_codes WHERE einheit_id = 0 OR einheit_id IS NULL ORDER BY kurztext ASC");
+                $stmt->execute();
+            }
             $ric_codes = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
             if ($db->inTransaction()) {
@@ -206,6 +233,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="card-body">
                         <form method="POST" action="" id="diveraAdminForm">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                            <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                             <div class="row">
                                 <div class="col-md-8">
                                     <label for="divera_admin_user_id" class="form-label">Divera Admin auswählen</label>
@@ -271,6 +299,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 </button>
                                                 <form method="POST" style="display: inline;" onsubmit="return confirm('Möchten Sie diesen RIC-Code wirklich löschen?');">
                                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                                                    <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                                                     <input type="hidden" name="ric_id" value="<?php echo $ric['id']; ?>">
                                                     <button type="submit" name="delete_ric" class="btn btn-sm btn-outline-danger">
                                                         <i class="fas fa-trash"></i>
@@ -297,6 +326,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="card-body">
                         <form method="POST" action="" id="ricForm">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                            <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                             <input type="hidden" name="ric_id" id="ric_id" value="">
                             
                             <div class="mb-3">
@@ -330,7 +360,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="row mt-4">
             <div class="col-12">
-                <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary">
+                <a href="members.php<?php echo $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''; ?>" class="btn btn-outline-secondary">
                     <i class="fas fa-arrow-left"></i> Zurück
                 </a>
             </div>

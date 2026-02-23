@@ -141,15 +141,20 @@ if ($action === 'resend_divera') {
 try {
     $db->beginTransaction();
     
-    // Reservierung mit Fahrzeugname laden
+    // Reservierung mit Fahrzeugname und Einheit laden
     $stmt = $db->prepare("
-        SELECT r.*, v.name as vehicle_name 
+        SELECT r.*, v.name as vehicle_name, COALESCE(r.einheit_id, v.einheit_id) as _einheit_id 
         FROM reservations r 
         LEFT JOIN vehicles v ON r.vehicle_id = v.id 
         WHERE r.id = ? AND r.status = 'pending'
     ");
     $stmt->execute([$reservation_id]);
     $reservation = $stmt->fetch(PDO::FETCH_ASSOC);
+    $reservation_einheit_id = (int)($reservation['_einheit_id'] ?? 0);
+    if ($reservation_einheit_id > 0) {
+        require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+        apply_divera_config_for_einheit($db, $reservation_einheit_id);
+    }
     
     if (!$reservation) {
         throw new Exception('Reservierung nicht gefunden oder bereits bearbeitet');
@@ -177,17 +182,26 @@ try {
         $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
         
-        // Terminübergabe-Einstellungen laden
+        // Terminübergabe-Einstellungen laden (einheitenspezifisch wenn möglich)
         $divera_reservation_enabled = true;
         $google_calendar_reservation_enabled = true;
-        $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled', 'divera_reservation_default_group_id', 'divera_reservation_groups')");
-        $stmt_set->execute();
         $divera_settings = [];
-        while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
-            $divera_settings[$row['setting_key']] = $row['setting_value'];
-            if ($row['setting_key'] === 'divera_reservation_enabled') $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
-            if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+        if ($reservation_einheit_id > 0) {
+            $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled', 'divera_reservation_default_group_id', 'divera_reservation_groups')");
+            $stmt_set->execute([$reservation_einheit_id]);
+            while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+                $divera_settings[$row['setting_key']] = $row['setting_value'];
+            }
         }
+        if (empty($divera_settings)) {
+            $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled', 'divera_reservation_default_group_id', 'divera_reservation_groups')");
+            $stmt_set->execute();
+            while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+                $divera_settings[$row['setting_key']] = $row['setting_value'];
+            }
+        }
+        if (isset($divera_settings['divera_reservation_enabled'])) $divera_reservation_enabled = ($divera_settings['divera_reservation_enabled'] ?? '1') === '1';
+        if (isset($divera_settings['google_calendar_reservation_enabled'])) $google_calendar_reservation_enabled = ($divera_settings['google_calendar_reservation_enabled'] ?? '1') === '1';
         
         // Termin an Divera 24/7 senden (nur wenn aktiviert)
         $divera_sent = false;
@@ -437,17 +451,26 @@ try {
         $stmt = $db->prepare("UPDATE reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
         
-        // Terminübergabe-Einstellungen laden
+        // Terminübergabe-Einstellungen laden (einheitenspezifisch wenn möglich)
         $divera_reservation_enabled = true;
         $google_calendar_reservation_enabled = true;
-        $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled', 'divera_reservation_default_group_id', 'divera_reservation_groups')");
-        $stmt_set->execute();
         $divera_settings = [];
-        while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
-            $divera_settings[$row['setting_key']] = $row['setting_value'];
-            if ($row['setting_key'] === 'divera_reservation_enabled') $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
-            if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+        if ($reservation_einheit_id > 0) {
+            $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled', 'divera_reservation_default_group_id', 'divera_reservation_groups')");
+            $stmt_set->execute([$reservation_einheit_id]);
+            while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+                $divera_settings[$row['setting_key']] = $row['setting_value'];
+            }
         }
+        if (empty($divera_settings)) {
+            $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled', 'divera_reservation_default_group_id', 'divera_reservation_groups')");
+            $stmt_set->execute();
+            while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+                $divera_settings[$row['setting_key']] = $row['setting_value'];
+            }
+        }
+        if (isset($divera_settings['divera_reservation_enabled'])) $divera_reservation_enabled = ($divera_settings['divera_reservation_enabled'] ?? '1') === '1';
+        if (isset($divera_settings['google_calendar_reservation_enabled'])) $google_calendar_reservation_enabled = ($divera_settings['google_calendar_reservation_enabled'] ?? '1') === '1';
         
         // Termin an Divera 24/7 senden (nur wenn aktiviert)
         $divera_sent = false;
