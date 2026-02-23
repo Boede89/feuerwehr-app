@@ -284,9 +284,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['datum'])) {
 }
 
 // Divera: Aktiven Einsatz abfragen (für Vorschlag)
+// Bei Einheitsauswahl (einheit_id > 0) NUR den Einheits-Key nutzen – kein Fallback auf Benutzer-Key
 $divera_alarm = null;
 $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
-if ($divera_key === '' && isset($_SESSION['user_id'])) {
+if ($divera_key === '' && $einheit_id <= 0 && isset($_SESSION['user_id'])) {
     try {
         $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
         $stmt->execute([(int)$_SESSION['user_id']]);

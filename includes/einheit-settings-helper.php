@@ -179,12 +179,16 @@ function load_divera_config_for_einheit($db, $einheit_id) {
 
 /**
  * Wendet Divera-Konfiguration einer Einheit auf die globale $divera_config an.
+ * Wichtig: Hat die Einheit keinen eigenen Access Key, wird der Key geleert –
+ * kein Fallback auf andere Einheiten oder globale Einstellungen.
  */
 function apply_divera_config_for_einheit($db, $einheit_id) {
     global $divera_config;
     $cfg = load_divera_config_for_einheit($db, $einheit_id);
-    if (!empty($cfg['access_key'])) $divera_config['access_key'] = $cfg['access_key'];
-    if (!empty($cfg['api_base_url'])) $divera_config['api_base_url'] = $cfg['api_base_url'];
+    $divera_config['access_key'] = $cfg['access_key'] ?? '';
+    if (!empty($cfg['api_base_url'])) {
+        $divera_config['api_base_url'] = $cfg['api_base_url'];
+    }
 }
 
 /**

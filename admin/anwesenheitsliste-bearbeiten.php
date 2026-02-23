@@ -45,6 +45,7 @@ if (!$liste) {
     header('Location: formularcenter.php?tab=submissions&error=not_found');
     exit;
 }
+$liste_einheit_id = (int)($liste['einheit_id'] ?? 0);
 
 // Weiterleitung zur Ausfüllseite – identisches Layout wie beim Ausfüllen
 $datum = $liste['datum'] ?? '';
@@ -52,7 +53,8 @@ $typ = $liste['typ'] ?? 'dienst';
 $auswahl = ($typ === 'einsatz' || $typ === 'manuell') ? 'einsatz' : (string)($liste['dienstplan_id'] ?? '');
 if ($auswahl === '' && $typ === 'dienst') $auswahl = 'einsatz'; // Fallback wenn Dienstplan gelöscht
 if ($datum !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum)) {
-    header('Location: ../anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&edit_id=' . (int)$id . '&return=formularcenter');
+    $redirect_einheit = $liste_einheit_id > 0 ? '&einheit_id=' . (int)$liste_einheit_id : '';
+    header('Location: ../anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&edit_id=' . (int)$id . '&return=formularcenter' . $redirect_einheit);
     exit;
 }
 
@@ -93,14 +95,18 @@ try {
     $liste_vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 
-$anwesenheitsliste_felder = anwesenheitsliste_felder_laden();
+$unit_settings = [];
 $geraetehaus_adresse = '';
 try {
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'geraetehaus_adresse' LIMIT 1");
-    $stmt->execute();
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($row && trim($row['setting_value'] ?? '') !== '') $geraetehaus_adresse = trim($row['setting_value']);
+    require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+    $unit_settings = load_settings_for_einheit($db, $liste_einheit_id > 0 ? $liste_einheit_id : null);
+    $geraetehaus_adresse = trim((string)($unit_settings['geraetehaus_adresse'] ?? ''));
 } catch (Exception $e) {}
+$anwesenheitsliste_settings = [];
+foreach ($unit_settings as $k => $v) {
+    if (strpos($k, 'anwesenheitsliste_') === 0) $anwesenheitsliste_settings[$k] = $v;
+}
+$anwesenheitsliste_felder = anwesenheitsliste_felder_laden($anwesenheitsliste_settings);
 $custom_data = [];
 if (!empty($liste['custom_data'])) {
     $dec = json_decode($liste['custom_data'], true);

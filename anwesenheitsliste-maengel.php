@@ -21,7 +21,9 @@ $datum = isset($_GET['datum']) ? trim($_GET['datum']) : '';
 $auswahl = isset($_GET['auswahl']) ? trim($_GET['auswahl']) : '';
 $edit_id = isset($_GET['edit_id']) ? (int)$_GET['edit_id'] : 0;
 $return_formularcenter = isset($_GET['return']) && $_GET['return'] === 'formularcenter';
-$url_suffix = ($edit_id > 0 ? '&edit_id=' . $edit_id : '') . ($return_formularcenter ? '&return=formularcenter' : '');
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
+if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
+$url_suffix = ($edit_id > 0 ? '&edit_id=' . $edit_id : '') . ($return_formularcenter ? '&return=formularcenter' : '') . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '');
 if ($datum === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum) || $auswahl === '') {
     header('Location: anwesenheitsliste.php?error=datum');
     exit;
@@ -52,11 +54,8 @@ $mangel_an_options = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
 
 $settings = [];
 try {
-    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('maengelbericht_standort_default', 'maengelbericht_mangel_an_default')");
-    $stmt->execute();
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $settings[$r['setting_key']] = $r['setting_value'];
-    }
+    require_once __DIR__ . '/includes/einheit-settings-helper.php';
+    $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
 } catch (Exception $e) {}
 $standort_default = trim($settings['maengelbericht_standort_default'] ?? '');
 if (!in_array($standort_default, $standort_options)) $standort_default = $standort_options[0];
@@ -65,13 +64,23 @@ if (!in_array($mangel_an_default, $mangel_an_options)) $mangel_an_default = $man
 
 $members_list = [];
 try {
-    $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    if ($einheit_id > 0) {
+        $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
+        $stmt->execute([$einheit_id]);
+    } else {
+        $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+    }
     $members_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 
 $vehicles_list = [];
 try {
-    $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name");
+    if ($einheit_id > 0) {
+        $stmt = $db->prepare("SELECT id, name FROM vehicles WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY name");
+        $stmt->execute([$einheit_id]);
+    } else {
+        $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name");
+    }
     $vehicles_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 

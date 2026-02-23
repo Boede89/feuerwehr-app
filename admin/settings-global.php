@@ -284,7 +284,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'printer_cups_server' => trim(sanitize_input($_POST['printer_cups_server'] ?? '')),
                 ];
                 $divera_access_key = trim($_POST['divera_access_key'] ?? '');
-                if ($divera_access_key === '') {
+                $divera_key_clear = isset($_POST['divera_access_key_clear']) && $_POST['divera_access_key_clear'] === '1';
+                if ($divera_key_clear) {
+                    $divera_access_key = '';
+                } elseif ($divera_access_key === '') {
                     $divera_access_key = trim((string) ($settings['divera_access_key'] ?? ''));
                 }
                 $divera_api_base_url = trim($_POST['divera_api_base_url'] ?? '') ?: 'https://app.divera247.com';
@@ -582,8 +585,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <p class="text-muted small mb-3">Einstellungen für die automatische Übermittlung genehmigter Fahrzeugreservierungen und Dienstplan-Termine an Divera (einheitenspezifisch).</p>
                                 <div class="mb-3">
                                     <label class="form-label">Access Key (Einheits-Key)</label>
-                                    <input class="form-control" type="password" name="divera_access_key" value="" placeholder="Leer lassen zum Beibehalten" autocomplete="off">
-                                    <small class="text-muted"><?php echo !empty($settings['divera_access_key']) ? 'Key ist hinterlegt. Neuen Key eintragen zum Überschreiben.' : 'In Divera 24/7: Verwaltung → Konto (Kontakt- und Vertragsdaten).'; ?></small>
+                                    <div class="input-group">
+                                        <input class="form-control" type="password" name="divera_access_key" id="divera_access_key" value="" placeholder="Leer lassen zum Beibehalten" autocomplete="off">
+                                        <?php if ($einheit_id > 0 && !empty($settings['divera_access_key'])): ?>
+                                        <button type="button" class="btn btn-outline-danger" id="btn_divera_key_loeschen" title="Access Key für diese Einheit löschen"><i class="fas fa-trash-alt"></i> Löschen</button>
+                                        <?php endif; ?>
+                                    </div>
+                                    <small class="text-muted"><?php echo !empty($settings['divera_access_key']) ? 'Key ist hinterlegt. Neuen Key eintragen zum Überschreiben. Mit „Löschen“ den Key für diese Einheit entfernen.' : 'In Divera 24/7: Verwaltung → Konto (Kontakt- und Vertragsdaten).'; ?></small>
+                                    <input type="hidden" name="divera_access_key_clear" id="divera_access_key_clear" value="0">
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">API-Basis-URL</label>
@@ -878,6 +887,13 @@ function editVehicle(btn) {
     new bootstrap.Modal(document.getElementById('vehicleModal')).show();
 }
 <?php endif; ?>
+document.getElementById('btn_divera_key_loeschen')?.addEventListener('click', function() {
+    if (confirm('Divera Access Key für diese Einheit wirklich löschen? Danach werden keine Einsätze mehr von Divera für diese Einheit angezeigt.')) {
+        document.getElementById('divera_access_key_clear').value = '1';
+        document.getElementById('divera_access_key').value = '';
+        document.getElementById('mainForm').submit();
+    }
+});
 document.getElementById('btn_list_printers')?.addEventListener('click', function() {
     var btn = this;
     var out = document.getElementById('printers_list');

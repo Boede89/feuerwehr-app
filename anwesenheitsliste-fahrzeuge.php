@@ -235,9 +235,8 @@ $standort_options = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
 $mangel_an_options = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
 $settings = [];
 try {
-    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('maengelbericht_standort_default', 'maengelbericht_mangel_an_default')");
-    $stmt->execute();
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) { $settings[$r['setting_key']] = $r['setting_value']; }
+    require_once __DIR__ . '/includes/einheit-settings-helper.php';
+    $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
 } catch (Exception $e) {}
 $standort_default = trim($settings['maengelbericht_standort_default'] ?? '');
 if (!in_array($standort_default, $standort_options)) $standort_default = $standort_options[0];

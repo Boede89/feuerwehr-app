@@ -9,8 +9,18 @@ if (!headers_sent()) {
     header('Pragma: no-cache');
 }
 require_once __DIR__ . '/config/database.php';
-require_once __DIR__ . '/config/divera.php';
 require_once __DIR__ . '/includes/functions.php';
+// Einheit VOR Divera setzen (für einheitsspezifischen Divera-Key und Einstellungen)
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
+if ($einheit_id <= 0) $einheit_id = isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0;
+if ($einheit_id <= 0 && isset($_SESSION['user_id'])) {
+    $stmt = $db->prepare("SELECT einheit_id FROM users WHERE id = ?");
+    $stmt->execute([(int)$_SESSION['user_id']]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $einheit_id = $row ? (int)($row['einheit_id'] ?? 0) : 0;
+}
+if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
+require_once __DIR__ . '/config/divera.php';
 require_once __DIR__ . '/includes/dienstplan-typen.php';
 require_once __DIR__ . '/includes/anwesenheitsliste-helper.php';
 
@@ -370,25 +380,22 @@ if ($berichtersteller_val !== '' && $berichtersteller_val !== null) {
 $message = '';
 $error = '';
 
-// Anwesenheitsliste-Felder aus Einstellungen laden (anwesenheitsliste_felder)
+// Anwesenheitsliste-Felder und Gerätehaus-Adresse aus einheitsspezifischen Einstellungen laden
 $anwesenheitsliste_settings = [];
+$geraetehaus_adresse = '';
 try {
-    $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'anwesenheitsliste_%'");
-    $stmt->execute();
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $anwesenheitsliste_settings[$row['setting_key']] = $row['setting_value'];
+    require_once __DIR__ . '/includes/einheit-settings-helper.php';
+    $unit_settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+    foreach ($unit_settings as $k => $v) {
+        if (strpos($k, 'anwesenheitsliste_') === 0) {
+            $anwesenheitsliste_settings[$k] = $v;
+        }
     }
+    $geraetehaus_adresse = trim((string)($unit_settings['geraetehaus_adresse'] ?? ''));
 } catch (Exception $e) {
     $anwesenheitsliste_settings = [];
 }
 $anwesenheitsliste_felder = _anwesenheitsliste_felder_laden($anwesenheitsliste_settings);
-$geraetehaus_adresse = '';
-try {
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'geraetehaus_adresse' LIMIT 1");
-    $stmt->execute();
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($row && trim($row['setting_value'] ?? '') !== '') $geraetehaus_adresse = trim($row['setting_value']);
-} catch (Exception $e) {}
 function _anwesenheitsliste_felder_laden($s) {
     $raw = $s['anwesenheitsliste_felder'] ?? '';
     if ($raw !== '') {
@@ -963,7 +970,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
     }
 }
 
-$url_edit_suffix = ($edit_id > 0 ? '&edit_id=' . (int)$edit_id : '') . ($return_formularcenter ? '&return=formularcenter' : '');
+$url_edit_suffix = ($edit_id > 0 ? '&edit_id=' . (int)$edit_id : '') . ($return_formularcenter ? '&return=formularcenter' : '') . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '');
 $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
 $personal_url = 'anwesenheitsliste-personal.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
 $fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
