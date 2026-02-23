@@ -21,7 +21,7 @@ $valid_tabs = ['smtp', 'google', 'app', 'drucker', 'divera', 'fahrzeuge'];
 if (!in_array($active_tab, $valid_tabs)) $active_tab = 'smtp';
 if ($einheit_id > 0) {
     try {
-        $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ?");
+        $stmt = $db->prepare("SELECT id, name, kurzbeschreibung FROM einheiten WHERE id = ?");
         $stmt->execute([$einheit_id]);
         $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (Exception $e) {}
@@ -29,6 +29,32 @@ if ($einheit_id > 0) {
 
 $message = '';
 $error = '';
+
+// Einheit bearbeiten (Name, Kurzbeschreibung)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_einheit' && $einheit_id > 0 && $einheit && user_has_einheit_access($_SESSION['user_id'], $einheit_id)) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        $name = trim(sanitize_input($_POST['einheit_name'] ?? ''));
+        if (empty($name)) {
+            $error = 'Name der Einheit ist erforderlich.';
+            $einheit['name'] = $_POST['einheit_name'] ?? '';
+            $einheit['kurzbeschreibung'] = $_POST['einheit_kurzbeschreibung'] ?? '';
+        } else {
+            try {
+                $kurz = trim(sanitize_input($_POST['einheit_kurzbeschreibung'] ?? ''));
+                $stmt = $db->prepare("UPDATE einheiten SET name = ?, kurzbeschreibung = ? WHERE id = ?");
+                $stmt->execute([$name, $kurz, $einheit_id]);
+                $einheit['name'] = $name;
+                $einheit['kurzbeschreibung'] = $kurz;
+                header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=app&einheit_saved=1');
+                exit;
+            } catch (Exception $e) {
+                $error = 'Fehler: ' . $e->getMessage();
+            }
+        }
+    }
+}
 
 // Fahrzeugverwaltung: POST (add/edit) und GET (delete) vor dem Hauptformular verarbeiten
 $vehicle_action = $_POST['action'] ?? '';
@@ -118,6 +144,9 @@ if (isset($_GET['vehicle_success'])) {
     if ($_GET['vehicle_success'] === 'added') $message = 'Fahrzeug wurde erfolgreich hinzugefügt.';
     elseif ($_GET['vehicle_success'] === 'updated') $message = 'Fahrzeug wurde erfolgreich aktualisiert.';
     elseif ($_GET['vehicle_success'] === 'deleted') $message = 'Fahrzeug wurde erfolgreich gelöscht.';
+}
+if (isset($_GET['einheit_saved']) && $_GET['einheit_saved'] === '1') {
+    $message = 'Einheit wurde aktualisiert.';
 }
 
 // Laden
@@ -489,6 +518,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
             <div class="tab-pane fade <?php echo $active_tab === 'app' ? 'show active' : ''; ?>" id="tab-app" role="tabpanel">
+                <div class="card mb-4">
+                    <div class="card-header"><i class="fas fa-building"></i> Einheit bearbeiten</div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Name und Kurzbeschreibung der Einheit anpassen.</p>
+                        <form method="POST">
+                            <input type="hidden" name="action" value="edit_einheit">
+                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <div class="mb-3">
+                                <label for="einheit_name" class="form-label">Name</label>
+                                <input type="text" class="form-control" id="einheit_name" name="einheit_name" value="<?php echo htmlspecialchars($einheit['name'] ?? ''); ?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="einheit_kurzbeschreibung" class="form-label">Kurzbeschreibung (optional)</label>
+                                <input type="text" class="form-control" id="einheit_kurzbeschreibung" name="einheit_kurzbeschreibung" value="<?php echo htmlspecialchars($einheit['kurzbeschreibung'] ?? ''); ?>">
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
+                        </form>
+                    </div>
+                </div>
                 <div class="card">
                     <div class="card-header"><i class="fas fa-cog"></i> App (Einheit)</div>
                     <div class="card-body">

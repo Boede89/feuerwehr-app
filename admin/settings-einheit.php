@@ -38,27 +38,6 @@ if (!$einheit) {
     exit;
 }
 
-// Einheit bearbeiten
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_einheit') {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
-        $error = "Ungültiger Sicherheitstoken.";
-    } else {
-        $name = trim(sanitize_input($_POST['einheit_name'] ?? ''));
-        if (empty($name)) {
-            $error = "Name der Einheit ist erforderlich.";
-        } else {
-            try {
-                $stmt = $db->prepare("UPDATE einheiten SET name = ?, kurzbeschreibung = ? WHERE id = ?");
-                $stmt->execute([$name, trim(sanitize_input($_POST['einheit_kurzbeschreibung'] ?? '')), $einheit_id]);
-                $einheit['name'] = $name;
-                $message = "Einheit wurde aktualisiert.";
-            } catch (Exception $e) {
-                $error = "Fehler: " . $e->getMessage();
-            }
-        }
-    }
-}
-
 $einheit_base = '?id=' . $einheit_id;
 $einheit_param = '&einheit_id=' . $einheit_id;
 ?>
@@ -109,29 +88,6 @@ $einheit_param = '&einheit_id=' . $einheit_id;
         </div>
 
         <div class="row g-4">
-            <!-- Einheit bearbeiten -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-building text-primary me-2"></i>Einheit bearbeiten</h5>
-                        <p class="text-muted">Name und Kurzbeschreibung der Einheit anpassen.</p>
-                        <form method="POST" class="mt-auto">
-                            <input type="hidden" name="action" value="edit_einheit">
-                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                            <div class="mb-3">
-                                <label for="einheit_name" class="form-label">Name</label>
-                                <input type="text" class="form-control" id="einheit_name" name="einheit_name" value="<?php echo htmlspecialchars($einheit['name']); ?>" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="einheit_kurzbeschreibung" class="form-label">Kurzbeschreibung (optional)</label>
-                                <input type="text" class="form-control" id="einheit_kurzbeschreibung" name="einheit_kurzbeschreibung" value="<?php echo htmlspecialchars($einheit['kurzbeschreibung'] ?? ''); ?>">
-                            </div>
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
             <!-- Globale Einstellungen (Einheit) -->
             <div class="col-md-6">
                 <div class="card h-100">
@@ -139,7 +95,7 @@ $einheit_param = '&einheit_id=' . $einheit_id;
                         <h5 class="card-title"><i class="fas fa-gear me-2"></i>Globale Einstellungen</h5>
                         <p class="text-muted">SMTP, Google Calendar, App-Optionen für diese Einheit.</p>
                         <div class="mt-auto">
-                            <a class="btn btn-secondary" href="settings-global.php?einheit_id=<?php echo $einheit_id; ?>">
+                            <a class="btn btn-secondary" href="settings-global.php?einheit_id=<?php echo $einheit_id; ?>&tab=app">
                                 <i class="fas fa-wrench"></i> Öffnen
                             </a>
                         </div>
