@@ -194,6 +194,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add
         <div class="row mb-4">
             <div class="col-12 col-lg-6">
                 <div class="card shadow">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-broadcast-tower"></i> RIC Verwaltung
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">RIC-Codes verwalten, Divera Admin festlegen und RIC-Zuweisungen für Mitglieder vornehmen.</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a href="settings-ric.php?einheit_id=<?php echo (int)$einheit_id; ?>" class="btn btn-warning">
+                                <i class="fas fa-cog"></i> RIC-Codes & Divera Admin
+                            </a>
+                            <a href="ric-verwaltung.php?einheit_id=<?php echo (int)$einheit_id; ?>" class="btn btn-outline-warning">
+                                <i class="fas fa-broadcast-tower"></i> RIC-Zuweisungen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-6">
+                <div class="card shadow">
                     <div class="card-header bg-info text-white">
                         <h5 class="card-title mb-0">
                             <i class="fas fa-star"></i> Standardqualifikation
