@@ -15,7 +15,7 @@ if (!has_permission('members')) {
 
 $message = '';
 $error = '';
-$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
 $einheit = null;
 if ($einheit_id > 0) {
     try {
@@ -23,6 +23,11 @@ if ($einheit_id > 0) {
         $stmt->execute([$einheit_id]);
         $einheit = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (Exception $e) {}
+}
+
+$active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'ric';
+if (!in_array($active_tab, ['ric', 'qualifikationen', 'lehrgaenge'])) {
+    $active_tab = 'ric';
 }
 
 // Tabelle member_qualifications sicherstellen
@@ -36,6 +41,26 @@ try {
             UNIQUE KEY unique_name (name)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+    // Lehrgänge-Tabellen
+    $db->exec("CREATE TABLE IF NOT EXISTS courses (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        qualification_id INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_name (name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    try { $db->exec("ALTER TABLE courses ADD COLUMN qualification_id INT NULL"); } catch (Exception $e) {}
+    $db->exec("CREATE TABLE IF NOT EXISTS course_requirements (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        course_id INT NOT NULL,
+        required_course_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+        FOREIGN KEY (required_course_id) REFERENCES courses(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_requirement (course_id, required_course_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 } catch (Exception $e) {
     error_log("Fehler beim Erstellen der member_qualifications Tabelle: " . $e->getMessage());
 }
@@ -138,6 +163,112 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add
     }
 }
 
+// Lehrgang hinzufügen/bearbeiten (aus settings-courses)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array($_POST['action'], ['add', 'edit'], true)) {
+    $course_action = $_POST['action'];
+    $course_id = (int)($_POST['course_id'] ?? 0);
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = "Ungültiger Sicherheitstoken.";
+    } else {
+        $name = trim(sanitize_input($_POST['name'] ?? ''));
+        $description = trim(sanitize_input($_POST['description'] ?? ''));
+        $requirements = $_POST['requirements'] ?? [];
+        $qualification_id = !empty($_POST['qualification_id']) ? (int)$_POST['qualification_id'] : null;
+        if (empty($name)) {
+            $error = "Bitte geben Sie einen Lehrgangsnamen ein.";
+        } else {
+            try {
+                $db->beginTransaction();
+                if ($course_action === 'add') {
+                    $stmt_check = $db->prepare("SELECT id FROM courses WHERE name = ?");
+                    $stmt_check->execute([$name]);
+                    if ($stmt_check->fetch()) {
+                        $error = "Ein Lehrgang mit diesem Namen existiert bereits.";
+                        $db->rollBack();
+                    } else {
+                        $stmt = $db->prepare("INSERT INTO courses (name, description, qualification_id) VALUES (?, ?, ?)");
+                        $stmt->execute([$name, $description, $qualification_id]);
+                        $course_id = $db->lastInsertId();
+                        $message = "Lehrgang wurde erfolgreich hinzugefügt.";
+                    }
+                } elseif ($course_action === 'edit' && $course_id > 0) {
+                    $stmt_check = $db->prepare("SELECT id FROM courses WHERE name = ? AND id != ?");
+                    $stmt_check->execute([$name, $course_id]);
+                    if ($stmt_check->fetch()) {
+                        $error = "Ein Lehrgang mit diesem Namen existiert bereits.";
+                        $db->rollBack();
+                    } else {
+                        $stmt = $db->prepare("UPDATE courses SET name = ?, description = ?, qualification_id = ? WHERE id = ?");
+                        $stmt->execute([$name, $description, $qualification_id, $course_id]);
+                        $message = "Lehrgang wurde erfolgreich aktualisiert.";
+                    }
+                }
+                if (empty($error) && $course_id > 0) {
+                    $stmt = $db->prepare("DELETE FROM course_requirements WHERE course_id = ?");
+                    $stmt->execute([$course_id]);
+                    if (!empty($requirements) && is_array($requirements)) {
+                        $stmt = $db->prepare("INSERT INTO course_requirements (course_id, required_course_id) VALUES (?, ?)");
+                        foreach ($requirements as $req_id) {
+                            $req_id = (int)$req_id;
+                            if ($req_id > 0 && $req_id != $course_id) {
+                                try { $stmt->execute([$course_id, $req_id]); } catch (Exception $e) {}
+                            }
+                        }
+                    }
+                }
+                if (empty($error)) $db->commit();
+            } catch (Exception $e) {
+                if ($db->inTransaction()) $db->rollBack();
+                $error = "Fehler: " . $e->getMessage();
+            }
+        }
+    }
+    if (empty($error)) {
+        $redirect = 'settings-members.php?tab=lehrgaenge';
+        if ($einheit_id > 0) $redirect .= '&einheit_id=' . (int)$einheit_id;
+        header("Location: $redirect");
+        exit;
+    }
+}
+
+// Lehrgang löschen
+if (isset($_GET['delete']) && isset($_GET['tab']) && $_GET['tab'] === 'lehrgaenge') {
+    $course_id = (int)$_GET['delete'];
+    if (validate_csrf_token($_GET['csrf_token'] ?? '')) {
+        try {
+            $stmt = $db->prepare("DELETE FROM courses WHERE id = ?");
+            $stmt->execute([$course_id]);
+            $message = "Lehrgang wurde erfolgreich gelöscht.";
+            $redirect = 'settings-members.php?tab=lehrgaenge';
+            if ($einheit_id > 0) $redirect .= '&einheit_id=' . (int)$einheit_id;
+            header("Location: $redirect");
+            exit;
+        } catch (Exception $e) {
+            $error = "Fehler beim Löschen: " . $e->getMessage();
+        }
+    }
+}
+
+// Lehrgänge laden
+$courses = [];
+$qualifications_for_courses = [];
+try {
+    $q = $db->query("SELECT id, name FROM member_qualifications ORDER BY sort_order, name");
+    if ($q) $qualifications_for_courses = $q->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+try {
+    $stmt = $db->prepare("SELECT c.id, c.name, c.description, c.qualification_id, c.created_at, c.updated_at, q.name AS qualification_name FROM courses c LEFT JOIN member_qualifications q ON q.id = c.qualification_id ORDER BY c.name ASC");
+    $stmt->execute();
+    $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($courses as $key => $course) {
+        $stmt_req = $db->prepare("SELECT cr.required_course_id, c.name FROM course_requirements cr JOIN courses c ON c.id = cr.required_course_id WHERE cr.course_id = ?");
+        $stmt_req->execute([$course['id']]);
+        $courses[$key]['requirements'] = $stmt_req->fetchAll(PDO::FETCH_ASSOC);
+    }
+} catch (Exception $e) {}
+
+$tab_param = $einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '';
+
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -174,24 +305,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add
             <?php echo show_error($error); ?>
         <?php endif; ?>
 
-        <div class="row mb-4">
-            <div class="col-12">
-                <a href="members.php" class="btn btn-primary me-2">
-                    <i class="fas fa-users"></i> Mitglieder verwalten
+        <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <a class="nav-link <?php echo $active_tab === 'ric' ? 'active' : ''; ?>" href="?tab=ric<?php echo $tab_param; ?>">
+                    <i class="fas fa-broadcast-tower"></i> RIC Verwaltung
                 </a>
-                <a href="<?php echo $einheit_id > 0 ? 'settings-einheit.php?id=' . (int)$einheit_id : 'settings.php'; ?>" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left"></i> Zurück
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?php echo $active_tab === 'qualifikationen' ? 'active' : ''; ?>" href="?tab=qualifikationen<?php echo $tab_param; ?>">
+                    <i class="fas fa-certificate"></i> Qualifikationen
                 </a>
-            </div>
-        </div>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?php echo $active_tab === 'lehrgaenge' ? 'active' : ''; ?>" href="?tab=lehrgaenge<?php echo $tab_param; ?>">
+                    <i class="fas fa-graduation-cap"></i> Lehrgänge
+                </a>
+            </li>
+        </ul>
 
+        <?php if ($active_tab === 'ric'): ?>
         <div class="row mb-4">
             <div class="col-12 col-lg-6">
                 <div class="card shadow">
                     <div class="card-header bg-warning text-dark">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-broadcast-tower"></i> RIC Verwaltung
-                        </h5>
+                        <h5 class="card-title mb-0"><i class="fas fa-broadcast-tower"></i> RIC Verwaltung</h5>
                     </div>
                     <div class="card-body">
                         <p class="text-muted small mb-3">RIC-Codes verwalten, Divera Admin festlegen und RIC-Zuweisungen für Mitglieder vornehmen.</p>
@@ -206,16 +343,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add
                     </div>
                 </div>
             </div>
+        </div>
+        <?php elseif ($active_tab === 'qualifikationen'): ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <a href="members.php" class="btn btn-primary me-2">
+                    <i class="fas fa-users"></i> Mitglieder verwalten
+                </a>
+            </div>
+        </div>
+        <div class="row mb-4">
             <div class="col-12 col-lg-6">
                 <div class="card shadow">
                     <div class="card-header bg-info text-white">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-star"></i> Standardqualifikation
-                        </h5>
+                        <h5 class="card-title mb-0"><i class="fas fa-star"></i> Standardqualifikation</h5>
                     </div>
                     <div class="card-body">
-                        <p class="text-muted small">Diese Qualifikation wird bei neuen Mitgliedern vorausgewählt und gespeichert, wenn beim Anlegen oder Bearbeiten keine andere gewählt wird.</p>
-                        <form method="POST" action="">
+                        <p class="text-muted small">Diese Qualifikation wird bei neuen Mitgliedern vorausgewählt.</p>
+                        <form method="POST" action="?tab=qualifikationen<?php echo $tab_param; ?>">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                             <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                             <div class="mb-3">
@@ -227,15 +372,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <button type="submit" name="save_default_qual" class="btn btn-primary">
-                                <i class="fas fa-save"></i> Speichern
-                            </button>
+                            <button type="submit" name="save_default_qual" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
                         </form>
                     </div>
                 </div>
             </div>
         </div>
-
         <div class="row">
             <div class="col-12 col-lg-8">
                 <div class="card shadow">
@@ -272,7 +414,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add
                                                         data-sort="<?php echo (int)$q['sort_order']; ?>">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
-                                                <form method="POST" style="display: inline;" onsubmit="return confirm('Diese Qualifikation wirklich löschen?');">
+                                                <form method="POST" action="?tab=qualifikationen<?php echo $tab_param; ?>" style="display: inline;" onsubmit="return confirm('Diese Qualifikation wirklich löschen?');">
                                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                                                     <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                                                     <input type="hidden" name="qual_id" value="<?php echo $q['id']; ?>">
@@ -299,7 +441,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add
                         </h5>
                     </div>
                     <div class="card-body">
-                        <form method="POST" action="" id="qualForm">
+                        <form method="POST" action="?tab=qualifikationen<?php echo $tab_param; ?>" id="qualForm">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                             <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
                             <input type="hidden" name="qual_id" id="qual_id" value="">
@@ -331,6 +473,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add
                 </div>
             </div>
         </div>
+        <?php elseif ($active_tab === 'lehrgaenge'): ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0"><i class="fas fa-plus-circle"></i> Lehrgang hinzufügen</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="?tab=lehrgaenge<?php echo $tab_param; ?>">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
+                            <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
+                            <input type="hidden" name="action" value="add" id="course_action">
+                            <input type="hidden" name="course_id" value="" id="course_id">
+                            <div class="mb-3">
+                                <label for="course_name" class="form-label">Lehrgangsname *</label>
+                                <input type="text" class="form-control" id="course_name" name="name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="course_description" class="form-label">Beschreibung</label>
+                                <textarea class="form-control" id="course_description" name="description" rows="3"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="course_qualification_id" class="form-label">Qualifikation</label>
+                                <select class="form-select" id="course_qualification_id" name="qualification_id">
+                                    <option value="">— keine —</option>
+                                    <?php foreach ($qualifications_for_courses as $q): ?>
+                                    <option value="<?php echo (int)$q['id']; ?>"><?php echo htmlspecialchars($q['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="form-text text-muted">Wenn gesetzt, wird diese Qualifikation beim Mitglied gesetzt, sobald der Lehrgang dem Mitglied zugewiesen wird.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Anforderungen (Voraussetzungen)</label>
+                                <div class="border rounded p-3" id="requirementsContainer" style="max-height: 200px; overflow-y: auto;">
+                                    <?php if (empty($courses)): ?>
+                                        <p class="text-muted mb-0">Noch keine Lehrgänge vorhanden.</p>
+                                    <?php else: ?>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <?php foreach ($courses as $course): ?>
+                                            <button type="button" class="btn btn-outline-secondary requirement-btn" data-requirement-id="<?php echo $course['id']; ?>" id="req_btn_<?php echo $course['id']; ?>"><?php echo htmlspecialchars($course['name']); ?></button>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                <small class="form-text text-muted">Klicken Sie auf die Lehrgänge, die als Voraussetzung gelten sollen.</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="course_submit_btn"><i class="fas fa-save"></i> Hinzufügen</button>
+                            <button type="button" class="btn btn-secondary" onclick="courseResetForm()"><i class="fas fa-times"></i> Abbrechen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="card-title mb-0"><i class="fas fa-list"></i> Vorhandene Lehrgänge</h5>
+                    </div>
+                    <div class="card-body">
+                        <?php if (empty($courses)): ?>
+                            <p class="text-muted">Noch keine Lehrgänge definiert.</p>
+                        <?php else: ?>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead><tr><th>Name</th><th>Beschreibung</th><th>Qualifikation</th><th>Anforderungen</th><th>Aktionen</th></tr></thead>
+                                    <tbody>
+                                        <?php foreach ($courses as $course): ?>
+                                        <tr>
+                                            <td><strong><?php echo htmlspecialchars($course['name']); ?></strong></td>
+                                            <td><?php echo htmlspecialchars($course['description'] ?? ''); ?></td>
+                                            <td><?php echo htmlspecialchars($course['qualification_name'] ?? '-'); ?></td>
+                                            <td>
+                                                <?php if (!empty($course['requirements'])): ?>
+                                                    <?php foreach ($course['requirements'] as $req): ?><span class="badge bg-secondary me-1"><?php echo htmlspecialchars($req['name']); ?></span><?php endforeach; ?>
+                                                <?php else: ?><span class="text-muted">Keine</span><?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-sm btn-primary edit-course-btn" data-course-id="<?php echo $course['id']; ?>" data-course-name="<?php echo htmlspecialchars($course['name'], ENT_QUOTES); ?>" data-course-description="<?php echo htmlspecialchars($course['description'] ?? '', ENT_QUOTES); ?>" data-course-qualification-id="<?php echo (int)($course['qualification_id'] ?? 0); ?>" data-course-requirements="<?php echo htmlspecialchars(json_encode(!empty($course['requirements']) ? array_column($course['requirements'], 'required_course_id') : []), ENT_QUOTES); ?>"><i class="fas fa-edit"></i></button>
+                                                <a href="?tab=lehrgaenge&delete=<?php echo $course['id']; ?>&csrf_token=<?php echo htmlspecialchars(generate_csrf_token()); ?><?php echo $tab_param; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Möchten Sie diesen Lehrgang wirklich löschen?')"><i class="fas fa-trash"></i></a>
+                                            </td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -357,7 +591,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error) && (isset($_POST['add
                 document.getElementById('edit_qual_btn').style.display = 'none';
                 this.style.display = 'none';
             });
+            document.querySelectorAll('.edit-course-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var id = this.dataset.courseId, name = this.dataset.courseName || '', desc = this.dataset.courseDescription || '', qid = this.dataset.courseQualificationId || '', reqs = [];
+                    try { reqs = JSON.parse(this.dataset.courseRequirements || '[]'); } catch(e) {}
+                    document.getElementById('course_action').value = 'edit';
+                    document.getElementById('course_id').value = id;
+                    document.getElementById('course_name').value = name;
+                    document.getElementById('course_description').value = desc;
+                    var qsel = document.getElementById('course_qualification_id');
+                    if (qsel) qsel.value = qid;
+                    document.getElementById('course_submit_btn').innerHTML = '<i class="fas fa-save"></i> Aktualisieren';
+                    document.querySelectorAll('.requirement-btn').forEach(function(b) { b.classList.remove('btn-success'); b.classList.add('btn-outline-secondary'); });
+                    document.querySelectorAll('.requirement-input').forEach(function(i) { i.remove(); });
+                    reqs.forEach(function(rid) {
+                        var b = document.getElementById('req_btn_' + rid);
+                        if (b) { b.classList.remove('btn-outline-secondary'); b.classList.add('btn-success'); var inp = document.createElement('input'); inp.type='hidden'; inp.name='requirements[]'; inp.value=rid; inp.className='requirement-input'; var form = b.closest('form'); if (form) form.appendChild(inp); }
+                    });
+                });
+            });
+            document.querySelectorAll('.requirement-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var rid = this.dataset.requirementId, inp = document.getElementById('req_' + rid);
+                    if (this.classList.contains('btn-success')) {
+                        if (inp) inp.remove();
+                        this.classList.remove('btn-success'); this.classList.add('btn-outline-secondary');
+                    } else {
+                        var hi = document.createElement('input'); hi.type='hidden'; hi.name='requirements[]'; hi.value=rid; hi.id='req_'+rid; hi.className='requirement-input';
+                        var form = this.closest('form');
+                        if (form) form.appendChild(hi);
+                        this.classList.remove('btn-outline-secondary'); this.classList.add('btn-success');
+                    }
+                });
+            });
         });
+        function courseResetForm() {
+            document.getElementById('course_action').value = 'add';
+            document.getElementById('course_id').value = '';
+            document.getElementById('course_name').value = '';
+            document.getElementById('course_description').value = '';
+            var q = document.getElementById('course_qualification_id'); if (q) q.value = '';
+            document.getElementById('course_submit_btn').innerHTML = '<i class="fas fa-save"></i> Hinzufügen';
+            document.querySelectorAll('.requirement-btn').forEach(function(b) { b.classList.remove('btn-success'); b.classList.add('btn-outline-secondary'); });
+            document.querySelectorAll('.requirement-input').forEach(function(i) { i.remove(); });
+        }
     </script>
 </body>
 </html>

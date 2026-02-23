@@ -88,14 +88,14 @@ $einheit_param = '&einheit_id=' . $einheit_id;
         </div>
 
         <div class="row g-4">
-            <!-- Globale Einstellungen (Einheit) -->
+            <!-- Einheits Einstellungen -->
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-gear me-2"></i>Globale Einstellungen</h5>
+                        <h5 class="card-title"><i class="fas fa-gear me-2"></i>Einheits Einstellungen</h5>
                         <p class="text-muted">SMTP, Google Calendar, App-Optionen für diese Einheit.</p>
                         <div class="mt-auto">
-                            <a class="btn btn-secondary" href="settings-global.php?einheit_id=<?php echo $einheit_id; ?>&tab=einheit">
+                            <a class="btn btn-primary" href="settings-global.php?einheit_id=<?php echo $einheit_id; ?>&tab=einheit">
                                 <i class="fas fa-wrench"></i> Öffnen
                             </a>
                         </div>
@@ -126,22 +126,7 @@ $einheit_param = '&einheit_id=' . $einheit_id;
                         <p class="text-muted">Benutzer dieser Einheit anlegen, Berechtigungen verwalten.</p>
                         <div class="mt-auto">
                             <a class="btn btn-primary" href="settings-einheit-users.php?id=<?php echo $einheit_id; ?>">
-                                <i class="fas fa-users-cog"></i> Benutzer verwalten
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Fahrzeugverwaltung -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-truck me-2"></i>Fahrzeugverwaltung</h5>
-                        <p class="text-muted">Fahrzeuge dieser Einheit hinzufügen und verwalten.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-global.php?einheit_id=<?php echo $einheit_id; ?>&tab=fahrzeuge">
-                                <i class="fas fa-truck"></i> Fahrzeuge verwalten
+                                <i class="fas fa-users-cog"></i> Öffnen
                             </a>
                         </div>
                     </div>
@@ -163,30 +148,15 @@ $einheit_param = '&einheit_id=' . $einheit_id;
                 </div>
             </div>
 
-            <!-- Lehrgangsverwaltung -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-graduation-cap me-2"></i>Lehrgangsverwaltung</h5>
-                        <p class="text-muted">Lehrgänge definieren und Anforderungen festlegen.</p>
-                        <div class="mt-auto">
-                            <a class="btn btn-primary" href="settings-courses.php?einheit_id=<?php echo $einheit_id; ?>">
-                                <i class="fas fa-cog"></i> Lehrgänge verwalten
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Mitgliederverwaltung -->
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title"><i class="fas fa-users-cog me-2"></i>Mitgliederverwaltung</h5>
-                        <p class="text-muted">Qualifikationen für Mitglieder anlegen.</p>
+                        <p class="text-muted">Qualifikationen und Lehrgänge für Mitglieder anlegen.</p>
                         <div class="mt-auto">
                             <a class="btn btn-primary" href="settings-members.php?einheit_id=<?php echo $einheit_id; ?>">
-                                <i class="fas fa-certificate"></i> Qualifikationen verwalten
+                                <i class="fas fa-certificate"></i> Öffnen
                             </a>
                         </div>
                     </div>

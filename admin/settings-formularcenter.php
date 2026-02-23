@@ -58,7 +58,7 @@ if (!in_array($active_tab, ['forms', 'dienstplan'])) {
     </div>
 
     <?php $tab_base = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id . '&tab=' : '?tab='; ?>
-    <ul class="nav nav-tabs mb-3" id="formularcenterTabs" role="tablist">
+    <ul class="nav nav-tabs mb-4">
         <li class="nav-item" role="presentation">
             <a class="nav-link <?php echo $active_tab === 'forms' ? 'active' : ''; ?>" href="<?php echo $tab_base; ?>forms">
                 <i class="fas fa-file-alt"></i> Formulare

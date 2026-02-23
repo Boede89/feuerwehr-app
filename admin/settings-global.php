@@ -411,7 +411,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <?php else: ?>
         <!-- Einheitenspezifische Einstellungen – Tab-Navigation -->
-        <ul class="nav nav-pills mb-4 flex-wrap gap-2" id="settingsTabs" role="tablist">
+        <ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link <?php echo $active_tab === 'smtp' ? 'active' : ''; ?>" id="tab-smtp-btn" data-bs-toggle="tab" data-bs-target="#tab-smtp" type="button" role="tab"><i class="fas fa-envelope me-1"></i> SMTP</button>
             </li>
