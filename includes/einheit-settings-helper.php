@@ -156,16 +156,18 @@ function migrate_settings_to_amern($db) {
 
 /**
  * Lädt Divera-Konfiguration für eine Einheit aus einheit_settings.
+ * Gibt ['access_key' => ..., 'api_base_url' => ..., 'has_row' => bool] zurück.
  */
 function load_divera_config_for_einheit($db, $einheit_id) {
     if ($einheit_id <= 0) return [];
-    $cfg = [];
+    $cfg = ['has_row' => false];
     try {
         ensure_einheit_settings_table($db);
         $stmt = $db->prepare("SELECT setting_key, setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key IN ('divera_access_key', 'divera_api_base_url')");
         $stmt->execute([$einheit_id]);
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             if ($row['setting_key'] === 'divera_access_key') {
+                $cfg['has_row'] = true;
                 $cfg['access_key'] = trim((string)$row['setting_value']);
             }
             if ($row['setting_key'] === 'divera_api_base_url' && trim((string)$row['setting_value']) !== '') {
@@ -178,12 +180,18 @@ function load_divera_config_for_einheit($db, $einheit_id) {
 
 /**
  * Wendet Divera-Konfiguration einer Einheit auf die globale $divera_config an.
- * Jede Einheit nutzt ausschließlich ihren eigenen Key aus einheit_settings.
+ * - Einheit hat Key in einheit_settings: diesen verwenden
+ * - Einheit hat leere Zeile (explizit gelöscht): Key leeren
+ * - Einheit hat keine Zeile: Einheit 1 behält globalen Key, andere Einheiten Key leeren
  */
 function apply_divera_config_for_einheit($db, $einheit_id) {
     global $divera_config;
     $cfg = load_divera_config_for_einheit($db, $einheit_id);
-    $divera_config['access_key'] = $cfg['access_key'] ?? '';
+    if ($cfg['has_row']) {
+        $divera_config['access_key'] = $cfg['access_key'] ?? '';
+    } elseif ((int)$einheit_id !== 1) {
+        $divera_config['access_key'] = '';
+    }
     if (!empty($cfg['api_base_url'])) {
         $divera_config['api_base_url'] = $cfg['api_base_url'];
     }

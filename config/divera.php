@@ -17,28 +17,23 @@ if (is_file(__DIR__ . '/divera.local.php')) {
     include __DIR__ . '/divera.local.php';
 }
 
-// Einstellungen laden
+// Einstellungen laden: zuerst global, dann Einheit (Einheit überschreibt)
 $eid = (function_exists('get_current_einheit_id')) ? get_current_einheit_id() : null;
 if (!empty($db)) {
-    if ($eid > 0) {
-        // Einheit ausgewählt: NUR einheit_settings – jede Einheit hat eigenen Key, kein Fallback
-        if (function_exists('apply_divera_config_for_einheit')) {
-            require_once dirname(__DIR__) . '/includes/einheit-settings-helper.php';
-            apply_divera_config_for_einheit($db, $eid);
-        }
-    } else {
-        // Keine Einheit: globale settings (Legacy)
-        try {
-            $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url')");
-            $stmt->execute();
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                if ($row['setting_key'] === 'divera_access_key' && trim((string) $row['setting_value']) !== '') {
-                    $divera_config['access_key'] = trim((string) $row['setting_value']);
-                }
-                if ($row['setting_key'] === 'divera_api_base_url' && trim((string) $row['setting_value']) !== '') {
-                    $divera_config['api_base_url'] = rtrim(trim((string) $row['setting_value']), '/');
-                }
+    try {
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url')");
+        $stmt->execute();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if ($row['setting_key'] === 'divera_access_key' && trim((string) $row['setting_value']) !== '') {
+                $divera_config['access_key'] = trim((string) $row['setting_value']);
             }
-        } catch (Exception $e) {}
+            if ($row['setting_key'] === 'divera_api_base_url' && trim((string) $row['setting_value']) !== '') {
+                $divera_config['api_base_url'] = rtrim(trim((string) $row['setting_value']), '/');
+            }
+        }
+    } catch (Exception $e) {}
+    if ($eid > 0 && function_exists('apply_divera_config_for_einheit')) {
+        require_once dirname(__DIR__) . '/includes/einheit-settings-helper.php';
+        apply_divera_config_for_einheit($db, $eid);
     }
 }
