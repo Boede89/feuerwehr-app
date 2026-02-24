@@ -170,14 +170,16 @@ $pending_reservations = [];
 $pending_room_reservations = [];
 if ($can_reservations) {
     // Fahrzeug-Reservierungen (eigener try, damit Fehler Raum-Reservierungen nicht blockieren)
+    // Filter: Reservierung ODER Fahrzeug muss zur Einheit passen (wie bei Raumreservierungen)
     try {
+        try { $db->exec("ALTER TABLE reservations ADD COLUMN unit_id INT NULL"); } catch (Exception $e) {}
+        try { $db->exec("ALTER TABLE vehicles ADD COLUMN unit_id INT NULL"); } catch (Exception $e) {}
         $stmt = $db->prepare("
             SELECT r.*, v.name as vehicle_name
             FROM reservations r 
             JOIN vehicles v ON r.vehicle_id = v.id 
             WHERE r.status = 'pending' 
-            AND (COALESCE(r.unit_id, r.einheit_id, 1) = ?)
-            AND (COALESCE(v.unit_id, v.einheit_id, 1) = ?)
+            AND (COALESCE(r.einheit_id, r.unit_id, 1) = ? OR COALESCE(v.einheit_id, v.unit_id, 1) = ?)
             ORDER BY r.created_at DESC 
             LIMIT 10
         ");

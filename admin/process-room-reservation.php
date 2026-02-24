@@ -40,7 +40,7 @@ $reason = $input['reason'] ?? '';
 
 try {
     $stmt = $db->prepare("
-        SELECT rr.*, ro.name as room_name
+        SELECT rr.*, ro.name as room_name, COALESCE(rr.einheit_id, ro.einheit_id) as einheit_id
         FROM room_reservations rr
         JOIN rooms ro ON rr.room_id = ro.id
         WHERE rr.id = ? AND rr.status = 'pending'
@@ -175,6 +175,11 @@ function createRoomApprovalEmailHTML($reservation) {
  */
 function apply_room_calendar_settings($db, $reservation, $reservation_id) {
     $einheit_id = (int)($reservation['einheit_id'] ?? 0);
+    if ($einheit_id <= 0 && !empty($reservation['room_id'])) {
+        $stmt_ro = $db->prepare("SELECT einheit_id FROM rooms WHERE id = ?");
+        $stmt_ro->execute([$reservation['room_id']]);
+        $einheit_id = (int)($stmt_ro->fetchColumn() ?: 0);
+    }
     $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
     if (empty($settings['divera_reservation_groups']) && $einheit_id > 0) {
         $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_groups', 'divera_reservation_default_group_id')");
@@ -192,16 +197,33 @@ function apply_room_calendar_settings($db, $reservation, $reservation_id) {
     if ($room_divera_enabled) {
         try {
             require_once __DIR__ . '/../config/divera.php';
-            if ($einheit_id > 0) apply_divera_config_for_einheit($db, $einheit_id);
             global $divera_config;
-            $divera_key = '';
-            if (isset($_SESSION['user_id'])) {
+            if ($einheit_id > 0) {
+                apply_divera_config_for_einheit($db, $einheit_id);
+            } else {
+                $stmt_dv = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_access_key', 'divera_api_base_url')");
+                $stmt_dv->execute();
+                while ($row = $stmt_dv->fetch(PDO::FETCH_ASSOC)) {
+                    if ($row['setting_key'] === 'divera_access_key' && trim((string)$row['setting_value']) !== '') {
+                        $divera_config['access_key'] = trim((string)$row['setting_value']);
+                    }
+                    if ($row['setting_key'] === 'divera_api_base_url' && trim((string)$row['setting_value']) !== '') {
+                        $divera_config['api_base_url'] = rtrim(trim((string)$row['setting_value']), '/');
+                    }
+                }
+            }
+            $divera_key = trim((string)($divera_config['access_key'] ?? ''));
+            if ($divera_key === '' && isset($_SESSION['user_id'])) {
                 $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
                 $stmt->execute([$_SESSION['user_id']]);
                 $uk = $stmt->fetch(PDO::FETCH_ASSOC);
                 $divera_key = trim((string)($uk['divera_access_key'] ?? ''));
             }
-            if ($divera_key === '') $divera_key = trim((string)($divera_config['access_key'] ?? ''));
+            if ($divera_key === '') {
+                $stmt_dv = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_access_key' AND setting_value != '' LIMIT 1");
+                $stmt_dv->execute();
+                $divera_key = trim((string)($stmt_dv->fetchColumn() ?: ''));
+            }
             $api_base = rtrim(trim((string)($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
             if ($divera_key !== '') {
                 $res_for_divera = $reservation;
