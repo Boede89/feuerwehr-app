@@ -609,12 +609,18 @@ if (isset($_GET['edit_submission'])) {
     }
 }
 
-// Divera-Gruppen und Standard-Gruppe für Export
+// Divera-Gruppen und Standard-Gruppe für Export – nur Einheit der aktuellen Ansicht
 $divera_groups = [];
 $divera_default_group_id = '';
 try {
-    $stmt = $db->prepare('SELECT setting_key, setting_value FROM settings WHERE setting_key IN (?, ?)');
-    $stmt->execute(['divera_reservation_groups', 'divera_dienstplan_default_group_id']);
+    require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+    if ($einheit_filter > 0) {
+        $stmt = $db->prepare('SELECT setting_key, setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key IN (?, ?)');
+        $stmt->execute([$einheit_filter, 'divera_reservation_groups', 'divera_dienstplan_default_group_id']);
+    } else {
+        $stmt = $db->prepare('SELECT setting_key, setting_value FROM settings WHERE setting_key IN (?, ?)');
+        $stmt->execute(['divera_reservation_groups', 'divera_dienstplan_default_group_id']);
+    }
     foreach ($stmt->fetchAll() as $row) {
         if ($row['setting_key'] === 'divera_reservation_groups') {
             $dec = json_decode($row['setting_value'], true);
