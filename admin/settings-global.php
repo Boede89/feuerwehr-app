@@ -1110,7 +1110,7 @@ document.getElementById('btn_list_printers')?.addEventListener('click', function
     out.style.display = 'block';
     out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Drucker...</span>';
     btn.disabled = true;
-    fetch('../api/list-printers.php')
+    fetch('../api/list-printers.php?einheit_id=<?php echo (int)$einheit_id; ?>')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             btn.disabled = false;

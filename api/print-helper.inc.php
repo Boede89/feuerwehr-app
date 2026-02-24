@@ -1,7 +1,7 @@
 <?php
 /**
  * Hilfsfunktionen für Druck über CUPS.
- * Bei einheit_id > 0: Drucker aus einheit_settings, sonst aus globalen settings.
+ * Drucker nur aus einheit_settings (bei einheit_id > 0). Keine globalen Druckeinstellungen.
  */
 function print_get_printer_config($db, $einheit_id = null) {
     $printer = '';
@@ -16,16 +16,6 @@ function print_get_printer_config($db, $einheit_id = null) {
         $override = trim($settings['printer_cups_server'] ?? '');
         if ($override !== '') $cups_server = $override;
     }
-    if ($printer === '') {
-        try {
-            $stmt = $db->prepare('SELECT setting_value FROM settings WHERE setting_key = ?');
-            $stmt->execute(['printer_destination']);
-            $printer = trim($stmt->fetchColumn() ?: '');
-            $stmt->execute(['printer_cups_server']);
-            $override = trim($stmt->fetchColumn() ?: '');
-            if ($override !== '') $cups_server = $override;
-        } catch (Exception $e) {}
-    }
     if ($cups_server === '' && (getenv('DOCKER') || file_exists('/.dockerenv'))) {
         $cups_server = 'host.docker.internal:631';
     }
@@ -34,7 +24,7 @@ function print_get_printer_config($db, $einheit_id = null) {
 
 function print_send_pdf($pdf_content, $printer_config) {
     if (empty($printer_config['printer'])) {
-        return ['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte in den globalen Einstellungen einen Druckernamen eintragen.'];
+        return ['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte in den Einstellungen der Einheit (Drucker-Tab) einen Druckernamen eintragen.'];
     }
     if (empty($pdf_content) || strlen($pdf_content) < 100) {
         return ['success' => false, 'message' => 'PDF konnte nicht erzeugt werden.'];

@@ -14,7 +14,8 @@ if (!isset($_SESSION['user_id']) || !hasAdminPermission()) {
     exit;
 }
 
-$config = print_get_printer_config($db);
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+$config = print_get_printer_config($db, $einheit_id);
 $cups_server = $config['cups_server'] ?: getenv('CUPS_SERVER') ?: ($_SERVER['CUPS_SERVER'] ?? '');
 $configured = $config['printer'];
 
