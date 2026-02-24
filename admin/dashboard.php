@@ -357,6 +357,9 @@ if ($can_atemschutz) {
         } catch (Exception $e) {
             // Spalte existiert bereits, ignoriere Fehler
         }
+        // unit_id / einheit_id für Einheiten-Filter (falls nicht vorhanden)
+        try { $db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN unit_id INT NULL"); } catch (Exception $e) {}
+        try { $db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN einheit_id INT NULL"); } catch (Exception $e) {}
         
         // Warnschwelle laden (Standard: 90 Tage)
         $warn_days = 90;
@@ -369,21 +372,34 @@ if ($can_atemschutz) {
         
         $warn_date = date('Y-m-d', strtotime("+{$warn_days} days"));
         
-        // Lade alle aktiven Geräteträger der Einheit
-        $stmt = $db->prepare("
-            SELECT t.*, 
-                   el.sent_at as last_email_sent
-            FROM atemschutz_traeger t
-            LEFT JOIN (
-                SELECT traeger_id, sent_at,
-                       ROW_NUMBER() OVER (PARTITION BY traeger_id ORDER BY sent_at DESC) as rn
-                FROM email_log
-            ) el ON t.id = el.traeger_id AND el.rn = 1
-            WHERE t.status = 'Aktiv' AND (COALESCE(t.unit_id, t.einheit_id, 1) = ?)
-            ORDER BY t.last_name ASC, t.first_name ASC
-        ");
-        $stmt->execute([$effective_unit_id]);
-        $all_traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Lade alle aktiven Geräteträger der Einheit (Fallback: alle wenn unit_id/einheit_id fehlen)
+        $all_traeger = [];
+        try {
+            $stmt = $db->prepare("
+                SELECT t.*, 
+                       el.sent_at as last_email_sent
+                FROM atemschutz_traeger t
+                LEFT JOIN (
+                    SELECT traeger_id, sent_at,
+                           ROW_NUMBER() OVER (PARTITION BY traeger_id ORDER BY sent_at DESC) as rn
+                    FROM email_log
+                ) el ON t.id = el.traeger_id AND el.rn = 1
+                WHERE t.status = 'Aktiv' AND (COALESCE(t.unit_id, t.einheit_id, 1) = ?)
+                ORDER BY t.last_name ASC, t.first_name ASC
+            ");
+            $stmt->execute([$effective_unit_id]);
+            $all_traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            try {
+                $stmt = $db->query("
+                    SELECT t.*, NULL as last_email_sent
+                    FROM atemschutz_traeger t
+                    WHERE t.status = 'Aktiv'
+                    ORDER BY t.last_name ASC, t.first_name ASC
+                ");
+                $all_traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (Exception $e2) {}
+        }
         
         // Filtere nur die wirklich auffälligen Geräteträger
         $atemschutz_warnings = [];
@@ -638,7 +654,7 @@ if ($can_atemschutz) {
                         <label for="rejectReason" class="form-label">
                             <i class="fas fa-comment me-1"></i>Ablehnungsgrund
                         </label>
-                        <textarea class="form-control" id="rejectReason" rows="4" placeholder="Grund für die Ablehnung eingeben...">Das gewünschte Fahrzeug ist zu diesem Zeitpunkt bereits reserviert.</textarea>
+                        <textarea class="form-control" id="rejectReason" rows="4" placeholder="Grund für die Ablehnung eingeben..."></textarea>
                         <div class="form-text">Der Grund wird dem Antragsteller per E-Mail übermittelt.</div>
                     </div>
                 </div>
@@ -1937,6 +1953,14 @@ if ($can_atemschutz) {
             if (detailsModal) {
                 detailsModal.hide();
             }
+            
+            // Platzhalter/Vorauswahl je nach Reservierungstyp (Fahrzeug vs. Raum)
+            const rejectReasonEl = document.getElementById('rejectReason');
+            const defaultText = window.currentReservationType === 'room'
+                ? 'Der gewünschte Raum ist zu diesem Zeitpunkt bereits reserviert.'
+                : 'Das gewünschte Fahrzeug ist zu diesem Zeitpunkt bereits reserviert.';
+            rejectReasonEl.placeholder = defaultText;
+            rejectReasonEl.value = defaultText;
             
             // Ablehnungsmodal anzeigen
             const rejectModal = new bootstrap.Modal(document.getElementById('rejectReasonModal'));
