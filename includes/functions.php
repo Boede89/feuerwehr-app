@@ -499,6 +499,11 @@ function has_permission($permission) {
             // Spalte existiert bereits, ignoriere Fehler
         }
         try {
+            $db->exec("ALTER TABLE users ADD COLUMN can_auswertung TINYINT(1) DEFAULT 0");
+        } catch (Exception $e) {
+            // Spalte existiert bereits, ignoriere Fehler
+        }
+        try {
             $db->exec("ALTER TABLE users ADD COLUMN can_forms_fill TINYINT(1) DEFAULT 0");
         } catch (Exception $e) {
             // Spalte existiert bereits, ignoriere Fehler
@@ -527,7 +532,7 @@ function has_permission($permission) {
             // Spalte existiert bereits, ignoriere Fehler
         }
         
-        $stmt = $db->prepare("SELECT is_admin, user_role, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_users, can_settings, can_vehicles, can_reservations_readonly, can_atemschutz_readonly, can_members_readonly, can_ric_readonly, can_courses_readonly, can_forms_readonly FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT is_admin, user_role, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_auswertung, can_users, can_settings, can_vehicles, can_reservations_readonly, can_atemschutz_readonly, can_members_readonly, can_ric_readonly, can_courses_readonly, can_forms_readonly FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -574,6 +579,8 @@ function has_permission($permission) {
                 return (bool)($user['can_forms'] ?? 0);
             case 'forms_fill':
                 return (bool)($user['can_forms_fill'] ?? 0);
+            case 'auswertung':
+                return (bool)($user['can_auswertung'] ?? 0);
             default:
                 return false;
         }

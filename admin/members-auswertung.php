@@ -13,7 +13,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
     exit;
 }
-if (!has_permission('members')) {
+if (!has_permission('auswertung')) {
     header('Location: ../login.php?error=access_denied');
     exit;
 }
@@ -270,7 +270,7 @@ if ($debug_fahrzeug) {
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0"><i class="fas fa-chart-pie"></i> Auswertung</h1>
-        <a href="members.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
+        <a href="<?php echo has_permission('members') ? 'members.php' : 'dashboard.php'; ?>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück</a>
     </div>
 
     <?php if ($bereich === ''): ?>

@@ -56,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $can_courses = isset($_POST['can_courses']) ? 1 : 0;
         $can_forms = isset($_POST['can_forms']) ? 1 : 0;
         $can_forms_fill = isset($_POST['can_forms_fill']) ? 1 : 0;
+        $can_auswertung = isset($_POST['can_auswertung']) ? 1 : 0;
         $can_reservations_readonly = isset($_POST['can_reservations_readonly']) ? 1 : 0;
         $can_atemschutz_readonly = isset($_POST['can_atemschutz_readonly']) ? 1 : 0;
         $can_members_readonly = isset($_POST['can_members_readonly']) ? 1 : 0;
@@ -75,9 +76,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 } else {
                     $password_hash = hash_password($password);
                     try { $db->exec("ALTER TABLE users ADD COLUMN can_forms_fill TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+                    try { $db->exec("ALTER TABLE users ADD COLUMN can_auswertung TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
                     foreach (['can_reservations_readonly','can_atemschutz_readonly','can_members_readonly','can_ric_readonly','can_courses_readonly','can_forms_readonly'] as $c) { try { $db->exec("ALTER TABLE users ADD COLUMN $c TINYINT(1) DEFAULT 0"); } catch (Exception $e) {} }
-                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, user_type, einheit_id, is_active, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_reservations_readonly, can_atemschutz_readonly, can_members_readonly, can_ric_readonly, can_courses_readonly, can_forms_readonly, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', 'user', ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)");
-                    $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $einheit_id, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly]);
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, user_type, einheit_id, is_active, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_auswertung, can_reservations_readonly, can_atemschutz_readonly, can_members_readonly, can_ric_readonly, can_courses_readonly, can_forms_readonly, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', 'user', ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)");
+                    $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $einheit_id, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly]);
                     $new_id = $db->lastInsertId();
                     try {
                         $stmt_m = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, einheit_id) VALUES (?, ?, ?, ?, ?)");
@@ -118,6 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $can_courses = isset($_POST['can_courses']) ? 1 : 0;
             $can_forms = isset($_POST['can_forms']) ? 1 : 0;
             $can_forms_fill = isset($_POST['can_forms_fill']) ? 1 : 0;
+            $can_auswertung = isset($_POST['can_auswertung']) ? 1 : 0;
             $can_reservations_readonly = isset($_POST['can_reservations_readonly']) ? 1 : 0;
             $can_atemschutz_readonly = isset($_POST['can_atemschutz_readonly']) ? 1 : 0;
             $can_members_readonly = isset($_POST['can_members_readonly']) ? 1 : 0;
@@ -138,14 +141,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         $error = "Benutzername oder E-Mail existiert bereits.";
                     } else {
                     try { $db->exec("ALTER TABLE users ADD COLUMN can_forms_fill TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+                    try { $db->exec("ALTER TABLE users ADD COLUMN can_auswertung TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
                     foreach (['can_reservations_readonly','can_atemschutz_readonly','can_members_readonly','can_ric_readonly','can_courses_readonly','can_forms_readonly'] as $c) { try { $db->exec("ALTER TABLE users ADD COLUMN $c TINYINT(1) DEFAULT 0"); } catch (Exception $e) {} }
                     if (!empty($password)) {
                         $pw_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=?, password_hash=? WHERE id=?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $pw_hash, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_auswertung=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=?, password_hash=? WHERE id=?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $pw_hash, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=? WHERE id=?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_auswertung=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=? WHERE id=?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $user_id]);
                     }
                     try {
                         $stmt_m = $db->prepare("UPDATE members SET first_name=?, last_name=?, email=? WHERE user_id=? AND einheit_id=?");
@@ -326,7 +330,7 @@ if (isset($_GET['success'])) {
 }
 
 // Sicherstellen, dass alle Berechtigungsspalten existieren
-foreach (['can_forms_fill', 'can_reservations_readonly', 'can_atemschutz_readonly', 'can_members_readonly', 'can_ric_readonly', 'can_courses_readonly', 'can_forms_readonly'] as $col) {
+foreach (['can_forms_fill', 'can_auswertung', 'can_reservations_readonly', 'can_atemschutz_readonly', 'can_members_readonly', 'can_ric_readonly', 'can_courses_readonly', 'can_forms_readonly'] as $col) {
     try { $db->exec("ALTER TABLE users ADD COLUMN $col TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
 }
 
@@ -334,7 +338,7 @@ foreach (['can_forms_fill', 'can_reservations_readonly', 'can_atemschutz_readonl
 $unit_users = [];
 try {
     $stmt = $db->prepare("SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.user_type, u.is_active, u.created_at,
-        u.can_reservations, u.can_atemschutz, u.can_members, u.can_ric, u.can_courses, u.can_forms, u.can_forms_fill,
+        u.can_reservations, u.can_atemschutz, u.can_members, u.can_ric, u.can_courses, u.can_forms, u.can_forms_fill, u.can_auswertung,
         u.can_reservations_readonly, u.can_atemschutz_readonly, u.can_members_readonly, u.can_ric_readonly, u.can_courses_readonly, u.can_forms_readonly
         FROM users u 
         WHERE (u.einheit_id = ? OR u.id IN (SELECT user_id FROM user_einheiten WHERE einheit_id = ?))
@@ -434,6 +438,7 @@ try {
                                         <?php if (!empty($u['can_forms_fill'])): ?><span class="badge bg-secondary">Formulare ausfüllen</span><?php endif; ?>
                                         <?php if (!empty($u['can_atemschutz'])): ?><span class="badge bg-success">Atemschutz</span><?php endif; ?>
                                         <?php if (!empty($u['can_members'])): ?><span class="badge bg-info">Mitglieder</span><?php endif; ?>
+                                        <?php if (!empty($u['can_auswertung'])): ?><span class="badge bg-info">Auswertung</span><?php endif; ?>
                                         <?php if (!empty($u['can_ric'])): ?><span class="badge bg-warning text-dark">RIC</span><?php endif; ?>
                                         <?php if (!empty($u['can_courses'])): ?><span class="badge bg-purple">Lehrgänge</span><?php endif; ?>
                                         <?php if (!empty($u['can_forms'])): ?><span class="badge bg-secondary">Formularcenter</span><?php endif; ?>
@@ -463,6 +468,7 @@ try {
                                         data-can-courses="<?php echo (int)($u['can_courses'] ?? 0); ?>"
                                         data-can-forms-fill="<?php echo (int)($u['can_forms_fill'] ?? 0); ?>"
                                         data-can-forms="<?php echo (int)($u['can_forms'] ?? 0); ?>"
+                                        data-can-auswertung="<?php echo (int)($u['can_auswertung'] ?? 0); ?>"
                                         data-can-reservations-readonly="<?php echo (int)($u['can_reservations_readonly'] ?? 0); ?>"
                                         data-can-atemschutz-readonly="<?php echo (int)($u['can_atemschutz_readonly'] ?? 0); ?>"
                                         data-can-members-readonly="<?php echo (int)($u['can_members_readonly'] ?? 0); ?>"
@@ -788,6 +794,10 @@ try {
                                 <label class="form-check-label" for="edit_can_forms_fill">Formulare ausfüllen</label>
                             </div>
                             <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_auswertung" id="edit_can_auswertung">
+                                <label class="form-check-label" for="edit_can_auswertung">Auswertung</label>
+                            </div>
+                            <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_forms" id="edit_can_forms">
                                 <label class="form-check-label" for="edit_can_forms">Formularcenter</label>
                                 <div class="form-check form-check-inline ms-3">
@@ -900,6 +910,10 @@ try {
                                 <label class="form-check-label" for="add_can_forms_fill">Formulare ausfüllen</label>
                             </div>
                             <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_auswertung" id="add_can_auswertung">
+                                <label class="form-check-label" for="add_can_auswertung">Auswertung</label>
+                            </div>
+                            <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_forms" id="add_can_forms">
                                 <label class="form-check-label" for="add_can_forms">Formularcenter</label>
                                 <div class="form-check form-check-inline ms-3">
@@ -935,6 +949,7 @@ try {
             document.getElementById('edit_can_courses').checked = btn.dataset.canCourses == '1';
             document.getElementById('edit_can_forms_fill').checked = btn.dataset.canFormsFill == '1';
             document.getElementById('edit_can_forms').checked = btn.dataset.canForms == '1';
+            document.getElementById('edit_can_auswertung').checked = btn.dataset.canAuswertung == '1';
             document.getElementById('edit_can_reservations_readonly').checked = btn.dataset.canReservationsReadonly == '1';
             document.getElementById('edit_can_atemschutz_readonly').checked = btn.dataset.canAtemschutzReadonly == '1';
             document.getElementById('edit_can_members_readonly').checked = btn.dataset.canMembersReadonly == '1';
