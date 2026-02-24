@@ -241,7 +241,7 @@ function apply_room_calendar_settings($db, $reservation, $reservation_id) {
                 if (!empty($group_ids)) $res_for_divera['_divera_group_ids'] = $group_ids;
                 $divera_error = null;
                 $divera_event_id = null;
-                if (send_reservation_to_divera($res_for_divera, $divera_key, $api_base, $divera_error, $divera_event_id) && $divera_event_id > 0) {
+                if (send_reservation_to_divera($res_for_divera, $divera_key, $api_base, $divera_error, $divera_event_id, true) && $divera_event_id > 0) {
                     try {
                         $db->exec("ALTER TABLE room_reservations ADD COLUMN divera_event_id INT NULL");
                     } catch (Exception $e) {}

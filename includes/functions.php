@@ -2059,9 +2059,10 @@ function log_divera_debug_entry($entry) {
  * @param string $api_base_url Basis-URL der Divera-API (z. B. https://app.divera247.com)
  * @param array|null $divera_error Ausgabe: bei Fehlschlag ['code' => int, 'message' => string]
  * @param int|null $divera_event_id Ausgabe: bei Erfolg die Divera-Event-ID (zum späteren Löschen)
+ * @param bool $is_room true = Raumreservierung (kein address-Feld, Divera akzeptiert sonst evtl. keine Antwort)
  * @return bool true bei HTTP 2xx (wie im Formular), false sonst
  */
-function send_reservation_to_divera($reservation, $access_key, $api_base_url = 'https://app.divera247.com', &$divera_error = null, &$divera_event_id = null) {
+function send_reservation_to_divera($reservation, $access_key, $api_base_url = 'https://app.divera247.com', &$divera_error = null, &$divera_event_id = null, $is_room = false) {
     $divera_error = null;
     $divera_event_id = null;
     // Key bereinigen: Trim + unsichtbare Zeichen (z. B. beim Kopieren) entfernen
@@ -2079,7 +2080,6 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
     }
     $vehicle_name = $reservation['vehicle_name'] ?? 'Fahrzeug';
     $title = $vehicle_name . ' - ' . ($reservation['reason'] ?? 'Reservierung');
-    $address = trim($reservation['location'] ?? '');
     $group_ids = isset($reservation['_divera_group_ids']) && is_array($reservation['_divera_group_ids'])
         ? array_map('intval', array_filter($reservation['_divera_group_ids']))
         : [];
@@ -2090,8 +2090,11 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         'title'             => $title,
         'ts_start'          => $start_ts,
         'ts_end'            => $end_ts,
-        'address'           => $address,
     ];
+    // address nur bei Fahrzeugreservierungen mitsenden – bei Räumen kann Divera sonst keine Antwort liefern
+    if (!$is_room) {
+        $event['address'] = trim($reservation['location'] ?? '');
+    }
     if ($reservation_id > 0) {
         $event['foreign_id'] = (string) $reservation_id;
     }
