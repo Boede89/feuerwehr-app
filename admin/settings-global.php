@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($vehicle_action, ['add', '
                     $stmt = $db->prepare("INSERT INTO vehicles (name, description, is_active, sort_order, einheit_id) VALUES (?, ?, ?, ?, ?)");
                     $stmt->execute([$name, $description, $is_active, $sort_order, $einheit_id]);
                     log_activity($_SESSION['user_id'], 'vehicle_added', "Fahrzeug '$name' hinzugefügt");
-                    header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&vehicle_success=added');
+                    header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=fahrzeuge&vehicle_success=added');
                     exit;
                 } elseif ($vehicle_action === 'edit' && $vehicle_id > 0) {
                     $stmt = $db->prepare("UPDATE vehicles SET name = ?, description = ?, is_active = ?, sort_order = ? WHERE id = ? AND (einheit_id = ? OR einheit_id IS NULL)");
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($vehicle_action, ['add', '
                     if ($stmt->rowCount() > 0) {
                         log_activity($_SESSION['user_id'], 'vehicle_updated', "Fahrzeug '$name' aktualisiert");
                     }
-                    header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&vehicle_success=updated');
+                    header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=fahrzeuge&vehicle_success=updated');
                     exit;
                 }
             } catch (PDOException $e) {
@@ -85,7 +85,7 @@ if (isset($_GET['vehicle_delete']) && $einheit_id > 0) {
             $stmt->execute([$vid, $einheit_id]);
             if ($stmt->rowCount() > 0) {
                 log_activity($_SESSION['user_id'], 'vehicle_deleted', "Fahrzeug ID $vid gelöscht");
-                header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&vehicle_success=deleted');
+                header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=fahrzeuge&vehicle_success=deleted');
                 exit;
             }
         }
