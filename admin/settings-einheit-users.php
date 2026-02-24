@@ -245,6 +245,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// Benutzer löschen (reguläre Benutzer, keine Systembenutzer)
+if (isset($_GET['delete_user'])) {
+    $user_id = (int)$_GET['delete_user'];
+    if ($user_id > 0 && $user_id !== $_SESSION['user_id']) {
+        try {
+            $stmt = $db->prepare("SELECT id, username, user_type FROM users WHERE id = ? AND is_system_user = 0 AND (einheit_id = ? OR id IN (SELECT user_id FROM user_einheiten WHERE einheit_id = ?))");
+            $stmt->execute([$user_id, $einheit_id, $einheit_id]);
+            $u = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($u && ($u['user_type'] ?? '') !== 'superadmin') {
+                $stmt_del = $db->prepare("DELETE FROM users WHERE id = ?");
+                $stmt_del->execute([$user_id]);
+                log_activity($_SESSION['user_id'], 'user_deleted', "Benutzer '{$u['username']}' gelöscht");
+                header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=user_deleted");
+                exit;
+            }
+        } catch (Exception $e) {
+            $error = "Fehler: " . $e->getMessage();
+        }
+    }
+}
+
 // Systembenutzer löschen
 if (isset($_GET['delete_system_user'])) {
     $user_id = (int)$_GET['delete_system_user'];
@@ -300,6 +321,7 @@ if (isset($_GET['success'])) {
     if ($_GET['success'] === 'system_added') $message = "Systembenutzer wurde angelegt. Klicken Sie auf „Link anzeigen“ um den Autologin-Link zu sehen.";
     if ($_GET['success'] === 'system_regenerated') $message = "Neuer Autologin-Link wurde generiert.";
     if ($_GET['success'] === 'system_updated') $message = "Systembenutzer wurde aktualisiert.";
+    if ($_GET['success'] === 'user_deleted') $message = "Benutzer wurde gelöscht.";
     if ($_GET['success'] === 'system_deleted') $message = "Systembenutzer wurde gelöscht.";
 }
 
@@ -450,6 +472,9 @@ try {
                                         data-is-active="<?php echo (int)$u['is_active']; ?>">
                                         <i class="fas fa-edit"></i> Bearbeiten
                                     </button>
+                                    <a href="settings-einheit-users.php?id=<?php echo $einheit_id; ?>&delete_user=<?php echo (int)$u['id']; ?>" class="btn btn-outline-danger btn-sm" title="Löschen" onclick="return confirm('Benutzer wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.');">
+                                        <i class="fas fa-trash"></i> Löschen
+                                    </a>
                                     <?php else: ?>
                                     <span class="text-muted small">(nur in Benutzerverwaltung)</span>
                                     <?php endif; ?>
