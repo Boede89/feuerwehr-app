@@ -212,17 +212,23 @@ function apply_room_calendar_settings($db, $reservation, $reservation_id) {
                     }
                 }
             }
-            $divera_key = trim((string)($divera_config['access_key'] ?? ''));
-            if ($divera_key === '' && isset($_SESSION['user_id'])) {
-                $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-                $stmt->execute([$_SESSION['user_id']]);
-                $uk = $stmt->fetch(PDO::FETCH_ASSOC);
-                $divera_key = trim((string)($uk['divera_access_key'] ?? ''));
+            // Gleiche Reihenfolge wie bei Fahrzeugreservierungen: zuerst User-Key (Profil), dann Einheits-/Global-Key
+            $divera_key = '';
+            try {
+                if (isset($_SESSION['user_id'])) {
+                    $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                    $stmt->execute([$_SESSION['user_id']]);
+                    $uk = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $divera_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string)($uk['divera_access_key'] ?? '')));
+                }
+            } catch (Exception $e) {}
+            if ($divera_key === '') {
+                $divera_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string)($divera_config['access_key'] ?? '')));
             }
             if ($divera_key === '') {
                 $stmt_dv = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_access_key' AND setting_value != '' LIMIT 1");
                 $stmt_dv->execute();
-                $divera_key = trim((string)($stmt_dv->fetchColumn() ?: ''));
+                $divera_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string)($stmt_dv->fetchColumn() ?: '')));
             }
             $api_base = rtrim(trim((string)($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
             if ($divera_key !== '') {
