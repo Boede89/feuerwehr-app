@@ -189,7 +189,7 @@ if ($can_reservations) {
         ");
         $stmt->execute([$effective_unit_id, $effective_unit_id]);
         $pending_reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        // Raum-Reservierungen laden (nutzt einheit_id)
+        // Raum-Reservierungen laden (Reservation ODER Raum muss zur Einheit passen; NULL = Einheit 1)
         try {
             $stmt_room = $db->prepare("
                 SELECT rr.*, ro.name as room_name
@@ -202,7 +202,9 @@ if ($can_reservations) {
             ");
             $stmt_room->execute([$effective_unit_id, $effective_unit_id]);
             $pending_room_reservations = $stmt_room->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) { /* Tabelle evtl. noch nicht vorhanden */ }
+        } catch (Exception $e) {
+            error_log("Dashboard room_reservations: " . $e->getMessage());
+        }
         echo '<script>console.log("🔍 Reservierungen geladen:", ' . count($pending_reservations) . ');</script>';
         echo '<script>console.log("Reservierungen:", ' . json_encode($pending_reservations) . ');</script>';
     } catch (Exception $e) {

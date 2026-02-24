@@ -84,6 +84,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                 }
                 try {
                     $res_einheit = (int)($_POST['einheit_id'] ?? $einheit_id);
+                    if ($res_einheit <= 0 && !empty($selectedRoom['einheit_id'])) {
+                        $res_einheit = (int)$selectedRoom['einheit_id'];
+                    }
                     $stmt = $db->prepare("INSERT INTO room_reservations (room_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts, status, einheit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                     $stmt->execute([$room_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([]), 'pending', $res_einheit > 0 ? $res_einheit : null]);
                     $success_count++;
@@ -212,7 +215,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                         <?php if ($selectedRoom && isset($selectedRoom['id'])): ?>
                         <form method="POST" action="" id="roomReservationForm">
                             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                            <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
+                            <?php 
+                            $form_einheit = $einheit_id > 0 ? $einheit_id : (int)($selectedRoom['einheit_id'] ?? 0);
+                            if ($form_einheit > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$form_einheit; ?>"><?php endif; ?>
                             <input type="hidden" name="room_id" value="<?php echo (int)$selectedRoom['id']; ?>">
 
                             <div class="row">
