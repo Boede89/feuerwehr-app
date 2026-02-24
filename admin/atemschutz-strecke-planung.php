@@ -68,6 +68,8 @@ try {
         $stmt = $db->prepare("
             SELECT at.*, 
                    DATE_ADD(at.strecke_am, INTERVAL 1 YEAR) as strecke_bis,
+                   CASE WHEN at.g263_am IS NOT NULL AND at.birthdate IS NOT NULL AND TIMESTAMPDIFF(YEAR, at.birthdate, CURDATE()) < 50 THEN DATE_ADD(at.g263_am, INTERVAL 3 YEAR) WHEN at.g263_am IS NOT NULL THEN DATE_ADD(at.g263_am, INTERVAL 1 YEAR) ELSE NULL END as g263_bis,
+                   DATE_ADD(at.uebung_am, INTERVAL 1 YEAR) as uebung_bis,
                    DATEDIFF(DATE_ADD(at.strecke_am, INTERVAL 1 YEAR), CURDATE()) as tage_bis_ablauf,
                    sz.termin_id as zugeordneter_termin
             FROM atemschutz_traeger at
@@ -82,6 +84,8 @@ try {
         $stmt = $db->prepare("
             SELECT at.*, 
                    DATE_ADD(at.strecke_am, INTERVAL 1 YEAR) as strecke_bis,
+                   CASE WHEN at.g263_am IS NOT NULL AND at.birthdate IS NOT NULL AND TIMESTAMPDIFF(YEAR, at.birthdate, CURDATE()) < 50 THEN DATE_ADD(at.g263_am, INTERVAL 3 YEAR) WHEN at.g263_am IS NOT NULL THEN DATE_ADD(at.g263_am, INTERVAL 1 YEAR) ELSE NULL END as g263_bis,
+                   DATE_ADD(at.uebung_am, INTERVAL 1 YEAR) as uebung_bis,
                    DATEDIFF(DATE_ADD(at.strecke_am, INTERVAL 1 YEAR), CURDATE()) as tage_bis_ablauf,
                    sz.termin_id as zugeordneter_termin
             FROM atemschutz_traeger at
@@ -495,7 +499,9 @@ try {
                           data-traeger-id="<?php echo $t['id']; ?>"
                           data-name="<?php echo htmlspecialchars($t['first_name'] . ' ' . $t['last_name']); ?>"
                           data-email="<?php echo htmlspecialchars($t['email'] ?? ''); ?>"
-                          data-strecke-bis="<?php echo $t['strecke_bis'] ?? ''; ?>">
+                          data-strecke-bis="<?php echo $t['strecke_bis'] ?? ''; ?>"
+                          data-g263-bis="<?php echo $t['g263_bis'] ?? ''; ?>"
+                          data-uebung-bis="<?php echo $t['uebung_bis'] ?? ''; ?>">
                         <span class="status-dot <?php echo $statusClass; ?>"></span>
                         <?php echo htmlspecialchars($t['first_name'] . ' ' . $t['last_name']); ?>
                         <?php if ($streckeBisFormatiert): ?>
@@ -581,7 +587,9 @@ try {
                                   data-traeger-id="<?php echo $t['id']; ?>"
                                   data-name="<?php echo htmlspecialchars($t['first_name'] . ' ' . $t['last_name']); ?>"
                                   data-email="<?php echo htmlspecialchars($t['email'] ?? ''); ?>"
-                                  data-strecke-bis="<?php echo $t['strecke_bis'] ?? ''; ?>">
+                                  data-strecke-bis="<?php echo $t['strecke_bis'] ?? ''; ?>"
+                                  data-g263-bis="<?php echo $t['g263_bis'] ?? ''; ?>"
+                                  data-uebung-bis="<?php echo $t['uebung_bis'] ?? ''; ?>">
                                 <span class="status-dot <?php echo $statusClass; ?>"></span>
                                 <?php echo htmlspecialchars($t['first_name'] . ' ' . $t['last_name']); ?>
                                 <?php if ($streckeBisFormatiert): ?>
@@ -798,6 +806,39 @@ try {
         </div>
     </div>
 
+    <!-- Geräteträger-Info-Modal -->
+    <div class="modal fade" id="traegerInfoModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white py-2">
+                    <h6 class="modal-title mb-0"><i class="fas fa-user-shield me-2"></i><span id="traegerInfoName"></span></h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body py-3">
+                    <div class="d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Strecke bis:</span>
+                            <strong id="traegerInfoStreckeBis">–</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">G26.3 bis:</span>
+                            <strong id="traegerInfoG263Bis">–</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Übung/Einsatz bis:</span>
+                            <strong id="traegerInfoUebungBis">–</strong>
+                        </div>
+                    </div>
+                    <div id="traegerInfoAssignBtn" class="mt-3 d-none">
+                        <button type="button" class="btn btn-secondary btn-sm w-100" onclick="traegerInfoZuordnungOeffnen()">
+                            <i class="fas fa-calendar-plus me-1"></i> Termin zuordnen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Bestätigungs-Modal Funktionalität
@@ -842,6 +883,7 @@ try {
             // Touch-Gerät erkennen
             isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
             initDragDrop();
+            initTraegerInfoClick();
             if (isTouchDevice) {
                 initMobileAssign();
             }
@@ -870,16 +912,62 @@ try {
             }
         }
         
+        // Geräteträger-Info-Modal bei Klick auf Kachel
+        let lastInfoBadgeForAssign = null;
+        
+        function initTraegerInfoClick() {
+            document.querySelectorAll('.traeger-badge').forEach(badge => {
+                badge.addEventListener('click', function(e) {
+                    if (e.target.closest('.remove-btn') || e.target.closest('.notify-btn') || e.target.closest('.mobile-assign-btn')) return;
+                    openTraegerInfoModal(this);
+                });
+            });
+        }
+        
+        function openTraegerInfoModal(badge) {
+            const name = badge.dataset.name || '–';
+            const streckeBis = badge.dataset.streckeBis ? formatDateDE(badge.dataset.streckeBis) : '–';
+            const g263Bis = badge.dataset.g263Bis ? formatDateDE(badge.dataset.g263Bis) : '–';
+            const uebungBis = badge.dataset.uebungBis ? formatDateDE(badge.dataset.uebungBis) : '–';
+            
+            document.getElementById('traegerInfoName').textContent = name;
+            document.getElementById('traegerInfoStreckeBis').textContent = streckeBis;
+            document.getElementById('traegerInfoG263Bis').textContent = g263Bis;
+            document.getElementById('traegerInfoUebungBis').textContent = uebungBis;
+            
+            const assignBtn = document.getElementById('traegerInfoAssignBtn');
+            const isInPool = badge.closest('#pool-traeger');
+            if (isInPool && isTouchDevice) {
+                assignBtn.classList.remove('d-none');
+                lastInfoBadgeForAssign = badge;
+            } else {
+                assignBtn.classList.add('d-none');
+            }
+            
+            new bootstrap.Modal(document.getElementById('traegerInfoModal')).show();
+        }
+        
+        function formatDateDE(ymd) {
+            if (!ymd) return '–';
+            const d = new Date(ymd + 'T12:00:00');
+            if (isNaN(d.getTime())) return ymd;
+            return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+        
+        function traegerInfoZuordnungOeffnen() {
+            bootstrap.Modal.getInstance(document.getElementById('traegerInfoModal')).hide();
+            if (lastInfoBadgeForAssign) {
+                setTimeout(() => openMobileAssignModal(lastInfoBadgeForAssign), 300);
+            }
+        }
+        
         // Mobile Zuordnung
         function initMobileAssign() {
-            // Tap auf nicht zugeordnete Geräteträger -> Modal öffnen
-            document.querySelectorAll('#pool-traeger .traeger-badge').forEach(badge => {
-                badge.addEventListener('click', function(e) {
-                    // Nicht bei Klick auf remove/notify Buttons
-                    if (e.target.classList.contains('remove-btn') || e.target.classList.contains('notify-btn')) {
-                        return;
-                    }
-                    openMobileAssignModal(this);
+            document.querySelectorAll('.mobile-assign-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const badge = this.closest('.traeger-badge');
+                    if (badge) openMobileAssignModal(badge);
                 });
             });
         }
