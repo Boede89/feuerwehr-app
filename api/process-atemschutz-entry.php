@@ -33,6 +33,11 @@ try {
         throw new Exception('Atemschutzeintrag nicht gefunden oder bereits bearbeitet');
     }
     
+    if (!isset($_SESSION['user_id']) || (!has_permission_write('atemschutz') && !hasAdminPermission())) {
+        echo json_encode(['success' => false, 'message' => 'Sie haben keine Schreibrechte für Atemschutz.']);
+        exit;
+    }
+    
     $db->beginTransaction();
     
     try {

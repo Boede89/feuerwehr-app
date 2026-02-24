@@ -70,6 +70,11 @@ try {
         throw new Exception('Nur POST-Requests erlaubt');
     }
     
+    if (is_logged_in() && !has_permission_write('atemschutz') && !hasAdminPermission()) {
+        echo json_encode(['success' => false, 'message' => 'Sie haben keine Schreibrechte für Atemschutz.']);
+        exit;
+    }
+    
     // Formulardaten validieren
     $entry_type = $_POST['entry_type'] ?? '';
     $entry_date = $_POST['entry_date'] ?? '';

@@ -23,6 +23,8 @@ if (!has_permission('reservations') && !can_approve_reservations()) {
     exit;
 }
 
+$can_reservations_write = has_permission_write('reservations');
+
 $message = '';
 $error = '';
 // Nach Redirect: msg/err aus URL übernehmen
@@ -160,6 +162,9 @@ try {
 
 // Manuelles Löschen einer bearbeiteten Reservierung
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'delete') {
+    if (!$can_reservations_write && !hasAdminPermission()) {
+        $error = "Sie haben keine Schreibrechte für Reservierungen.";
+    } else {
     $reservation_id = (int)$_POST['reservation_id'];
     $is_room = !empty($_POST['is_room']);
     try {
@@ -232,10 +237,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         header("Location: reservations.php?tab=" . $tab . "&err=" . urlencode($error));
         exit;
     }
+    }
 }
 
 // Nur aus Google Kalender löschen (Kalender-Event entfernen, Reservierung behalten)
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'delete_calendar_event') {
+    if (!$can_reservations_write && !hasAdminPermission()) {
+        $error = "Sie haben keine Schreibrechte für Reservierungen.";
+    } else {
     $reservation_id = (int)$_POST['reservation_id'];
     try {
         // Alle Kalender-Verknüpfungen laden
@@ -283,10 +292,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     } catch (Exception $e) {
         $error = 'Fehler beim Entfernen des Kalender-Eintrags: ' . $e->getMessage();
     }
+    }
 }
 
 // Fahrzeug aus Kalendereintrag entfernen (nur Titel anpassen, Event bleibt)
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'remove_vehicle_from_calendar') {
+    if (!$can_reservations_write && !hasAdminPermission()) {
+        $error = "Sie haben keine Schreibrechte für Reservierungen.";
+    } else {
     try {
         $reservation_id = (int)($_POST['reservation_id'] ?? 0);
         if ($reservation_id <= 0) {
@@ -327,11 +340,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     } catch (Exception $e) {
         $error = 'Fehler beim Entfernen des Fahrzeugs: ' . $e->getMessage();
     }
+    }
 }
 
 // Komplett löschen: erst Kalender-Einträge löschen (Divera/Google je nach Einstellung), danach Reservierung + Verknüpfungen entfernen
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'delete_complete') {
-    try {
+    if (!$can_reservations_write && !hasAdminPermission()) {
+        $error = "Sie haben keine Schreibrechte für Reservierungen.";
+    } else {
+   try {
         $reservation_id = (int)($_POST['reservation_id'] ?? 0);
         if ($reservation_id <= 0) {
             throw new Exception('Ungültige Reservierungs-ID');
@@ -423,6 +440,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
         $message = 'Reservierung und zugehörige Kalender-Einträge wurden vollständig gelöscht.';
     } catch (Exception $e) {
         $error = 'Fehler beim vollständigen Löschen: ' . $e->getMessage();
+    }
     }
 }
 
@@ -624,9 +642,11 @@ try {
                                                 <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
                                                     <i class="fas fa-eye"></i> Details
                                                 </button>
+                                                <?php if ($can_reservations_write || hasAdminPermission()): ?>
                                                 <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $reservation['id']; ?>" style="min-height: 38px; min-width: 100px;">
                                                     <i class="fas fa-trash"></i> Löschen
                                                 </button>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </div>
@@ -688,9 +708,11 @@ try {
                                                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModal<?php echo $reservation['id']; ?>">
                                                                 <i class="fas fa-eye"></i> Details
                                                             </button>
+                                                            <?php if ($can_reservations_write || hasAdminPermission()): ?>
                                                             <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $reservation['id']; ?>">
                                                                 <i class="fas fa-trash"></i> Löschen
                                                             </button>
+                                                            <?php endif; ?>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -725,7 +747,9 @@ try {
                                         <div class="mb-3"><i class="fas fa-clipboard-list text-warning"></i> <?php echo htmlspecialchars($rr['reason']); ?></div>
                                         <div class="d-grid gap-2">
                                             <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#detailsModalRoom<?php echo $rr['id']; ?>"><i class="fas fa-eye"></i> Details</button>
+                                            <?php if ($can_reservations_write || hasAdminPermission()): ?>
                                             <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModalRoom<?php echo $rr['id']; ?>"><i class="fas fa-trash"></i> Löschen</button>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </div>
@@ -746,7 +770,9 @@ try {
                                             <td>
                                                 <div class="btn-group">
                                                     <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModalRoom<?php echo $rr['id']; ?>"><i class="fas fa-eye"></i> Details</button>
+                                                    <?php if ($can_reservations_write || hasAdminPermission()): ?>
                                                     <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModalRoom<?php echo $rr['id']; ?>"><i class="fas fa-trash"></i> Löschen</button>
+                                                    <?php endif; ?>
                                                 </div>
                                             </td>
                                         </tr>
@@ -858,7 +884,7 @@ try {
                             else echo 'Abgelehnt';
                             ?>
                         </span>
-                        <?php if ($reservation['status'] === 'approved' && $divera_reservation_enabled): ?>
+                        <?php if ($reservation['status'] === 'approved' && $divera_reservation_enabled && ($can_reservations_write || hasAdminPermission())): ?>
                         <button type="button" class="btn btn-outline-primary btn-resend-divera" data-reservation-id="<?php echo (int)$reservation['id']; ?>" title="Termin erneut an Divera 24/7 senden (z.B. wenn die erste Übermittlung fehlgeschlagen ist)">
                             <i class="fas fa-paper-plane"></i> Erneut an Divera übermitteln
                         </button>
@@ -911,6 +937,7 @@ try {
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times me-1"></i>Abbrechen
                     </button>
+                    <?php if ($can_reservations_write || hasAdminPermission()): ?>
                     <form method="POST" class="d-inline">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
@@ -919,6 +946,7 @@ try {
                             <i class="fas fa-trash me-1"></i>Löschen
                         </button>
                     </form>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -985,12 +1013,14 @@ try {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="fas fa-times me-1"></i>Abbrechen</button>
+                    <?php if ($can_reservations_write || hasAdminPermission()): ?>
                     <form method="POST" class="d-inline">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="reservation_id" value="<?php echo $rr['id']; ?>">
                         <input type="hidden" name="is_room" value="1">
                         <button type="submit" class="btn btn-danger"><i class="fas fa-trash me-1"></i>Löschen</button>
                     </form>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

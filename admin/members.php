@@ -16,6 +16,12 @@ if (!has_permission('members')) {
     exit;
 }
 
+$can_members_write = has_permission_write('members');
+$can_ric = has_permission('ric');
+$can_ric_write = has_permission_write('ric');
+$can_courses = has_permission('courses');
+$can_courses_write = has_permission_write('courses');
+
 $message = '';
 $error = '';
 
@@ -39,7 +45,9 @@ if (isset($_GET['success'])) {
 
 // Lehrgangs-Zuweisungen speichern (POST-Handler für Modal)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_course_assignments']) && $can_courses) {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    if (!has_permission_write('courses')) {
+        $error = "Sie haben keine Schreibrechte für die Lehrgangsverwaltung.";
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "Ungültiger Sicherheitstoken.";
     } else {
         try {
@@ -550,12 +558,6 @@ try {
 // Prüfe ob aktueller Benutzer Admin ist
 $is_admin = hasAdminPermission();
 
-// Prüfe RIC-Berechtigung
-$can_ric = has_permission('ric');
-
-// Prüfe Lehrgangsverwaltungs-Berechtigung (für Button-Anzeige)
-$can_courses = has_permission('courses');
-
 
 // Divera Admin Info laden (für RIC-Zuweisungen, einheitenspezifisch)
 $divera_admin_user_id = null;
@@ -624,7 +626,9 @@ if ($can_courses && $ef > 0) {
 
 // RIC-Zuweisungen speichern (POST-Handler)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_ric_assignments']) && $can_ric) {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    if (!has_permission_write('ric')) {
+        $error = "Sie haben keine Schreibrechte für die RIC-Verwaltung.";
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "Ungültiger Sicherheitstoken.";
     } else {
         try {
@@ -836,7 +840,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_ric_assignments'
 
 // Mitglied hinzufügen
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_member') {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    if (!has_permission_write('members')) {
+        $error = "Sie haben keine Schreibrechte für die Mitgliederverwaltung.";
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
         $first_name = trim($_POST['first_name'] ?? '');
@@ -1201,7 +1207,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // Mitglied bearbeiten
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_member') {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    if (!has_permission_write('members')) {
+        $error = "Sie haben keine Schreibrechte für die Mitgliederverwaltung.";
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
         $member_id = (int)($_POST['member_id'] ?? 0);
@@ -1740,7 +1748,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // Mitglied löschen
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_member') {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    if (!has_permission_write('members')) {
+        $error = "Sie haben keine Schreibrechte für die Mitgliederverwaltung.";
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
         $member_id = (int)($_POST['member_id'] ?? 0);
@@ -1798,7 +1808,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // PA-Träger Toggle
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'toggle_pa_traeger') {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    if (!has_permission_write('members')) {
+        $error = "Sie haben keine Schreibrechte für die Mitgliederverwaltung.";
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
         $member_id = (int)($_POST['member_id'] ?? 0);
@@ -1927,11 +1939,13 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
 
         <!-- Aktions-Buttons -->
         <div class="row mb-4">
+            <?php if ($can_members_write): ?>
             <div class="col-12 col-md-4 mb-2">
                 <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addMemberModal">
                     <i class="fas fa-user-plus"></i> Mitglied hinzufügen
                 </button>
             </div>
+            <?php endif; ?>
             <div class="col-12 col-md-4 mb-2">
                 <a href="?show_list=<?php echo $show_list ? '0' : '1'; ?>" class="btn btn-outline-primary w-100">
                     <i class="fas fa-list"></i> <?php echo $show_list ? 'Liste ausblenden' : 'Aktuelle Liste anzeigen'; ?>
@@ -2023,6 +2037,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             <td><?php echo htmlspecialchars($member['qualification_name'] ?? '-'); ?></td>
                                             <td class="no-click">
                                                 <?php if (!empty($member['member_id'])): ?>
+                                                <?php if ($can_members_write): ?>
                                                 <div class="btn-group btn-group-sm" role="group">
                                                     <button type="button" class="btn btn-outline-primary" 
                                                             onclick="editMember(<?php echo htmlspecialchars(json_encode($member)); ?>); return false;"
@@ -2037,6 +2052,9 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                                     </button>
                                                     <?php endif; ?>
                                                 </div>
+                                                <?php else: ?>
+                                                    <span class="text-muted">Nur Leserechte</span>
+                                                <?php endif; ?>
                                                 <?php else: ?>
                                                     <span class="text-muted">-</span>
                                                 <?php endif; ?>
@@ -2098,9 +2116,11 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             <hr>
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h6 class="mb-0"><i class="fas fa-broadcast-tower me-2"></i>Zugewiesene RIC-Codes</h6>
+                                <?php if ($can_ric_write): ?>
                                 <button type="button" class="btn btn-sm btn-warning" id="memberDetailsAssignRicBtn">
                                     <i class="fas fa-edit me-1"></i>Anpassen
                                 </button>
+                                <?php endif; ?>
                             </div>
                             <div id="memberDetailsRics">
                                 <p class="text-muted">Lade RIC-Codes...</p>
@@ -2112,9 +2132,11 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                             <hr>
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h6 class="mb-0"><i class="fas fa-graduation-cap me-2"></i>Absolvierte Lehrgänge</h6>
+                                <?php if ($can_courses_write): ?>
                                 <button type="button" class="btn btn-sm btn-info" id="memberDetailsAssignCoursesBtn">
                                     <i class="fas fa-edit me-1"></i>Anpassen
                                 </button>
+                                <?php endif; ?>
                             </div>
                             <div id="memberDetailsCourses">
                                 <p class="text-muted">Lade Lehrgänge...</p>
@@ -2127,9 +2149,11 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times me-1"></i>Schließen
                     </button>
+                    <?php if ($can_members_write): ?>
                     <button type="button" class="btn btn-primary" id="memberDetailsEditBtn">
                         <i class="fas fa-edit me-1"></i>Bearbeiten
                     </button>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -2715,9 +2739,13 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         try {
                             const member = JSON.parse(memberData);
                             console.log('Parsed member:', member);
-                            // Direkt Bearbeiten-Modal öffnen (wie bei Klick auf Bearbeiten-Button)
+                            const canMembersWrite = <?php echo $can_members_write ? 'true' : 'false'; ?>;
                             if (member.member_id || member.id) {
-                                editMember(member);
+                                if (canMembersWrite) {
+                                    editMember(member);
+                                } else {
+                                    showMemberDetails(member);
+                                }
                             } else {
                                 showMemberDetails(member);
                             }

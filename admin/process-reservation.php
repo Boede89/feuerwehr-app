@@ -36,6 +36,14 @@ if (!$is_admin && !$can_reservations) {
     exit;
 }
 
+// Für Schreibaktionen (approve, reject, delete etc.) Schreibrechte prüfen
+$can_reservations_write = has_permission_write('reservations');
+if ($action !== 'test' && !$is_admin && !$can_reservations_write) {
+    http_response_code(403);
+    output_json(['success' => false, 'message' => 'Sie haben keine Schreibrechte für Reservierungen.']);
+    exit;
+}
+
 // JSON Input lesen
 $input = json_decode(file_get_contents('php://input'), true);
 

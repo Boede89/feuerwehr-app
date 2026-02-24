@@ -46,6 +46,7 @@
 <script>
 let selectedListType = '';
 let selectedCourseForList = null;
+const canCoursesWrite = <?php echo isset($can_courses_write) && $can_courses_write ? 'true' : 'false'; ?>;
 
 function selectListType(type) {
     selectedListType = type;
@@ -135,12 +136,16 @@ function loadCourseListByCourse() {
                         html += '<td><span id="year-display-' + member.id + '">' + yearDisplay + '</span></td>';
                         html += '<td>';
                         html += '<div class="btn-group" role="group">';
+                        if (canCoursesWrite) {
                         html += '<button type="button" class="btn btn-sm btn-outline-primary" onclick="editCourseYear(' + member.id + ', ' + selectedCourseForList + ', \'' + yearDisplay.replace(/'/g, "\\'") + '\')" title="Jahr bearbeiten">';
                         html += '<i class="fas fa-edit"></i> Bearbeiten';
                         html += '</button>';
                         html += '<button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCourseFromMember(' + member.id + ', ' + selectedCourseForList + ', \'' + member.name.replace(/'/g, "\\'") + '\')" title="Lehrgang entfernen">';
                         html += '<i class="fas fa-trash"></i> Entfernen';
                         html += '</button>';
+                        } else {
+                        html += '<span class="text-muted small">Nur Leserechte</span>';
+                        }
                         html += '</div>';
                         html += '</td>';
                         html += '</tr>';

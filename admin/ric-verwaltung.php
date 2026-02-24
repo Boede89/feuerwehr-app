@@ -17,6 +17,8 @@ if (!has_permission('members') || !has_permission('ric')) {
     exit;
 }
 
+$can_ric_write = has_permission_write('ric');
+
 $message = '';
 $error = '';
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
@@ -140,10 +142,9 @@ try {
 
 // RIC-Zuweisungen speichern
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Debug: Logge POST-Daten
-    error_log("RIC-Zuweisung POST-Daten: " . print_r($_POST, true));
-    
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    if (!$can_ric_write) {
+        $error = "Sie haben keine Schreibrechte für die RIC-Verwaltung.";
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "Ungültiger Sicherheitstoken.";
         error_log("RIC-Zuweisung: CSRF-Token ungültig");
     } else {
@@ -685,7 +686,7 @@ try {
                                                                 <?php else: ?>
                                                                     <?php echo htmlspecialchars($ric['kurztext']); ?>
                                                                 <?php endif; ?>
-                                                                <?php if ($status === 'pending' && $is_divera_admin && $assignment_id > 0): ?>
+                                                                <?php if ($status === 'pending' && $is_divera_admin && $can_ric_write && $assignment_id > 0): ?>
                                                                     <form method="POST" style="display: inline;" onsubmit="return confirm('Möchten Sie diese RIC-Zuweisung bestätigen?');">
                                                                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token()); ?>">
                                                                         <input type="hidden" name="assignment_id" value="<?php echo $assignment_id; ?>">
@@ -702,6 +703,7 @@ try {
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
+                                                    <?php if ($can_ric_write): ?>
                                                     <button type="button" class="btn btn-sm btn-outline-primary" 
                                                             data-bs-toggle="modal" 
                                                             data-bs-target="#assignRicModal"
@@ -710,6 +712,9 @@ try {
                                                             onclick="loadMemberRics(<?php echo $member['id']; ?>)">
                                                         <i class="fas fa-edit"></i> RIC zuweisen
                                                     </button>
+                                                    <?php else: ?>
+                                                    <span class="text-muted">Nur Leserechte</span>
+                                                    <?php endif; ?>
                                                 </td>
                                             </tr>
                                             <?php endforeach; ?>
@@ -777,10 +782,12 @@ try {
                         <button type="button" class="btn btn-secondary" id="cancelBtn" data-bs-dismiss="modal">
                             <i class="fas fa-times"></i> Abbrechen
                         </button>
+                        <?php if ($can_ric_write): ?>
                         <button type="submit" name="save_assignments" class="btn btn-primary" id="saveAssignmentsBtn">
                             <i class="fas fa-save"></i> <span id="saveBtnText">Speichern</span>
                             <span id="saveBtnSpinner" class="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true" style="display: none;"></span>
                         </button>
+                        <?php endif; ?>
                     </div>
                 </form>
             </div>

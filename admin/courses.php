@@ -16,6 +16,8 @@ if (!has_permission('courses')) {
     exit;
 }
 
+$can_courses_write = has_permission_write('courses');
+
 $message = '';
 $error = '';
 
@@ -82,7 +84,9 @@ try { $db->exec("ALTER TABLE courses ADD COLUMN einheit_id INT NOT NULL DEFAULT 
 
 // Lehrgang hinterlegen (POST-Handler)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course'])) {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    if (!has_permission_write('courses')) {
+        $error = "Sie haben keine Schreibrechte für die Lehrgangsverwaltung.";
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "Ungültiger Sicherheitstoken.";
     } else {
         try {
@@ -162,7 +166,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_course'])) {
 
 // Abschlussjahr aktualisieren (POST-Handler)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_course_year'])) {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    if (!has_permission_write('courses')) {
+        $error = "Sie haben keine Schreibrechte für die Lehrgangsverwaltung.";
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "Ungültiger Sicherheitstoken.";
     } else {
         try {
@@ -209,6 +215,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_course_year'])
 
 // Lehrgang von Mitglied entfernen (POST-Handler)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_course'])) {
+    if (!has_permission_write('courses')) {
+        $error = "Sie haben keine Schreibrechte für die Lehrgangsverwaltung.";
+    } else {
     error_log("=== POST remove_course ===");
     error_log("POST remove_course: " . var_export($_POST['remove_course'] ?? 'NOT SET', true));
     error_log("POST member_id: " . var_export($_POST['member_id'] ?? 'NOT SET', true));
@@ -261,6 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_course'])) {
             error_log("Fehler beim Entfernen des Lehrgangs: " . $e->getMessage());
             error_log("Exception: " . print_r($e, true));
         }
+    }
     }
 }
 
@@ -331,11 +341,13 @@ $view = $_GET['view'] ?? 'list'; // 'list', 'assign', 'planning'
                     <i class="fas fa-list"></i> Liste anzeigen
                 </a>
             </div>
+            <?php if ($can_courses_write): ?>
             <div class="col-12 col-md-4">
                 <a href="courses.php?view=assign" class="btn <?php echo $view === 'assign' ? 'btn-success' : 'btn-outline-success'; ?> w-100">
                     <i class="fas fa-plus-circle"></i> Lehrgang hinterlegen
                 </a>
             </div>
+            <?php endif; ?>
             <div class="col-12 col-md-4">
                 <a href="courses.php?view=planning" class="btn <?php echo $view === 'planning' ? 'btn-info' : 'btn-outline-info'; ?> w-100">
                     <i class="fas fa-calendar-alt"></i> Lehrgangsplanung
@@ -362,7 +374,11 @@ $view = $_GET['view'] ?? 'list'; // 'list', 'assign', 'planning'
         <?php if ($view === 'list'): ?>
             <?php include 'courses-list.php'; ?>
         <?php elseif ($view === 'assign'): ?>
+        <?php if (!$can_courses_write): ?>
+            <div class="alert alert-warning">Sie haben keine Schreibrechte für die Lehrgangsverwaltung. <a href="courses.php?view=list">Zurück zur Liste</a></div>
+        <?php else: ?>
             <?php include 'courses-assign.php'; ?>
+        <?php endif; ?>
         <?php elseif ($view === 'planning'): ?>
             <?php include 'courses-planning.php'; ?>
         <?php endif; ?>
