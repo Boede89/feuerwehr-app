@@ -13,15 +13,23 @@ if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
 $einheit_id = $einheit_id > 0 ? $einheit_id : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
 $einheit_param = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : '';
 
-if (isset($_POST['room_data'])) {
-    $selectedRoom = json_decode($_POST['room_data'], true);
-    if (!$selectedRoom || !isset($selectedRoom['id'])) {
-        $error = "Fehler beim Laden der Raum-Daten. Bitte wählen Sie erneut einen Raum aus.";
+$room_id = (int)($_GET['room_id'] ?? $_POST['room_id'] ?? 0);
+if ($room_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT * FROM rooms WHERE id = ? AND is_active = 1");
+        $stmt->execute([$room_id]);
+        $selectedRoom = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$selectedRoom) {
+            $error = "Raum nicht gefunden oder nicht verfügbar.";
+            $selectedRoom = null;
+        }
+    } catch (PDOException $e) {
+        $error = "Fehler beim Laden des Raums.";
+        $selectedRoom = null;
     }
-} elseif (isset($_SESSION['selected_room'])) {
-    $selectedRoom = $_SESSION['selected_room'];
 } else {
     $error = "Bitte wählen Sie zuerst einen Raum aus.";
+    $selectedRoom = null;
 }
 
 $redirect_to_home = false;
@@ -35,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
         $requester_email = sanitize_input($_POST['requester_email'] ?? '');
         $reason = sanitize_input($_POST['reason'] ?? '');
         $location = sanitize_input($_POST['location'] ?? '');
-        $room_id = (int)$selectedRoom['id'];
+        $room_id = (int)($selectedRoom['id'] ?? $_POST['room_id'] ?? 0);
 
         $date_times = [];
         $i = 0;
@@ -48,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
             $i++;
         }
 
-        if (empty($requester_name) || empty($requester_email) || empty($reason) || empty($location) || empty($date_times)) {
+        if (empty($requester_name) || empty($requester_email) || empty($reason) || empty($date_times)) {
             $error = "Bitte füllen Sie alle Felder aus und geben Sie mindestens einen Zeitraum an.";
         } elseif (!validate_email($requester_email)) {
             $error = "Bitte geben Sie eine gültige E-Mail-Adresse ein.";
@@ -126,7 +134,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                     <p><strong>Antragsteller:</strong> " . htmlspecialchars($requester_name) . "</p>
                     <p><strong>E-Mail:</strong> " . htmlspecialchars($requester_email) . "</p>
                     <p><strong>Grund:</strong> " . htmlspecialchars($reason) . "</p>
-                    <p><strong>Ort:</strong> " . htmlspecialchars($location) . "</p>
                     <p><strong>Zeiträume:</strong><br>";
                 foreach ($date_times as $dt) {
                     $message_content .= date('d.m.Y H:i', strtotime($dt['start'])) . " - " . date('d.m.Y H:i', strtotime($dt['end'])) . "<br>";
@@ -206,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                         <form method="POST" action="" id="roomReservationForm">
                             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                             <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
-                            <input type="hidden" name="room_data" value="<?php echo htmlspecialchars(json_encode($selectedRoom)); ?>">
+                            <input type="hidden" name="room_id" value="<?php echo (int)$selectedRoom['id']; ?>">
 
                             <div class="row">
                                 <div class="col-md-6 mb-3">
@@ -221,10 +228,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                             <div class="mb-3">
                                 <label for="reason" class="form-label">Grund der Reservierung *</label>
                                 <input type="text" class="form-control" id="reason" name="reason" value="<?php echo htmlspecialchars($_POST['reason'] ?? ''); ?>" placeholder="z.B. Übung, Sitzung, Veranstaltung" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="location" class="form-label">Ort der Reservierung *</label>
-                                <input type="text" class="form-control" id="location" name="location" value="<?php echo htmlspecialchars($_POST['location'] ?? ''); ?>" placeholder="z.B. Gerätehaus" required>
                             </div>
                             <div class="mb-4">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -257,10 +260,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                             </div>
                         </form>
                         <?php else: ?>
-                        <form method="POST" action="" id="roomReservationForm" style="display:none;">
-                            <input type="hidden" name="room_data" id="room_data_input" value="">
-                            <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
-                        </form>
                         <div class="alert alert-warning">
                             <h6><i class="fas fa-exclamation-triangle"></i> Kein Raum ausgewählt</h6>
                             <p class="mb-0">Bitte wählen Sie zuerst einen Raum aus.</p>
@@ -275,28 +274,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        window.addEventListener('load', function() {
-            const selectedRoom = sessionStorage.getItem('selectedRoom');
-            if (selectedRoom && !document.querySelector('input[name="room_data"]')?.value) {
-                try {
-                    const roomData = JSON.parse(selectedRoom);
-                    const form = document.getElementById('roomReservationForm');
-                    if (form) {
-                        let roomInput = form.querySelector('input[name="room_data"]');
-                        if (!roomInput) {
-                            roomInput = document.createElement('input');
-                            roomInput.type = 'hidden';
-                            roomInput.name = 'room_data';
-                            form.appendChild(roomInput);
-                        }
-                        roomInput.value = JSON.stringify(roomData);
-                        form.submit();
-                    }
-                } catch (e) {}
-            } else if (!selectedRoom && !document.querySelector('input[name="room_data"]')?.value) {
-                window.location.href = <?php echo json_encode('reservation-choice.php' . $einheit_param); ?>;
-            }
-        });
         let timeframeCount = 1;
         document.getElementById('add-timeframe')?.addEventListener('click', function() {
             const timeframesDiv = document.getElementById('timeframes');

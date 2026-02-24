@@ -103,9 +103,13 @@ try {
                             </div>
                         <?php else: ?>
                             <div class="row justify-content-center g-4">
-                                <?php foreach ($rooms as $room): ?>
+                                <?php foreach ($rooms as $room): 
+                                    $room_url = 'room-reservation.php?room_id=' . (int)$room['id'];
+                                    if ($einheit_filter > 0) $room_url .= '&einheit_id=' . (int)$einheit_filter;
+                                ?>
                                     <div class="col-lg-4 col-md-6 col-sm-8 col-10">
-                                        <div class="card h-100 room-card shadow-sm" onclick="selectRoom(<?php echo (int)$room['id']; ?>, <?php echo json_encode($room['name']); ?>, <?php echo json_encode($room['description'] ?? ''); ?>)">
+                                        <a href="<?php echo htmlspecialchars($room_url); ?>" class="text-decoration-none text-dark">
+                                        <div class="card h-100 room-card shadow-sm">
                                             <div class="card-body text-center p-4">
                                                 <div class="room-icon mb-3">
                                                     <i class="fas fa-door-open"></i>
@@ -117,6 +121,7 @@ try {
                                                 </div>
                                             </div>
                                         </div>
+                                        </a>
                                     </div>
                                 <?php endforeach; ?>
                             </div>
@@ -134,13 +139,6 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        const einheitId = <?php echo json_encode($einheit_filter > 0 ? (int)$einheit_filter : null); ?>;
-        function selectRoom(roomId, roomName, description) {
-            const roomData = { id: roomId, name: roomName, description: description || '' };
-            sessionStorage.setItem('selectedRoom', JSON.stringify(roomData));
-            const resUrl = 'room-reservation.php' + (einheitId ? '?einheit_id=' + einheitId : '');
-            window.location.href = resUrl;
-        }
         document.querySelectorAll('.room-card').forEach(card => {
             card.addEventListener('mouseenter', function() {
                 this.style.transform = 'translateY(-5px)';
