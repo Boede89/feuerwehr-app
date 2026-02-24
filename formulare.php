@@ -196,15 +196,39 @@ try {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <?php include __DIR__ . '/admin/includes/print-toast.inc.php'; ?>
     <script>
+    var FORMULARE_EINHEIT_ID = <?php echo $einheit_id > 0 ? (int)$einheit_id : 0; ?>;
     (function() {
         var m = /[?&]print_maengelbericht=(\d+)/.exec(window.location.search);
         if (m && m[1]) {
             var id = m[1];
-            fetch('api/print-maengelbericht.php?id=' + id, { credentials: 'same-origin' })
+            var url = 'api/print-maengelbericht.php?id=' + id + (FORMULARE_EINHEIT_ID > 0 ? '&einheit_id=' + FORMULARE_EINHEIT_ID : '');
+            fetch(url, { credentials: 'same-origin' })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
-                    if (typeof showPrintToast === 'function') showPrintToast(data.success ? 'Druckauftrag wurde gesendet.' : ('Fehler: ' + (data.message || '')), data.success);
-                    else alert(data.success ? 'Druckauftrag wurde gesendet.' : 'Fehler: ' + (data.message || ''));
+                    if (data.success && data.open_pdf && data.pdf_base64) {
+                        try {
+                            var binary = atob(data.pdf_base64);
+                            var bytes = new Uint8Array(binary.length);
+                            for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                            var blob = new Blob([bytes], { type: 'application/pdf' });
+                            var blobUrl = URL.createObjectURL(blob);
+                            var w = window.open(blobUrl, '_blank', 'noopener');
+                            if (w) {
+                                w.onload = function() {
+                                    try { w.print(); } catch (e) {}
+                                    setTimeout(function() { URL.revokeObjectURL(blobUrl); }, 5000);
+                                };
+                            }
+                            if (typeof showPrintToast === 'function') showPrintToast('PDF wurde geöffnet. Der Druckdialog sollte sich öffnen – sonst Strg+P drücken.', true);
+                            else alert('PDF wurde geöffnet. Der Druckdialog sollte sich öffnen – sonst Strg+P drücken.');
+                        } catch (e) {
+                            if (typeof showPrintToast === 'function') showPrintToast('PDF konnte nicht geöffnet werden.', false);
+                            else alert('PDF konnte nicht geöffnet werden.');
+                        }
+                    } else {
+                        if (typeof showPrintToast === 'function') showPrintToast(data.success ? 'Druckauftrag wurde gesendet.' : ('Fehler: ' + (data.message || '')), data.success);
+                        else alert(data.success ? 'Druckauftrag wurde gesendet.' : 'Fehler: ' + (data.message || ''));
+                    }
                 })
                 .catch(function() {
                     if (typeof showPrintToast === 'function') showPrintToast('Verbindungsfehler beim Drucken.', false);

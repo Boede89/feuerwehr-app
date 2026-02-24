@@ -698,6 +698,7 @@ if (isset($_SESSION['user_id'])) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <?php include __DIR__ . '/admin/includes/print-toast.inc.php'; ?>
     <script>
+    var ANWESENHEITSLISTE_EINHEIT_ID = <?php echo $einheit_id > 0 ? (int)$einheit_id : 0; ?>;
     (function() {
         var search = window.location.search;
         var m = /[?&]print=(\d+)/.exec(search);
@@ -717,24 +718,46 @@ if (isset($_SESSION['user_id'])) {
             if (typeof showPrintToast === 'function') showPrintToast(msg || (success ? 'Druckauftrag gesendet.' : 'Druck fehlgeschlagen.'), success);
             else alert(success ? 'Druckauftrag wurde gesendet.' : 'Fehler: ' + (msg || 'Druck fehlgeschlagen.'));
         }
+        var einheitParam = (typeof ANWESENHEITSLISTE_EINHEIT_ID !== 'undefined' && ANWESENHEITSLISTE_EINHEIT_ID > 0) ? '&einheit_id=' + ANWESENHEITSLISTE_EINHEIT_ID : '';
+        function handlePrintResult(data) {
+            if (data.success && data.open_pdf && data.pdf_base64) {
+                try {
+                    var binary = atob(data.pdf_base64);
+                    var bytes = new Uint8Array(binary.length);
+                    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                    var blob = new Blob([bytes], { type: 'application/pdf' });
+                    var url = URL.createObjectURL(blob);
+                    var w = window.open(url, '_blank', 'noopener');
+                    if (w) {
+                        w.onload = function() {
+                            try { w.print(); } catch (e) {}
+                            setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+                        };
+                    }
+                    showResult(true, 'PDF wurde geöffnet. Der Druckdialog sollte sich öffnen – sonst Strg+P drücken.');
+                } catch (e) { showResult(false, 'PDF konnte nicht geöffnet werden.'); }
+            } else {
+                showResult(data.success, data.message);
+            }
+        }
         if (m && m[1]) {
-            fetch('api/print-anwesenheitsliste.php?id=' + m[1], { credentials: 'same-origin' })
+            fetch('api/print-anwesenheitsliste.php?id=' + m[1] + einheitParam, { credentials: 'same-origin' })
                 .then(function(r) { return r.json(); })
-                .then(function(data) { showResult(data.success, data.message); })
+                .then(function(data) { handlePrintResult(data); })
                 .catch(function() { showResult(false, 'Verbindungsfehler'); })
                 .finally(cleanup);
         }
         if (mMb && mMb[1]) {
-            fetch('api/print-maengelbericht.php?ids=' + encodeURIComponent(mMb[1]), { credentials: 'same-origin' })
+            fetch('api/print-maengelbericht.php?ids=' + encodeURIComponent(mMb[1]) + einheitParam, { credentials: 'same-origin' })
                 .then(function(r) { return r.json(); })
-                .then(function(data) { showResult(data.success, data.message); })
+                .then(function(data) { handlePrintResult(data); })
                 .catch(function() { showResult(false, 'Verbindungsfehler'); })
                 .finally(cleanup);
         }
         if (mGwm && mGwm[1]) {
-            fetch('api/print-geraetewartmitteilung.php?id=' + mGwm[1], { credentials: 'same-origin' })
+            fetch('api/print-geraetewartmitteilung.php?id=' + mGwm[1] + einheitParam, { credentials: 'same-origin' })
                 .then(function(r) { return r.json(); })
-                .then(function(data) { showResult(data.success, data.message); })
+                .then(function(data) { handlePrintResult(data); })
                 .catch(function() { showResult(false, 'Verbindungsfehler'); })
                 .finally(cleanup);
         }

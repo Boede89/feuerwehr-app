@@ -20,6 +20,7 @@ if (!has_permission('forms')) {
 
 $alle = !empty($_GET['alle']);
 $id = (int)($_GET['id'] ?? 0);
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : null;
 
 $_GET['_return'] = '1';
 $pdf_content = null;
@@ -36,6 +37,14 @@ if ($alle) {
     $pdf_content = $GLOBALS['_al_pdf_content'] ?? null;
 }
 
-$config = print_get_printer_config($db);
-$result = print_send_pdf($pdf_content, $config);
-echo json_encode($result);
+$config = print_get_printer_config($db, $einheit_id);
+if (empty($config['printer'])) {
+    if (empty($pdf_content) || strlen($pdf_content) < 100) {
+        echo json_encode(['success' => false, 'message' => 'PDF konnte nicht erzeugt werden.']);
+    } else {
+        echo json_encode(['success' => true, 'open_pdf' => true, 'pdf_base64' => base64_encode($pdf_content)]);
+    }
+} else {
+    $result = print_send_pdf($pdf_content, $config);
+    echo json_encode($result);
+}
