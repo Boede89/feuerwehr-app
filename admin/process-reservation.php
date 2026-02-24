@@ -434,7 +434,7 @@ try {
                             if ($divera_event_id <= 0 && $divera_key !== '' && function_exists('find_divera_event_by_foreign_id')) {
                                 $divera_event_id = find_divera_event_by_foreign_id($conflict_id, $divera_key, $api_base) ?? 0;
                             }
-                            if ($divera_event_id > 0 && $divera_key !== '' && delete_divera_event($divera_event_id, $divera_key, $api_base)) {
+                            if ($divera_event_id > 0 && $divera_key !== '' && delete_divera_event($divera_event_id, $divera_key, $api_base, $cancelled_einheit_id)) {
                                 error_log("Konflikt-Reservierung #$conflict_id: Divera Event gelöscht: " . $divera_event_id);
                             }
                         } catch (Exception $e) {

@@ -1970,12 +1970,11 @@ function merge_duplicate_members() {
  * Speichert den letzten Divera-JSON-Payload im Debug-Log (max. 5 Einträge).
  * @param array $payload Der an Divera gesendete JSON-Body (ohne Access Key)
  * @param string $source Quelle: 'reservation' oder 'form'
+ * @param int $einheit_id Einheit-ID (> 0), damit Log nur für diese Einheit sichtbar ist
  */
-function log_divera_debug_payload($payload, $source = 'reservation') {
+function log_divera_debug_payload($payload, $source = 'reservation', $einheit_id = 0) {
     global $db;
-    if (empty($db)) {
-        return;
-    }
+    if (empty($db) || $einheit_id <= 0) return;
     try {
         $entry = [
             'timestamp' => date('Y-m-d H:i:s'),
@@ -1983,18 +1982,17 @@ function log_divera_debug_payload($payload, $source = 'reservation') {
             'type'      => 'post',
             'payload'   => $payload,
         ];
-        log_divera_debug_entry($entry);
-    } catch (Exception $e) {
-        // Logging-Fehler ignorieren
-    }
+        log_divera_debug_entry($entry, $einheit_id);
+    } catch (Exception $e) {}
 }
 
 /**
  * Speichert eine Divera-API-Response im Debug-Log (zur Fehlersuche bei ID-Parsing).
+ * @param int $einheit_id Einheit-ID (> 0)
  */
-function log_divera_debug_response($raw_response, $context = 'create') {
+function log_divera_debug_response($raw_response, $context = 'create', $einheit_id = 0) {
     global $db;
-    if (empty($db) || !is_string($raw_response)) return;
+    if (empty($db) || !is_string($raw_response) || $einheit_id <= 0) return;
     try {
         $entry = [
             'timestamp' => date('Y-m-d H:i:s'),
@@ -2003,7 +2001,7 @@ function log_divera_debug_response($raw_response, $context = 'create') {
             'context'   => $context,
             'payload'   => ['raw_response' => substr($raw_response, 0, 2000)],
         ];
-        log_divera_debug_entry($entry);
+        log_divera_debug_entry($entry, $einheit_id);
     } catch (Exception $e) {}
 }
 
@@ -2011,10 +2009,11 @@ function log_divera_debug_response($raw_response, $context = 'create') {
  * Protokolliert, dass eine Divera-Löschung übersprungen wurde (z.B. fehlende Event-ID oder Access Key).
  * @param int $reservation_id Reservierungs-ID
  * @param string $reason Grund (z.B. 'event_id_null', 'key_empty', 'find_by_foreign_id_failed')
+ * @param int $einheit_id Einheit-ID (> 0)
  */
-function log_divera_debug_skip($reservation_id, $reason) {
+function log_divera_debug_skip($reservation_id, $reason, $einheit_id = 0) {
     global $db;
-    if (empty($db)) return;
+    if (empty($db) || $einheit_id <= 0) return;
     try {
         $entry = [
             'timestamp' => date('Y-m-d H:i:s'),
@@ -2025,7 +2024,7 @@ function log_divera_debug_skip($reservation_id, $reason) {
                 'reason'         => $reason,
             ],
         ];
-        log_divera_debug_entry($entry);
+        log_divera_debug_entry($entry, $einheit_id);
     } catch (Exception $e) {}
 }
 
@@ -2033,12 +2032,11 @@ function log_divera_debug_skip($reservation_id, $reason) {
  * Speichert einen Divera-DELETE-Request im Debug-Log (max. 5 Einträge).
  * @param int $event_id Divera-Event-ID
  * @param string $url_path API-Pfad ohne Access Key (z.B. /api/v2/events/123)
+ * @param int $einheit_id Einheit-ID (> 0)
  */
-function log_divera_debug_delete($event_id, $url_path) {
+function log_divera_debug_delete($event_id, $url_path, $einheit_id = 0) {
     global $db;
-    if (empty($db)) {
-        return;
-    }
+    if (empty($db) || $einheit_id <= 0) return;
     try {
         $entry = [
             'timestamp' => date('Y-m-d H:i:s'),
@@ -2050,32 +2048,31 @@ function log_divera_debug_delete($event_id, $url_path) {
                 'url_path'  => $url_path,
             ],
         ];
-        log_divera_debug_entry($entry);
-    } catch (Exception $e) {
-        // Logging-Fehler ignorieren
-    }
+        log_divera_debug_entry($entry, $einheit_id);
+    } catch (Exception $e) {}
 }
 
 /**
- * Fügt einen Debug-Eintrag zur Liste hinzu (max. 5 Einträge).
+ * Fügt einen Debug-Eintrag zur Liste hinzu (max. 5 Einträge, pro Einheit).
  * @param array $entry Eintrag mit timestamp, source, type, payload
+ * @param int $einheit_id Einheit-ID (> 0), Einträge werden in einheit_settings gespeichert
  */
-function log_divera_debug_entry($entry) {
+function log_divera_debug_entry($entry, $einheit_id = 0) {
     global $db;
-    if (empty($db)) {
-        return;
+    if (empty($db) || $einheit_id <= 0) return;
+    if (!function_exists('ensure_einheit_settings_table')) {
+        require_once __DIR__ . '/einheit-settings-helper.php';
     }
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_debug_payloads' LIMIT 1");
-    $stmt->execute();
+    ensure_einheit_settings_table($db);
+    $stmt = $db->prepare("SELECT setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key = 'divera_debug_payloads' LIMIT 1");
+    $stmt->execute([$einheit_id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    $list = $row ? json_decode($row['setting_value'], true) : [];
-    if (!is_array($list)) {
-        $list = [];
-    }
+    $list = $row && $row['setting_value'] !== '' ? json_decode($row['setting_value'], true) : [];
+    if (!is_array($list)) $list = [];
     array_unshift($list, $entry);
     $list = array_slice($list, 0, 5);
-    $stmt = $db->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('divera_debug_payloads', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-    $stmt->execute([json_encode($list, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)]);
+    $stmt = $db->prepare("INSERT INTO einheit_settings (einheit_id, setting_key, setting_value) VALUES (?, 'divera_debug_payloads', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+    $stmt->execute([$einheit_id, json_encode($list, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)]);
 }
 
 /**
@@ -2133,7 +2130,22 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
     if ($use_groups) {
         $body['usingGroups'] = $group_ids;
     }
-    log_divera_debug_payload($body, $is_room ? 'room_reservation' : 'reservation');
+    $einheit_id = (int)($reservation['einheit_id'] ?? $reservation['_einheit_id'] ?? 0);
+    if ($einheit_id <= 0 && !empty($reservation['vehicle_id']) && !empty($GLOBALS['db'])) {
+        try {
+            $stmt = $GLOBALS['db']->prepare("SELECT einheit_id FROM vehicles WHERE id = ?");
+            $stmt->execute([$reservation['vehicle_id']]);
+            $einheit_id = (int)($stmt->fetchColumn() ?: 0);
+        } catch (Exception $e) {}
+    }
+    if ($einheit_id <= 0 && !empty($reservation['room_id']) && !empty($GLOBALS['db'])) {
+        try {
+            $stmt = $GLOBALS['db']->prepare("SELECT einheit_id FROM rooms WHERE id = ?");
+            $stmt->execute([$reservation['room_id']]);
+            $einheit_id = (int)($stmt->fetchColumn() ?: 0);
+        } catch (Exception $e) {}
+    }
+    log_divera_debug_payload($body, $is_room ? 'room_reservation' : 'reservation', $einheit_id);
     $url = $base . '/api/v2/events?accesskey=' . urlencode($access_key);
     $json_body = json_encode($body);
 
@@ -2180,10 +2192,12 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
     }
     $data = is_string($raw) ? json_decode($raw, true) : null;
     // Response immer loggen (Erfolg und Fehler), damit in „Letzte API-Anfragen“ die Divera-Antwort sichtbar ist
-    if (is_string($raw) && $raw !== '') {
-        log_divera_debug_response($raw, $code >= 200 && $code < 300 ? 'create' : 'create_failed');
-    } elseif ($raw === false || $raw === '') {
-        log_divera_debug_response('(leere Antwort oder Verbindungsfehler)', 'create_failed');
+    if ($einheit_id > 0) {
+        if (is_string($raw) && $raw !== '') {
+            log_divera_debug_response($raw, $code >= 200 && $code < 300 ? 'create' : 'create_failed', $einheit_id);
+        } elseif ($raw === false || $raw === '') {
+            log_divera_debug_response('(leere Antwort oder Verbindungsfehler)', 'create_failed', $einheit_id);
+        }
     }
     // Erfolgsprüfung wie im Formular: nur HTTP 2xx (Formular prüft nicht auf data.success)
     $success = $code >= 200 && $code < 300;
@@ -2464,7 +2478,7 @@ function send_dienstplan_to_divera($entry, $access_key, $api_base_url = 'https:/
  * @param string $api_base_url Basis-URL der Divera-API
  * @return bool true bei HTTP 2xx, false sonst
  */
-function delete_divera_event($event_id, $access_key, $api_base_url = 'https://app.divera247.com') {
+function delete_divera_event($event_id, $access_key, $api_base_url = 'https://app.divera247.com', $einheit_id = 0) {
     $event_id = (int) $event_id;
     if ($event_id <= 0) {
         return false;
@@ -2476,7 +2490,7 @@ function delete_divera_event($event_id, $access_key, $api_base_url = 'https://ap
     }
     $base = rtrim(trim((string) $api_base_url), '/') ?: 'https://app.divera247.com';
     $url = $base . '/api/v2/events/' . $event_id . '?accesskey=' . urlencode($access_key);
-    log_divera_debug_delete($event_id, '/api/v2/events/' . $event_id);
+    log_divera_debug_delete($event_id, '/api/v2/events/' . $event_id, $einheit_id);
 
     $ch = curl_init($url);
     if (!$ch) {
@@ -2499,8 +2513,8 @@ function delete_divera_event($event_id, $access_key, $api_base_url = 'https://ap
         return false;
     }
     $success = $code >= 200 && $code < 300;
-    if ($success && is_string($raw)) {
-        log_divera_debug_response($raw, 'delete');
+    if ($success && is_string($raw) && $einheit_id > 0) {
+        log_divera_debug_response($raw, 'delete', $einheit_id);
     }
     if (!$success) {
         error_log('Divera Event löschen fehlgeschlagen. HTTP ' . $code . '. Event-ID: ' . $event_id . '. Response: ' . (is_string($raw) ? substr($raw, 0, 500) : ''));

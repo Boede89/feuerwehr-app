@@ -225,13 +225,13 @@ try {
     $error = 'Fehler beim Laden der Einstellungen: ' . $e->getMessage();
 }
 
-// Divera Debug (nur bei Einheiten-Einstellungen)
+// Divera Debug (nur bei Einheiten-Einstellungen, nur Daten dieser Einheit)
 $divera_debug_payloads = [];
 $divera_api_debug = null;
 if ($einheit_id > 0) {
     try {
-        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'divera_debug_payloads' LIMIT 1");
-        $stmt->execute();
+        $stmt = $db->prepare("SELECT setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key = 'divera_debug_payloads' LIMIT 1");
+        $stmt->execute([$einheit_id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($row && $row['setting_value'] !== '') {
             $dec = json_decode($row['setting_value'], true);

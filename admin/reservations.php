@@ -97,7 +97,7 @@ function delete_reservation_with_cleanup($db, $reservation_id) {
                 $divera_event_id = find_divera_event_by_foreign_id($reservation_id, $divera_key, $api_base) ?? 0;
             }
             if ($divera_event_id > 0 && $divera_key !== '' && function_exists('delete_divera_event')) {
-                delete_divera_event($divera_event_id, $divera_key, $api_base);
+                delete_divera_event($divera_event_id, $divera_key, $api_base, $einheit_id);
             }
         }
 
@@ -187,7 +187,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
                             if (!empty($uk['divera_access_key'])) $divera_key = trim($uk['divera_access_key']);
                         }
                         $api_base = rtrim(trim((string)($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
-                        delete_divera_event((int)$room_res['divera_event_id'], $divera_key, $api_base);
+                        $room_einheit = (int)($room_res['einheit_id'] ?? 0);
+                        if ($room_einheit <= 0 && !empty($room_res['room_id'])) {
+                            $stmt_ro = $db->prepare("SELECT einheit_id FROM rooms WHERE id = ?");
+                            $stmt_ro->execute([$room_res['room_id']]);
+                            $room_einheit = (int)($stmt_ro->fetchColumn() ?: 0);
+                        }
+                        delete_divera_event((int)$room_res['divera_event_id'], $divera_key, $api_base, $room_einheit);
                     } catch (Exception $e) { error_log("Raum Divera Löschung: " . $e->getMessage()); }
                 }
                 if ($room_google) {
@@ -343,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
 
         // 1a) Divera-Termin löschen (wenn aktiviert) – Access Key: zuerst Genehmiger, dann aktueller User, dann Einheits-Key
         if ($divera_reservation_enabled) {
-            $stmt = $db->prepare("SELECT divera_event_id, approved_by FROM reservations WHERE id = ?");
+            $stmt = $db->prepare("SELECT r.divera_event_id, r.approved_by, COALESCE(r.einheit_id, v.einheit_id) as einheit_id FROM reservations r LEFT JOIN vehicles v ON r.vehicle_id = v.id WHERE r.id = ?");
             $stmt->execute([$reservation_id]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             $divera_event_id = (int) ($row['divera_event_id'] ?? 0);
@@ -369,7 +375,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
                 $divera_event_id = find_divera_event_by_foreign_id($reservation_id, $divera_key, $api_base) ?? 0;
                 if ($divera_event_id > 0) error_log('DELETE-COMPLETE: Divera Event-ID per foreign_id ermittelt: ' . $divera_event_id);
             }
-            if ($divera_event_id > 0 && $divera_key !== '' && delete_divera_event($divera_event_id, $divera_key, $api_base)) {
+            $del_einheit_id = (int)($row['einheit_id'] ?? 0);
+            if ($divera_event_id > 0 && $divera_key !== '' && delete_divera_event($divera_event_id, $divera_key, $api_base, $del_einheit_id)) {
                 error_log('DELETE-COMPLETE: Divera Event gelöscht: ' . $divera_event_id);
             }
         }
