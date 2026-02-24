@@ -5,6 +5,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 function output_json($data) {
     while (ob_get_level()) ob_end_clean();
@@ -80,6 +81,8 @@ try {
         $stmt = $db->prepare("UPDATE room_reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
 
+        apply_room_calendar_settings($db, $reservation, $reservation_id);
+
         $subject = "✅ Raumreservierung genehmigt - " . $reservation['requester_name'];
         $message = createRoomApprovalEmailHTML($reservation);
         send_email($reservation['requester_email'], $subject, $message, '', true);
@@ -109,6 +112,8 @@ try {
         }
         $stmt = $db->prepare("UPDATE room_reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
+
+        apply_room_calendar_settings($db, $reservation, $reservation_id);
 
         $subject = "✅ Raumreservierung genehmigt - " . $reservation['requester_name'];
         $message = createRoomApprovalEmailHTML($reservation);
@@ -163,6 +168,101 @@ function createRoomApprovalEmailHTML($reservation) {
         </div>
         <p>Mit freundlichen Grüßen,<br>Ihre Feuerwehr</p>
     </div></body></html>';
+}
+
+/**
+ * Wendet Divera- und Google-Kalender-Einstellungen für Raumreservierungen an (nur wenn aktiviert).
+ */
+function apply_room_calendar_settings($db, $reservation, $reservation_id) {
+    $einheit_id = (int)($reservation['einheit_id'] ?? 0);
+    $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+    if (empty($settings['divera_reservation_groups']) && $einheit_id > 0) {
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_groups', 'divera_reservation_default_group_id')");
+        $stmt->execute();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if (!isset($settings[$row['setting_key']]) || $settings[$row['setting_key']] === '') {
+                $settings[$row['setting_key']] = $row['setting_value'];
+            }
+        }
+    }
+
+    $room_divera_enabled = ($settings['room_divera_reservation_enabled'] ?? '0') === '1';
+    $room_google_enabled = ($settings['room_google_calendar_reservation_enabled'] ?? '0') === '1';
+
+    if ($room_divera_enabled) {
+        try {
+            require_once __DIR__ . '/../config/divera.php';
+            if ($einheit_id > 0) apply_divera_config_for_einheit($db, $einheit_id);
+            global $divera_config;
+            $divera_key = '';
+            if (isset($_SESSION['user_id'])) {
+                $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                $stmt->execute([$_SESSION['user_id']]);
+                $uk = $stmt->fetch(PDO::FETCH_ASSOC);
+                $divera_key = trim((string)($uk['divera_access_key'] ?? ''));
+            }
+            if ($divera_key === '') $divera_key = trim((string)($divera_config['access_key'] ?? ''));
+            $api_base = rtrim(trim((string)($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+            if ($divera_key !== '') {
+                $res_for_divera = $reservation;
+                $res_for_divera['vehicle_name'] = $reservation['room_name'] ?? 'Raum';
+                $group_ids = [];
+                $default_id = (int)trim((string)($settings['room_divera_reservation_default_group_id'] ?? ''));
+                if ($default_id > 0) $group_ids = [$default_id];
+                if (empty($group_ids) && !empty($settings['divera_reservation_groups'])) {
+                    $groups = json_decode($settings['divera_reservation_groups'], true);
+                    if (is_array($groups) && !empty($groups)) {
+                        $first_id = (int)($groups[0]['id'] ?? 0);
+                        if ($first_id > 0) $group_ids = [$first_id];
+                    }
+                }
+                if (!empty($group_ids)) $res_for_divera['_divera_group_ids'] = $group_ids;
+                $divera_error = null;
+                $divera_event_id = null;
+                if (send_reservation_to_divera($res_for_divera, $divera_key, $api_base, $divera_error, $divera_event_id) && $divera_event_id > 0) {
+                    try {
+                        $db->exec("ALTER TABLE room_reservations ADD COLUMN divera_event_id INT NULL");
+                    } catch (Exception $e) {}
+                    $stmt = $db->prepare("UPDATE room_reservations SET divera_event_id = ? WHERE id = ?");
+                    $stmt->execute([$divera_event_id, $reservation_id]);
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Raum Divera: " . $e->getMessage());
+        }
+    }
+
+    if ($room_google_enabled && function_exists('create_google_calendar_event')) {
+        try {
+            $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key IN ('google_calendar_service_account_json', 'google_calendar_service_account_file', 'google_calendar_api_key') AND setting_value != '' LIMIT 1");
+            $stmt->execute();
+            if ($stmt->fetch()) {
+                $room_name = $reservation['room_name'] ?? 'Raum';
+                $title = $room_name . ' - ' . ($reservation['reason'] ?? 'Raumreservierung');
+                $location = !empty($reservation['location']) ? $reservation['location'] : null;
+                $event_id = create_google_calendar_event($title, $reservation['reason'] ?? '', $reservation['start_datetime'], $reservation['end_datetime'], null, $location);
+                if ($event_id) {
+                    try {
+                        $db->exec("CREATE TABLE IF NOT EXISTS calendar_events_room (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            room_reservation_id INT NOT NULL,
+                            google_event_id VARCHAR(255) NOT NULL,
+                            title VARCHAR(255) NULL,
+                            start_datetime DATETIME NULL,
+                            end_datetime DATETIME NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            KEY idx_room_reservation (room_reservation_id),
+                            KEY idx_google_event (google_event_id)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                    } catch (Exception $e) {}
+                    $stmt = $db->prepare("INSERT INTO calendar_events_room (room_reservation_id, google_event_id, title, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->execute([$reservation_id, $event_id, $title, $reservation['start_datetime'], $reservation['end_datetime']]);
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Raum Google Calendar: " . $e->getMessage());
+        }
+    }
 }
 
 function createRoomRejectionEmailHTML($reservation, $rejection_reason) {

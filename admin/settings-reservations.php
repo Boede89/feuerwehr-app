@@ -176,9 +176,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
             // Keine Transaktion: DDL in save_setting_for_einheit führt zu implizitem Commit in MySQL
             $room_settings = [
                 'room_sort_mode' => sanitize_input($_POST['room_sort_mode'] ?? 'manual'),
-                'divera_reservation_enabled' => isset($_POST['divera_reservation_enabled']) ? '1' : '0',
-                'google_calendar_reservation_enabled' => isset($_POST['google_calendar_reservation_enabled']) ? '1' : '0',
-                'divera_reservation_default_group_id' => trim((string)($_POST['divera_reservation_default_group_id'] ?? '')),
+                'room_divera_reservation_enabled' => isset($_POST['room_divera_reservation_enabled']) ? '1' : '0',
+                'room_google_calendar_reservation_enabled' => isset($_POST['room_google_calendar_reservation_enabled']) ? '1' : '0',
+                'room_divera_reservation_default_group_id' => trim((string)($_POST['room_divera_reservation_default_group_id'] ?? '')),
             ];
 
             if ($einheit_id > 0) {
@@ -275,10 +275,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
         <div class="card mb-4">
             <div class="card-header"><i class="fas fa-calendar-plus"></i> Terminübergabe bei Genehmigung und Löschung</div>
             <div class="card-body">
-                <p class="text-muted small mb-3">Wählen Sie, welche Kalender-Systeme bei Genehmigung und Löschung von Reservierungen verwendet werden sollen.</p>
+                <p class="text-muted small mb-3">Wählen Sie, welche Kalender-Systeme bei Genehmigung und Löschung von <strong>Fahrzeug</strong>reservierungen verwendet werden sollen. (Unabhängig von den Raum-Einstellungen.)</p>
                 <div class="mb-3">
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="divera_reservation_enabled" id="divera_reservation_enabled" value="1" <?php echo (($settings['divera_reservation_enabled'] ?? '1') === '1') ? 'checked' : ''; ?>>
+                        <input class="form-check-input" type="checkbox" name="divera_reservation_enabled" id="divera_reservation_enabled" value="1" <?php echo (($settings['divera_reservation_enabled'] ?? '0') === '1') ? 'checked' : ''; ?>>
                         <label class="form-check-label" for="divera_reservation_enabled">
                             <strong>Divera 24/7</strong> – Termine an Divera senden und beim Löschen dort entfernen
                         </label>
@@ -286,7 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
                 </div>
                 <div class="mb-3">
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="google_calendar_reservation_enabled" id="google_calendar_reservation_enabled" value="1" <?php echo (($settings['google_calendar_reservation_enabled'] ?? '1') === '1') ? 'checked' : ''; ?>>
+                        <input class="form-check-input" type="checkbox" name="google_calendar_reservation_enabled" id="google_calendar_reservation_enabled" value="1" <?php echo (($settings['google_calendar_reservation_enabled'] ?? '0') === '1') ? 'checked' : ''; ?>>
                         <label class="form-check-label" for="google_calendar_reservation_enabled">
                             <strong>Google Kalender</strong> – Termine im Google Kalender anlegen und beim Löschen dort entfernen
                         </label>
@@ -392,19 +392,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
         <div class="card mb-4">
             <div class="card-header"><i class="fas fa-calendar-plus"></i> Terminübergabe bei Genehmigung und Löschung</div>
             <div class="card-body">
-                <p class="text-muted small mb-3">Wählen Sie, welche Kalender-Systeme bei Genehmigung und Löschung von Reservierungen verwendet werden sollen.</p>
+                <p class="text-muted small mb-3">Wählen Sie, welche Kalender-Systeme bei Genehmigung und Löschung von <strong>Raum</strong>reservierungen verwendet werden sollen. (Unabhängig von den Fahrzeug-Einstellungen.)</p>
                 <div class="mb-3">
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="divera_reservation_enabled" id="divera_reservation_enabled_raum" value="1" <?php echo (($settings['divera_reservation_enabled'] ?? '1') === '1') ? 'checked' : ''; ?>>
-                        <label class="form-check-label" for="divera_reservation_enabled_raum">
+                        <input class="form-check-input" type="checkbox" name="room_divera_reservation_enabled" id="room_divera_reservation_enabled" value="1" <?php echo (($settings['room_divera_reservation_enabled'] ?? '0') === '1') ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="room_divera_reservation_enabled">
                             <strong>Divera 24/7</strong> – Termine an Divera senden und beim Löschen dort entfernen
                         </label>
                     </div>
                 </div>
                 <div class="mb-3">
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="google_calendar_reservation_enabled" id="google_calendar_reservation_enabled_raum" value="1" <?php echo (($settings['google_calendar_reservation_enabled'] ?? '1') === '1') ? 'checked' : ''; ?>>
-                        <label class="form-check-label" for="google_calendar_reservation_enabled_raum">
+                        <input class="form-check-input" type="checkbox" name="room_google_calendar_reservation_enabled" id="room_google_calendar_reservation_enabled" value="1" <?php echo (($settings['room_google_calendar_reservation_enabled'] ?? '0') === '1') ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="room_google_calendar_reservation_enabled">
                             <strong>Google Kalender</strong> – Termine im Google Kalender anlegen und beim Löschen dort entfernen
                         </label>
                     </div>
@@ -416,11 +416,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
                     $dec = json_decode($settings['divera_reservation_groups'], true);
                     $divera_groups = is_array($dec) ? $dec : [];
                 }
-                $default_group_id = trim((string)($settings['divera_reservation_default_group_id'] ?? ''));
+                $default_group_id = trim((string)($settings['room_divera_reservation_default_group_id'] ?? ''));
                 if (!empty($divera_groups)): ?>
                 <div class="mb-3 mt-3">
                     <label class="form-label">Standard-Empfänger-Gruppe (Divera)</label>
-                    <select class="form-select" name="divera_reservation_default_group_id">
+                    <select class="form-select" name="room_divera_reservation_default_group_id">
                         <option value="">– Keine Vorauswahl –</option>
                         <?php foreach ($divera_groups as $g):
                             $gid = (int)($g['id'] ?? 0);

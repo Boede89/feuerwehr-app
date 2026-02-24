@@ -38,18 +38,34 @@ function delete_reservation_with_cleanup($db, $reservation_id) {
         try {
             $db->exec("ALTER TABLE reservations ADD COLUMN divera_event_id INT NULL DEFAULT NULL");
         } catch (Exception $e) { /* Spalte existiert bereits */ }
-        $stmt = $db->prepare("SELECT status, divera_event_id, approved_by FROM reservations WHERE id = ?");
+        $stmt = $db->prepare("SELECT r.status, r.divera_event_id, r.approved_by, r.einheit_id, r.vehicle_id FROM reservations r WHERE r.id = ?");
         $stmt->execute([$reservation_id]);
         $reservation = $stmt->fetch();
         if (!$reservation || !in_array($reservation['status'], ['approved', 'rejected', 'cancelled'])) return false;
 
-        $divera_reservation_enabled = true;
-        $google_calendar_reservation_enabled = true;
-        $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled')");
-        $stmt_set->execute();
-        while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
-            if ($row['setting_key'] === 'divera_reservation_enabled') $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
-            if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+        $divera_reservation_enabled = false;
+        $google_calendar_reservation_enabled = false;
+        $einheit_id = (int)($reservation['einheit_id'] ?? 0);
+        if ($einheit_id <= 0 && !empty($reservation['vehicle_id'])) {
+            $stmt_v = $db->prepare("SELECT einheit_id FROM vehicles WHERE id = ?");
+            $stmt_v->execute([$reservation['vehicle_id']]);
+            $einheit_id = (int)($stmt_v->fetchColumn() ?: 0);
+        }
+        if ($einheit_id > 0) {
+            $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled')");
+            $stmt_set->execute([$einheit_id]);
+            while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+                if ($row['setting_key'] === 'divera_reservation_enabled') $divera_reservation_enabled = ($row['setting_value'] ?? '0') === '1';
+                if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '0') === '1';
+            }
+        }
+        if (!$divera_reservation_enabled && !$google_calendar_reservation_enabled) {
+            $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled')");
+            $stmt_set->execute();
+            while ($row = $stmt_set->fetch(PDO::FETCH_ASSOC)) {
+                if ($row['setting_key'] === 'divera_reservation_enabled') $divera_reservation_enabled = ($row['setting_value'] ?? '0') === '1';
+                if ($row['setting_key'] === 'google_calendar_reservation_enabled') $google_calendar_reservation_enabled = ($row['setting_value'] ?? '0') === '1';
+            }
         }
 
         if ($divera_reservation_enabled) {
@@ -141,10 +157,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     $is_room = !empty($_POST['is_room']);
     try {
         if ($is_room) {
-            $stmt = $db->prepare("SELECT status FROM room_reservations WHERE id = ?");
+            $stmt = $db->prepare("SELECT rr.*, ro.name as room_name FROM room_reservations rr JOIN rooms ro ON rr.room_id = ro.id WHERE rr.id = ?");
             $stmt->execute([$reservation_id]);
-            $row = $stmt->fetch();
-            if ($row && in_array($row['status'], ['approved', 'rejected', 'cancelled'])) {
+            $room_res = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($room_res && in_array($room_res['status'], ['approved', 'rejected', 'cancelled'])) {
+                require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+                $einheit_id = (int)($room_res['einheit_id'] ?? 0);
+                $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+                $room_divera = ($settings['room_divera_reservation_enabled'] ?? '0') === '1';
+                $room_google = ($settings['room_google_calendar_reservation_enabled'] ?? '0') === '1';
+                try { $db->exec("ALTER TABLE room_reservations ADD COLUMN divera_event_id INT NULL"); } catch (Exception $e) {}
+                if ($room_divera && !empty($room_res['divera_event_id']) && function_exists('delete_divera_event')) {
+                    try {
+                        require_once __DIR__ . '/../config/divera.php';
+                        if ($einheit_id > 0) apply_divera_config_for_einheit($db, $einheit_id);
+                        global $divera_config;
+                        $divera_key = trim((string)($divera_config['access_key'] ?? ''));
+                        if ($divera_key !== '' && isset($_SESSION['user_id'])) {
+                            $stmt_u = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                            $stmt_u->execute([$_SESSION['user_id']]);
+                            $uk = $stmt_u->fetch(PDO::FETCH_ASSOC);
+                            if (!empty($uk['divera_access_key'])) $divera_key = trim($uk['divera_access_key']);
+                        }
+                        $api_base = rtrim(trim((string)($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+                        delete_divera_event((int)$room_res['divera_event_id'], $divera_key, $api_base);
+                    } catch (Exception $e) { error_log("Raum Divera Löschung: " . $e->getMessage()); }
+                }
+                if ($room_google) {
+                    try {
+                        $stmt_ce = $db->prepare("SELECT google_event_id FROM calendar_events_room WHERE room_reservation_id = ?");
+                        $stmt_ce->execute([$reservation_id]);
+                        $ce = $stmt_ce->fetch(PDO::FETCH_ASSOC);
+                        if ($ce && !empty($ce['google_event_id']) && function_exists('delete_google_calendar_event')) {
+                            delete_google_calendar_event($ce['google_event_id']);
+                        }
+                        $db->prepare("DELETE FROM calendar_events_room WHERE room_reservation_id = ?")->execute([$reservation_id]);
+                    } catch (Exception $e) { error_log("Raum Google Löschung: " . $e->getMessage()); }
+                }
                 $stmt = $db->prepare("DELETE FROM room_reservations WHERE id = ?");
                 $stmt->execute([$reservation_id]);
                 $message = "Raumreservierung erfolgreich gelöscht.";
