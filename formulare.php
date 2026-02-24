@@ -228,12 +228,19 @@ try {
                                     iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff';
                                     iframe.src = blobUrl;
                                     document.body.appendChild(iframe);
+                                    var btnBar = document.createElement('div');
+                                    btnBar.style.cssText = 'position:fixed;top:10px;right:10px;z-index:100000;display:flex;gap:8px';
+                                    var newWinBtn = document.createElement('button');
+                                    newWinBtn.textContent = 'In neuem Fenster öffnen';
+                                    newWinBtn.className = 'btn btn-outline-primary';
+                                    newWinBtn.onclick = function() { var w = window.open(blobUrl, '_blank', 'noopener,width=900,height=700'); if (w) w.onload = function() { try { w.print(); } catch (e) {} }; };
                                     var closeBtn = document.createElement('button');
                                     closeBtn.textContent = 'Schließen';
                                     closeBtn.className = 'btn btn-primary';
-                                    closeBtn.style.cssText = 'position:fixed;top:10px;right:10px;z-index:100000';
-                                    closeBtn.onclick = function() { iframe.remove(); closeBtn.remove(); URL.revokeObjectURL(blobUrl); };
-                                    document.body.appendChild(closeBtn);
+                                    closeBtn.onclick = function() { iframe.remove(); btnBar.remove(); URL.revokeObjectURL(blobUrl); };
+                                    btnBar.appendChild(newWinBtn);
+                                    btnBar.appendChild(closeBtn);
+                                    document.body.appendChild(btnBar);
                                     iframe.onload = function() { setTimeout(function() { try { iframe.contentWindow.print(); } catch (e) {} }, 500); };
                                 }
                             }
