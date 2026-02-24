@@ -81,14 +81,20 @@ try {
         $stmt = $db->prepare("UPDATE room_reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
 
-        apply_room_calendar_settings($db, $reservation, $reservation_id);
+        $calendar_result = apply_room_calendar_settings($db, $reservation, $reservation_id);
 
         $subject = "✅ Raumreservierung genehmigt - " . $reservation['requester_name'];
         $message = createRoomApprovalEmailHTML($reservation);
         send_email($reservation['requester_email'], $subject, $message, '', true);
         log_activity($_SESSION['user_id'], 'room_reservation_approved', "Raumreservierung #$reservation_id genehmigt");
 
-        output_json(['success' => true, 'message' => 'Raumreservierung wurde genehmigt']);
+        output_json([
+            'success' => true,
+            'message' => 'Raumreservierung wurde genehmigt',
+            'divera_sent' => $calendar_result['divera_sent'],
+            'needs_divera_key' => $calendar_result['needs_divera_key'],
+            'divera_error' => $calendar_result['divera_error'],
+        ]);
 
     } elseif ($action === 'approve_with_conflict_resolution') {
         $conflict_ids = $input['conflict_ids'] ?? [];
@@ -113,14 +119,20 @@ try {
         $stmt = $db->prepare("UPDATE room_reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reservation_id]);
 
-        apply_room_calendar_settings($db, $reservation, $reservation_id);
+        $calendar_result = apply_room_calendar_settings($db, $reservation, $reservation_id);
 
         $subject = "✅ Raumreservierung genehmigt - " . $reservation['requester_name'];
         $message = createRoomApprovalEmailHTML($reservation);
         send_email($reservation['requester_email'], $subject, $message, '', true);
         log_activity($_SESSION['user_id'], 'room_reservation_approved', "Raumreservierung #$reservation_id genehmigt mit Konfliktlösung");
 
-        output_json(['success' => true, 'message' => 'Raumreservierung wurde genehmigt und Konflikte gelöst']);
+        output_json([
+            'success' => true,
+            'message' => 'Raumreservierung wurde genehmigt und Konflikte gelöst',
+            'divera_sent' => $calendar_result['divera_sent'],
+            'needs_divera_key' => $calendar_result['needs_divera_key'],
+            'divera_error' => $calendar_result['divera_error'],
+        ]);
 
     } elseif ($action === 'reject') {
         if (empty($reason)) {
@@ -172,8 +184,10 @@ function createRoomApprovalEmailHTML($reservation) {
 
 /**
  * Wendet Divera- und Google-Kalender-Einstellungen für Raumreservierungen an (nur wenn aktiviert).
+ * @return array ['divera_sent' => bool, 'needs_divera_key' => bool, 'divera_error' => array|null]
  */
 function apply_room_calendar_settings($db, $reservation, $reservation_id) {
+    $result = ['divera_sent' => false, 'needs_divera_key' => false, 'divera_error' => null];
     $einheit_id = (int)($reservation['einheit_id'] ?? 0);
     if ($einheit_id <= 0 && !empty($reservation['room_id'])) {
         $stmt_ro = $db->prepare("SELECT einheit_id FROM rooms WHERE id = ?");
@@ -247,13 +261,17 @@ function apply_room_calendar_settings($db, $reservation, $reservation_id) {
                 if (!empty($group_ids)) $res_for_divera['_divera_group_ids'] = $group_ids;
                 $divera_error = null;
                 $divera_event_id = null;
-                if (send_reservation_to_divera($res_for_divera, $divera_key, $api_base, $divera_error, $divera_event_id, true) && $divera_event_id > 0) {
+                $result['divera_sent'] = send_reservation_to_divera($res_for_divera, $divera_key, $api_base, $divera_error, $divera_event_id, true);
+                $result['divera_error'] = $divera_error;
+                if ($result['divera_sent'] && $divera_event_id > 0) {
                     try {
                         $db->exec("ALTER TABLE room_reservations ADD COLUMN divera_event_id INT NULL");
                     } catch (Exception $e) {}
                     $stmt = $db->prepare("UPDATE room_reservations SET divera_event_id = ? WHERE id = ?");
                     $stmt->execute([$divera_event_id, $reservation_id]);
                 }
+            } else {
+                $result['needs_divera_key'] = true;
             }
         } catch (Exception $e) {
             error_log("Raum Divera: " . $e->getMessage());
@@ -291,6 +309,7 @@ function apply_room_calendar_settings($db, $reservation, $reservation_id) {
             error_log("Raum Google Calendar: " . $e->getMessage());
         }
     }
+    return $result;
 }
 
 function createRoomRejectionEmailHTML($reservation, $rejection_reason) {
