@@ -339,10 +339,11 @@ function can_access_unit($unit_id) {
  */
 function require_unit_selected() {
     $unit_id = get_current_unit_id();
-    if (!$unit_id) {
-        redirect('unit-select.php');
+    $einheit_id = function_exists('get_current_einheit_id') ? get_current_einheit_id() : null;
+    if (!$unit_id && !$einheit_id) {
+        redirect('index.php');
     }
-    return $unit_id;
+    return $unit_id ?: $einheit_id;
 }
 
 /**

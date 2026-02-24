@@ -146,7 +146,7 @@ try {
     }
 
     echo "<h2>Fertig</h2>";
-    echo "<p><a href='unit-select.php'>Zur Einheiten-Auswahl</a></p>";
+    echo "<p><a href='index.php'>Zur Startseite</a></p>";
 
 } catch (Exception $e) {
     echo "<p style='color: red;'>❌ Fehler: " . htmlspecialchars($e->getMessage()) . "</p>";

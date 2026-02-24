@@ -50,11 +50,11 @@ if (!isset($_SESSION["user_id"])) {
     exit();
 }
 
-// Einheit muss gewählt sein (unit_id aus unit-select ODER einheit_id aus Einheiten-System)
+// Einheit muss gewählt sein (unit_id ODER einheit_id aus Einheiten-System)
 $current_unit_id = function_exists('get_current_unit_id') ? get_current_unit_id() : null;
 $current_einheit_id = function_exists('get_current_einheit_id') ? get_current_einheit_id() : null;
 if (!$current_unit_id && !$current_einheit_id) {
-    echo '<script>window.location.href = "../unit-select.php";</script>';
+    header('Location: ../index.php');
     exit();
 }
 // Einheit für Abfragen: einheit_id hat Vorrang (Einheiten-System), sonst unit_id
