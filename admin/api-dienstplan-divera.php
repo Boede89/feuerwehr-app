@@ -143,11 +143,12 @@ if ($action === 'import') {
             $bezeichnung = $title;
         }
         if ($bezeichnung === '') $bezeichnung = 'Import aus Divera';
-        $uhrzeit = isset($e['ts_start']) && $e['ts_start'] > 0 ? date('H:i:s', $e['ts_start']) : null;
+        $uhrzeit_beginn = isset($e['ts_start']) && $e['ts_start'] > 0 ? date('H:i:s', $e['ts_start']) : null;
+        $uhrzeit_ende = isset($e['ts_end']) && $e['ts_end'] > 0 ? date('H:i:s', $e['ts_end']) : null;
         $import_einheit_id = $effective_einheit_id > 0 ? $effective_einheit_id : null;
         try {
-            $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ, uhrzeit_dienstbeginn, einheit_id) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$datum, $bezeichnung, $default_typ, $uhrzeit, $import_einheit_id]);
+            $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ, uhrzeit_dienstbeginn, uhrzeit_dienstende, einheit_id) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$datum, $bezeichnung, $default_typ, $uhrzeit_beginn, $uhrzeit_ende, $import_einheit_id]);
             $imported++;
         } catch (Exception $ex) {
             error_log('Dienstplan Import: ' . $ex->getMessage());
@@ -170,7 +171,7 @@ if ($action === 'export') {
     }
     $group_ids = array_values(array_filter(array_map('intval', $group_ids), function($v) { return $v >= 0; }));
     $placeholders = implode(',', array_fill(0, count($entry_ids), '?'));
-    $stmt = $db->prepare("SELECT id, datum, bezeichnung, typ FROM dienstplan WHERE id IN ($placeholders)");
+    $stmt = $db->prepare("SELECT id, datum, bezeichnung, typ, uhrzeit_dienstbeginn, uhrzeit_dienstende FROM dienstplan WHERE id IN ($placeholders)");
     $stmt->execute($entry_ids);
     $entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $exported = 0;

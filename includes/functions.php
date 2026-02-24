@@ -2414,7 +2414,7 @@ function fetch_divera_alarms($access_key, $api_base_url = 'https://app.divera247
 
 /**
  * Sendet einen Dienstplan-Eintrag als Termin an Divera 24/7.
- * @param array $entry ['datum'=>Y-m-d, 'bezeichnung'=>string, 'typ'=>string]
+ * @param array $entry ['datum'=>Y-m-d, 'bezeichnung'=>string, 'typ'=>string, 'uhrzeit_dienstbeginn'=>H:i:s|null, 'uhrzeit_dienstende'=>H:i:s|null]
  * @param string $access_key Divera-Accesskey
  * @param string $api_base_url Basis-URL
  * @param array $group_ids Optional: Divera-Gruppen-IDs
@@ -2426,8 +2426,15 @@ function send_dienstplan_to_divera($entry, $access_key, $api_base_url = 'https:/
     $datum = $entry['datum'] ?? '';
     $bezeichnung = trim((string) ($entry['bezeichnung'] ?? ''));
     if ($datum === '' || $bezeichnung === '') return ['success' => false, 'event_id' => null, 'error' => 'Datum oder Bezeichnung fehlt'];
-    $start_ts = strtotime($datum . ' 09:00:00');
-    $end_ts = strtotime($datum . ' 12:00:00');
+    $uhrzeit_beginn = trim((string) ($entry['uhrzeit_dienstbeginn'] ?? ''));
+    $uhrzeit_ende = trim((string) ($entry['uhrzeit_dienstende'] ?? ''));
+    $start_str = $uhrzeit_beginn !== '' ? $datum . ' ' . $uhrzeit_beginn : $datum . ' 09:00:00';
+    $start_ts = strtotime($start_str);
+    if ($uhrzeit_ende !== '') {
+        $end_ts = strtotime($datum . ' ' . $uhrzeit_ende);
+    } else {
+        $end_ts = $uhrzeit_beginn !== '' ? strtotime('+3 hours', $start_ts) : strtotime($datum . ' 12:00:00');
+    }
     if ($start_ts <= 0) return ['success' => false, 'event_id' => null, 'error' => 'Ungültiges Datum'];
     $typ_label = function_exists('get_dienstplan_typ_label') ? get_dienstplan_typ_label($entry['typ'] ?? 'uebungsdienst') : 'Dienst';
     $title = $typ_label . ': ' . $bezeichnung;
