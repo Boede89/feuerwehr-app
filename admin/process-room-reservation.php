@@ -207,15 +207,7 @@ function apply_room_calendar_settings($db, $reservation, $reservation_id) {
         $einheit_id = (int)($stmt_ro->fetchColumn() ?: 0);
     }
     $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
-    if (empty($settings['divera_reservation_groups']) && $einheit_id > 0) {
-        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_groups', 'divera_reservation_default_group_id')");
-        $stmt->execute();
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            if (!isset($settings[$row['setting_key']]) || $settings[$row['setting_key']] === '') {
-                $settings[$row['setting_key']] = $row['setting_value'];
-            }
-        }
-    }
+    // Kein Fallback auf globale Divera-Einstellungen – nur Einheitseinstellungen.
 
     $room_divera_enabled = ($settings['room_divera_reservation_enabled'] ?? '0') === '1';
     $room_google_enabled = ($settings['room_google_calendar_reservation_enabled'] ?? '0') === '1';

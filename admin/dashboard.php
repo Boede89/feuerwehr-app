@@ -209,14 +209,15 @@ if ($can_reservations) {
     echo '<script>console.log("Raum-Reservierungen:", ' . json_encode($pending_room_reservations) . ');</script>';
 }
 
-// Divera-Empfänger-Gruppen und Standard für Genehmigung (nur wenn Reservierungen berechtigt)
+// Divera-Empfänger-Gruppen und Standard für Genehmigung (nur Einheit der aktuellen Ansicht, kein globaler Fallback)
 $divera_reservation_groups = [];
 $divera_reservation_default_group_id = '';
-$divera_reservation_enabled = true;
-if ($can_reservations) {
+$divera_reservation_enabled = false;
+if ($can_reservations && $effective_unit_id > 0) {
     try {
-        $stmt = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_groups', 'divera_reservation_default_group_id', 'divera_reservation_enabled')");
-        $stmt->execute();
+        require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+        $stmt = $db->prepare("SELECT setting_key, setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key IN ('divera_reservation_groups', 'divera_reservation_default_group_id', 'divera_reservation_enabled')");
+        $stmt->execute([$effective_unit_id]);
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             if ($row['setting_key'] === 'divera_reservation_groups' && $row['setting_value'] !== '') {
                 $dec = json_decode($row['setting_value'], true);
@@ -224,7 +225,7 @@ if ($can_reservations) {
             } elseif ($row['setting_key'] === 'divera_reservation_default_group_id') {
                 $divera_reservation_default_group_id = trim((string)$row['setting_value']);
             } elseif ($row['setting_key'] === 'divera_reservation_enabled') {
-                $divera_reservation_enabled = ($row['setting_value'] ?? '1') === '1';
+                $divera_reservation_enabled = ($row['setting_value'] ?? '0') === '1';
             }
         }
     } catch (Exception $e) {}
