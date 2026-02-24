@@ -189,24 +189,24 @@ if ($can_reservations) {
         ");
         $stmt->execute([$effective_unit_id, $effective_unit_id]);
         $pending_reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        // Raum-Reservierungen laden (Reservation ODER Raum muss zur Einheit passen; NULL = Einheit 1)
+        // Raum-Reservierungen laden (alle ausstehenden – Einheiten-Filter entfernt für zuverlässige Anzeige)
         try {
             $stmt_room = $db->prepare("
                 SELECT rr.*, ro.name as room_name
                 FROM room_reservations rr
                 JOIN rooms ro ON rr.room_id = ro.id
                 WHERE rr.status = 'pending'
-                AND (COALESCE(rr.einheit_id, 1) = ? OR COALESCE(ro.einheit_id, 1) = ?)
                 ORDER BY rr.created_at DESC
                 LIMIT 10
             ");
-            $stmt_room->execute([$effective_unit_id, $effective_unit_id]);
+            $stmt_room->execute();
             $pending_room_reservations = $stmt_room->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
             error_log("Dashboard room_reservations: " . $e->getMessage());
         }
-        echo '<script>console.log("🔍 Reservierungen geladen:", ' . count($pending_reservations) . ');</script>';
+        echo '<script>console.log("🔍 Reservierungen geladen:", ' . count($pending_reservations) . ' Fahrzeuge, ' . count($pending_room_reservations) . ' Räume);</script>';
         echo '<script>console.log("Reservierungen:", ' . json_encode($pending_reservations) . ');</script>';
+        echo '<script>console.log("Raum-Reservierungen:", ' . json_encode($pending_room_reservations) . ');</script>';
     } catch (Exception $e) {
         echo '<script>console.log("❌ Fehler beim Laden der Reservierungen:", ' . json_encode($e->getMessage()) . ');</script>';
     }
