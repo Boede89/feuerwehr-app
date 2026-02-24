@@ -53,10 +53,26 @@ try {
     }
 
     if ($action === 'approve') {
-        if (check_room_conflict($reservation['room_id'], $reservation['start_datetime'], $reservation['end_datetime'], $reservation_id)) {
+        $conflicts = get_room_conflicts($reservation['room_id'], $reservation['start_datetime'], $reservation['end_datetime'], $reservation_id);
+        if (!empty($conflicts)) {
+            $formatted = [];
+            foreach ($conflicts as $c) {
+                $formatted[] = [
+                    'id' => (int)$c['id'],
+                    'requester_name' => $c['requester_name'],
+                    'room_name' => $c['room_name'],
+                    'start_datetime' => $c['start_datetime'],
+                    'end_datetime' => $c['end_datetime'],
+                    'reason' => $c['reason'],
+                    'start_date' => date('d.m.Y', strtotime($c['start_datetime'])),
+                    'start_time' => date('H:i', strtotime($c['start_datetime'])),
+                    'end_time' => date('H:i', strtotime($c['end_datetime'])),
+                ];
+            }
             output_json([
                 'success' => false,
                 'has_conflicts' => true,
+                'conflicts' => $formatted,
                 'message' => 'Der Raum ist für diesen Zeitraum bereits genehmigt reserviert.'
             ]);
             exit;
@@ -70,6 +86,36 @@ try {
         log_activity($_SESSION['user_id'], 'room_reservation_approved', "Raumreservierung #$reservation_id genehmigt");
 
         output_json(['success' => true, 'message' => 'Raumreservierung wurde genehmigt']);
+
+    } elseif ($action === 'approve_with_conflict_resolution') {
+        $conflict_ids = $input['conflict_ids'] ?? [];
+        if (!empty($conflict_ids)) {
+            foreach ($conflict_ids as $conflict_id) {
+                $conflict_id = (int)$conflict_id;
+                if ($conflict_id <= 0) continue;
+                $stmt = $db->prepare("UPDATE room_reservations SET status = 'rejected', rejection_reason = ?, approved_by = ?, approved_at = NOW() WHERE id = ?");
+                $stmt->execute(['Storniert wegen Konflikt mit neuer Reservierung', $_SESSION['user_id'], $conflict_id]);
+
+                $stmt = $db->prepare("SELECT rr.*, ro.name as room_name FROM room_reservations rr JOIN rooms ro ON rr.room_id = ro.id WHERE rr.id = ?");
+                $stmt->execute([$conflict_id]);
+                $cancelled = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($cancelled) {
+                    $subject = "❌ Raumreservierung storniert - " . $cancelled['requester_name'];
+                    $message = createRoomRejectionEmailHTML($cancelled, 'Storniert wegen Konflikt mit neuer Reservierung');
+                    send_email($cancelled['requester_email'], $subject, $message, '', true);
+                    log_activity($_SESSION['user_id'], 'room_reservation_rejected', "Raumreservierung #$conflict_id storniert wegen Konflikt mit #$reservation_id");
+                }
+            }
+        }
+        $stmt = $db->prepare("UPDATE room_reservations SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id'], $reservation_id]);
+
+        $subject = "✅ Raumreservierung genehmigt - " . $reservation['requester_name'];
+        $message = createRoomApprovalEmailHTML($reservation);
+        send_email($reservation['requester_email'], $subject, $message, '', true);
+        log_activity($_SESSION['user_id'], 'room_reservation_approved', "Raumreservierung #$reservation_id genehmigt mit Konfliktlösung");
+
+        output_json(['success' => true, 'message' => 'Raumreservierung wurde genehmigt und Konflikte gelöst']);
 
     } elseif ($action === 'reject') {
         if (empty($reason)) {

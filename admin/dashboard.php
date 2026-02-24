@@ -1631,14 +1631,38 @@ if ($can_atemschutz) {
             const diveraBlock = document.getElementById('diveraGroupSelect')?.closest('.mb-3');
             if (diveraBlock) diveraBlock.style.display = isRoom ? 'none' : '';
             
-            if (!isRoom) checkReservationConflicts(reservation.id);
+            if (isRoom) checkRoomConflicts(reservation.id); else checkReservationConflicts(reservation.id);
             
             // Modal anzeigen
             const modal = new bootstrap.Modal(document.getElementById('reservationDetailsModal'));
             modal.show();
         }
         
-        // Konfliktprüfung für Reservierung
+        // Konfliktprüfung für Raumreservierung
+        function checkRoomConflicts(reservationId) {
+            fetch('check-room-conflicts.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    reservation_id: reservationId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayConflictInfo(data, true);
+                } else {
+                    console.error('Raum-Konfliktprüfung fehlgeschlagen:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Fehler bei Raum-Konfliktprüfung:', error);
+            });
+        }
+
+        // Konfliktprüfung für Fahrzeugreservierung
         function checkReservationConflicts(reservationId) {
             fetch('check-reservation-conflicts.php', {
                 method: 'POST',
@@ -1652,7 +1676,7 @@ if ($can_atemschutz) {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    displayConflictInfo(data);
+                    displayConflictInfo(data, false);
                 } else {
                     console.error('Konfliktprüfung fehlgeschlagen:', data.message);
                 }
@@ -1662,25 +1686,27 @@ if ($can_atemschutz) {
             });
         }
         
-        // Konfliktinformationen anzeigen
-        function displayConflictInfo(data) {
+        // Konfliktinformationen anzeigen (isRoom: true = Raumreservierung, false = Fahrzeugreservierung)
+        function displayConflictInfo(data, isRoom) {
             const statusElement = document.getElementById('modalStatus');
-            
+            const nameKey = isRoom ? 'room_name' : 'vehicle_name';
+
             if (data.has_conflicts) {
                 // Konflikte gefunden - zeige Warnung
                 statusElement.innerHTML = `
                     <span class="badge bg-warning text-dark me-2">Ausstehend</span>
                     <span class="badge bg-danger">${data.conflict_count} Konflikt${data.conflict_count > 1 ? 'e' : ''}</span>
                 `;
-                
+
                 // Konflikte-Details hinzufügen
                 let conflictsHtml = '<div class="mt-3"><h6 class="text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Zeitüberschneidungen gefunden:</h6>';
                 conflictsHtml += '<div class="alert alert-warning">';
-                
+
                 data.conflicts.forEach(conflict => {
+                    const displayName = conflict[nameKey] || conflict.vehicle_name || conflict.room_name || 'Unbekannt';
                     conflictsHtml += `
                         <div class="mb-2 p-2 border-start border-3 border-warning">
-                            <strong>${conflict.vehicle_name}</strong><br>
+                            <strong>${displayName}</strong><br>
                             <small class="text-muted">
                                 ${conflict.start_date} von ${conflict.start_time} bis ${conflict.end_time}<br>
                                 Antragsteller: ${conflict.requester_name}<br>
@@ -1837,15 +1863,18 @@ if ($can_atemschutz) {
         function showConflictWarning(conflicts) {
             const conflictList = document.getElementById('conflictList');
             let conflictsHtml = '';
-            
+            const isRoom = window.currentReservationType === 'room';
+            const nameKey = isRoom ? 'room_name' : 'vehicle_name';
+
             conflicts.forEach(conflict => {
+                const displayName = conflict[nameKey] || conflict.vehicle_name || conflict.room_name || 'Unbekannt';
                 conflictsHtml += `
                     <div class="card mb-2 border-danger">
                         <div class="card-body p-3">
                             <div class="row">
                                 <div class="col-md-8">
                                     <h6 class="card-title text-danger mb-2">
-                                        <i class="fas fa-calendar-times me-2"></i>${conflict.vehicle_name}
+                                        <i class="fas fa-calendar-times me-2"></i>${displayName}
                                     </h6>
                                     <p class="card-text mb-1">
                                         <strong>Antragsteller:</strong> ${conflict.requester_name}
@@ -1879,27 +1908,32 @@ if ($can_atemschutz) {
         // Konfliktlösung bestätigen
         function confirmConflictResolution() {
             if (!window.currentReservationId || !window.conflictIds) return;
-            
+
             const confirmBtn = document.getElementById('confirmConflictResolutionBtn');
             const originalText = confirmBtn.innerHTML;
-            
+            const isRoom = window.currentReservationType === 'room';
+
             confirmBtn.disabled = true;
             confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Verarbeite...';
-            
-            const diveraGroupEl = document.getElementById('diveraGroupSelect');
-            const dvVal = diveraGroupEl ? diveraGroupEl.value : '';
-            const diveraGroupIds = (dvVal !== '' && dvVal !== '0') ? [parseInt(dvVal, 10)] : [];
-            fetch('process-reservation.php', {
+
+            const apiUrl = isRoom ? 'process-room-reservation.php' : 'process-reservation.php';
+            const body = isRoom
+                ? { action: 'approve_with_conflict_resolution', reservation_id: window.currentReservationId, conflict_ids: window.conflictIds }
+                : {
+                    action: 'approve_with_conflict_resolution',
+                    reservation_id: window.currentReservationId,
+                    conflict_ids: window.conflictIds,
+                    divera_group_ids: (function() {
+                        const dvVal = document.getElementById('diveraGroupSelect')?.value ?? '';
+                        return (dvVal !== '' && dvVal !== '0') ? [parseInt(dvVal, 10)] : [];
+                    })()
+                };
+            fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    action: 'approve_with_conflict_resolution',
-                    reservation_id: window.currentReservationId,
-                    conflict_ids: window.conflictIds,
-                    divera_group_ids: diveraGroupIds
-                })
+                body: JSON.stringify(body)
             })
             .then(response => response.json())
             .then(data => {

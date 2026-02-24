@@ -1604,6 +1604,36 @@ function check_room_conflict($room_id, $start_datetime, $end_datetime, $exclude_
 }
 
 /**
+ * Liefert Details zu bestehenden Raumreservierungen, die mit dem angegebenen Zeitraum kollidieren.
+ * @return array Liste der Konflikte mit id, requester_name, room_name, start_datetime, end_datetime, reason
+ */
+function get_room_conflicts($room_id, $start_datetime, $end_datetime, $exclude_id = null) {
+    global $db;
+    try {
+        $sql = "SELECT rr.id, rr.requester_name, rr.start_datetime, rr.end_datetime, rr.reason, ro.name as room_name
+                FROM room_reservations rr
+                JOIN rooms ro ON rr.room_id = ro.id
+                WHERE rr.room_id = ?
+                AND rr.status = 'approved'
+                AND ((rr.start_datetime <= ? AND rr.end_datetime > ?)
+                     OR (rr.start_datetime < ? AND rr.end_datetime >= ?)
+                     OR (rr.start_datetime >= ? AND rr.end_datetime <= ?))";
+        $params = [$room_id, $start_datetime, $start_datetime, $end_datetime, $end_datetime, $start_datetime, $end_datetime];
+        if ($exclude_id) {
+            $sql .= " AND rr.id != ?";
+            $params[] = $exclude_id;
+        }
+        $sql .= " ORDER BY rr.start_datetime";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log("get_room_conflicts error: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
  * Verknüpft einen Atemschutzgeräteträger mit einem Mitglied
  * Erstellt automatisch ein Mitglied, falls noch keines existiert
  * 
