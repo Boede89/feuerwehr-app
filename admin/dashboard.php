@@ -165,8 +165,10 @@ echo '<script>console.log("user_id:", ' . json_encode($_SESSION['user_id'] ?? 'n
 
 // Reservierungen laden (nur wenn berechtigt)
 $pending_reservations = [];
+$pending_room_reservations = [];
 if ($can_reservations) {
     try {
+        $unit_or_einheit = function_exists('get_current_einheit_id') && get_current_einheit_id() ? get_current_einheit_id() : $current_unit_id;
         $stmt = $db->prepare("
             SELECT r.*, v.name as vehicle_name
             FROM reservations r 
@@ -178,6 +180,20 @@ if ($can_reservations) {
         ");
         $stmt->execute([$current_unit_id, $current_unit_id]);
         $pending_reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Raum-Reservierungen laden
+        try {
+            $stmt_room = $db->prepare("
+                SELECT rr.*, ro.name as room_name
+                FROM room_reservations rr
+                JOIN rooms ro ON rr.room_id = ro.id
+                WHERE rr.status = 'pending'
+                AND (COALESCE(rr.einheit_id, 1) = ? OR COALESCE(ro.einheit_id, 1) = ?)
+                ORDER BY rr.created_at DESC
+                LIMIT 10
+            ");
+            $stmt_room->execute([$unit_or_einheit, $unit_or_einheit]);
+            $pending_room_reservations = $stmt_room->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) { /* Tabelle evtl. noch nicht vorhanden */ }
         echo '<script>console.log("🔍 Reservierungen geladen:", ' . count($pending_reservations) . ');</script>';
         echo '<script>console.log("Reservierungen:", ' . json_encode($pending_reservations) . ');</script>';
     } catch (Exception $e) {
@@ -522,10 +538,10 @@ if ($can_atemschutz) {
                 <div class="modal-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <h6 class="text-primary mb-3">
+                            <h6 class="text-primary mb-3" id="modalResourceLabel">
                                 <i class="fas fa-truck me-2"></i>Fahrzeug
                             </h6>
-                            <p id="modalVehicleName" class="mb-3"></p>
+                            <p id="modalResourceName" class="mb-3"></p>
                             
                             <h6 class="text-primary mb-3">
                                 <i class="fas fa-user me-2"></i>Antragsteller
@@ -784,11 +800,11 @@ if ($can_atemschutz) {
                     <div class="card-header dashboard-section-header" data-section="reservations" style="cursor: pointer;">
                         <h6 class="m-0 font-weight-bold text-primary">
                             <i class="fas fa-chevron-down collapse-icon" data-section="reservations"></i>
-                            <i class="fas fa-calendar"></i> Offene Reservierungen (<?php echo count($pending_reservations); ?>)
+                            <i class="fas fa-calendar"></i> Offene Reservierungen (<?php echo count($pending_reservations) + count($pending_room_reservations); ?>)
                         </h6>
                     </div>
                     <div class="card-body dashboard-section-body" data-section="reservations" <?php echo (isset($dashboard_preferences['reservations']) && $dashboard_preferences['reservations']) ? 'style="display: none;"' : ''; ?>>
-                        <?php if (empty($pending_reservations)): ?>
+                        <?php if (empty($pending_reservations) && empty($pending_room_reservations)): ?>
                             <div class="text-center py-5">
                                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
                                 <h5 class="text-muted">Keine offenen Reservierungen</h5>
@@ -797,7 +813,7 @@ if ($can_atemschutz) {
                         <?php else: ?>
                             <!-- Mobile-optimierte Karten-Ansicht -->
                             <div class="d-md-none">
-                                <?php foreach ($pending_reservations as $reservation): ?>
+                                <?php foreach ($pending_reservations as $reservation): $reservation['_type'] = 'vehicle'; ?>
                                     <div class="card mb-3">
                                         <div class="card-body">
                                             <div class="d-flex justify-content-between align-items-start mb-2">
@@ -837,6 +853,40 @@ if ($can_atemschutz) {
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
+                                <?php foreach ($pending_room_reservations as $reservation): $reservation['_type'] = 'room'; ?>
+                                    <div class="card mb-3">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="card-title mb-0">
+                                                    <i class="fas fa-door-open text-info"></i>
+                                                    <?php echo htmlspecialchars($reservation['room_name']); ?>
+                                                </h6>
+                                                <span class="badge bg-warning text-dark">Ausstehend</span>
+                                            </div>
+                                            <div class="mb-2">
+                                                <i class="fas fa-calendar-alt text-success"></i>
+                                                <strong><?php echo date('d.m.Y', strtotime($reservation['start_datetime'])); ?></strong>
+                                                <small class="text-muted">
+                                                    <?php echo date('H:i', strtotime($reservation['start_datetime'])); ?> -
+                                                    <?php echo date('H:i', strtotime($reservation['end_datetime'])); ?>
+                                                </small>
+                                            </div>
+                                            <div class="mb-2">
+                                                <i class="fas fa-user text-info"></i>
+                                                <span><?php echo htmlspecialchars($reservation['requester_name']); ?></span>
+                                            </div>
+                                            <div class="mb-3">
+                                                <i class="fas fa-clipboard-list text-warning"></i>
+                                                <span><?php echo htmlspecialchars(substr($reservation['reason'], 0, 80)); ?><?php echo strlen($reservation['reason']) > 80 ? '...' : ''; ?></span>
+                                            </div>
+                                            <div class="d-grid">
+                                                <button class="btn btn-outline-primary btn-sm" onclick="showReservationDetails(<?php echo htmlspecialchars(json_encode($reservation)); ?>)">
+                                                    <i class="fas fa-eye"></i> Details anzeigen
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
                             </div>
                             
                             <!-- Desktop-Tabellen-Ansicht -->
@@ -865,6 +915,29 @@ if ($can_atemschutz) {
                                                 <strong><?php echo date('d.m.Y', strtotime($reservation['start_datetime'])); ?></strong><br>
                                                 <small class="text-muted">
                                                     <?php echo date('H:i', strtotime($reservation['start_datetime'])); ?> - 
+                                                    <?php echo date('H:i', strtotime($reservation['end_datetime'])); ?>
+                                                </small>
+                                            </td>
+                                            <td><?php echo htmlspecialchars(substr($reservation['reason'], 0, 50)); ?><?php echo strlen($reservation['reason']) > 50 ? '...' : ''; ?></td>
+                                            <td><span class="badge bg-warning text-dark">Ausstehend</span></td>
+                                            <td>
+                                                <button class="btn btn-outline-primary btn-sm" onclick="showReservationDetails(<?php echo htmlspecialchars(json_encode($reservation)); ?>)">
+                                                    <i class="fas fa-eye"></i> Details
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                        <?php foreach ($pending_room_reservations as $reservation): $reservation['_type'] = 'room'; ?>
+                                        <tr>
+                                            <td>
+                                                <i class="fas fa-door-open text-info"></i>
+                                                <?php echo htmlspecialchars($reservation['room_name']); ?>
+                                            </td>
+                                            <td><?php echo htmlspecialchars($reservation['requester_name']); ?></td>
+                                            <td>
+                                                <strong><?php echo date('d.m.Y', strtotime($reservation['start_datetime'])); ?></strong><br>
+                                                <small class="text-muted">
+                                                    <?php echo date('H:i', strtotime($reservation['start_datetime'])); ?> -
                                                     <?php echo date('H:i', strtotime($reservation['end_datetime'])); ?>
                                                 </small>
                                             </td>
@@ -1503,9 +1576,20 @@ if ($can_atemschutz) {
             });
         });
         
-        // Reservierungsdetails anzeigen
+        // Reservierungsdetails anzeigen (Fahrzeug oder Raum)
         function showReservationDetails(reservation) {
-            document.getElementById('modalVehicleName').textContent = reservation.vehicle_name;
+            const isRoom = reservation._type === 'room';
+            window.currentReservationType = isRoom ? 'room' : 'vehicle';
+            window.currentReservationId = reservation.id;
+            const resourceLabel = document.getElementById('modalResourceLabel');
+            const resourceName = document.getElementById('modalResourceName');
+            if (isRoom) {
+                resourceLabel.innerHTML = '<i class="fas fa-door-open me-2"></i>Raum';
+                resourceName.textContent = reservation.room_name || '';
+            } else {
+                resourceLabel.innerHTML = '<i class="fas fa-truck me-2"></i>Fahrzeug';
+                resourceName.textContent = reservation.vehicle_name || '';
+            }
             document.getElementById('modalRequesterName').textContent = reservation.requester_name;
             document.getElementById('modalRequesterEmail').textContent = reservation.requester_email;
             document.getElementById('modalDateTime').innerHTML = 
@@ -1519,11 +1603,13 @@ if ($can_atemschutz) {
             document.getElementById('modalReason').textContent = reservation.reason;
             document.getElementById('modalStatus').innerHTML = '<span class="badge bg-warning text-dark">Ausstehend</span>';
             
-            // Reservierungs-ID für Genehmigen/Ablehnen speichern
-            window.currentReservationId = reservation.id;
+            const conflictDetails = document.getElementById('conflictDetails');
+            if (conflictDetails) conflictDetails.remove();
             
-            // Konfliktprüfung durchführen
-            checkReservationConflicts(reservation.id);
+            const diveraBlock = document.getElementById('diveraGroupSelect')?.closest('.mb-3');
+            if (diveraBlock) diveraBlock.style.display = isRoom ? 'none' : '';
+            
+            if (!isRoom) checkReservationConflicts(reservation.id);
             
             // Modal anzeigen
             const modal = new bootstrap.Modal(document.getElementById('reservationDetailsModal'));
@@ -1633,23 +1719,28 @@ if ($can_atemschutz) {
             
             const approveBtn = document.getElementById('approveBtn');
             const originalText = approveBtn.innerHTML;
+            const isRoom = window.currentReservationType === 'room';
             
             approveBtn.disabled = true;
             approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Genehmige...';
             
-            const diveraGroupEl = document.getElementById('diveraGroupSelect');
-            const dvVal = diveraGroupEl ? diveraGroupEl.value : '';
-            const diveraGroupIds = (dvVal !== '' && dvVal !== '0') ? [parseInt(dvVal, 10)] : [];
-            fetch('process-reservation.php', {
+            const apiUrl = isRoom ? 'process-room-reservation.php' : 'process-reservation.php';
+            const body = isRoom 
+                ? { action: 'approve', reservation_id: window.currentReservationId }
+                : {
+                    action: 'approve',
+                    reservation_id: window.currentReservationId,
+                    divera_group_ids: (function() {
+                        const dvVal = document.getElementById('diveraGroupSelect')?.value ?? '';
+                        return (dvVal !== '' && dvVal !== '0') ? [parseInt(dvVal, 10)] : [];
+                    })()
+                };
+            fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    action: 'approve',
-                    reservation_id: window.currentReservationId,
-                    divera_group_ids: diveraGroupIds
-                })
+                body: JSON.stringify(body)
             })
             .then(response => response.text().then(text => ({ status: response.status, ok: response.ok, text })))
             .then(({ status, ok, text }) => {
@@ -1849,20 +1940,21 @@ if ($can_atemschutz) {
         // Reservierung ablehnen (bestätigen)
         function confirmReject() {
             if (!window.currentReservationId) return;
-            
+
             const reason = document.getElementById('rejectReason').value.trim();
             if (!reason) {
                 alert('Bitte geben Sie einen Grund für die Ablehnung ein.');
                 return;
             }
-            
+
             const confirmBtn = document.getElementById('confirmRejectBtn');
             const originalText = confirmBtn.innerHTML;
-            
+            const apiUrl = window.currentReservationType === 'room' ? 'process-room-reservation.php' : 'process-reservation.php';
+
             confirmBtn.disabled = true;
             confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Lehne ab...';
-            
-            fetch('process-reservation.php', {
+
+            fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

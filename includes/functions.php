@@ -1577,6 +1577,32 @@ function check_vehicle_conflict($vehicle_id, $start_datetime, $end_datetime, $ex
 }
 
 /**
+ * Prüft ob ein Raum für den angegebenen Zeitraum bereits genehmigt reserviert ist.
+ */
+function check_room_conflict($room_id, $start_datetime, $end_datetime, $exclude_id = null) {
+    global $db;
+    try {
+        $sql = "SELECT id FROM room_reservations
+                WHERE room_id = ?
+                AND status = 'approved'
+                AND ((start_datetime <= ? AND end_datetime > ?)
+                     OR (start_datetime < ? AND end_datetime >= ?)
+                     OR (start_datetime >= ? AND end_datetime <= ?))";
+        $params = [$room_id, $start_datetime, $start_datetime, $end_datetime, $end_datetime, $start_datetime, $end_datetime];
+        if ($exclude_id) {
+            $sql .= " AND id != ?";
+            $params[] = $exclude_id;
+        }
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetch() !== false;
+    } catch (PDOException $e) {
+        error_log("Room conflict check error: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * Verknüpft einen Atemschutzgeräteträger mit einem Mitglied
  * Erstellt automatisch ein Mitglied, falls noch keines existiert
  * 

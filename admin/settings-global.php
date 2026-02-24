@@ -4,6 +4,7 @@ require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once __DIR__ . '/../includes/einheiten-setup.php';
 require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+require_once __DIR__ . '/../includes/rooms-setup.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -17,7 +18,7 @@ if (!hasAdminPermission()) {
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 $einheit = null;
 $active_tab = isset($_GET['tab']) ? preg_replace('/[^a-z0-9_-]/', '', $_GET['tab']) : 'smtp';
-$valid_tabs = ['smtp', 'google', 'einheit', 'drucker', 'divera', 'fahrzeuge'];
+$valid_tabs = ['smtp', 'google', 'einheit', 'drucker', 'divera', 'fahrzeuge', 'raeume'];
 if (!in_array($active_tab, $valid_tabs)) $active_tab = 'smtp';
 if ($active_tab === 'app') $active_tab = 'einheit'; // Kompatibilität mit alten Links
 if ($einheit_id > 0) {
@@ -93,8 +94,71 @@ if (isset($_GET['vehicle_delete']) && $einheit_id > 0) {
     }
 }
 
+// Raumverwaltung: POST (add/edit) und GET (delete)
+$room_action = $_POST['room_action'] ?? '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($room_action, ['add', 'edit'], true) && $einheit_id > 0) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        $name = sanitize_input($_POST['room_name'] ?? '');
+        $description = sanitize_input($_POST['room_description'] ?? '');
+        $is_active = isset($_POST['room_is_active']) ? 1 : 0;
+        $sort_order = (int)($_POST['room_sort_order'] ?? 0);
+        $room_id = (int)($_POST['room_id'] ?? 0);
+        if (empty($name)) {
+            $error = 'Name ist erforderlich.';
+        } else {
+            try {
+                if ($room_action === 'add') {
+                    if ($sort_order == 0) {
+                        $stmt = $db->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 as next_order FROM rooms WHERE einheit_id = ? OR einheit_id IS NULL");
+                        $stmt->execute([$einheit_id]);
+                        $sort_order = (int)($stmt->fetch(PDO::FETCH_ASSOC)['next_order'] ?? 1);
+                    }
+                    $stmt = $db->prepare("INSERT INTO rooms (name, description, is_active, sort_order, einheit_id) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->execute([$name, $description, $is_active, $sort_order, $einheit_id]);
+                    log_activity($_SESSION['user_id'], 'room_added', "Raum '$name' hinzugefügt");
+                    header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=raeume&room_success=added');
+                    exit;
+                } elseif ($room_action === 'edit' && $room_id > 0) {
+                    $stmt = $db->prepare("UPDATE rooms SET name = ?, description = ?, is_active = ?, sort_order = ? WHERE id = ? AND (einheit_id = ? OR einheit_id IS NULL)");
+                    $stmt->execute([$name, $description, $is_active, $sort_order, $room_id, $einheit_id]);
+                    if ($stmt->rowCount() > 0) {
+                        log_activity($_SESSION['user_id'], 'room_updated', "Raum '$name' aktualisiert");
+                    }
+                    header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=raeume&room_success=updated');
+                    exit;
+                }
+            } catch (PDOException $e) {
+                $error = 'Fehler beim Speichern des Raums: ' . $e->getMessage();
+            }
+        }
+    }
+}
+if (isset($_GET['room_delete']) && $einheit_id > 0) {
+    $rid = (int)$_GET['room_delete'];
+    try {
+        $stmt = $db->prepare("SELECT COUNT(*) as c FROM room_reservations WHERE room_id = ?");
+        $stmt->execute([$rid]);
+        if ((int)($stmt->fetch(PDO::FETCH_ASSOC)['c'] ?? 0) > 0) {
+            $error = 'Der Raum kann nicht gelöscht werden, da er in Reservierungen verwendet wird.';
+        } else {
+            $stmt = $db->prepare("DELETE FROM rooms WHERE id = ? AND (einheit_id = ? OR einheit_id IS NULL)");
+            $stmt->execute([$rid, $einheit_id]);
+            if ($stmt->rowCount() > 0) {
+                log_activity($_SESSION['user_id'], 'room_deleted', "Raum ID $rid gelöscht");
+                header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=raeume&room_success=deleted');
+                exit;
+            }
+        }
+    } catch (PDOException $e) {
+        $error = 'Fehler beim Löschen: ' . $e->getMessage();
+    }
+}
+
 // Fahrzeuge laden (nur bei Einheiten-Einstellungen)
 $vehicles = [];
+$rooms = [];
 if ($einheit_id > 0 && user_has_einheit_access($_SESSION['user_id'], $einheit_id)) {
     try {
         $stmt = $db->prepare("SELECT * FROM vehicles WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY sort_order ASC, name ASC");
@@ -102,6 +166,13 @@ if ($einheit_id > 0 && user_has_einheit_access($_SESSION['user_id'], $einheit_id
         $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
         $error = ($error ? $error . ' ' : '') . 'Fehler beim Laden der Fahrzeuge: ' . $e->getMessage();
+    }
+    try {
+        $stmt = $db->prepare("SELECT * FROM rooms WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY sort_order ASC, name ASC");
+        $stmt->execute([$einheit_id]);
+        $rooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        $error = ($error ? $error . ' ' : '') . 'Fehler beim Laden der Räume: ' . $e->getMessage();
     }
 }
 
@@ -125,6 +196,11 @@ if (isset($_GET['vehicle_success'])) {
     if ($_GET['vehicle_success'] === 'added') $message = 'Fahrzeug wurde erfolgreich hinzugefügt.';
     elseif ($_GET['vehicle_success'] === 'updated') $message = 'Fahrzeug wurde erfolgreich aktualisiert.';
     elseif ($_GET['vehicle_success'] === 'deleted') $message = 'Fahrzeug wurde erfolgreich gelöscht.';
+}
+if (isset($_GET['room_success'])) {
+    if ($_GET['room_success'] === 'added') $message = 'Raum wurde erfolgreich hinzugefügt.';
+    elseif ($_GET['room_success'] === 'updated') $message = 'Raum wurde erfolgreich aktualisiert.';
+    elseif ($_GET['room_success'] === 'deleted') $message = 'Raum wurde erfolgreich gelöscht.';
 }
 
 // Laden
@@ -431,7 +507,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <button class="nav-link <?php echo $active_tab === 'divera' ? 'active' : ''; ?>" id="tab-divera-btn" data-bs-toggle="tab" data-bs-target="#tab-divera" type="button" role="tab"><i class="fas fa-calendar-plus me-1"></i> Divera 24/7</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link <?php echo $active_tab === 'fahrzeuge' ? 'active' : ''; ?>" id="tab-fahrzeuge-btn" data-bs-toggle="tab" data-bs-target="#tab-fahrzeuge" type="button" role="tab"><i class="fas fa-truck me-1"></i> Fahrzeugverwaltung</button>
+                <button class="nav-link <?php echo $active_tab === 'fahrzeuge' ? 'active' : ''; ?>" id="tab-fahrzeuge-btn" data-bs-toggle="tab" data-bs-target="#tab-fahrzeuge" type="button" role="tab"><i class="fas fa-truck me-1"></i> Fahrzeuge verwalten</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?php echo $active_tab === 'raeume' ? 'active' : ''; ?>" id="tab-raeume-btn" data-bs-toggle="tab" data-bs-target="#tab-raeume" type="button" role="tab"><i class="fas fa-door-open me-1"></i> Räume verwalten</button>
             </li>
         </ul>
         <div class="tab-content" id="settingsTabContent">
@@ -717,12 +796,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
             <div class="tab-pane fade <?php echo $active_tab === 'fahrzeuge' ? 'show active' : ''; ?>" id="tab-fahrzeuge" role="tabpanel">
-        <!-- Fahrzeugverwaltung -->
+        <!-- Fahrzeuge verwalten -->
         <div id="fahrzeuge">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><i class="fas fa-truck me-2"></i>Fahrzeugverwaltung</span>
+                        <span><i class="fas fa-truck me-2"></i>Fahrzeuge verwalten</span>
                         <button type="button" class="btn btn-sm btn-primary" onclick="openVehicleModal()">
                             <i class="fas fa-plus"></i> Neues Fahrzeug
                         </button>
@@ -780,8 +859,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
             </div>
         </div>
+            <div class="tab-pane fade <?php echo $active_tab === 'raeume' ? 'show active' : ''; ?>" id="tab-raeume" role="tabpanel">
+        <div id="raeume">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-door-open me-2"></i>Räume verwalten</span>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="openRoomModal()">
+                            <i class="fas fa-plus"></i> Neuer Raum
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Beschreibung</th>
+                                        <th>Sortierung</th>
+                                        <th>Status</th>
+                                        <th>Erstellt</th>
+                                        <th>Aktionen</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($rooms as $r): ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($r['name']); ?></strong></td>
+                                        <td><?php echo htmlspecialchars($r['description'] ?? ''); ?></td>
+                                        <td><span class="badge bg-info"><?php echo (int)($r['sort_order'] ?? 0); ?></span></td>
+                                        <td>
+                                            <?php if (!empty($r['is_active'])): ?>
+                                                <span class="badge bg-success">Aktiv</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-secondary">Inaktiv</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><?php echo !empty($r['created_at']) ? format_date($r['created_at']) : ''; ?></td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <button type="button" class="btn btn-outline-primary btn-sm" data-room-id="<?php echo (int)$r['id']; ?>" data-name="<?php echo htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8'); ?>" data-desc="<?php echo htmlspecialchars($r['description'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" data-sort="<?php echo (int)($r['sort_order'] ?? 0); ?>" data-active="<?php echo !empty($r['is_active']) ? 1 : 0; ?>" onclick="editRoom(this)">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <a href="?einheit_id=<?php echo (int)$einheit_id; ?>&tab=raeume&room_delete=<?php echo (int)$r['id']; ?>" class="btn btn-outline-danger btn-sm" onclick="return confirm('Sind Sie sicher, dass Sie diesen Raum löschen möchten?')">
+                                                    <i class="fas fa-trash"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                    <?php if (empty($rooms)): ?>
+                                    <tr><td colspan="6" class="text-muted">Keine Räume angelegt. Klicken Sie auf „Neuer Raum“.</td></tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+            </div>
+        </div>
         <?php endif; ?>
-        <div class="d-flex justify-content-end mt-3" id="settingsSaveRow"<?php echo ($einheit_id > 0 && in_array($active_tab, ['fahrzeuge', 'einheit'])) ? ' style="display:none"' : ''; ?>>
+        <div class="d-flex justify-content-end mt-3" id="settingsSaveRow"<?php echo ($einheit_id > 0 && in_array($active_tab, ['fahrzeuge', 'raeume', 'einheit'])) ? ' style="display:none"' : ''; ?>>
             <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Speichern</button>
         </div>
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
@@ -830,6 +970,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+    <!-- Raum Modal -->
+    <div class="modal fade" id="roomModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" id="roomForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="roomModalTitle">Neuer Raum</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="room_name" class="form-label">Name *</label>
+                            <input type="text" class="form-control" id="room_name" name="room_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="room_description" class="form-label">Beschreibung</label>
+                            <textarea class="form-control" id="room_description" name="room_description" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="room_sort_order" class="form-label">Sortier-Reihenfolge</label>
+                            <input type="number" class="form-control" id="room_sort_order" name="room_sort_order" min="0" value="0">
+                            <div class="form-text">Niedrigere Zahlen werden zuerst angezeigt. 0 = automatisch am Ende.</div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="room_is_active" name="room_is_active" checked>
+                                <label class="form-check-label" for="room_is_active">Aktiv</label>
+                            </div>
+                        </div>
+                        <input type="hidden" name="room_id" id="room_id">
+                        <input type="hidden" name="room_action" id="room_action" value="add">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary" id="roomSubmitBtn">Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
     <?php endif; ?>
 </div>
 
@@ -846,7 +1027,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     returnTab.value = target;
                     if (history.replaceState) history.replaceState(null, '', '?einheit_id=<?php echo (int)$einheit_id; ?>&tab=' + target);
                     var saveRow = document.getElementById('settingsSaveRow');
-                    if (saveRow) saveRow.style.display = (target === 'fahrzeuge' || target === 'einheit') ? 'none' : 'flex';
+                    if (saveRow) saveRow.style.display = (target === 'fahrzeuge' || target === 'raeume' || target === 'einheit') ? 'none' : 'flex';
                 }
             });
         });
@@ -891,6 +1072,29 @@ function editVehicle(btn) {
     document.getElementById('vehicle_action').value = 'edit';
     document.getElementById('vehicleSubmitBtn').textContent = 'Aktualisieren';
     new bootstrap.Modal(document.getElementById('vehicleModal')).show();
+}
+function openRoomModal() {
+    document.getElementById('roomModalTitle').textContent = 'Neuer Raum';
+    document.getElementById('room_id').value = '';
+    document.getElementById('room_name').value = '';
+    document.getElementById('room_description').value = '';
+    document.getElementById('room_sort_order').value = '0';
+    document.getElementById('room_is_active').checked = true;
+    document.getElementById('room_action').value = 'add';
+    document.getElementById('roomSubmitBtn').textContent = 'Speichern';
+    new bootstrap.Modal(document.getElementById('roomModal')).show();
+}
+function editRoom(btn) {
+    var d = btn.dataset;
+    document.getElementById('roomModalTitle').textContent = 'Raum bearbeiten';
+    document.getElementById('room_id').value = d.roomId || '';
+    document.getElementById('room_name').value = d.name || '';
+    document.getElementById('room_description').value = d.desc || '';
+    document.getElementById('room_sort_order').value = d.sort || 0;
+    document.getElementById('room_is_active').checked = d.active == 1;
+    document.getElementById('room_action').value = 'edit';
+    document.getElementById('roomSubmitBtn').textContent = 'Aktualisieren';
+    new bootstrap.Modal(document.getElementById('roomModal')).show();
 }
 <?php endif; ?>
 document.getElementById('btn_divera_key_loeschen')?.addEventListener('click', function() {

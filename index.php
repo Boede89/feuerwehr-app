@@ -269,13 +269,13 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
                 <?php $link_suffix = $hat_einheit && $einheit_id_url > 0 ? '?einheit_id=' . (int)$einheit_id_url : ''; ?>
                 <div class="row g-4">
                     <div class="col-12 col-sm-6 col-lg-4">
-                        <a href="vehicle-selection.php<?php echo $link_suffix; ?>" class="text-decoration-none">
+                        <a href="reservation-choice.php<?php echo $link_suffix; ?>" class="text-decoration-none">
                             <div class="card h-100 shadow-sm feature-card clickable-card">
                                 <div class="card-body text-center p-4 d-flex flex-column">
                                 <div class="feature-icon mb-3">
                                     <i class="fas fa-truck text-primary"></i>
                                 </div>
-                                <h5 class="card-title">Fahrzeug Reservierung</h5>
+                                <h5 class="card-title">Fahrzeug oder Raum reservieren</h5>
                                 </div>
                             </div>
                         </a>

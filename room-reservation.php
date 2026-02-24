@@ -1,0 +1,323 @@
+<?php
+session_start();
+require_once 'config/database.php';
+require_once 'includes/functions.php';
+require_once __DIR__ . '/includes/einheit-settings-helper.php';
+require_once __DIR__ . '/includes/rooms-setup.php';
+
+$message = '';
+$error = '';
+$selectedRoom = null;
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
+if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
+$einheit_id = $einheit_id > 0 ? $einheit_id : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
+$einheit_param = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : '';
+
+if (isset($_POST['room_data'])) {
+    $selectedRoom = json_decode($_POST['room_data'], true);
+    if (!$selectedRoom || !isset($selectedRoom['id'])) {
+        $error = "Fehler beim Laden der Raum-Daten. Bitte wählen Sie erneut einen Raum aus.";
+    }
+} elseif (isset($_SESSION['selected_room'])) {
+    $selectedRoom = $_SESSION['selected_room'];
+} else {
+    $error = "Bitte wählen Sie zuerst einen Raum aus.";
+}
+
+$redirect_to_home = false;
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservation']) && $selectedRoom && isset($selectedRoom['id'])) {
+    $csrf_token = $_POST['csrf_token'] ?? '';
+    if (!validate_csrf_token($csrf_token)) {
+        $error = "Ungültiger Sicherheitstoken. Bitte versuchen Sie es erneut.";
+    } else {
+        $requester_name = sanitize_input($_POST['requester_name'] ?? '');
+        $requester_email = sanitize_input($_POST['requester_email'] ?? '');
+        $reason = sanitize_input($_POST['reason'] ?? '');
+        $location = sanitize_input($_POST['location'] ?? '');
+        $room_id = (int)$selectedRoom['id'];
+
+        $date_times = [];
+        $i = 0;
+        while (isset($_POST["start_datetime_$i"]) && isset($_POST["end_datetime_$i"])) {
+            $start_datetime = sanitize_input($_POST["start_datetime_$i"] ?? '');
+            $end_datetime = sanitize_input($_POST["end_datetime_$i"] ?? '');
+            if (!empty($start_datetime) && !empty($end_datetime)) {
+                $date_times[] = ['start' => $start_datetime, 'end' => $end_datetime];
+            }
+            $i++;
+        }
+
+        if (empty($requester_name) || empty($requester_email) || empty($reason) || empty($location) || empty($date_times)) {
+            $error = "Bitte füllen Sie alle Felder aus und geben Sie mindestens einen Zeitraum an.";
+        } elseif (!validate_email($requester_email)) {
+            $error = "Bitte geben Sie eine gültige E-Mail-Adresse ein.";
+        } else {
+            $success_count = 0;
+            $errors = [];
+            foreach ($date_times as $index => $dt) {
+                $start_datetime = $dt['start'];
+                $end_datetime = $dt['end'];
+                if (!validate_datetime($start_datetime) || !validate_datetime($end_datetime)) {
+                    $errors[] = "Zeitraum " . ($index + 1) . ": Bitte geben Sie gültige Datum und Uhrzeit ein.";
+                    continue;
+                }
+                if (strtotime($start_datetime) >= strtotime($end_datetime)) {
+                    $errors[] = "Zeitraum " . ($index + 1) . ": Das Enddatum muss nach dem Startdatum liegen.";
+                    continue;
+                }
+                if (strtotime($start_datetime) < time()) {
+                    $errors[] = "Zeitraum " . ($index + 1) . ": Das Startdatum darf nicht in der Vergangenheit liegen.";
+                    continue;
+                }
+                if (check_room_conflict($room_id, $start_datetime, $end_datetime)) {
+                    $errors[] = "Zeitraum " . ($index + 1) . ": Der Raum ist bereits für diesen Zeitraum reserviert.";
+                    continue;
+                }
+                try {
+                    $res_einheit = (int)($_POST['einheit_id'] ?? $einheit_id);
+                    $stmt = $db->prepare("INSERT INTO room_reservations (room_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts, status, einheit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$room_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([]), 'pending', $res_einheit > 0 ? $res_einheit : null]);
+                    $success_count++;
+                } catch (PDOException $e) {
+                    $errors[] = "Zeitraum " . ($index + 1) . ": Fehler beim Speichern - " . $e->getMessage();
+                }
+            }
+
+            if ($success_count > 0) {
+                $admin_emails = [];
+                try {
+                    if ($einheit_id > 0) {
+                        $settings = load_settings_for_einheit($db, $einheit_id);
+                        $ids_json = $settings['reservation_notification_user_ids'] ?? '';
+                        if ($ids_json !== '') {
+                            $ids = json_decode($ids_json, true);
+                            if (is_array($ids) && !empty($ids)) {
+                                $ph = implode(',', array_fill(0, count($ids), '?'));
+                                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1");
+                                $stmt->execute(array_map('intval', $ids));
+                                $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                            }
+                        }
+                    }
+                    if (empty($admin_emails)) {
+                        $stmt = $db->prepare("SELECT email FROM users WHERE is_active = 1 AND email_notifications = 1");
+                        $stmt->execute();
+                        $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    }
+                } catch (Exception $e) {}
+
+                $room_name = $selectedRoom['name'] ?? 'Unbekannt';
+                $subject = "Neue Raumreservierung - " . $room_name;
+                try {
+                    $stmtApp = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'app_url'");
+                    $stmtApp->execute();
+                    $appUrl = $stmtApp->fetchColumn();
+                    if (!$appUrl) $appUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+                } catch (Exception $e) {
+                    $appUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+                }
+                $manageUrl = $appUrl . '/admin/reservations.php';
+
+                $message_content = "
+                <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                    <h2>Neue Raumreservierung</h2>
+                    <p><strong>Raum:</strong> " . htmlspecialchars($room_name) . "</p>
+                    <p><strong>Antragsteller:</strong> " . htmlspecialchars($requester_name) . "</p>
+                    <p><strong>E-Mail:</strong> " . htmlspecialchars($requester_email) . "</p>
+                    <p><strong>Grund:</strong> " . htmlspecialchars($reason) . "</p>
+                    <p><strong>Ort:</strong> " . htmlspecialchars($location) . "</p>
+                    <p><strong>Zeiträume:</strong><br>";
+                foreach ($date_times as $dt) {
+                    $message_content .= date('d.m.Y H:i', strtotime($dt['start'])) . " - " . date('d.m.Y H:i', strtotime($dt['end'])) . "<br>";
+                }
+                $message_content .= "</p>
+                    <p><a href='" . htmlspecialchars($manageUrl) . "'>Reservierungen verwalten</a></p>
+                </div>";
+
+                foreach ($admin_emails as $admin_email) {
+                    send_email($admin_email, $subject, $message_content, '', true);
+                }
+
+                $message = $success_count === 1 ? "Raumreservierung wurde erfolgreich eingereicht." : "$success_count Raumreservierungen wurden erfolgreich eingereicht.";
+                if (!empty($errors)) $message .= " Hinweis: " . implode(' ', $errors);
+                $redirect_to_home = true;
+            } else {
+                $error = !empty($errors) ? implode(' ', $errors) : "Keine Reservierungen konnten gespeichert werden.";
+            }
+        }
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raum Reservierung - Feuerwehr App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="assets/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="index.php<?php echo $einheit_param; ?>">
+                <i class="fas fa-fire"></i> Feuerwehr App
+            </a>
+            <?php if (isset($_SESSION['user_id']) && !is_system_user()): ?>
+                <div class="d-flex ms-auto">
+                <?php
+                $admin_menu_in_navbar = true;
+                $admin_menu_base = 'admin/';
+                $admin_menu_logout = 'logout.php';
+                $admin_menu_index = 'index.php' . $einheit_param;
+                include __DIR__ . '/admin/includes/admin-menu.inc.php';
+                ?>
+                </div>
+            <?php else: ?>
+                <?php if (!isset($_SESSION['user_id'])): ?>
+                <div class="d-flex ms-auto align-items-center">
+                    <a class="btn btn-outline-light btn-sm px-3 py-2 d-flex align-items-center gap-2" href="login.php">
+                        <i class="fas fa-sign-in-alt"></i>
+                        <span class="fw-semibold">Anmelden</span>
+                    </a>
+                </div>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
+    </nav>
+
+    <main class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h3 class="mb-0">
+                            <i class="fas fa-door-open"></i> Raum Reservierung
+                        </h3>
+                        <p class="text-muted mb-0">Ausgewählter Raum: <strong><?php echo isset($selectedRoom['name']) ? htmlspecialchars($selectedRoom['name']) : 'Kein Raum ausgewählt'; ?></strong></p>
+                    </div>
+                    <div class="card-body p-4">
+                        <?php if ($message): echo show_success($message); endif; ?>
+                        <?php if ($error): echo show_error($error); endif; ?>
+
+                        <?php if ($selectedRoom && isset($selectedRoom['id'])): ?>
+                        <form method="POST" action="" id="roomReservationForm">
+                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
+                            <input type="hidden" name="room_data" value="<?php echo htmlspecialchars(json_encode($selectedRoom)); ?>">
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="requester_name" class="form-label">Ihr Name *</label>
+                                    <input type="text" class="form-control" id="requester_name" name="requester_name" value="<?php echo htmlspecialchars($_POST['requester_name'] ?? ''); ?>" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="requester_email" class="form-label">E-Mail Adresse *</label>
+                                    <input type="email" class="form-control" id="requester_email" name="requester_email" value="<?php echo htmlspecialchars($_POST['requester_email'] ?? ''); ?>" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="reason" class="form-label">Grund der Reservierung *</label>
+                                <input type="text" class="form-control" id="reason" name="reason" value="<?php echo htmlspecialchars($_POST['reason'] ?? ''); ?>" placeholder="z.B. Übung, Sitzung, Veranstaltung" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="location" class="form-label">Ort der Reservierung *</label>
+                                <input type="text" class="form-control" id="location" name="location" value="<?php echo htmlspecialchars($_POST['location'] ?? ''); ?>" placeholder="z.B. Gerätehaus" required>
+                            </div>
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6><i class="fas fa-calendar"></i> Zeiträume *</h6>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="add-timeframe">
+                                        <i class="fas fa-plus"></i> Weitere Zeit hinzufügen
+                                    </button>
+                                </div>
+                                <div id="timeframes">
+                                    <div class="timeframe-row row mb-3 g-3">
+                                        <div class="col-md-5">
+                                            <label class="form-label">Von (Datum & Uhrzeit) *</label>
+                                            <input type="datetime-local" class="form-control start-datetime" name="start_datetime_0" required>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label">Bis (Datum & Uhrzeit) *</label>
+                                            <input type="datetime-local" class="form-control end-datetime" name="end_datetime_0" required>
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100" style="display: none;"> <i class="fas fa-trash"></i> </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <a href="reservation-choice.php<?php echo $einheit_param; ?>" class="btn btn-outline-secondary me-md-2"> <i class="fas fa-arrow-left"></i> Zurück </a>
+                                <button type="submit" name="submit_room_reservation" value="1" class="btn btn-primary" id="submitRoomBtn">
+                                    <i class="fas fa-paper-plane"></i> Reservierung beantragen
+                                </button>
+                            </div>
+                        </form>
+                        <?php else: ?>
+                        <form method="POST" action="" id="roomReservationForm" style="display:none;">
+                            <input type="hidden" name="room_data" id="room_data_input" value="">
+                            <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
+                        </form>
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-exclamation-triangle"></i> Kein Raum ausgewählt</h6>
+                            <p class="mb-0">Bitte wählen Sie zuerst einen Raum aus.</p>
+                            <a href="room-selection.php<?php echo $einheit_param; ?>" class="btn btn-primary btn-sm mt-2"> <i class="fas fa-door-open"></i> Raum auswählen </a>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        window.addEventListener('load', function() {
+            const selectedRoom = sessionStorage.getItem('selectedRoom');
+            if (selectedRoom && !document.querySelector('input[name="room_data"]')?.value) {
+                try {
+                    const roomData = JSON.parse(selectedRoom);
+                    const form = document.getElementById('roomReservationForm');
+                    if (form) {
+                        let roomInput = form.querySelector('input[name="room_data"]');
+                        if (!roomInput) {
+                            roomInput = document.createElement('input');
+                            roomInput.type = 'hidden';
+                            roomInput.name = 'room_data';
+                            form.appendChild(roomInput);
+                        }
+                        roomInput.value = JSON.stringify(roomData);
+                        form.submit();
+                    }
+                } catch (e) {}
+            } else if (!selectedRoom && !document.querySelector('input[name="room_data"]')?.value) {
+                window.location.href = <?php echo json_encode('reservation-choice.php' . $einheit_param); ?>;
+            }
+        });
+        let timeframeCount = 1;
+        document.getElementById('add-timeframe')?.addEventListener('click', function() {
+            const timeframesDiv = document.getElementById('timeframes');
+            const newRow = document.createElement('div');
+            newRow.className = 'timeframe-row row mb-3 g-3';
+            newRow.innerHTML = '<div class="col-md-5"><label class="form-label">Von (Datum & Uhrzeit) *</label><input type="datetime-local" class="form-control start-datetime" name="start_datetime_' + timeframeCount + '" required></div><div class="col-md-5"><label class="form-label">Bis (Datum & Uhrzeit) *</label><input type="datetime-local" class="form-control end-datetime" name="end_datetime_' + timeframeCount + '" required></div><div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100"> <i class="fas fa-trash"></i> </button></div>';
+            timeframesDiv.appendChild(newRow);
+            timeframeCount++;
+            document.querySelectorAll('.remove-timeframe').forEach(btn => btn.style.display = 'block');
+        });
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.remove-timeframe')) {
+                e.target.closest('.timeframe-row').remove();
+                if (document.querySelectorAll('.timeframe-row').length === 1) {
+                    document.querySelectorAll('.remove-timeframe').forEach(btn => btn.style.display = 'none');
+                }
+            }
+        });
+        <?php if ($redirect_to_home): ?>
+        setTimeout(function() { window.location.href = <?php echo json_encode('index.php' . $einheit_param); ?>; }, 3000);
+        <?php endif; ?>
+    </script>
+</body>
+</html>

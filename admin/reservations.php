@@ -7,6 +7,7 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once __DIR__ . '/../includes/einheiten-setup.php';
+require_once __DIR__ . '/../includes/rooms-setup.php';
 require_once '../config/divera.php';
 
 // Prüfe ob Benutzer eingeloggt ist
@@ -137,14 +138,26 @@ try {
 // Manuelles Löschen einer bearbeiteten Reservierung
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'delete') {
     $reservation_id = (int)$_POST['reservation_id'];
+    $is_room = !empty($_POST['is_room']);
     try {
-        if (delete_reservation_with_cleanup($db, $reservation_id)) {
+        if ($is_room) {
+            $stmt = $db->prepare("SELECT status FROM room_reservations WHERE id = ?");
+            $stmt->execute([$reservation_id]);
+            $row = $stmt->fetch();
+            if ($row && in_array($row['status'], ['approved', 'rejected', 'cancelled'])) {
+                $stmt = $db->prepare("DELETE FROM room_reservations WHERE id = ?");
+                $stmt->execute([$reservation_id]);
+                $message = "Raumreservierung erfolgreich gelöscht.";
+            } else {
+                $error = "Nur bearbeitete Raumreservierungen können gelöscht werden.";
+            }
+        } elseif (delete_reservation_with_cleanup($db, $reservation_id)) {
             $message = "Reservierung erfolgreich gelöscht.";
         } else {
             $error = "Nur bearbeitete Reservierungen können gelöscht werden.";
         }
     } catch (Exception $e) {
-        $error = "Fehler beim Löschen der Reservierung: " . $e->getMessage();
+        $error = "Fehler beim Löschen: " . $e->getMessage();
     }
 }
 
@@ -360,6 +373,8 @@ try {
 
 // Nur bearbeitete Reservierungen laden (gefiltert nach Einheit für Superadmin/Einheitsadmin)
 $einheit_filter = get_admin_einheit_filter();
+$reservations = [];
+$room_reservations = [];
 try {
     $sql = "
         SELECT r.*, v.name as vehicle_name, u.first_name, u.last_name
@@ -374,10 +389,29 @@ try {
         $params[] = $einheit_filter;
     }
     $sql .= " ORDER BY r.start_datetime ASC";
-    
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $reservations = $stmt->fetchAll();
+    
+    // Raum-Reservierungen laden
+    try {
+        $sql_room = "
+            SELECT rr.*, ro.name as room_name, u.first_name, u.last_name
+            FROM room_reservations rr
+            JOIN rooms ro ON rr.room_id = ro.id
+            LEFT JOIN users u ON rr.approved_by = u.id
+            WHERE rr.status IN ('approved', 'rejected', 'cancelled')
+        ";
+        $params_room = [];
+        if ($einheit_filter) {
+            $sql_room .= " AND (rr.einheit_id = ? OR ro.einheit_id = ? OR ro.einheit_id IS NULL)";
+            $params_room = [$einheit_filter, $einheit_filter];
+        }
+        $sql_room .= " ORDER BY rr.start_datetime ASC";
+        $stmt_room = $db->prepare($sql_room);
+        $stmt_room->execute($params_room);
+        $room_reservations = $stmt_room->fetchAll();
+    } catch (Exception $e) { /* Tabelle evtl. noch nicht vorhanden */ }
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Reservierungen: " . $e->getMessage();
 }
@@ -443,11 +477,22 @@ try {
             <div class="col-12">
                 <div class="card shadow">
                     <div class="card-header">
-                        <h6 class="m-0 font-weight-bold text-success">
-                            <i class="fas fa-check-circle"></i> Bearbeitete Reservierungen (<?php echo count($reservations); ?>)
-                        </h6>
+                        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#tabFahrzeuge">
+                                    <i class="fas fa-truck"></i> Fahrzeuge (<?php echo count($reservations); ?>)
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#tabRaeume">
+                                    <i class="fas fa-door-open"></i> Räume (<?php echo count($room_reservations); ?>)
+                                </a>
+                            </li>
+                        </ul>
                     </div>
                     <div class="card-body">
+                        <div class="tab-content">
+                            <div class="tab-pane fade show active" id="tabFahrzeuge">
                         <?php if (empty($reservations)): ?>
                             <div class="text-center py-5">
                                 <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
@@ -580,6 +625,64 @@ try {
                                 </div>
                             </div>
                         <?php endif; ?>
+                            </div>
+                            <div class="tab-pane fade" id="tabRaeume">
+                        <?php if (empty($room_reservations)): ?>
+                            <div class="text-center py-5">
+                                <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">Keine bearbeiteten Raumreservierungen</h5>
+                                <p class="text-muted">Alle Raumreservierungen werden über das Dashboard bearbeitet.</p>
+                                <a href="dashboard.php" class="btn btn-primary"><i class="fas fa-tachometer-alt"></i> Zum Dashboard</a>
+                            </div>
+                        <?php else: ?>
+                            <div class="d-md-none">
+                                <?php foreach ($room_reservations as $rr): ?>
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="card-title mb-0"><i class="fas fa-door-open text-info"></i> <?php echo htmlspecialchars($rr['room_name']); ?></h6>
+                                            <span class="badge <?php echo $rr['status'] === 'approved' ? 'bg-success' : ($rr['status'] === 'cancelled' ? 'bg-warning text-dark' : 'bg-danger'); ?>">
+                                                <?php echo $rr['status'] === 'approved' ? 'Genehmigt' : ($rr['status'] === 'cancelled' ? 'Storniert' : 'Abgelehnt'); ?>
+                                            </span>
+                                        </div>
+                                        <div class="mb-2"><i class="fas fa-calendar-alt text-success"></i> <strong><?php echo format_datetime($rr['start_datetime'], 'd.m.Y'); ?></strong> <small class="text-muted"><?php echo format_datetime($rr['start_datetime'], 'H:i'); ?> - <?php echo format_datetime($rr['end_datetime'], 'H:i'); ?></small></div>
+                                        <div class="mb-2"><i class="fas fa-user text-info"></i> <?php echo htmlspecialchars($rr['requester_name']); ?></div>
+                                        <div class="mb-3"><i class="fas fa-clipboard-list text-warning"></i> <?php echo htmlspecialchars($rr['reason']); ?></div>
+                                        <div class="d-grid gap-2">
+                                            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#detailsModalRoom<?php echo $rr['id']; ?>"><i class="fas fa-eye"></i> Details</button>
+                                            <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModalRoom<?php echo $rr['id']; ?>"><i class="fas fa-trash"></i> Löschen</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="d-none d-md-block">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead><tr><th>Raum</th><th>Antragsteller</th><th>Datum/Zeit</th><th>Grund</th><th>Status</th><th>Aktionen</th></tr></thead>
+                                        <tbody>
+                                        <?php foreach ($room_reservations as $rr): ?>
+                                        <tr>
+                                            <td><i class="fas fa-door-open text-info"></i> <strong><?php echo htmlspecialchars($rr['room_name']); ?></strong></td>
+                                            <td><i class="fas fa-user text-info"></i> <?php echo htmlspecialchars($rr['requester_name']); ?></td>
+                                            <td><strong><?php echo format_datetime($rr['start_datetime'], 'd.m.Y'); ?></strong><br><small class="text-muted"><?php echo format_datetime($rr['start_datetime'], 'H:i'); ?> - <?php echo format_datetime($rr['end_datetime'], 'H:i'); ?></small></td>
+                                            <td><span class="text-truncate d-inline-block" style="max-width: 200px;" title="<?php echo htmlspecialchars($rr['reason']); ?>"><?php echo htmlspecialchars($rr['reason']); ?></span></td>
+                                            <td><span class="badge <?php echo $rr['status'] === 'approved' ? 'bg-success' : ($rr['status'] === 'cancelled' ? 'bg-warning text-dark' : 'bg-danger'); ?>"><?php echo $rr['status'] === 'approved' ? 'Genehmigt' : ($rr['status'] === 'cancelled' ? 'Storniert' : 'Abgelehnt'); ?></span></td>
+                                            <td>
+                                                <div class="btn-group">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#detailsModalRoom<?php echo $rr['id']; ?>"><i class="fas fa-eye"></i> Details</button>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModalRoom<?php echo $rr['id']; ?>"><i class="fas fa-trash"></i> Löschen</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -736,9 +839,82 @@ try {
                     <form method="POST" class="d-inline">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="reservation_id" value="<?php echo $reservation['id']; ?>">
+                        <input type="hidden" name="is_room" value="0">
                         <button type="submit" class="btn btn-danger">
                             <i class="fas fa-trash me-1"></i>Löschen
                         </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endforeach; ?>
+
+    <!-- Details- und Lösch-Modals für Raumreservierungen -->
+    <?php foreach ($room_reservations as $rr): ?>
+    <div class="modal fade" id="detailsModalRoom<?php echo $rr['id']; ?>" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-info-circle"></i> Raumreservierung #<?php echo $rr['id']; ?></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-door-open text-info"></i> Raum</h6>
+                            <p><?php echo htmlspecialchars($rr['room_name']); ?></p>
+                            <h6><i class="fas fa-user text-info"></i> Antragsteller</h6>
+                            <p><strong><?php echo htmlspecialchars($rr['requester_name']); ?></strong><br><small class="text-muted"><?php echo htmlspecialchars($rr['requester_email']); ?></small></p>
+                            <h6><i class="fas fa-calendar-alt text-success"></i> Zeitraum</h6>
+                            <p><strong>Von:</strong> <?php echo date('d.m.Y H:i', strtotime($rr['start_datetime'])); ?><br><strong>Bis:</strong> <?php echo date('d.m.Y H:i', strtotime($rr['end_datetime'])); ?></p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-clipboard-list text-warning"></i> Grund</h6>
+                            <p><?php echo htmlspecialchars($rr['reason']); ?></p>
+                            <h6><i class="fas fa-map-marker-alt text-info"></i> Ort</h6>
+                            <p><?php echo htmlspecialchars($rr['location'] ?? 'Nicht angegeben'); ?></p>
+                            <h6><i class="fas fa-info-circle text-secondary"></i> Status</h6>
+                            <p><span class="badge <?php echo $rr['status'] === 'approved' ? 'bg-success' : ($rr['status'] === 'cancelled' ? 'bg-warning text-dark' : 'bg-danger'); ?>"><?php echo $rr['status'] === 'approved' ? 'Genehmigt' : ($rr['status'] === 'cancelled' ? 'Storniert' : 'Abgelehnt'); ?></span></p>
+                            <?php if ($rr['status'] === 'rejected' && !empty($rr['rejection_reason'])): ?>
+                            <h6><i class="fas fa-times-circle text-danger"></i> Ablehnungsgrund</h6>
+                            <p class="text-danger"><?php echo htmlspecialchars($rr['rejection_reason']); ?></p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="deleteModalRoom<?php echo $rr['id']; ?>" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Raumreservierung löschen</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i><strong>Achtung:</strong> Diese Aktion kann nicht rückgängig gemacht werden!</div>
+                    <p>Sind Sie sicher, dass Sie diese Raumreservierung löschen möchten?</p>
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title"><i class="fas fa-door-open text-info"></i> <?php echo htmlspecialchars($rr['room_name']); ?></h6>
+                            <p class="card-text mb-1"><strong>Antragsteller:</strong> <?php echo htmlspecialchars($rr['requester_name']); ?></p>
+                            <p class="card-text mb-1"><strong>Datum:</strong> <?php echo format_datetime($rr['start_datetime'], 'd.m.Y H:i'); ?></p>
+                            <p class="card-text mb-0"><strong>Grund:</strong> <?php echo htmlspecialchars($rr['reason']); ?></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="fas fa-times me-1"></i>Abbrechen</button>
+                    <form method="POST" class="d-inline">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="reservation_id" value="<?php echo $rr['id']; ?>">
+                        <input type="hidden" name="is_room" value="1">
+                        <button type="submit" class="btn btn-danger"><i class="fas fa-trash me-1"></i>Löschen</button>
                     </form>
                 </div>
             </div>
