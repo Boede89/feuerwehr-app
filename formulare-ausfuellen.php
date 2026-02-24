@@ -90,8 +90,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $message = 'Ihr Formular wurde erfolgreich aktualisiert.';
         } else {
-            $stmt = $db->prepare("INSERT INTO app_form_submissions (form_id, user_id, form_data) VALUES (?, ?, ?)");
-            $stmt->execute([$form_id, $_SESSION['user_id'], json_encode($form_data, JSON_UNESCAPED_UNICODE)]);
+            $stmt = $db->prepare("INSERT INTO app_form_submissions (form_id, user_id, form_data, einheit_id) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$form_id, $_SESSION['user_id'], json_encode($form_data, JSON_UNESCAPED_UNICODE), $einheit_id > 0 ? $einheit_id : null]);
             if ($return_formularcenter) {
                 header('Location: admin/formularcenter.php?tab=submissions&message=' . urlencode('Formular wurde erfolgreich abgesendet.'));
                 exit;

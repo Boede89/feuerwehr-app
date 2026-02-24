@@ -49,6 +49,7 @@ try {
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+    try { $db->exec("ALTER TABLE app_form_submissions ADD COLUMN einheit_id INT NULL"); } catch (Exception $e2) {}
 } catch (Exception $e) {
     error_log('Formularcenter Tabellen: ' . $e->getMessage());
 }
@@ -349,7 +350,8 @@ try {
     ";
     $params = [];
     if ($einheit_filter) {
-        $sql .= " AND u.einheit_id = ?";
+        $sql .= " AND (s.einheit_id = ? OR (s.einheit_id IS NULL AND u.einheit_id = ?))";
+        $params[] = $einheit_filter;
         $params[] = $einheit_filter;
     }
     if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
@@ -382,7 +384,8 @@ try {
     ";
     $params = [];
     if ($einheit_filter) {
-        $sql .= " AND (a.einheit_id = ? OR a.einheit_id IS NULL)";
+        $sql .= " AND (a.einheit_id = ? OR (a.einheit_id IS NULL AND u.einheit_id = ?))";
+        $params[] = $einheit_filter;
         $params[] = $einheit_filter;
     }
     if ($filter_typ !== '') {
@@ -416,7 +419,7 @@ try {
     // Tabelle kann fehlen
 }
 
-// Mängelberichte laden – einheitsspezifisch (über user.einheit_id)
+// Mängelberichte laden – einheitsspezifisch (m.einheit_id, Fallback user.einheit_id für alte Einträge)
 $maengelberichte = [];
 try {
     $sql = "
@@ -428,7 +431,8 @@ try {
     ";
     $params = [];
     if ($einheit_filter) {
-        $sql .= " AND u.einheit_id = ?";
+        $sql .= " AND (m.einheit_id = ? OR (m.einheit_id IS NULL AND u.einheit_id = ?))";
+        $params[] = $einheit_filter;
         $params[] = $einheit_filter;
     }
     if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
@@ -461,7 +465,8 @@ try {
     ";
     $params = [];
     if ($einheit_filter) {
-        $sql .= " AND u.einheit_id = ?";
+        $sql .= " AND (g.einheit_id = ? OR (g.einheit_id IS NULL AND u.einheit_id = ?))";
+        $params[] = $einheit_filter;
         $params[] = $einheit_filter;
     }
     if ($filter_datum_von !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_datum_von)) {
@@ -603,7 +608,7 @@ if (isset($_GET['edit_submission'])) {
     $id = (int)$_GET['edit_submission'];
     foreach ($submissions as $s) {
         if ((int)$s['id'] === $id) {
-            header('Location: ../formulare-ausfuellen.php?id=' . (int)$s['form_id'] . '&edit=' . (int)$s['id'] . '&return=formularcenter');
+            header('Location: ../formulare-ausfuellen.php?id=' . (int)$s['form_id'] . '&edit=' . (int)$s['id'] . '&return=formularcenter' . ($einheit_filter > 0 ? '&einheit_id=' . (int)$einheit_filter : ''));
             exit;
         }
     }
@@ -793,7 +798,7 @@ try {
                                         <td><?php echo htmlspecialchars(trim($s['user_first_name'] . ' ' . $s['user_last_name']) ?: 'Unbekannt'); ?></td>
                                         <td><?php echo $s['created_at_display']; ?></td>
                                         <td>
-                                            <a href="../formulare-ausfuellen.php?id=<?php echo (int)$s['form_id']; ?>&edit=<?php echo (int)$s['id']; ?>&return=formularcenter" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Bearbeiten</a>
+                                            <a href="../formulare-ausfuellen.php?id=<?php echo (int)$s['form_id']; ?>&edit=<?php echo (int)$s['id']; ?>&return=formularcenter<?php echo $einheit_filter > 0 ? '&einheit_id=' . (int)$einheit_filter : ''; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Bearbeiten</a>
                                             <form method="post" class="d-inline" data-delete-type="Formulareingabe">
                                                 <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
                                                 <input type="hidden" name="action" value="delete_submission">

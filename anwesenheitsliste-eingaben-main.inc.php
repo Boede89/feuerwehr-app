@@ -346,7 +346,7 @@ $extra_columns = [
     'einsatzstelle VARCHAR(255) NULL', 'objekt TEXT NULL', 'eigentuemer VARCHAR(255) NULL', 'geschaedigter VARCHAR(255) NULL',
     'klassifizierung VARCHAR(100) NULL', 'kostenpflichtiger_einsatz VARCHAR(100) NULL', 'personenschaeden VARCHAR(50) NULL',
     'brandwache VARCHAR(100) NULL', 'einsatzleiter_member_id INT NULL', 'einsatzleiter_freitext VARCHAR(255) NULL',
-    'custom_data JSON NULL', 'divera_id INT NULL',
+    'custom_data JSON NULL', 'divera_id INT NULL', 'einheit_id INT NULL',
 ];
 foreach ($extra_columns as $colDef) {
     try {
@@ -614,7 +614,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             $stmt = $db->prepare("
                 UPDATE anwesenheitslisten SET datum=?, dienstplan_id=?, typ=?, bezeichnung=?, bemerkung=?, einsatzstichwort=?,
                     uhrzeit_von=?, uhrzeit_bis=?, alarmierung_durch=?, einsatzstelle=?, objekt=?, eigentuemer=?, geschaedigter=?,
-                    klassifizierung=?, kostenpflichtiger_einsatz=?, personenschaeden=?, brandwache=?, einsatzleiter_member_id=?, einsatzleiter_freitext=?, custom_data=?
+                    klassifizierung=?, kostenpflichtiger_einsatz=?, personenschaeden=?, brandwache=?, einsatzleiter_member_id=?, einsatzleiter_freitext=?, custom_data=?, einheit_id=?
                 WHERE id=?
             ");
             $stmt->execute([
@@ -632,6 +632,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 $draft['einsatzleiter_member_id'] ?? null,
                 $draft['einsatzleiter_freitext'] !== '' ? $draft['einsatzleiter_freitext'] : null,
                 $custom_data_json,
+                $einheit_id > 0 ? $einheit_id : null,
                 $edit_id_save
             ]);
             $list_id = $edit_id_save;
@@ -641,8 +642,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             $stmt = $db->prepare("
                 INSERT INTO anwesenheitslisten (datum, dienstplan_id, typ, bezeichnung, user_id, bemerkung, einsatzstichwort,
                     uhrzeit_von, uhrzeit_bis, alarmierung_durch, einsatzstelle, objekt, eigentuemer, geschaedigter,
-                    klassifizierung, kostenpflichtiger_einsatz, personenschaeden, brandwache, einsatzleiter_member_id, einsatzleiter_freitext, custom_data, divera_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    klassifizierung, kostenpflichtiger_einsatz, personenschaeden, brandwache, einsatzleiter_member_id, einsatzleiter_freitext, custom_data, divera_id, einheit_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([
                 $draft['datum'], $dp_id, $typ_save, $bezeichnung_save, $_SESSION['user_id'], $draft['bemerkung'] !== '' ? $draft['bemerkung'] : null, $einsatzstichwort_save,
@@ -659,7 +660,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 $draft['einsatzleiter_member_id'] ?? null,
                 $draft['einsatzleiter_freitext'] !== '' ? $draft['einsatzleiter_freitext'] : null,
                 $custom_data_json,
-                $divera_id_save
+                $divera_id_save,
+                $einheit_id > 0 ? $einheit_id : null
             ]);
             $list_id = $db->lastInsertId();
         }
@@ -699,7 +701,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         // Automatisch Gerätewartmitteilung erstellen (nur bei neuer Liste, nicht beim Bearbeiten)
         if ($edit_id_save <= 0 && !empty($all_vehicle_ids)) {
             try {
-                $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilungen (id INT AUTO_INCREMENT PRIMARY KEY, typ VARCHAR(20) NOT NULL, einsatz_uebungsart VARCHAR(50) NOT NULL, datum DATE NOT NULL, einsatzbereitschaft VARCHAR(30) NOT NULL, mangel_beschreibung TEXT NULL, einsatzleiter_member_id INT NULL, einsatzleiter_freitext VARCHAR(255) NULL, user_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, KEY idx_datum (datum), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilungen (id INT AUTO_INCREMENT PRIMARY KEY, typ VARCHAR(20) NOT NULL, einsatz_uebungsart VARCHAR(50) NOT NULL, datum DATE NOT NULL, einsatzbereitschaft VARCHAR(30) NOT NULL, mangel_beschreibung TEXT NULL, einsatzleiter_member_id INT NULL, einsatzleiter_freitext VARCHAR(255) NULL, user_id INT NOT NULL, einheit_id INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, KEY idx_datum (datum), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
                 $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilung_fahrzeuge (id INT AUTO_INCREMENT PRIMARY KEY, geraetewartmitteilung_id INT NOT NULL, vehicle_id INT NOT NULL, maschinist_member_id INT NULL, einheitsfuehrer_member_id INT NULL, equipment_used JSON NULL, defective_equipment JSON NULL, defective_freitext TEXT NULL, defective_mangel TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (geraetewartmitteilung_id) REFERENCES geraetewartmitteilungen(id) ON DELETE CASCADE, FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE, UNIQUE KEY unique_gwm_vehicle (geraetewartmitteilung_id, vehicle_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
                 $gwm_typ = ($typ_save === 'einsatz') ? 'einsatz' : 'uebung';
                 if ($typ_save === 'einsatz') {
@@ -711,8 +713,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 $gwm_el_mid = $draft['einsatzleiter_member_id'] ?? null;
                 $gwm_el_txt = !empty(trim((string)($draft['einsatzleiter_freitext'] ?? ''))) ? trim($draft['einsatzleiter_freitext']) : null;
                 $gwm_mangel = !empty(trim((string)($draft['bemerkung'] ?? ''))) ? trim($draft['bemerkung']) : null;
-                $stmt_gwm = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id) VALUES (?, ?, ?, 'hergestellt', ?, ?, ?, ?)");
-                $stmt_gwm->execute([$gwm_typ, $gwm_art, $draft['datum'], $gwm_mangel, $gwm_el_mid, $gwm_el_txt, $_SESSION['user_id']]);
+                $stmt_gwm = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id, einheit_id) VALUES (?, ?, ?, 'hergestellt', ?, ?, ?, ?, ?)");
+                $stmt_gwm->execute([$gwm_typ, $gwm_art, $draft['datum'], $gwm_mangel, $gwm_el_mid, $gwm_el_txt, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
                 $gwm_id = (int)$db->lastInsertId();
                 $maengel_list = $draft['maengel'] ?? [];
                 $stmt_gwm_f = $db->prepare("INSERT INTO geraetewartmitteilung_fahrzeuge (geraetewartmitteilung_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id, equipment_used, defective_equipment, defective_freitext, defective_mangel) VALUES (?, ?, ?, ?, ?, '[]', ?, ?)");
@@ -745,10 +747,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         $maengel_list = $draft['maengel'] ?? [];
         if (!empty($maengel_list) && is_array($maengel_list)) {
             try {
-                $db->exec("CREATE TABLE IF NOT EXISTS maengelberichte (id INT AUTO_INCREMENT PRIMARY KEY, standort VARCHAR(100) NOT NULL, mangel_an VARCHAR(50) NOT NULL, bezeichnung VARCHAR(255) NULL, mangel_beschreibung TEXT NULL, ursache TEXT NULL, verbleib TEXT NULL, aufgenommen_durch_text VARCHAR(255) NULL, aufgenommen_durch_member_id INT NULL, aufgenommen_am DATE NOT NULL, vehicle_id INT NULL, user_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, email_sent_at DATETIME NULL, KEY idx_aufgenommen_am (aufgenommen_am), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $db->exec("CREATE TABLE IF NOT EXISTS maengelberichte (id INT AUTO_INCREMENT PRIMARY KEY, standort VARCHAR(100) NOT NULL, mangel_an VARCHAR(50) NOT NULL, bezeichnung VARCHAR(255) NULL, mangel_beschreibung TEXT NULL, ursache TEXT NULL, verbleib TEXT NULL, aufgenommen_durch_text VARCHAR(255) NULL, aufgenommen_durch_member_id INT NULL, aufgenommen_am DATE NOT NULL, vehicle_id INT NULL, user_id INT NOT NULL, einheit_id INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, email_sent_at DATETIME NULL, KEY idx_aufgenommen_am (aufgenommen_am), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
                 try { $db->exec("ALTER TABLE maengelberichte ADD COLUMN email_sent_at DATETIME NULL"); } catch (Exception $e) { /* Spalte existiert ggf. bereits */ }
                 try { $db->exec("ALTER TABLE maengelberichte ADD COLUMN vehicle_id INT NULL"); } catch (Exception $e) { /* Spalte existiert ggf. bereits */ }
-                $stmt_mb = $db->prepare("INSERT INTO maengelberichte (standort, mangel_an, bezeichnung, mangel_beschreibung, ursache, verbleib, aufgenommen_durch_text, aufgenommen_durch_member_id, aufgenommen_am, vehicle_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                try { $db->exec("ALTER TABLE maengelberichte ADD COLUMN einheit_id INT NULL"); } catch (Exception $e) { /* Spalte existiert ggf. bereits */ }
+                $stmt_mb = $db->prepare("INSERT INTO maengelberichte (standort, mangel_an, bezeichnung, mangel_beschreibung, ursache, verbleib, aufgenommen_durch_text, aufgenommen_durch_member_id, aufgenommen_am, vehicle_id, user_id, einheit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 foreach ($maengel_list as $m) {
                     $standort = $m['standort'] ?? 'GH Amern';
                     $mangel_an = $m['mangel_an'] ?? 'Gebäude';
@@ -766,7 +769,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                     }
                     $vehicle_id = isset($m['vehicle_id']) && preg_match('/^\d+$/', (string)$m['vehicle_id']) ? (int)$m['vehicle_id'] : null;
                     $auf_am = date('Y-m-d');
-                    $stmt_mb->execute([$standort, $mangel_an, $bezeichnung, $mangel_beschreibung, $ursache, $verbleib, $auf_text, $auf_member_id, $auf_am, $vehicle_id, $_SESSION['user_id']]);
+                    $stmt_mb->execute([$standort, $mangel_an, $bezeichnung, $mangel_beschreibung, $ursache, $verbleib, $auf_text, $auf_member_id, $auf_am, $vehicle_id, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
                     $maengelbericht_ids[] = $db->lastInsertId();
                 }
             } catch (Exception $e) {

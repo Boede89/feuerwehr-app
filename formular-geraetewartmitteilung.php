@@ -67,6 +67,11 @@ try {
     error_log('geraetewartmitteilungen: ' . $e->getMessage());
 }
 try {
+    $db->exec("ALTER TABLE geraetewartmitteilungen ADD COLUMN einheit_id INT NULL");
+} catch (Exception $e) {
+    /* Spalte existiert ggf. bereits */
+}
+try {
     $db->exec("CREATE TABLE IF NOT EXISTS vehicle_equipment (id INT AUTO_INCREMENT PRIMARY KEY, vehicle_id INT NOT NULL, name VARCHAR(255) NOT NULL, category_id INT NULL, sort_order INT DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE, KEY idx_vehicle (vehicle_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     try { $db->exec("ALTER TABLE vehicle_equipment ADD COLUMN category_id INT NULL"); } catch (Exception $e2) {}
 } catch (Exception $e) {}
@@ -131,8 +136,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
         $error = 'Bitte wählen Sie mindestens ein Fahrzeug aus.';
     } else {
         try {
-            $stmt = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$typ, $art, $datum, $einsatzbereitschaft, $mangel_beschreibung, $einsatzleiter_member_id, $einsatzleiter_freitext, $_SESSION['user_id']]);
+            $stmt = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id, einheit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$typ, $art, $datum, $einsatzbereitschaft, $mangel_beschreibung, $einsatzleiter_member_id, $einsatzleiter_freitext, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
             $gwm_id = $db->lastInsertId();
 
             $stmt_f = $db->prepare("INSERT INTO geraetewartmitteilung_fahrzeuge (geraetewartmitteilung_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id, equipment_used, defective_equipment, defective_freitext, defective_mangel) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");

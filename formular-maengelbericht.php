@@ -61,6 +61,11 @@ try {
 } catch (Exception $e) {
     /* Spalte existiert ggf. bereits */
 }
+try {
+    $db->exec("ALTER TABLE maengelberichte ADD COLUMN einheit_id INT NULL");
+} catch (Exception $e) {
+    /* Spalte existiert ggf. bereits */
+}
 
 $standort_options = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
 $mangel_an_options = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
@@ -122,10 +127,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
     $vehicle_id = isset($_POST['vehicle_id']) && preg_match('/^\d+$/', (string)$_POST['vehicle_id']) ? (int)$_POST['vehicle_id'] : null;
     try {
         $stmt = $db->prepare("
-            INSERT INTO maengelberichte (standort, mangel_an, bezeichnung, mangel_beschreibung, ursache, verbleib, aufgenommen_durch_text, aufgenommen_durch_member_id, aufgenommen_am, vehicle_id, user_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO maengelberichte (standort, mangel_an, bezeichnung, mangel_beschreibung, ursache, verbleib, aufgenommen_durch_text, aufgenommen_durch_member_id, aufgenommen_am, vehicle_id, user_id, einheit_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$standort, $mangel_an, $bezeichnung ?: null, $mangel_beschreibung ?: null, $ursache ?: null, $verbleib ?: null, $aufgenommen_durch_text, $aufgenommen_durch_member_id, $aufgenommen_am, $vehicle_id, $_SESSION['user_id']]);
+        $stmt->execute([$standort, $mangel_an, $bezeichnung ?: null, $mangel_beschreibung ?: null, $ursache ?: null, $verbleib ?: null, $aufgenommen_durch_text, $aufgenommen_durch_member_id, $aufgenommen_am, $vehicle_id, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
         $id = $db->lastInsertId();
 
         // Automatischer E-Mail-Versand (wenn in Einstellungen aktiviert)
