@@ -100,8 +100,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $error = "Ungültiger Sicherheitstoken.";
     } else {
         $user_id = (int)($_POST['user_id'] ?? 0);
+        $username = sanitize_input($_POST['username'] ?? '');
+        $email = sanitize_input($_POST['email'] ?? '');
+        $first_name = sanitize_input($_POST['first_name'] ?? '');
+        $last_name = sanitize_input($_POST['last_name'] ?? '');
         if (!$user_id || !user_has_einheit_access($_SESSION['user_id'], $einheit_id)) {
             $error = "Ungültige Anfrage.";
+        } elseif (empty($username) || empty($email) || empty($first_name) || empty($last_name)) {
+            $error = "Name, Benutzername und E-Mail sind erforderlich.";
+        } elseif (!validate_email($email)) {
+            $error = "Bitte geben Sie eine gültige E-Mail-Adresse ein.";
         } else {
             $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
             $can_atemschutz = isset($_POST['can_atemschutz']) ? 1 : 0;
@@ -124,19 +132,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (!$stmt_check->fetch()) {
                     $error = "Benutzer gehört nicht zu dieser Einheit.";
                 } else {
+                    $stmt_dup = $db->prepare("SELECT id FROM users WHERE (username = ? OR email = ?) AND id != ?");
+                    $stmt_dup->execute([$username, $email, $user_id]);
+                    if ($stmt_dup->fetch()) {
+                        $error = "Benutzername oder E-Mail existiert bereits.";
+                    } else {
                     try { $db->exec("ALTER TABLE users ADD COLUMN can_forms_fill TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
                     foreach (['can_reservations_readonly','can_atemschutz_readonly','can_members_readonly','can_ric_readonly','can_courses_readonly','can_forms_readonly'] as $c) { try { $db->exec("ALTER TABLE users ADD COLUMN $c TINYINT(1) DEFAULT 0"); } catch (Exception $e) {} }
                     if (!empty($password)) {
                         $pw_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=?, password_hash=? WHERE id=?");
-                        $stmt->execute([$can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $pw_hash, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=?, password_hash=? WHERE id=?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $pw_hash, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=? WHERE id=?");
-                        $stmt->execute([$can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=? WHERE id=?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $user_id]);
                     }
-                    log_activity($_SESSION['user_id'], 'user_updated', "Berechtigungen für Benutzer ID $user_id (Einheit {$einheit['name']}) aktualisiert");
+                    try {
+                        $stmt_m = $db->prepare("UPDATE members SET first_name=?, last_name=?, email=? WHERE user_id=? AND einheit_id=?");
+                        $stmt_m->execute([$first_name, $last_name, $email, $user_id, $einheit_id]);
+                    } catch (Exception $e) {}
+                    log_activity($_SESSION['user_id'], 'user_updated', "Benutzer '$username' (ID $user_id) für Einheit {$einheit['name']} aktualisiert");
                     header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=updated");
                     exit;
+                    }
                 }
             } catch (Exception $e) {
                 $error = "Fehler: " . $e->getMessage();
@@ -413,8 +431,9 @@ try {
                                     <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editUserModal"
                                         data-user-id="<?php echo (int)$u['id']; ?>"
                                         data-username="<?php echo htmlspecialchars($u['username'], ENT_QUOTES); ?>"
-                                        data-first-name="<?php echo htmlspecialchars($u['first_name'], ENT_QUOTES); ?>"
-                                        data-last-name="<?php echo htmlspecialchars($u['last_name'], ENT_QUOTES); ?>"
+                                        data-first-name="<?php echo htmlspecialchars($u['first_name'] ?? '', ENT_QUOTES); ?>"
+                                        data-last-name="<?php echo htmlspecialchars($u['last_name'] ?? '', ENT_QUOTES); ?>"
+                                        data-email="<?php echo htmlspecialchars($u['email'] ?? '', ENT_QUOTES); ?>"
                                         data-can-reservations="<?php echo (int)($u['can_reservations'] ?? 0); ?>"
                                         data-can-atemschutz="<?php echo (int)($u['can_atemschutz'] ?? 0); ?>"
                                         data-can-members="<?php echo (int)($u['can_members'] ?? 0); ?>"
@@ -672,11 +691,30 @@ try {
                     <input type="hidden" name="user_id" id="edit_user_id" value="">
                     <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                     <div class="modal-header">
-                        <h5 class="modal-title"><i class="fas fa-user-edit"></i> Berechtigungen bearbeiten</h5>
+                        <h5 class="modal-title"><i class="fas fa-user-edit"></i> Benutzer bearbeiten</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <p class="text-muted small mb-3" id="edit_user_info"></p>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="edit_first_name" class="form-label">Vorname *</label>
+                                <input type="text" class="form-control" name="first_name" id="edit_first_name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit_last_name" class="form-label">Nachname *</label>
+                                <input type="text" class="form-control" name="last_name" id="edit_last_name" required>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="edit_username" class="form-label">Benutzername *</label>
+                                <input type="text" class="form-control" name="username" id="edit_username" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit_email" class="form-label">E-Mail *</label>
+                                <input type="email" class="form-control" name="email" id="edit_email" required>
+                            </div>
+                        </div>
                         <div class="mb-3">
                             <label class="form-label">Berechtigungen</label>
                             <p class="text-muted small mb-2">Aktivieren Sie „Nur Leserechte“, wenn der Benutzer nur ansehen, aber nicht bearbeiten darf.</p>
@@ -861,7 +899,10 @@ try {
             var btn = e.relatedTarget;
             if (!btn) return;
             document.getElementById('edit_user_id').value = btn.dataset.userId || '';
-            document.getElementById('edit_user_info').textContent = btn.dataset.username + ' (' + (btn.dataset.firstName || '') + ' ' + (btn.dataset.lastName || '') + ')';
+            document.getElementById('edit_first_name').value = btn.dataset.firstName || '';
+            document.getElementById('edit_last_name').value = btn.dataset.lastName || '';
+            document.getElementById('edit_username').value = btn.dataset.username || '';
+            document.getElementById('edit_email').value = btn.dataset.email || '';
             document.getElementById('edit_can_reservations').checked = btn.dataset.canReservations == '1';
             document.getElementById('edit_can_atemschutz').checked = btn.dataset.canAtemschutz == '1';
             document.getElementById('edit_can_members').checked = btn.dataset.canMembers == '1';
