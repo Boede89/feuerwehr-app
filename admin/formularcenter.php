@@ -371,12 +371,14 @@ try {
 }
 
 // Anwesenheitslisten laden (als "eingegangene Formulare") – mit Typ- und Datum-Filter, einheitsspezifisch
+// Spalte "Von": Berichtersteller (aus custom_data.berichtersteller_text), Fallback: user
 $anwesenheitslisten = [];
 try {
     $sql = "
         SELECT a.id, a.datum, a.bezeichnung, a.typ, a.einsatzstichwort, a.custom_data, a.created_at,
                d.bezeichnung AS dienst_bezeichnung, d.typ AS dienst_typ,
-               COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name
+               COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name,
+               COALESCE(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.berichtersteller_text'))), ''), CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS display_name
         FROM anwesenheitslisten a
         LEFT JOIN dienstplan d ON d.id = a.dienstplan_id
         LEFT JOIN users u ON u.id = a.user_id
@@ -420,13 +422,16 @@ try {
 }
 
 // Mängelberichte laden – einheitsspezifisch (m.einheit_id, Fallback user.einheit_id für alte Einträge)
+// Spalte "Von": Aufgenommen durch (aus aufgenommen_durch_member_id oder aufgenommen_durch_text)
 $maengelberichte = [];
 try {
     $sql = "
         SELECT m.id, m.standort, m.mangel_an, m.bezeichnung, m.aufgenommen_am, m.created_at, m.email_sent_at,
-               COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name
+               m.aufgenommen_durch_text, m.aufgenommen_durch_member_id,
+               COALESCE(NULLIF(TRIM(CONCAT(memb.last_name, ', ', memb.first_name)), ''), m.aufgenommen_durch_text) AS display_name
         FROM maengelberichte m
         LEFT JOIN users u ON u.id = m.user_id
+        LEFT JOIN members memb ON memb.id = m.aufgenommen_durch_member_id
         WHERE 1=1
     ";
     $params = [];
@@ -820,12 +825,12 @@ try {
                                             $titel .= ' – ' . $a['einsatzstichwort'];
                                         }
                                         $typ_label = htmlspecialchars(get_anwesenheitsliste_typ_label($a));
-                                        $search_text = strtolower($titel . ' ' . $typ_label . ' ' . trim(($a['user_first_name'] ?? '') . ' ' . ($a['user_last_name'] ?? '')) . ' ' . format_datetime_berlin($a['created_at']));
+                                        $search_text = strtolower($titel . ' ' . $typ_label . ' ' . trim($a['display_name'] ?? ($a['user_first_name'] ?? '') . ' ' . ($a['user_last_name'] ?? '')) . ' ' . format_datetime_berlin($a['created_at']));
                                     ?>
                                     <tr data-search="<?php echo htmlspecialchars($search_text); ?>">
                                         <td><i class="fas fa-clipboard-list text-muted me-1"></i> <?php echo htmlspecialchars($titel); ?></td>
                                         <td><span class="badge bg-info"><?php echo $typ_label; ?></span></td>
-                                        <td><?php echo htmlspecialchars(trim($a['user_first_name'] . ' ' . $a['user_last_name']) ?: 'Unbekannt'); ?></td>
+                                        <td><?php echo htmlspecialchars(trim($a['display_name'] ?? ($a['user_first_name'] ?? '') . ' ' . ($a['user_last_name'] ?? '')) ?: 'Unbekannt'); ?></td>
                                         <td><?php echo format_datetime_berlin($a['created_at']); ?></td>
                                         <td>
                                             <a href="anwesenheitsliste-bearbeiten.php?id=<?php echo (int)$a['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
@@ -848,12 +853,12 @@ try {
                                     <?php foreach ($maengelberichte as $m):
                                         $titel = date('d.m.Y', strtotime($m['aufgenommen_am'])) . ' – ' . htmlspecialchars($m['standort']) . ' – ' . htmlspecialchars($m['mangel_an']);
                                         if (!empty($m['bezeichnung'])) $titel .= ' – ' . htmlspecialchars($m['bezeichnung']);
-                                        $search_text = strtolower($titel . ' Mängelbericht ' . trim(($m['user_first_name'] ?? '') . ' ' . ($m['user_last_name'] ?? '')) . ' ' . format_datetime_berlin($m['created_at']));
+                                        $search_text = strtolower($titel . ' Mängelbericht ' . trim($m['display_name'] ?? '') . ' ' . format_datetime_berlin($m['created_at']));
                                     ?>
                                     <tr data-search="<?php echo htmlspecialchars($search_text); ?>">
                                         <td><i class="fas fa-exclamation-triangle text-warning me-1"></i> <?php echo $titel; ?></td>
                                         <td><span class="badge bg-warning text-dark">Mängelbericht</span></td>
-                                        <td><?php echo htmlspecialchars(trim($m['user_first_name'] . ' ' . $m['user_last_name']) ?: 'Unbekannt'); ?></td>
+                                        <td><?php echo htmlspecialchars(trim($m['display_name'] ?? '') ?: 'Unbekannt'); ?></td>
                                         <td><?php echo format_datetime_berlin($m['created_at']); ?><?php if (!empty($m['email_sent_at'])): ?><br><small class="text-success"><i class="fas fa-envelope me-1"></i>Per E-Mail versendet: <?php echo format_datetime_berlin($m['email_sent_at']); ?></small><?php endif; ?></td>
                                         <td>
                                             <a href="maengelbericht-bearbeiten.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
