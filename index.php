@@ -295,7 +295,7 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
                         </div>
                     </div>
 
-                    <?php if (is_logged_in()): ?>
+                    <?php if (is_logged_in() && has_form_fill_permission()): ?>
                     <div class="col-12 col-sm-6 col-lg-4">
                         <a href="formulare.php<?php echo $link_suffix; ?>" class="text-decoration-none">
                             <div class="card h-100 shadow-sm feature-card clickable-card">

@@ -140,7 +140,9 @@ $message = '';
 $error = isset($_GET['error']) ? trim((string)$_GET['error']) : '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_anwesenheitsliste') {
-    if (!empty($_SESSION['form_center_csrf']) && isset($_POST['form_center_csrf']) && $_POST['form_center_csrf'] === $_SESSION['form_center_csrf']) {
+    if (!has_permission_write('forms')) {
+        $error = 'Sie haben keine Schreibrechte für das Formularcenter.';
+    } elseif (!empty($_SESSION['form_center_csrf']) && isset($_POST['form_center_csrf']) && $_POST['form_center_csrf'] === $_SESSION['form_center_csrf']) {
         $del_id = (int)($_POST['anwesenheitsliste_id'] ?? 0);
         if ($del_id === $id) {
             try {
@@ -155,7 +157,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitsliste'])) {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    if (!has_permission_write('forms')) {
+        $error = 'Sie haben keine Schreibrechte für das Formularcenter.';
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
         try {

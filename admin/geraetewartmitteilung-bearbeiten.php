@@ -86,6 +86,9 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitteilung'])) {
+    if (!has_permission_write('forms')) {
+        $error = 'Sie haben keine Schreibrechte für das Formularcenter.';
+    } else {
     $typ = in_array(trim($_POST['typ'] ?? ''), ['einsatz', 'uebung']) ? trim($_POST['typ']) : 'uebung';
     $art = trim($_POST['einsatz_uebungsart'] ?? '');
     if (!isset($art_options[$art])) $art = 'Brandeinsatz';
@@ -129,6 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
         } catch (Exception $e) {
             $error = 'Speichern fehlgeschlagen: ' . $e->getMessage();
         }
+    }
     }
 }
 

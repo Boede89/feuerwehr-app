@@ -55,6 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $can_ric = isset($_POST['can_ric']) ? 1 : 0;
         $can_courses = isset($_POST['can_courses']) ? 1 : 0;
         $can_forms = isset($_POST['can_forms']) ? 1 : 0;
+        $can_forms_fill = isset($_POST['can_forms_fill']) ? 1 : 0;
+        $can_reservations_readonly = isset($_POST['can_reservations_readonly']) ? 1 : 0;
+        $can_atemschutz_readonly = isset($_POST['can_atemschutz_readonly']) ? 1 : 0;
+        $can_members_readonly = isset($_POST['can_members_readonly']) ? 1 : 0;
+        $can_ric_readonly = isset($_POST['can_ric_readonly']) ? 1 : 0;
+        $can_courses_readonly = isset($_POST['can_courses_readonly']) ? 1 : 0;
+        $can_forms_readonly = isset($_POST['can_forms_readonly']) ? 1 : 0;
         if (empty($username) || empty($email) || empty($first_name) || empty($last_name) || empty($password)) {
             $error = "Alle Pflichtfelder sind erforderlich.";
         } elseif (!validate_email($email)) {
@@ -67,8 +74,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $error = "Benutzername oder E-Mail existiert bereits.";
                 } else {
                     $password_hash = hash_password($password);
-                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, user_type, einheit_id, is_active, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', 'user', ?, 1, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)");
-                    $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $einheit_id, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms]);
+                    try { $db->exec("ALTER TABLE users ADD COLUMN can_forms_fill TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+                    foreach (['can_reservations_readonly','can_atemschutz_readonly','can_members_readonly','can_ric_readonly','can_courses_readonly','can_forms_readonly'] as $c) { try { $db->exec("ALTER TABLE users ADD COLUMN $c TINYINT(1) DEFAULT 0"); } catch (Exception $e) {} }
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, user_type, einheit_id, is_active, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_reservations_readonly, can_atemschutz_readonly, can_members_readonly, can_ric_readonly, can_courses_readonly, can_forms_readonly, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', 'user', ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)");
+                    $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $einheit_id, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly]);
                     $new_id = $db->lastInsertId();
                     try {
                         $stmt_m = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, einheit_id) VALUES (?, ?, ?, ?, ?)");
@@ -100,6 +109,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $can_ric = isset($_POST['can_ric']) ? 1 : 0;
             $can_courses = isset($_POST['can_courses']) ? 1 : 0;
             $can_forms = isset($_POST['can_forms']) ? 1 : 0;
+            $can_forms_fill = isset($_POST['can_forms_fill']) ? 1 : 0;
+            $can_reservations_readonly = isset($_POST['can_reservations_readonly']) ? 1 : 0;
+            $can_atemschutz_readonly = isset($_POST['can_atemschutz_readonly']) ? 1 : 0;
+            $can_members_readonly = isset($_POST['can_members_readonly']) ? 1 : 0;
+            $can_ric_readonly = isset($_POST['can_ric_readonly']) ? 1 : 0;
+            $can_courses_readonly = isset($_POST['can_courses_readonly']) ? 1 : 0;
+            $can_forms_readonly = isset($_POST['can_forms_readonly']) ? 1 : 0;
             $is_active = isset($_POST['is_active']) ? 1 : 0;
             $password = $_POST['password'] ?? '';
             try {
@@ -108,13 +124,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (!$stmt_check->fetch()) {
                     $error = "Benutzer gehört nicht zu dieser Einheit.";
                 } else {
+                    try { $db->exec("ALTER TABLE users ADD COLUMN can_forms_fill TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+                    foreach (['can_reservations_readonly','can_atemschutz_readonly','can_members_readonly','can_ric_readonly','can_courses_readonly','can_forms_readonly'] as $c) { try { $db->exec("ALTER TABLE users ADD COLUMN $c TINYINT(1) DEFAULT 0"); } catch (Exception $e) {} }
                     if (!empty($password)) {
                         $pw_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, is_active=?, password_hash=? WHERE id=?");
-                        $stmt->execute([$can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $is_active, $pw_hash, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=?, password_hash=? WHERE id=?");
+                        $stmt->execute([$can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $pw_hash, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, is_active=? WHERE id=?");
-                        $stmt->execute([$can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $is_active, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=? WHERE id=?");
+                        $stmt->execute([$can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $user_id]);
                     }
                     log_activity($_SESSION['user_id'], 'user_updated', "Berechtigungen für Benutzer ID $user_id (Einheit {$einheit['name']}) aktualisiert");
                     header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=updated");
@@ -156,7 +174,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         $days = (int)$validity;
                         $autologin_expires = $days > 0 ? date('Y-m-d H:i:s', strtotime("+{$days} days")) : null;
                     }
-                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires, einheit_id) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, ?, ?, ?)");
+                    try { $db->exec("ALTER TABLE users ADD COLUMN can_forms_fill TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires, einheit_id) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, ?, ?, ?)");
                     $stmt->execute([$username, $first_name ?: $username, $last_name, $autologin_token, $autologin_expires, $einheit_id]);
                     log_activity($_SESSION['user_id'], 'user_added', "Systembenutzer '$username' für Einheit {$einheit['name']} angelegt");
                     header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=system_added");
@@ -266,11 +285,17 @@ if (isset($_GET['success'])) {
     if ($_GET['success'] === 'system_deleted') $message = "Systembenutzer wurde gelöscht.";
 }
 
+// Sicherstellen, dass alle Berechtigungsspalten existieren
+foreach (['can_forms_fill', 'can_reservations_readonly', 'can_atemschutz_readonly', 'can_members_readonly', 'can_ric_readonly', 'can_courses_readonly', 'can_forms_readonly'] as $col) {
+    try { $db->exec("ALTER TABLE users ADD COLUMN $col TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+}
+
 // Benutzer dieser Einheit laden (mit Berechtigungen)
 $unit_users = [];
 try {
     $stmt = $db->prepare("SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.user_type, u.is_active, u.created_at,
-        u.can_reservations, u.can_atemschutz, u.can_members, u.can_ric, u.can_courses, u.can_forms
+        u.can_reservations, u.can_atemschutz, u.can_members, u.can_ric, u.can_courses, u.can_forms, u.can_forms_fill,
+        u.can_reservations_readonly, u.can_atemschutz_readonly, u.can_members_readonly, u.can_ric_readonly, u.can_courses_readonly, u.can_forms_readonly
         FROM users u 
         WHERE (u.einheit_id = ? OR u.id IN (SELECT user_id FROM user_einheiten WHERE einheit_id = ?))
         AND u.is_system_user = 0
@@ -366,11 +391,12 @@ try {
                                 <td>
                                     <div class="d-flex flex-wrap gap-1">
                                         <?php if (!empty($u['can_reservations'])): ?><span class="badge bg-primary">Reservierungen</span><?php endif; ?>
+                                        <?php if (!empty($u['can_forms_fill'])): ?><span class="badge bg-secondary">Formulare ausfüllen</span><?php endif; ?>
                                         <?php if (!empty($u['can_atemschutz'])): ?><span class="badge bg-success">Atemschutz</span><?php endif; ?>
                                         <?php if (!empty($u['can_members'])): ?><span class="badge bg-info">Mitglieder</span><?php endif; ?>
                                         <?php if (!empty($u['can_ric'])): ?><span class="badge bg-warning text-dark">RIC</span><?php endif; ?>
                                         <?php if (!empty($u['can_courses'])): ?><span class="badge bg-purple">Lehrgänge</span><?php endif; ?>
-                                        <?php if (!empty($u['can_forms'])): ?><span class="badge bg-secondary">Formulare</span><?php endif; ?>
+                                        <?php if (!empty($u['can_forms'])): ?><span class="badge bg-secondary">Formularcenter</span><?php endif; ?>
                                         <?php if (($u['user_type'] ?? '') === 'superadmin'): ?><span class="badge bg-danger">Superadmin</span><?php endif; ?>
                                         <?php if (($u['user_type'] ?? '') === 'einheitsadmin'): ?><span class="badge bg-warning text-dark">Einheitsadmin</span><?php endif; ?>
                                     </div>
@@ -394,7 +420,14 @@ try {
                                         data-can-members="<?php echo (int)($u['can_members'] ?? 0); ?>"
                                         data-can-ric="<?php echo (int)($u['can_ric'] ?? 0); ?>"
                                         data-can-courses="<?php echo (int)($u['can_courses'] ?? 0); ?>"
+                                        data-can-forms-fill="<?php echo (int)($u['can_forms_fill'] ?? 0); ?>"
                                         data-can-forms="<?php echo (int)($u['can_forms'] ?? 0); ?>"
+                                        data-can-reservations-readonly="<?php echo (int)($u['can_reservations_readonly'] ?? 0); ?>"
+                                        data-can-atemschutz-readonly="<?php echo (int)($u['can_atemschutz_readonly'] ?? 0); ?>"
+                                        data-can-members-readonly="<?php echo (int)($u['can_members_readonly'] ?? 0); ?>"
+                                        data-can-ric-readonly="<?php echo (int)($u['can_ric_readonly'] ?? 0); ?>"
+                                        data-can-courses-readonly="<?php echo (int)($u['can_courses_readonly'] ?? 0); ?>"
+                                        data-can-forms-readonly="<?php echo (int)($u['can_forms_readonly'] ?? 0); ?>"
                                         data-is-active="<?php echo (int)$u['is_active']; ?>">
                                         <i class="fas fa-edit"></i> Bearbeiten
                                     </button>
@@ -646,29 +679,58 @@ try {
                         <p class="text-muted small mb-3" id="edit_user_info"></p>
                         <div class="mb-3">
                             <label class="form-label">Berechtigungen</label>
+                            <p class="text-muted small mb-2">Aktivieren Sie „Nur Leserechte“, wenn der Benutzer nur ansehen, aber nicht bearbeiten darf.</p>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_reservations" id="edit_can_reservations">
-                                <label class="form-check-label" for="edit_can_reservations">Fahrzeugreservierungen</label>
+                                <label class="form-check-label" for="edit_can_reservations">Reservierungen</label>
+                                <div class="form-check form-check-inline ms-3">
+                                    <input class="form-check-input" type="checkbox" name="can_reservations_readonly" id="edit_can_reservations_readonly">
+                                    <label class="form-check-label" for="edit_can_reservations_readonly">Nur Leserechte</label>
+                                </div>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_atemschutz" id="edit_can_atemschutz">
                                 <label class="form-check-label" for="edit_can_atemschutz">Atemschutz</label>
+                                <div class="form-check form-check-inline ms-3">
+                                    <input class="form-check-input" type="checkbox" name="can_atemschutz_readonly" id="edit_can_atemschutz_readonly">
+                                    <label class="form-check-label" for="edit_can_atemschutz_readonly">Nur Leserechte</label>
+                                </div>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_members" id="edit_can_members">
                                 <label class="form-check-label" for="edit_can_members">Mitgliederverwaltung</label>
+                                <div class="form-check form-check-inline ms-3">
+                                    <input class="form-check-input" type="checkbox" name="can_members_readonly" id="edit_can_members_readonly">
+                                    <label class="form-check-label" for="edit_can_members_readonly">Nur Leserechte</label>
+                                </div>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_ric" id="edit_can_ric">
-                                <label class="form-check-label" for="edit_can_ric">RIC Verwaltung</label>
+                                <label class="form-check-label" for="edit_can_ric"><span class="text-muted small">↳</span> RIC Verwaltung <small class="text-muted">(Teil von Mitgliederverwaltung)</small></label>
+                                <div class="form-check form-check-inline ms-3">
+                                    <input class="form-check-input" type="checkbox" name="can_ric_readonly" id="edit_can_ric_readonly">
+                                    <label class="form-check-label" for="edit_can_ric_readonly">Nur Leserechte</label>
+                                </div>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_courses" id="edit_can_courses">
-                                <label class="form-check-label" for="edit_can_courses">Lehrgangsverwaltung</label>
+                                <label class="form-check-label" for="edit_can_courses"><span class="text-muted small">↳</span> Lehrgangsverwaltung <small class="text-muted">(Teil von Mitgliederverwaltung)</small></label>
+                                <div class="form-check form-check-inline ms-3">
+                                    <input class="form-check-input" type="checkbox" name="can_courses_readonly" id="edit_can_courses_readonly">
+                                    <label class="form-check-label" for="edit_can_courses_readonly">Nur Leserechte</label>
+                                </div>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_forms_fill" id="edit_can_forms_fill">
+                                <label class="form-check-label" for="edit_can_forms_fill">Formulare ausfüllen</label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_forms" id="edit_can_forms">
                                 <label class="form-check-label" for="edit_can_forms">Formularcenter</label>
+                                <div class="form-check form-check-inline ms-3">
+                                    <input class="form-check-input" type="checkbox" name="can_forms_readonly" id="edit_can_forms_readonly">
+                                    <label class="form-check-label" for="edit_can_forms_readonly">Nur Leserechte</label>
+                                </div>
                             </div>
                         </div>
                         <div class="mb-3">
@@ -729,29 +791,58 @@ try {
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Berechtigungen</label>
+                            <p class="text-muted small mb-2">Aktivieren Sie „Nur Leserechte“, wenn der Benutzer nur ansehen, aber nicht bearbeiten darf.</p>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_reservations" id="add_can_reservations">
-                                <label class="form-check-label" for="add_can_reservations">Fahrzeugreservierungen</label>
+                                <label class="form-check-label" for="add_can_reservations">Reservierungen</label>
+                                <div class="form-check form-check-inline ms-3">
+                                    <input class="form-check-input" type="checkbox" name="can_reservations_readonly" id="add_can_reservations_readonly">
+                                    <label class="form-check-label" for="add_can_reservations_readonly">Nur Leserechte</label>
+                                </div>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_atemschutz" id="add_can_atemschutz">
                                 <label class="form-check-label" for="add_can_atemschutz">Atemschutz</label>
+                                <div class="form-check form-check-inline ms-3">
+                                    <input class="form-check-input" type="checkbox" name="can_atemschutz_readonly" id="add_can_atemschutz_readonly">
+                                    <label class="form-check-label" for="add_can_atemschutz_readonly">Nur Leserechte</label>
+                                </div>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_members" id="add_can_members">
                                 <label class="form-check-label" for="add_can_members">Mitgliederverwaltung</label>
+                                <div class="form-check form-check-inline ms-3">
+                                    <input class="form-check-input" type="checkbox" name="can_members_readonly" id="add_can_members_readonly">
+                                    <label class="form-check-label" for="add_can_members_readonly">Nur Leserechte</label>
+                                </div>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_ric" id="add_can_ric">
-                                <label class="form-check-label" for="add_can_ric">RIC Verwaltung</label>
+                                <label class="form-check-label" for="add_can_ric"><span class="text-muted small">↳</span> RIC Verwaltung <small class="text-muted">(Teil von Mitgliederverwaltung)</small></label>
+                                <div class="form-check form-check-inline ms-3">
+                                    <input class="form-check-input" type="checkbox" name="can_ric_readonly" id="add_can_ric_readonly">
+                                    <label class="form-check-label" for="add_can_ric_readonly">Nur Leserechte</label>
+                                </div>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_courses" id="add_can_courses">
-                                <label class="form-check-label" for="add_can_courses">Lehrgangsverwaltung</label>
+                                <label class="form-check-label" for="add_can_courses"><span class="text-muted small">↳</span> Lehrgangsverwaltung <small class="text-muted">(Teil von Mitgliederverwaltung)</small></label>
+                                <div class="form-check form-check-inline ms-3">
+                                    <input class="form-check-input" type="checkbox" name="can_courses_readonly" id="add_can_courses_readonly">
+                                    <label class="form-check-label" for="add_can_courses_readonly">Nur Leserechte</label>
+                                </div>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="can_forms" id="add_can_forms" checked>
+                                <input class="form-check-input" type="checkbox" name="can_forms_fill" id="add_can_forms_fill">
+                                <label class="form-check-label" for="add_can_forms_fill">Formulare ausfüllen</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_forms" id="add_can_forms">
                                 <label class="form-check-label" for="add_can_forms">Formularcenter</label>
+                                <div class="form-check form-check-inline ms-3">
+                                    <input class="form-check-input" type="checkbox" name="can_forms_readonly" id="add_can_forms_readonly">
+                                    <label class="form-check-label" for="add_can_forms_readonly">Nur Leserechte</label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -776,7 +867,14 @@ try {
             document.getElementById('edit_can_members').checked = btn.dataset.canMembers == '1';
             document.getElementById('edit_can_ric').checked = btn.dataset.canRic == '1';
             document.getElementById('edit_can_courses').checked = btn.dataset.canCourses == '1';
+            document.getElementById('edit_can_forms_fill').checked = btn.dataset.canFormsFill == '1';
             document.getElementById('edit_can_forms').checked = btn.dataset.canForms == '1';
+            document.getElementById('edit_can_reservations_readonly').checked = btn.dataset.canReservationsReadonly == '1';
+            document.getElementById('edit_can_atemschutz_readonly').checked = btn.dataset.canAtemschutzReadonly == '1';
+            document.getElementById('edit_can_members_readonly').checked = btn.dataset.canMembersReadonly == '1';
+            document.getElementById('edit_can_ric_readonly').checked = btn.dataset.canRicReadonly == '1';
+            document.getElementById('edit_can_courses_readonly').checked = btn.dataset.canCoursesReadonly == '1';
+            document.getElementById('edit_can_forms_readonly').checked = btn.dataset.canFormsReadonly == '1';
             document.getElementById('edit_is_active').checked = btn.dataset.isActive == '1';
             document.getElementById('edit_password').value = '';
         });

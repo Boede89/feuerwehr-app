@@ -12,7 +12,7 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (!has_permission('forms')) {
+if (!has_form_fill_permission()) {
     header('Location: index.php?error=no_forms_access');
     exit;
 }

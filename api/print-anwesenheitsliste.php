@@ -13,7 +13,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     echo json_encode(['success' => false, 'message' => 'Zugriff verweigert']);
     exit;
 }
-if (!has_permission('forms')) {
+if (!has_form_fill_permission()) {
     echo json_encode(['success' => false, 'message' => 'Zugriff verweigert']);
     exit;
 }

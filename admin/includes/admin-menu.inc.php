@@ -23,8 +23,9 @@ if (!isset($can_reservations)) {
     $can_settings = $is_adm ? true : has_permission('settings');
     $can_members = $is_adm ? true : has_permission('members');
     $can_forms = $is_adm ? true : has_permission('forms');
+    $can_forms_fill = $is_adm ? true : (function_exists('has_form_fill_permission') && has_form_fill_permission());
 }
-$has_any = $can_reservations || $can_atemschutz || $can_settings || $can_members || $can_forms;
+$has_any = $can_reservations || $can_atemschutz || $can_settings || $can_members || $can_forms || $can_forms_fill;
 $btn_class = (!empty($admin_menu_in_navbar)) ? 'btn-outline-light' : 'btn-outline-primary';
 $base = isset($admin_menu_base) ? $admin_menu_base : '';
 $logout_url = isset($admin_menu_logout) ? $admin_menu_logout : '../logout.php';
@@ -57,6 +58,9 @@ $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
         <?php endif; ?>
         <?php if ($can_members): ?>
         <li><a class="dropdown-item" href="<?php echo $base; ?>members.php"><i class="fas fa-users text-success me-2"></i>Mitgliederverwaltung</a></li>
+        <?php endif; ?>
+        <?php if ($can_forms_fill): ?>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>../formulare.php"><i class="fas fa-edit text-info me-2"></i>Formulare ausfüllen</a></li>
         <?php endif; ?>
         <?php if ($can_forms): ?>
         <li><a class="dropdown-item" href="<?php echo $base; ?>formularcenter.php"><i class="fas fa-file-alt text-info me-2"></i>Formularcenter</a></li>

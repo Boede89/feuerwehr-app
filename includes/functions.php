@@ -499,6 +499,14 @@ function has_permission($permission) {
             // Spalte existiert bereits, ignoriere Fehler
         }
         try {
+            $db->exec("ALTER TABLE users ADD COLUMN can_forms_fill TINYINT(1) DEFAULT 0");
+        } catch (Exception $e) {
+            // Spalte existiert bereits, ignoriere Fehler
+        }
+        foreach (['can_reservations_readonly', 'can_atemschutz_readonly', 'can_members_readonly', 'can_ric_readonly', 'can_courses_readonly', 'can_forms_readonly'] as $col) {
+            try { $db->exec("ALTER TABLE users ADD COLUMN $col TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+        }
+        try {
             $db->exec("ALTER TABLE users ADD COLUMN divera_access_key VARCHAR(512) NULL DEFAULT NULL");
         } catch (Exception $e) {
             // Spalte existiert bereits, ignoriere Fehler
@@ -519,7 +527,7 @@ function has_permission($permission) {
             // Spalte existiert bereits, ignoriere Fehler
         }
         
-        $stmt = $db->prepare("SELECT is_admin, user_role, is_system_user, can_reservations, can_users, can_settings, can_vehicles, can_atemschutz, can_members, can_ric, can_courses, can_forms FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT is_admin, user_role, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_users, can_settings, can_vehicles, can_reservations_readonly, can_atemschutz_readonly, can_members_readonly, can_ric_readonly, can_courses_readonly, can_forms_readonly FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -564,12 +572,51 @@ function has_permission($permission) {
                 return (bool)($user['can_courses'] ?? 0);
             case 'forms':
                 return (bool)($user['can_forms'] ?? 0);
+            case 'forms_fill':
+                return (bool)($user['can_forms_fill'] ?? 0);
             default:
                 return false;
         }
     } catch (Exception $e) {
         error_log("Permission check error: " . $e->getMessage());
         return false;
+    }
+}
+
+/**
+ * Prüft ob der Benutzer Formulare ausfüllen darf (Formulare ausfüllen ODER Formularcenter)
+ * @return bool
+ */
+function has_form_fill_permission() {
+    return has_permission('forms_fill') || has_permission('forms');
+}
+
+/**
+ * Prüft ob der Benutzer Schreibrechte für eine Berechtigung hat (nicht nur Leserechte)
+ * @param string $permission Berechtigung (reservations, atemschutz, members, ric, courses, forms)
+ * @return bool
+ */
+function has_permission_write($permission) {
+    global $db;
+    if (!isset($_SESSION['user_id'])) return false;
+    if (!has_permission($permission)) return false;
+    $readonly_cols = [
+        'reservations' => 'can_reservations_readonly',
+        'atemschutz' => 'can_atemschutz_readonly',
+        'members' => 'can_members_readonly',
+        'ric' => 'can_ric_readonly',
+        'courses' => 'can_courses_readonly',
+        'forms' => 'can_forms_readonly',
+    ];
+    if (!isset($readonly_cols[$permission])) return true; // z.B. forms_fill hat kein readonly
+    try {
+        $col = $readonly_cols[$permission];
+        $stmt = $db->prepare("SELECT $col FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row && empty($row[$col]); // Schreibrecht wenn readonly=0
+    } catch (Exception $e) {
+        return true; // Bei Fehler Schreibrecht annehmen
     }
 }
 

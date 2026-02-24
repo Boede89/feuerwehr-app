@@ -75,7 +75,9 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    if ($_POST['action'] === 'delete_maengelbericht') {
+    if (!has_permission_write('forms')) {
+        $error = 'Sie haben keine Schreibrechte für das Formularcenter.';
+    } elseif ($_POST['action'] === 'delete_maengelbericht') {
         if (!empty($_SESSION['form_center_csrf']) && isset($_POST['form_center_csrf']) && $_POST['form_center_csrf'] === $_SESSION['form_center_csrf']) {
             try {
                 $db->prepare("DELETE FROM maengelberichte WHERE id = ?")->execute([$id]);
@@ -85,8 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $error = 'Löschen fehlgeschlagen.';
             }
         }
-    }
-    if ($_POST['action'] === 'save_maengelbericht' && validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    } elseif ($_POST['action'] === 'save_maengelbericht' && !$error && validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $standort = trim($_POST['standort'] ?? '');
         $mangel_an = trim($_POST['mangel_an'] ?? '');
         $bezeichnung = trim($_POST['bezeichnung'] ?? '');

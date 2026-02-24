@@ -144,8 +144,11 @@ if (empty($_SESSION['form_center_csrf'])) {
 
 // POST: Formular anlegen/aktualisieren
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) && $_POST['form_center_csrf'] === $_SESSION['form_center_csrf']) {
+    if (!has_permission_write('forms')) {
+        $error = 'Sie haben keine Schreibrechte für das Formularcenter.';
+    }
     $action = $_POST['action'] ?? '';
-    if ($action === 'save_form') {
+    if ($action === 'save_form' && !$error) {
         $form_id = isset($_POST['form_id']) ? (int)$_POST['form_id'] : 0;
         $title = trim($_POST['title'] ?? '');
         $description = trim($_POST['description'] ?? '');

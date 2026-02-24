@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (!has_permission('forms')) {
+if (!has_form_fill_permission()) {
     header('Location: formulare.php?error=no_access');
     exit;
 }
