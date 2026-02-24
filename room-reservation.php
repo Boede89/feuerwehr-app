@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                 try {
                     if ($einheit_id > 0) {
                         $settings = load_settings_for_einheit($db, $einheit_id);
-                        $ids_json = $settings['reservation_notification_user_ids'] ?? '';
+                        $ids_json = $settings['room_reservation_notification_user_ids'] ?? $settings['reservation_notification_user_ids'] ?? '';
                         if ($ids_json !== '') {
                             $ids = json_decode($ids_json, true);
                             if (is_array($ids) && !empty($ids)) {

@@ -75,18 +75,33 @@ try {
     $error = "Fehler beim Laden der Benutzer: " . $e->getMessage();
 }
 
-// Aktuelle E-Mail-Benachrichtigungseinstellungen laden
+// Aktuelle E-Mail-Benachrichtigungseinstellungen laden (Fahrzeug vs. Raum)
 $notification_users = [];
+$room_notification_users = [];
 if ($einheit_id > 0) {
     $json = $settings['reservation_notification_user_ids'] ?? '';
     if ($json !== '') {
         $dec = json_decode($json, true);
         $notification_users = is_array($dec) ? array_map('intval', $dec) : [];
     }
+    $json_room = $settings['room_reservation_notification_user_ids'] ?? '';
+    if ($json_room !== '') {
+        $dec = json_decode($json_room, true);
+        $room_notification_users = is_array($dec) ? array_map('intval', $dec) : [];
+    } else {
+        $room_notification_users = $notification_users; // Fallback: gleiche wie Fahrzeug
+    }
 } else {
     try {
         $stmt = $db->query("SELECT id FROM users WHERE email_notifications = 1 AND is_active = 1");
         $notification_users = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $json_room = $settings['room_reservation_notification_user_ids'] ?? '';
+        if ($json_room !== '') {
+            $dec = json_decode($json_room, true);
+            $room_notification_users = is_array($dec) ? array_map('intval', $dec) : $notification_users;
+        } else {
+            $room_notification_users = $notification_users;
+        }
     } catch (Exception $e) {}
 }
 
@@ -148,6 +163,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($_POST['tab']) && $_POST['tab'] === 'raum'))) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        try {
+            $db->beginTransaction();
+
+            $room_settings = [
+                'room_sort_mode' => sanitize_input($_POST['room_sort_mode'] ?? 'manual'),
+            ];
+
+            if ($einheit_id > 0) {
+                save_settings_bulk_for_einheit($db, $einheit_id, $room_settings);
+                $room_notification_post = $_POST['room_notification_users'] ?? [];
+                save_setting_for_einheit($db, $einheit_id, 'room_reservation_notification_user_ids', json_encode(array_values(array_map('intval', $room_notification_post))));
+                $room_notification_users = $room_notification_post;
+            } else {
+                $stmtUpsert = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+                foreach ($room_settings as $k => $v) {
+                    $stmtUpsert->execute([$k, $v]);
+                }
+                $room_notification_post = $_POST['room_notification_users'] ?? [];
+                $stmtUpsert->execute(['room_reservation_notification_user_ids', json_encode(array_values(array_map('intval', $room_notification_post)))]);
+                $room_notification_users = $room_notification_post;
+            }
+
+            $db->commit();
+            $message = 'Raumreservierungs-Einstellungen gespeichert.';
+
+            $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+            $json_room = $settings['room_reservation_notification_user_ids'] ?? '';
+            if ($json_room !== '' && ($dec = json_decode($json_room, true)) && is_array($dec)) {
+                $room_notification_users = array_map('intval', $dec);
+            }
+        } catch (Exception $e) {
+            try { if ($db->inTransaction()) $db->rollBack(); } catch (Exception $rb) {}
+            $error = 'Fehler beim Speichern: ' . $e->getMessage();
+        }
+    }
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -184,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link <?php echo $active_tab === 'raum' ? 'active' : ''; ?>" href="?tab=raum">
+            <a class="nav-link <?php echo $active_tab === 'raum' ? 'active' : ''; ?>" href="?tab=raum<?php if ($einheit_id > 0): ?>&einheit_id=<?php echo (int)$einheit_id; ?><?php endif; ?>">
                 <i class="fas fa-door-open"></i> Raumreservierung
             </a>
         </li>
@@ -308,11 +364,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
     </form>
     <?php elseif ($active_tab === 'raum'): ?>
-    <div class="card">
-        <div class="card-body">
-            <p class="text-muted mb-0"><i class="fas fa-info-circle me-2"></i>Raumreservierung – In Kürze verfügbar.</p>
+    <form method="POST" action="?tab=raum<?php if ($einheit_id > 0): ?>&einheit_id=<?php echo (int)$einheit_id; ?><?php endif; ?>">
+        <input type="hidden" name="tab" value="raum">
+        <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
+        <div class="card mb-4">
+            <div class="card-header"><i class="fas fa-list-ol"></i> Anzeige und Sortierung</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Sortier-Modus</label>
+                    <select class="form-select" name="room_sort_mode">
+                        <option value="manual" <?php echo (($settings['room_sort_mode'] ?? 'manual')==='manual')?'selected':''; ?>>Manuelle Reihenfolge</option>
+                        <option value="name" <?php echo (($settings['room_sort_mode'] ?? '')==='name')?'selected':''; ?>>Alphabetisch nach Name</option>
+                        <option value="created" <?php echo (($settings['room_sort_mode'] ?? '')==='created')?'selected':''; ?>>Nach Erstellungsdatum</option>
+                    </select>
+                </div>
+                <div class="form-text">
+                    Reihenfolge kann in der <a href="<?php echo $einheit_id > 0 ? 'settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=raeume' : '#'; ?>" target="_blank">Räume-Verwaltung</a> angepasst werden.
+                </div>
+            </div>
         </div>
-    </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <i class="fas fa-envelope"></i> E-Mail-Benachrichtigungen
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    Wählen Sie die Benutzer aus, die per E-Mail über neue Raumreservierungen benachrichtigt werden sollen.
+                </p>
+
+                <div class="row">
+                    <?php foreach ($users as $user): ?>
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       name="room_notification_users[]"
+                                       value="<?php echo htmlspecialchars($user['id']); ?>"
+                                       id="room_user_<?php echo htmlspecialchars($user['id']); ?>"
+                                       <?php echo in_array($user['id'], $room_notification_users) ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="room_user_<?php echo htmlspecialchars($user['id']); ?>">
+                                    <strong><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?></strong>
+                                    <br>
+                                    <small class="text-muted">
+                                        <?php echo htmlspecialchars($user['email']); ?>
+                                        <span class="badge bg-<?php echo ($user['is_admin'] || ($user['user_role'] ?? '') === 'admin') ? 'danger' : 'primary'; ?> ms-1">
+                                            <?php echo ($user['is_admin'] || ($user['user_role'] ?? '') === 'admin') ? 'Admin' : 'User'; ?>
+                                        </span>
+                                    </small>
+                                </label>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <?php if (empty($users)): ?>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Keine Benutzer gefunden.
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end">
+            <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Speichern</button>
+        </div>
+        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+    </form>
     <?php endif; ?>
 </div>
 

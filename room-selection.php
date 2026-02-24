@@ -4,6 +4,7 @@ require_once 'config/database.php';
 require_once 'includes/functions.php';
 require_once __DIR__ . '/includes/einheiten-setup.php';
 require_once __DIR__ . '/includes/rooms-setup.php';
+require_once __DIR__ . '/includes/einheit-settings-helper.php';
 
 $message = '';
 $error = '';
@@ -26,6 +27,8 @@ if ($einheit_id_url > 0) {
 $rooms = [];
 $einheit_filter = $einheit_id_url > 0 ? $einheit_id_url : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : null);
 $einheit_param = $einheit_filter > 0 ? '?einheit_id=' . (int)$einheit_filter : '';
+$room_settings = load_settings_for_einheit($db, $einheit_filter > 0 ? $einheit_filter : null);
+$sort_mode = $room_settings['room_sort_mode'] ?? 'manual';
 try {
     $sql = "SELECT * FROM rooms WHERE is_active = 1";
     $params = [];
@@ -33,7 +36,11 @@ try {
         $sql .= " AND (einheit_id = ? OR einheit_id IS NULL)";
         $params[] = $einheit_filter;
     }
-    $sql .= " ORDER BY sort_order ASC, name ASC";
+    switch ($sort_mode) {
+        case 'name': $sql .= " ORDER BY name ASC"; break;
+        case 'created': $sql .= " ORDER BY created_at ASC"; break;
+        default: $sql .= " ORDER BY sort_order ASC, name ASC"; break;
+    }
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $rooms = $stmt->fetchAll();
