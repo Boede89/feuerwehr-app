@@ -42,6 +42,18 @@ try {
 
 $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
 
+// Fallback: Divera-Gruppen aus globalen Einstellungen laden, wenn für Einheit nicht gesetzt
+if ($einheit_id > 0 && empty($settings['divera_reservation_groups'])) {
+    try {
+        $stmt = $db->query("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_groups', 'divera_reservation_default_group_id')");
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            if (!isset($settings[$row['setting_key']]) || $settings[$row['setting_key']] === '') {
+                $settings[$row['setting_key']] = $row['setting_value'];
+            }
+        }
+    } catch (Exception $e) {}
+}
+
 // Benutzer für E-Mail-Benachrichtigungen laden (nur Benutzer der aktuellen Einheit)
 $users = [];
 try {
@@ -164,6 +176,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
             // Keine Transaktion: DDL in save_setting_for_einheit führt zu implizitem Commit in MySQL
             $room_settings = [
                 'room_sort_mode' => sanitize_input($_POST['room_sort_mode'] ?? 'manual'),
+                'divera_reservation_enabled' => isset($_POST['divera_reservation_enabled']) ? '1' : '0',
+                'google_calendar_reservation_enabled' => isset($_POST['google_calendar_reservation_enabled']) ? '1' : '0',
+                'divera_reservation_default_group_id' => trim((string)($_POST['divera_reservation_default_group_id'] ?? '')),
             ];
 
             if ($einheit_id > 0) {
@@ -371,6 +386,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
                 <div class="form-text">
                     Reihenfolge kann in der <a href="<?php echo $einheit_id > 0 ? 'settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=raeume' : '#'; ?>" target="_blank">Räume-Verwaltung</a> angepasst werden.
                 </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="fas fa-calendar-plus"></i> Terminübergabe bei Genehmigung und Löschung</div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">Wählen Sie, welche Kalender-Systeme bei Genehmigung und Löschung von Reservierungen verwendet werden sollen.</p>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="divera_reservation_enabled" id="divera_reservation_enabled_raum" value="1" <?php echo (($settings['divera_reservation_enabled'] ?? '1') === '1') ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="divera_reservation_enabled_raum">
+                            <strong>Divera 24/7</strong> – Termine an Divera senden und beim Löschen dort entfernen
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="google_calendar_reservation_enabled" id="google_calendar_reservation_enabled_raum" value="1" <?php echo (($settings['google_calendar_reservation_enabled'] ?? '1') === '1') ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="google_calendar_reservation_enabled_raum">
+                            <strong>Google Kalender</strong> – Termine im Google Kalender anlegen und beim Löschen dort entfernen
+                        </label>
+                    </div>
+                </div>
+                <div class="form-text">Beide Optionen können aktiviert sein. Bei Genehmigung werden Termine an die aktivierten Systeme gesendet; beim Löschen werden sie dort entfernt.</div>
+                <?php
+                $divera_groups = [];
+                if (!empty($settings['divera_reservation_groups'])) {
+                    $dec = json_decode($settings['divera_reservation_groups'], true);
+                    $divera_groups = is_array($dec) ? $dec : [];
+                }
+                $default_group_id = trim((string)($settings['divera_reservation_default_group_id'] ?? ''));
+                if (!empty($divera_groups)): ?>
+                <div class="mb-3 mt-3">
+                    <label class="form-label">Standard-Empfänger-Gruppe (Divera)</label>
+                    <select class="form-select" name="divera_reservation_default_group_id">
+                        <option value="">– Keine Vorauswahl –</option>
+                        <?php foreach ($divera_groups as $g):
+                            $gid = (int)($g['id'] ?? 0);
+                            $gval = $gid > 0 ? (string)$gid : '0';
+                            $gname = htmlspecialchars($g['name'] ?? ($gid > 0 ? 'Gruppe ' . $gid : 'Alle des Standortes'));
+                            $glabel = $gid > 0 ? $gname . ' (ID: ' . $gid . ')' : $gname . ' (keine Gruppen-ID)';
+                        ?>
+                        <option value="<?php echo $gval; ?>" <?php echo $default_group_id === $gval ? 'selected' : ''; ?>>
+                            <?php echo $glabel; ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text">Diese Gruppe wird beim Genehmigen standardmäßig ausgewählt. Kann beim Genehmigen geändert werden.</div>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
 
