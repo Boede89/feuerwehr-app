@@ -79,23 +79,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_room_rese
                 $admin_emails = [];
                 try {
                     $einheit_for_mail = (int)($_POST['einheit_id'] ?? $einheit_id);
-                    if ($einheit_for_mail > 0) {
-                        $settings = load_settings_for_einheit($db, $einheit_for_mail);
-                        $ids_json = $settings['room_reservation_notification_user_ids'] ?? $settings['reservation_notification_user_ids'] ?? '';
-                        if ($ids_json !== '') {
-                            $ids = json_decode($ids_json, true);
-                            if (is_array($ids) && !empty($ids)) {
-                                $ph = implode(',', array_fill(0, count($ids), '?'));
-                                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1");
-                                $stmt->execute(array_map('intval', $ids));
-                                $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                            }
+                    $einheit_for_mail = $einheit_for_mail > 0 ? $einheit_for_mail : (int)($selectedRoom['einheit_id'] ?? 0);
+                    $settings = load_settings_for_einheit($db, $einheit_for_mail > 0 ? $einheit_for_mail : null);
+                    $ids_json = $settings['room_reservation_notification_user_ids'] ?? $settings['reservation_notification_user_ids'] ?? '';
+                    if ($ids_json !== '') {
+                        $ids = json_decode($ids_json, true);
+                        if (is_array($ids) && !empty($ids)) {
+                            $ph = implode(',', array_fill(0, count($ids), '?'));
+                            $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1");
+                            $stmt->execute(array_map('intval', $ids));
+                            $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
                         }
-                    }
-                    if (empty($admin_emails)) {
-                        $stmt = $db->prepare("SELECT email FROM users WHERE is_active = 1 AND email_notifications = 1");
-                        $stmt->execute();
-                        $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
                     }
                 } catch (Exception $e) {}
                 $room_name = $selectedRoom['name'] ?? 'Unbekannt';
@@ -211,23 +205,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
             if ($success_count > 0) {
                 $admin_emails = [];
                 try {
-                    if ($einheit_id > 0) {
-                        $settings = load_settings_for_einheit($db, $einheit_id);
-                        $ids_json = $settings['room_reservation_notification_user_ids'] ?? $settings['reservation_notification_user_ids'] ?? '';
-                        if ($ids_json !== '') {
-                            $ids = json_decode($ids_json, true);
-                            if (is_array($ids) && !empty($ids)) {
-                                $ph = implode(',', array_fill(0, count($ids), '?'));
-                                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1");
-                                $stmt->execute(array_map('intval', $ids));
-                                $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                            }
+                    $einheit_for_mail = $einheit_id > 0 ? $einheit_id : (int)($selectedRoom['einheit_id'] ?? 0);
+                    $settings = load_settings_for_einheit($db, $einheit_for_mail > 0 ? $einheit_for_mail : null);
+                    $ids_json = $settings['room_reservation_notification_user_ids'] ?? $settings['reservation_notification_user_ids'] ?? '';
+                    if ($ids_json !== '') {
+                        $ids = json_decode($ids_json, true);
+                        if (is_array($ids) && !empty($ids)) {
+                            $ph = implode(',', array_fill(0, count($ids), '?'));
+                            $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1");
+                            $stmt->execute(array_map('intval', $ids));
+                            $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
                         }
-                    }
-                    if (empty($admin_emails)) {
-                        $stmt = $db->prepare("SELECT email FROM users WHERE is_active = 1 AND email_notifications = 1");
-                        $stmt->execute();
-                        $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
                     }
                 } catch (Exception $e) {}
 

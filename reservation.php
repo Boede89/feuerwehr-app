@@ -84,26 +84,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservati
                 
                 echo '<script>console.log("✅ Konflikt-Reservierung erfolgreich gespeichert - Sende E-Mails");</script>';
                 
-                // E-Mail an Admins und Genehmiger (einheitsspezifisch oder global)
+                // E-Mail nur an explizit ausgewählte Benutzer (settings-reservations Fahrzeug-Tab)
                 $admin_emails = [];
                 try {
-                    if ($res_einheit > 0) {
-                        $settings = load_settings_for_einheit($db, $res_einheit);
-                        $ids_json = $settings['reservation_notification_user_ids'] ?? '';
-                        if ($ids_json !== '') {
-                            $ids = json_decode($ids_json, true);
-                            if (is_array($ids) && !empty($ids)) {
-                                $ph = implode(',', array_fill(0, count($ids), '?'));
-                                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1");
-                                $stmt->execute(array_map('intval', $ids));
-                                $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                            }
-                        }
+                    if ($res_einheit <= 0) {
+                        $stmt_v = $db->prepare("SELECT einheit_id FROM vehicles WHERE id = ?");
+                        $stmt_v->execute([$vehicle_id]);
+                        $res_einheit = (int)($stmt_v->fetchColumn() ?: 0);
                     }
-                    if (empty($admin_emails)) {
-                        $stmt = $db->prepare("SELECT email FROM users WHERE is_active = 1 AND email_notifications = 1");
-                        $stmt->execute();
-                        $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    $settings = load_settings_for_einheit($db, $res_einheit > 0 ? $res_einheit : null);
+                    $ids_json = $settings['reservation_notification_user_ids'] ?? '';
+                    if ($ids_json !== '') {
+                        $ids = json_decode($ids_json, true);
+                        if (is_array($ids) && !empty($ids)) {
+                            $ph = implode(',', array_fill(0, count($ids), '?'));
+                            $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1");
+                            $stmt->execute(array_map('intval', $ids));
+                            $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                        }
                     }
                     echo '<script>console.log("🔍 Admin-E-Mails gefunden:", ' . count($admin_emails) . ');</script>';
                 } catch (Exception $e) {
@@ -382,12 +380,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             if ($success_count > 0) {
                 echo '<script>console.log("✅ Reservierungen erfolgreich gespeichert - Sende E-Mails");</script>';
                 
-                // E-Mail an Admins und Genehmiger mit aktivierten Benachrichtigungen senden
+                // E-Mail nur an explizit ausgewählte Benutzer (settings-reservations Fahrzeug-Tab)
                 $admin_emails = [];
                 try {
-                    $stmt = $db->prepare("SELECT email FROM users WHERE is_active = 1 AND email_notifications = 1");
-                    $stmt->execute();
-                    $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    $res_einheit = (int)($_POST['einheit_id'] ?? $einheit_id);
+                    if ($res_einheit <= 0 && !empty($vehicle_ids)) {
+                        $stmt_v = $db->prepare("SELECT einheit_id FROM vehicles WHERE id = ?");
+                        $stmt_v->execute([$vehicle_ids[0]]);
+                        $res_einheit = (int)($stmt_v->fetchColumn() ?: 0);
+                    }
+                    $settings = load_settings_for_einheit($db, $res_einheit > 0 ? $res_einheit : null);
+                    $ids_json = $settings['reservation_notification_user_ids'] ?? '';
+                    if ($ids_json !== '') {
+                        $ids = json_decode($ids_json, true);
+                        if (is_array($ids) && !empty($ids)) {
+                            $ph = implode(',', array_fill(0, count($ids), '?'));
+                            $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1");
+                            $stmt->execute(array_map('intval', $ids));
+                            $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                        }
+                    }
                     echo '<script>console.log("🔍 Admin-E-Mails gefunden:", ' . count($admin_emails) . ');</script>';
                 } catch (Exception $e) {
                     echo '<script>console.log("❌ Fehler beim Laden der Admin-E-Mails:", ' . json_encode($e->getMessage()) . ');</script>';
