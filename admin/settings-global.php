@@ -238,15 +238,8 @@ if ($einheit_id > 0) {
             $divera_debug_payloads = is_array($dec) ? $dec : [];
         }
     } catch (Exception $e) {}
+    // API Debug: nur Einheits-Key verwenden, kein Fallback auf Benutzer-Key (sonst würden Daten anderer Einheiten angezeigt)
     $divera_key = trim((string) ($settings['divera_access_key'] ?? ''));
-    if ($divera_key === '' && isset($_SESSION['user_id'])) {
-        try {
-            $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-            $stmt->execute([$_SESSION['user_id']]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            $divera_key = trim((string) ($row['divera_access_key'] ?? ''));
-        } catch (Exception $e) {}
-    }
     $api_base = rtrim(trim((string) ($settings['divera_api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
     $divera_api_debug = [
         'has_key' => $divera_key !== '',
