@@ -320,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
             <div class="modal-body">
                 <p>Möchten Sie den Mängelbericht speichern?</p>
                 <div class="form-check mt-2">
-                    <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" checked>
+                    <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" <?php echo (($settings['maengelbericht_print_after_save_default'] ?? '1') === '1') ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="cbPrintAfterSave">Nach Speichern drucken</label>
                 </div>
             </div>

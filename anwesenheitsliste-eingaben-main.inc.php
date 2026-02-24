@@ -1417,19 +1417,24 @@ if ($is_einsatz) {
                         </div>
                         <div class="mt-3 pt-2 border-top">
                             <label class="form-label small mb-2">Nach Speichern drucken:</label>
+                            <?php
+                            $print_al_default = (($unit_settings['anwesenheitsliste_print_after_save_default'] ?? '1') === '1');
+                            $print_mb_default = (($unit_settings['maengelbericht_print_after_save_default'] ?? '1') === '1');
+                            $print_gwm_default = (($unit_settings['geraetewartmitteilung_print_after_save_default'] ?? '1') === '1');
+                            ?>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" checked>
+                                <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" <?php echo $print_al_default ? 'checked' : ''; ?>>
                                 <label class="form-check-label" for="cbPrintAfterSave">Anwesenheitsliste</label>
                             </div>
                             <?php if (!empty($draft['maengel']) && is_array($draft['maengel'])): ?>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="cbPrintMaengelberichtAfterSave" checked>
+                                <input class="form-check-input" type="checkbox" id="cbPrintMaengelberichtAfterSave" <?php echo $print_mb_default ? 'checked' : ''; ?>>
                                 <label class="form-check-label" for="cbPrintMaengelberichtAfterSave">Mängelbericht(e)</label>
                             </div>
                             <?php endif; ?>
                             <?php $has_vehicles_for_gwm = !empty($draft['vehicles']) || !empty(array_filter($draft['member_vehicle'] ?? [])); if ($has_vehicles_for_gwm): ?>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="cbPrintGeraetewartmitteilungAfterSave" checked>
+                                <input class="form-check-input" type="checkbox" id="cbPrintGeraetewartmitteilungAfterSave" <?php echo $print_gwm_default ? 'checked' : ''; ?>>
                                 <label class="form-check-label" for="cbPrintGeraetewartmitteilungAfterSave">Gerätewartmitteilung</label>
                             </div>
                             <?php endif; ?>

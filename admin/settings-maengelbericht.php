@@ -44,6 +44,7 @@ $standort_default = trim($settings[$form_key . '_standort_default'] ?? '');
 if (!in_array($standort_default, $standort_options)) $standort_default = $standort_options[0];
 $mangel_an_default = trim($settings[$form_key . '_mangel_an_default'] ?? '');
 if (!in_array($mangel_an_default, $mangel_an_options)) $mangel_an_default = $mangel_an_options[0];
+$print_after_save_default = ($settings[$form_key . '_print_after_save_default'] ?? '1') === '1';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -70,11 +71,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mangelAnDef = trim($_POST['mangel_an_default'] ?? '');
             if (!in_array($mangelAnDef, ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'])) $mangelAnDef = 'Gebäude';
             $save_fn($form_key . '_mangel_an_default', $mangelAnDef);
+            $save_fn($form_key . '_print_after_save_default', isset($_POST['print_after_save_default']) ? '1' : '0');
             $email_auto = isset($_POST['email_auto']);
             $email_recipients = $recipients;
             $email_manual = $manual;
             $standort_default = $standortDef;
             $mangel_an_default = $mangelAnDef;
+            $print_after_save_default = isset($_POST['print_after_save_default']);
             $message = 'Einstellungen gespeichert.';
         } catch (Exception $e) {
             $error = 'Fehler: ' . $e->getMessage();
@@ -136,6 +139,10 @@ $back_target = $return_formularcenter ? ' target="_parent"' : '';
                     <?php endforeach; ?>
                 </select>
                 <small class="text-muted">Wird beim Ausfüllen des Mängelberichts vorausgewählt.</small>
+            </div>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" name="print_after_save_default" id="print_after_save_default" value="1" <?php echo $print_after_save_default ? 'checked' : ''; ?>>
+                <label class="form-check-label" for="print_after_save_default">„Nach Speichern drucken“ standardmäßig aktiv – beim Speichern ist der Haken bei Drucken vorausgewählt</label>
             </div>
         </div>
         <div class="card-header"><i class="fas fa-envelope"></i> E-Mail-Versand nach Absenden</div>
