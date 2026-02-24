@@ -2083,7 +2083,8 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
     $group_ids = isset($reservation['_divera_group_ids']) && is_array($reservation['_divera_group_ids'])
         ? array_map('intval', array_filter($reservation['_divera_group_ids']))
         : [];
-    $use_groups = !empty($group_ids);
+    // Bei Raumreservierungen: keine Gruppen, kein address – minimale Payload für Divera-Kompatibilität
+    $use_groups = !$is_room && !empty($group_ids);
     $reservation_id = (int) ($reservation['id'] ?? 0);
     $event = [
         'notification_type' => $use_groups ? 3 : 2,
@@ -2091,7 +2092,6 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
         'ts_start'          => $start_ts,
         'ts_end'            => $end_ts,
     ];
-    // address nur bei Fahrzeugreservierungen mitsenden – bei Räumen kann Divera sonst keine Antwort liefern
     if (!$is_room) {
         $event['address'] = trim($reservation['location'] ?? '');
     }
@@ -2105,25 +2105,57 @@ function send_reservation_to_divera($reservation, $access_key, $api_base_url = '
     if ($use_groups) {
         $body['usingGroups'] = $group_ids;
     }
-    log_divera_debug_payload($body, 'reservation');
+    log_divera_debug_payload($body, $is_room ? 'room_reservation' : 'reservation');
     $url = $base . '/api/v2/events?accesskey=' . urlencode($access_key);
-    $ctx = stream_context_create([
-        'http' => [
-            'method'  => 'POST',
-            'header'  => "Content-Type: application/json\r\n",
-            'content' => json_encode($body),
-            'timeout' => 15,
-        ],
-    ]);
-    $raw = @file_get_contents($url, false, $ctx);
+    $json_body = json_encode($body);
+
+    $raw = '';
     $code = 0;
-    if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) {
-        $code = (int) $m[1];
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        if ($ch) {
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $json_body,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 20,
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: application/json',
+                    'Accept: application/json',
+                    'Content-Length: ' . strlen($json_body),
+                ],
+            ]);
+            $raw = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curl_err = curl_error($ch);
+            curl_close($ch);
+            if ($curl_err !== '') {
+                error_log('Divera POST cURL-Fehler: ' . $curl_err . ' (Reservierung-ID: ' . $reservation_id . ')');
+                $divera_error = ['code' => 0, 'message' => 'Verbindungsfehler: ' . $curl_err];
+                return false;
+            }
+        }
+    }
+    if ($code === 0) {
+        $ctx = stream_context_create([
+            'http' => [
+                'method'  => 'POST',
+                'header'  => "Content-Type: application/json\r\nContent-Length: " . strlen($json_body) . "\r\n",
+                'content' => $json_body,
+                'timeout' => 20,
+            ],
+        ]);
+        $raw = @file_get_contents($url, false, $ctx);
+        if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) {
+            $code = (int) $m[1];
+        }
     }
     $data = is_string($raw) ? json_decode($raw, true) : null;
     // Response immer loggen (Erfolg und Fehler), damit in „Letzte API-Anfragen“ die Divera-Antwort sichtbar ist
     if (is_string($raw) && $raw !== '') {
         log_divera_debug_response($raw, $code >= 200 && $code < 300 ? 'create' : 'create_failed');
+    } elseif ($raw === false || $raw === '') {
+        log_divera_debug_response('(leere Antwort oder Verbindungsfehler)', 'create_failed');
     }
     // Erfolgsprüfung wie im Formular: nur HTTP 2xx (Formular prüft nicht auf data.success)
     $success = $code >= 200 && $code < 300;
