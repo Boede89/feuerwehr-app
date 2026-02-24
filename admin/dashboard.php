@@ -23,6 +23,8 @@ try {
 
 // Functions laden für Berechtigungsprüfungen
 require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
+require_once __DIR__ . '/../includes/rooms-setup.php';
 
 // Dashboard-Einstellungen Tabelle erstellen
 try {
@@ -48,18 +50,21 @@ if (!isset($_SESSION["user_id"])) {
     exit();
 }
 
-// Einheit muss gewählt sein
+// Einheit muss gewählt sein (unit_id aus unit-select ODER einheit_id aus Einheiten-System)
 $current_unit_id = function_exists('get_current_unit_id') ? get_current_unit_id() : null;
-if (!$current_unit_id) {
+$current_einheit_id = function_exists('get_current_einheit_id') ? get_current_einheit_id() : null;
+if (!$current_unit_id && !$current_einheit_id) {
     echo '<script>window.location.href = "../unit-select.php";</script>';
     exit();
 }
+// Einheit für Abfragen: einheit_id hat Vorrang (Einheiten-System), sonst unit_id
+$effective_unit_id = $current_einheit_id ?: $current_unit_id ?: 1;
 
 // Dashboard-Einstellungen laden
 $dashboard_preferences = [];
 try {
     $stmt = $db->prepare("SELECT section_name, is_collapsed FROM dashboard_preferences WHERE user_id = ? AND COALESCE(unit_id, 1) = ?");
-    $stmt->execute([$_SESSION['user_id'], $current_unit_id]);
+    $stmt->execute([$_SESSION['user_id'], $effective_unit_id]);
 } catch (Exception $e) {
     try {
         $stmt = $db->prepare("SELECT section_name, is_collapsed FROM dashboard_preferences WHERE user_id = ?");
@@ -168,19 +173,19 @@ $pending_reservations = [];
 $pending_room_reservations = [];
 if ($can_reservations) {
     try {
-        $unit_or_einheit = function_exists('get_current_einheit_id') && get_current_einheit_id() ? get_current_einheit_id() : $current_unit_id;
         $stmt = $db->prepare("
             SELECT r.*, v.name as vehicle_name
             FROM reservations r 
             JOIN vehicles v ON r.vehicle_id = v.id 
             WHERE r.status = 'pending' 
-            AND COALESCE(r.unit_id, 1) = ? AND COALESCE(v.unit_id, 1) = ?
+            AND (COALESCE(r.unit_id, r.einheit_id, 1) = ?)
+            AND (COALESCE(v.unit_id, v.einheit_id, 1) = ?)
             ORDER BY r.created_at DESC 
             LIMIT 10
         ");
-        $stmt->execute([$current_unit_id, $current_unit_id]);
+        $stmt->execute([$effective_unit_id, $effective_unit_id]);
         $pending_reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        // Raum-Reservierungen laden
+        // Raum-Reservierungen laden (nutzt einheit_id)
         try {
             $stmt_room = $db->prepare("
                 SELECT rr.*, ro.name as room_name
@@ -191,7 +196,7 @@ if ($can_reservations) {
                 ORDER BY rr.created_at DESC
                 LIMIT 10
             ");
-            $stmt_room->execute([$unit_or_einheit, $unit_or_einheit]);
+            $stmt_room->execute([$effective_unit_id, $effective_unit_id]);
             $pending_room_reservations = $stmt_room->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) { /* Tabelle evtl. noch nicht vorhanden */ }
         echo '<script>console.log("🔍 Reservierungen geladen:", ' . count($pending_reservations) . ');</script>';
@@ -267,11 +272,11 @@ if ($can_atemschutz) {
                         LEFT JOIN users u ON ae.requester_id = u.id
                         LEFT JOIN atemschutz_entry_traeger aet ON ae.id = aet.entry_id
                         LEFT JOIN atemschutz_traeger at ON aet.traeger_id = at.id
-                        WHERE ae.status = 'pending' AND COALESCE(ae.unit_id, 1) = ?
+                        WHERE ae.status = 'pending' AND (COALESCE(ae.unit_id, ae.einheit_id, 1) = ?)
                         GROUP BY ae.id
                         ORDER BY ae.created_at DESC
                     ");
-        $stmt->execute([$current_unit_id]);
+        $stmt->execute([$effective_unit_id]);
         $atemschutz_entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         error_log("Atemschutzeintrag-Anträge geladen: " . count($atemschutz_entries));
@@ -373,10 +378,10 @@ if ($can_atemschutz) {
                        ROW_NUMBER() OVER (PARTITION BY traeger_id ORDER BY sent_at DESC) as rn
                 FROM email_log
             ) el ON t.id = el.traeger_id AND el.rn = 1
-            WHERE t.status = 'Aktiv' AND COALESCE(t.unit_id, 1) = ?
+            WHERE t.status = 'Aktiv' AND (COALESCE(t.unit_id, t.einheit_id, 1) = ?)
             ORDER BY t.last_name ASC, t.first_name ASC
         ");
-        $stmt->execute([$current_unit_id]);
+        $stmt->execute([$effective_unit_id]);
         $all_traeger = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Filtere nur die wirklich auffälligen Geräteträger
