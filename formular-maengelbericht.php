@@ -23,6 +23,7 @@ if ($einheit_id <= 0 && isset($_SESSION['user_id'])) {
     $einheit_id = $row ? (int)($row['einheit_id'] ?? 0) : 0;
 }
 if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
+$einheit_param = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : '';
 
 // Tabelle anlegen
 try {
@@ -203,22 +204,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="index.php"><i class="fas fa-fire"></i> Feuerwehr App</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"><span class="navbar-toggler-icon"></span></button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="index.php"><i class="fas fa-home"></i> Startseite</a></li>
-                    <li class="nav-item"><a class="nav-link" href="formulare.php"><i class="fas fa-file-alt"></i> Formulare</a></li>
-                    <?php if (!is_system_user()): ?><li class="nav-item"><a class="nav-link" href="admin/dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li><?php endif; ?>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown"><i class="fas fa-user"></i> <?php echo htmlspecialchars(trim($_SESSION['first_name'] . ' ' . $_SESSION['last_name'])); ?></a>
-                        <ul class="dropdown-menu">
-                            <?php if (!is_system_user()): ?><li><a class="dropdown-item" href="admin/profile.php"><i class="fas fa-user-edit"></i> Profil</a></li><li><hr class="dropdown-divider"></li><?php endif; ?>
-                            <li><a class="dropdown-item" href="logout.php"><i class="fas fa-sign-out-alt"></i> Abmelden</a></li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
+            <a class="navbar-brand" href="index.php<?php echo $einheit_param; ?>"><i class="fas fa-fire"></i> Feuerwehr App</a>
+            <?php if (isset($_SESSION['user_id']) && !is_system_user()): ?>
+                <div class="d-flex ms-auto">
+                <?php
+                $admin_menu_in_navbar = true;
+                $admin_menu_base = 'admin/';
+                $admin_menu_logout = 'logout.php';
+                $admin_menu_index = 'index.php' . $einheit_param;
+                include __DIR__ . '/admin/includes/admin-menu.inc.php';
+                ?>
+                </div>
+            <?php else: ?>
+                <?php if (!isset($_SESSION['user_id'])): ?>
+                <div class="d-flex ms-auto align-items-center">
+                    <a class="btn btn-outline-light btn-sm px-3 py-2 d-flex align-items-center gap-2" href="login.php">
+                        <i class="fas fa-sign-in-alt"></i>
+                        <span class="fw-semibold">Anmelden</span>
+                    </a>
+                </div>
+                <?php endif; ?>
+            <?php endif; ?>
         </div>
     </nav>
 <main class="container mt-4">

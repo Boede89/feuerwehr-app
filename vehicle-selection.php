@@ -27,6 +27,7 @@ if ($einheit_id_url > 0) {
 // Fahrzeuge laden mit Sortierung (gefiltert nach Einheit)
 $vehicles = [];
 $einheit_filter = $einheit_id_url > 0 ? $einheit_id_url : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : null);
+$einheit_param = $einheit_filter > 0 ? '?einheit_id=' . (int)$einheit_filter : '';
 try {
     // Sortier-Modus aus Einstellungen laden
     $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'vehicle_sort_mode'");
@@ -74,44 +75,29 @@ try {
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="index.php">
+            <a class="navbar-brand" href="index.php<?php echo $einheit_param; ?>">
                 <i class="fas fa-fire"></i> Feuerwehr App
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="index.php">
-                            <i class="fas fa-home"></i> Startseite
-                        </a>
-                    </li>
-                    <?php if (is_logged_in()): ?>
-                        <li class="nav-item">
-                            <a class="nav-link" href="admin/dashboard.php">
-                                <i class="fas fa-tachometer-alt"></i> Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>
-                            </a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="admin/profile.php"><i class="fas fa-user-edit"></i> Profil</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="logout.php"><i class="fas fa-sign-out-alt"></i> Abmelden</a></li>
-                            </ul>
-                        </li>
-                    <?php else: ?>
-                        <li class="nav-item">
-                            <a class="nav-link" href="login.php">
-                                <i class="fas fa-sign-in-alt"></i> Anmelden
-                            </a>
-                        </li>
-                    <?php endif; ?>
-                </ul>
-            </div>
+            <?php if (isset($_SESSION['user_id']) && !is_system_user()): ?>
+                <div class="d-flex ms-auto">
+                <?php
+                $admin_menu_in_navbar = true;
+                $admin_menu_base = 'admin/';
+                $admin_menu_logout = 'logout.php';
+                $admin_menu_index = 'index.php' . $einheit_param;
+                include __DIR__ . '/admin/includes/admin-menu.inc.php';
+                ?>
+                </div>
+            <?php else: ?>
+                <?php if (!isset($_SESSION['user_id'])): ?>
+                <div class="d-flex ms-auto align-items-center">
+                    <a class="btn btn-outline-light btn-sm px-3 py-2 d-flex align-items-center gap-2" href="login.php">
+                        <i class="fas fa-sign-in-alt"></i>
+                        <span class="fw-semibold">Anmelden</span>
+                    </a>
+                </div>
+                <?php endif; ?>
+            <?php endif; ?>
         </div>
     </nav>
 
