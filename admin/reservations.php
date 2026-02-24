@@ -25,6 +25,13 @@ if (!has_permission('reservations') && !can_approve_reservations()) {
 
 $message = '';
 $error = '';
+// Nach Redirect: msg/err aus URL übernehmen
+if (!empty($_GET['msg'])) {
+    $message = $_GET['msg'];
+}
+if (!empty($_GET['err'])) {
+    $error = $_GET['err'];
+}
 
 /**
  * Löscht eine bearbeitete Reservierung inkl. Divera- und Google-Calendar-Sync.
@@ -197,16 +204,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
                 $stmt = $db->prepare("DELETE FROM room_reservations WHERE id = ?");
                 $stmt->execute([$reservation_id]);
                 $message = "Raumreservierung erfolgreich gelöscht.";
+                header("Location: reservations.php?tab=raeume&msg=" . urlencode($message));
+                exit;
             } else {
                 $error = "Nur bearbeitete Raumreservierungen können gelöscht werden.";
+                header("Location: reservations.php?tab=raeume&err=" . urlencode($error));
+                exit;
             }
         } elseif (delete_reservation_with_cleanup($db, $reservation_id)) {
             $message = "Reservierung erfolgreich gelöscht.";
+            header("Location: reservations.php?tab=fahrzeuge&msg=" . urlencode($message));
+            exit;
         } else {
             $error = "Nur bearbeitete Reservierungen können gelöscht werden.";
+            header("Location: reservations.php?tab=fahrzeuge&err=" . urlencode($error));
+            exit;
         }
     } catch (Exception $e) {
         $error = "Fehler beim Löschen: " . $e->getMessage();
+        $tab = !empty($_POST['is_room']) ? 'raeume' : 'fahrzeuge';
+        header("Location: reservations.php?tab=" . $tab . "&err=" . urlencode($error));
+        exit;
     }
 }
 
@@ -525,15 +543,16 @@ try {
         <div class="row">
             <div class="col-12">
                 <div class="card shadow">
+                    <?php $active_tab = (isset($_GET['tab']) && $_GET['tab'] === 'raeume') ? 'raeume' : 'fahrzeuge'; ?>
                     <div class="card-header">
                         <ul class="nav nav-tabs card-header-tabs" role="tablist">
                             <li class="nav-item">
-                                <a class="nav-link active" data-bs-toggle="tab" href="#tabFahrzeuge">
+                                <a class="nav-link <?php echo $active_tab === 'fahrzeuge' ? 'active' : ''; ?>" data-bs-toggle="tab" href="#tabFahrzeuge">
                                     <i class="fas fa-truck"></i> Fahrzeuge (<?php echo count($reservations); ?>)
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" data-bs-toggle="tab" href="#tabRaeume">
+                                <a class="nav-link <?php echo $active_tab === 'raeume' ? 'active' : ''; ?>" data-bs-toggle="tab" href="#tabRaeume">
                                     <i class="fas fa-door-open"></i> Räume (<?php echo count($room_reservations); ?>)
                                 </a>
                             </li>
@@ -541,7 +560,7 @@ try {
                     </div>
                     <div class="card-body">
                         <div class="tab-content">
-                            <div class="tab-pane fade show active" id="tabFahrzeuge">
+                            <div class="tab-pane fade <?php echo $active_tab === 'fahrzeuge' ? 'show active' : ''; ?>" id="tabFahrzeuge">
                         <?php if (empty($reservations)): ?>
                             <div class="text-center py-5">
                                 <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
@@ -675,7 +694,7 @@ try {
                             </div>
                         <?php endif; ?>
                             </div>
-                            <div class="tab-pane fade" id="tabRaeume">
+                            <div class="tab-pane fade <?php echo $active_tab === 'raeume' ? 'show active' : ''; ?>" id="tabRaeume">
                         <?php if (empty($room_reservations)): ?>
                             <div class="text-center py-5">
                                 <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
