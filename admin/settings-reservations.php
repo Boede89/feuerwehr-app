@@ -42,17 +42,7 @@ try {
 
 $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
 
-// Fallback: Divera-Gruppen aus globalen Einstellungen laden, wenn für Einheit nicht gesetzt
-if ($einheit_id > 0 && empty($settings['divera_reservation_groups'])) {
-    try {
-        $stmt = $db->query("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('divera_reservation_groups', 'divera_reservation_default_group_id')");
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            if (!isset($settings[$row['setting_key']]) || $settings[$row['setting_key']] === '') {
-                $settings[$row['setting_key']] = $row['setting_value'];
-            }
-        }
-    } catch (Exception $e) {}
-}
+// Kein Fallback auf globale Divera-Einstellungen – jede Einheit hat eigene Konfiguration.
 
 // Benutzer für E-Mail-Benachrichtigungen laden (nur Benutzer der aktuellen Einheit)
 $users = [];
@@ -300,9 +290,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
                     $divera_groups = is_array($dec) ? $dec : [];
                 }
                 $default_group_id = trim((string)($settings['divera_reservation_default_group_id'] ?? ''));
-                if (!empty($divera_groups)): ?>
+                ?>
                 <div class="mb-3 mt-3">
                     <label class="form-label">Standard-Empfänger-Gruppe (Divera)</label>
+                    <?php if (!empty($divera_groups)): ?>
                     <select class="form-select" name="divera_reservation_default_group_id">
                         <option value="">– Keine Vorauswahl –</option>
                         <?php foreach ($divera_groups as $g):
@@ -317,8 +308,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
                         <?php endforeach; ?>
                     </select>
                     <div class="form-text">Diese Gruppe wird beim Genehmigen standardmäßig ausgewählt. Kann beim Genehmigen geändert werden.</div>
+                    <?php else: ?>
+                    <p class="text-muted small mb-0">Bitte zuerst in den <a href="settings-global.php?einheit_id=<?php echo (int)$einheit_id; ?>&tab=divera">Einstellungen (Divera-Tab)</a> die Divera-Gruppen für diese Einheit konfigurieren.</p>
+                    <input type="hidden" name="divera_reservation_default_group_id" value="">
+                    <?php endif; ?>
                 </div>
-                <?php endif; ?>
             </div>
         </div>
 
@@ -411,31 +405,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
                 </div>
                 <div class="form-text">Beide Optionen können aktiviert sein. Bei Genehmigung werden Termine an die aktivierten Systeme gesendet; beim Löschen werden sie dort entfernt.</div>
                 <?php
-                $divera_groups = [];
+                $divera_groups_room = [];
                 if (!empty($settings['divera_reservation_groups'])) {
                     $dec = json_decode($settings['divera_reservation_groups'], true);
-                    $divera_groups = is_array($dec) ? $dec : [];
+                    $divera_groups_room = is_array($dec) ? $dec : [];
                 }
-                $default_group_id = trim((string)($settings['room_divera_reservation_default_group_id'] ?? ''));
-                if (!empty($divera_groups)): ?>
+                $default_group_id_room = trim((string)($settings['room_divera_reservation_default_group_id'] ?? ''));
+                ?>
                 <div class="mb-3 mt-3">
                     <label class="form-label">Standard-Empfänger-Gruppe (Divera)</label>
+                    <?php if (!empty($divera_groups_room)): ?>
                     <select class="form-select" name="room_divera_reservation_default_group_id">
                         <option value="">– Keine Vorauswahl –</option>
-                        <?php foreach ($divera_groups as $g):
+                        <?php foreach ($divera_groups_room as $g):
                             $gid = (int)($g['id'] ?? 0);
                             $gval = $gid > 0 ? (string)$gid : '0';
                             $gname = htmlspecialchars($g['name'] ?? ($gid > 0 ? 'Gruppe ' . $gid : 'Alle des Standortes'));
                             $glabel = $gid > 0 ? $gname . ' (ID: ' . $gid . ')' : $gname . ' (keine Gruppen-ID)';
                         ?>
-                        <option value="<?php echo $gval; ?>" <?php echo $default_group_id === $gval ? 'selected' : ''; ?>>
+                        <option value="<?php echo $gval; ?>" <?php echo $default_group_id_room === $gval ? 'selected' : ''; ?>>
                             <?php echo $glabel; ?>
                         </option>
                         <?php endforeach; ?>
                     </select>
                     <div class="form-text">Diese Gruppe wird beim Genehmigen standardmäßig ausgewählt. Kann beim Genehmigen geändert werden.</div>
+                    <?php else: ?>
+                    <p class="text-muted small mb-0">Bitte zuerst in den <a href="settings-global.php?einheit_id=<?php echo (int)$einheit_id; ?>&tab=divera">Einstellungen (Divera-Tab)</a> die Divera-Gruppen für diese Einheit konfigurieren.</p>
+                    <input type="hidden" name="room_divera_reservation_default_group_id" value="">
+                    <?php endif; ?>
                 </div>
-                <?php endif; ?>
             </div>
         </div>
 

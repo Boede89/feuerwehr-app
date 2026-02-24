@@ -300,7 +300,9 @@ try {
         try {
             $subject = "✅ Reservierung genehmigt - " . $reservation['requester_name'];
             $message = createApprovalEmailHTML($reservation);
-            send_email($reservation['requester_email'], $subject, $message, '', true);
+            if ($reservation_einheit_id > 0) {
+                send_email_for_einheit($reservation['requester_email'], $subject, $message, $reservation_einheit_id, true);
+            }
             log_activity($_SESSION['user_id'], 'reservation_approved', "Reservierung #$reservation_id genehmigt");
         } catch (Throwable $e) {
             error_log("E-Mail/Log nach Genehmigung fehlgeschlagen (Reservierung trotzdem genehmigt): " . $e->getMessage());
@@ -329,8 +331,9 @@ try {
         // E-Mail an Antragsteller senden
         $subject = "❌ Reservierung abgelehnt - " . $reservation['requester_name'];
         $message = createRejectionEmailHTML($reservation, $reason);
-        
-        send_email($reservation['requester_email'], $subject, $message, '', true);
+        if ($reservation_einheit_id > 0) {
+            send_email_for_einheit($reservation['requester_email'], $subject, $message, $reservation_einheit_id, true);
+        }
         
         // Aktivitätslog
         log_activity($_SESSION['user_id'], 'reservation_rejected', "Reservierung #$reservation_id abgelehnt: $reason");
@@ -372,17 +375,19 @@ try {
                     // Sende Stornierungs-E-Mail
                     $subject = "❌ Reservierung storniert - " . $cancelled_reservation['requester_name'];
                     $message = createCancellationEmailHTML($cancelled_reservation);
-                    send_email($cancelled_reservation['requester_email'], $subject, $message, '', true);
-                    
-                    // Terminübergabe-Einstellungen für Löschung (Fahrzeug)
-                    $divera_reservation_enabled = false;
-                    $google_calendar_reservation_enabled = false;
                     $cancelled_einheit_id = (int)($cancelled_reservation['einheit_id'] ?? 0);
                     if ($cancelled_einheit_id <= 0 && !empty($cancelled_reservation['vehicle_id'])) {
                         $stmt_v = $db->prepare("SELECT einheit_id FROM vehicles WHERE id = ?");
                         $stmt_v->execute([$cancelled_reservation['vehicle_id']]);
                         $cancelled_einheit_id = (int)($stmt_v->fetchColumn() ?: 0);
                     }
+                    if ($cancelled_einheit_id > 0) {
+                        send_email_for_einheit($cancelled_reservation['requester_email'], $subject, $message, $cancelled_einheit_id, true);
+                    }
+                    
+                    // Terminübergabe-Einstellungen für Löschung (Fahrzeug)
+                    $divera_reservation_enabled = false;
+                    $google_calendar_reservation_enabled = false;
                     if ($cancelled_einheit_id > 0) {
                         $stmt_set = $db->prepare("SELECT setting_key, setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key IN ('divera_reservation_enabled', 'google_calendar_reservation_enabled')");
                         $stmt_set->execute([$cancelled_einheit_id]);
@@ -583,7 +588,9 @@ try {
         try {
             $subject = "✅ Reservierung genehmigt - " . $reservation['requester_name'];
             $message = createApprovalEmailHTML($reservation);
-            send_email($reservation['requester_email'], $subject, $message, '', true);
+            if ($reservation_einheit_id > 0) {
+                send_email_for_einheit($reservation['requester_email'], $subject, $message, $reservation_einheit_id, true);
+            }
             log_activity($_SESSION['user_id'], 'reservation_approved', "Reservierung #$reservation_id genehmigt mit Konfliktlösung");
         } catch (Throwable $e) {
             error_log("E-Mail/Log nach Genehmigung (Konfliktlösung) fehlgeschlagen: " . $e->getMessage());

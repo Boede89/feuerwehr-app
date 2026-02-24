@@ -85,7 +85,10 @@ try {
 
         $subject = "✅ Raumreservierung genehmigt - " . $reservation['requester_name'];
         $message = createRoomApprovalEmailHTML($reservation);
-        send_email($reservation['requester_email'], $subject, $message, '', true);
+        $einheit_id = (int)($reservation['einheit_id'] ?? 0);
+        if ($einheit_id > 0) {
+            send_email_for_einheit($reservation['requester_email'], $subject, $message, $einheit_id, true);
+        }
         log_activity($_SESSION['user_id'], 'room_reservation_approved', "Raumreservierung #$reservation_id genehmigt");
 
         output_json([
@@ -105,13 +108,16 @@ try {
                 $stmt = $db->prepare("UPDATE room_reservations SET status = 'rejected', rejection_reason = ?, approved_by = ?, approved_at = NOW() WHERE id = ?");
                 $stmt->execute(['Storniert wegen Konflikt mit neuer Reservierung', $_SESSION['user_id'], $conflict_id]);
 
-                $stmt = $db->prepare("SELECT rr.*, ro.name as room_name FROM room_reservations rr JOIN rooms ro ON rr.room_id = ro.id WHERE rr.id = ?");
+                $stmt = $db->prepare("SELECT rr.*, ro.name as room_name, COALESCE(rr.einheit_id, ro.einheit_id) as einheit_id FROM room_reservations rr JOIN rooms ro ON rr.room_id = ro.id WHERE rr.id = ?");
                 $stmt->execute([$conflict_id]);
                 $cancelled = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($cancelled) {
                     $subject = "❌ Raumreservierung storniert - " . $cancelled['requester_name'];
                     $message = createRoomRejectionEmailHTML($cancelled, 'Storniert wegen Konflikt mit neuer Reservierung');
-                    send_email($cancelled['requester_email'], $subject, $message, '', true);
+                    $cancelled_einheit = (int)($cancelled['einheit_id'] ?? 0);
+                    if ($cancelled_einheit > 0) {
+                        send_email_for_einheit($cancelled['requester_email'], $subject, $message, $cancelled_einheit, true);
+                    }
                     log_activity($_SESSION['user_id'], 'room_reservation_rejected', "Raumreservierung #$conflict_id storniert wegen Konflikt mit #$reservation_id");
                 }
             }
@@ -123,7 +129,10 @@ try {
 
         $subject = "✅ Raumreservierung genehmigt - " . $reservation['requester_name'];
         $message = createRoomApprovalEmailHTML($reservation);
-        send_email($reservation['requester_email'], $subject, $message, '', true);
+        $einheit_id = (int)($reservation['einheit_id'] ?? 0);
+        if ($einheit_id > 0) {
+            send_email_for_einheit($reservation['requester_email'], $subject, $message, $einheit_id, true);
+        }
         log_activity($_SESSION['user_id'], 'room_reservation_approved', "Raumreservierung #$reservation_id genehmigt mit Konfliktlösung");
 
         output_json([
@@ -144,7 +153,10 @@ try {
 
         $subject = "❌ Raumreservierung abgelehnt - " . $reservation['requester_name'];
         $message = createRoomRejectionEmailHTML($reservation, $reason);
-        send_email($reservation['requester_email'], $subject, $message, '', true);
+        $einheit_id = (int)($reservation['einheit_id'] ?? 0);
+        if ($einheit_id > 0) {
+            send_email_for_einheit($reservation['requester_email'], $subject, $message, $einheit_id, true);
+        }
         log_activity($_SESSION['user_id'], 'room_reservation_rejected', "Raumreservierung #$reservation_id abgelehnt: $reason");
 
         output_json(['success' => true, 'message' => 'Raumreservierung wurde abgelehnt']);

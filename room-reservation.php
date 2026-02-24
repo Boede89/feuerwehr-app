@@ -77,18 +77,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_room_rese
             }
             if ($success_count > 0) {
                 $admin_emails = [];
+                $einheit_for_mail = 0;
                 try {
                     $einheit_for_mail = (int)($_POST['einheit_id'] ?? $einheit_id);
                     $einheit_for_mail = $einheit_for_mail > 0 ? $einheit_for_mail : (int)($selectedRoom['einheit_id'] ?? 0);
-                    $settings = load_settings_for_einheit($db, $einheit_for_mail > 0 ? $einheit_for_mail : null);
-                    $ids_json = $settings['room_reservation_notification_user_ids'] ?? $settings['reservation_notification_user_ids'] ?? '';
-                    if ($ids_json !== '') {
-                        $ids = json_decode($ids_json, true);
-                        if (is_array($ids) && !empty($ids)) {
-                            $ph = implode(',', array_fill(0, count($ids), '?'));
-                            $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1");
-                            $stmt->execute(array_map('intval', $ids));
-                            $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    if ($einheit_for_mail > 0) {
+                        $settings = load_settings_for_einheit($db, $einheit_for_mail);
+                        $ids_json = $settings['room_reservation_notification_user_ids'] ?? $settings['reservation_notification_user_ids'] ?? '';
+                        if ($ids_json !== '') {
+                            $ids = json_decode($ids_json, true);
+                            if (is_array($ids) && !empty($ids)) {
+                                $amern_id = function_exists('get_einheit_amern_id') ? get_einheit_amern_id($db) : 0;
+                                $ph = implode(',', array_fill(0, count($ids), '?'));
+                                $unit_filter = ($amern_id > 0 && $einheit_for_mail === $amern_id)
+                                    ? " AND (einheit_id = ? OR einheit_id IS NULL)"
+                                    : " AND einheit_id = ?";
+                                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1 AND email IS NOT NULL AND email != ''" . $unit_filter);
+                                $params = array_merge(array_map('intval', $ids), [$einheit_for_mail]);
+                                $stmt->execute($params);
+                                $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                            }
                         }
                     }
                 } catch (Exception $e) {}
@@ -118,8 +126,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_room_rese
                     <p><em>Hinweis: Diese Reservierung überschneidet sich mit bestehenden Reservierungen.</em></p>
                     <p><a href='" . htmlspecialchars($manageUrl) . "'>Reservierungen verwalten</a></p>
                 </div>";
-                foreach ($admin_emails as $admin_email) {
-                    send_email($admin_email, $subject, $message_content, '', true);
+                if (!empty($admin_emails) && $einheit_for_mail > 0) {
+                    foreach ($admin_emails as $admin_email) {
+                        send_email_for_einheit($admin_email, $subject, $message_content, $einheit_for_mail, true);
+                    }
                 }
                 $message = $success_count === 1 ? "Raumreservierung wurde erfolgreich eingereicht (trotz Konflikt)." : "$success_count Raumreservierungen wurden erfolgreich eingereicht (trotz Konflikt).";
                 $redirect_to_home = true;
@@ -204,17 +214,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
 
             if ($success_count > 0) {
                 $admin_emails = [];
+                $einheit_for_mail = 0;
                 try {
                     $einheit_for_mail = $einheit_id > 0 ? $einheit_id : (int)($selectedRoom['einheit_id'] ?? 0);
-                    $settings = load_settings_for_einheit($db, $einheit_for_mail > 0 ? $einheit_for_mail : null);
-                    $ids_json = $settings['room_reservation_notification_user_ids'] ?? $settings['reservation_notification_user_ids'] ?? '';
-                    if ($ids_json !== '') {
-                        $ids = json_decode($ids_json, true);
-                        if (is_array($ids) && !empty($ids)) {
-                            $ph = implode(',', array_fill(0, count($ids), '?'));
-                            $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1");
-                            $stmt->execute(array_map('intval', $ids));
-                            $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    if ($einheit_for_mail > 0) {
+                        $settings = load_settings_for_einheit($db, $einheit_for_mail);
+                        $ids_json = $settings['room_reservation_notification_user_ids'] ?? $settings['reservation_notification_user_ids'] ?? '';
+                        if ($ids_json !== '') {
+                            $ids = json_decode($ids_json, true);
+                            if (is_array($ids) && !empty($ids)) {
+                                $amern_id = function_exists('get_einheit_amern_id') ? get_einheit_amern_id($db) : 0;
+                                $ph = implode(',', array_fill(0, count($ids), '?'));
+                                $unit_filter = ($amern_id > 0 && $einheit_for_mail === $amern_id)
+                                    ? " AND (einheit_id = ? OR einheit_id IS NULL)"
+                                    : " AND einheit_id = ?";
+                                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1 AND email IS NOT NULL AND email != ''" . $unit_filter);
+                                $params = array_merge(array_map('intval', $ids), [$einheit_for_mail]);
+                                $stmt->execute($params);
+                                $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                            }
                         }
                     }
                 } catch (Exception $e) {}
@@ -246,8 +264,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                     <p><a href='" . htmlspecialchars($manageUrl) . "'>Reservierungen verwalten</a></p>
                 </div>";
 
-                foreach ($admin_emails as $admin_email) {
-                    send_email($admin_email, $subject, $message_content, '', true);
+                if (!empty($admin_emails) && $einheit_for_mail > 0) {
+                    foreach ($admin_emails as $admin_email) {
+                        send_email_for_einheit($admin_email, $subject, $message_content, $einheit_for_mail, true);
+                    }
                 }
 
                 $message = $success_count === 1 ? "Raumreservierung wurde erfolgreich eingereicht." : "$success_count Raumreservierungen wurden erfolgreich eingereicht.";
