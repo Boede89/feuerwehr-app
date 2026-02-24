@@ -111,6 +111,8 @@ $email_auto = ($settings['anwesenheitsliste_email_auto'] ?? '0') === '1';
 $email_recipients = json_decode($settings['anwesenheitsliste_email_recipients'] ?? '[]', true) ?: [];
 $email_manual = trim($settings['anwesenheitsliste_email_manual'] ?? '');
 $print_after_save_default = ($settings['anwesenheitsliste_print_after_save_default'] ?? '1') === '1';
+$print_maengelbericht_after_save_default = ($settings['maengelbericht_print_after_save_default'] ?? '1') === '1';
+$print_geraetewartmitteilung_after_save_default = ($settings['geraetewartmitteilung_print_after_save_default'] ?? '1') === '1';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -184,6 +186,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             };
             $save_fn('anwesenheitsliste_felder', json_encode($felder));
             $save_fn('anwesenheitsliste_print_after_save_default', isset($_POST['print_after_save_default']) ? '1' : '0');
+            $save_fn('maengelbericht_print_after_save_default', isset($_POST['print_maengelbericht_after_save_default']) ? '1' : '0');
+            $save_fn('geraetewartmitteilung_print_after_save_default', isset($_POST['print_geraetewartmitteilung_after_save_default']) ? '1' : '0');
             // E-Mail-Einstellungen (speichern wenn Felder im POST – felderForm wurde abgeschickt)
             if (array_key_exists('email_auto', $_POST) || array_key_exists('email_recipients', $_POST)) {
                 $save_fn('anwesenheitsliste_email_auto', isset($_POST['email_auto']) ? '1' : '0');
@@ -196,6 +200,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $email_manual = $manual;
             }
             $print_after_save_default = isset($_POST['print_after_save_default']);
+            $print_maengelbericht_after_save_default = isset($_POST['print_maengelbericht_after_save_default']);
+            $print_geraetewartmitteilung_after_save_default = isset($_POST['print_geraetewartmitteilung_after_save_default']);
         } catch (Exception $e) {
             $error = 'Fehler: ' . $e->getMessage();
         }
@@ -350,9 +356,18 @@ function opt($arr) {
         <div class="card mb-4">
             <div class="card-header"><i class="fas fa-envelope"></i> E-Mail-Versand und Drucken nach Absenden</div>
             <div class="card-body">
-                <div class="form-check form-switch mb-3">
+                <p class="text-muted small mb-2">Beim Speichern einer Anwesenheitsliste können mehrere Druckoptionen angezeigt werden. Hier legen Sie fest, welche standardmäßig vorausgewählt sind:</p>
+                <div class="form-check form-switch mb-2">
                     <input class="form-check-input" type="checkbox" name="print_after_save_default" id="print_after_save_default" value="1" <?php echo $print_after_save_default ? 'checked' : ''; ?>>
-                    <label class="form-check-label" for="print_after_save_default">„Nach Speichern drucken“ (Anwesenheitsliste) standardmäßig aktiv – beim Speichern ist der Haken bei Drucken vorausgewählt</label>
+                    <label class="form-check-label" for="print_after_save_default">Anwesenheitsliste</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" name="print_maengelbericht_after_save_default" id="print_maengelbericht_after_save_default" value="1" <?php echo $print_maengelbericht_after_save_default ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="print_maengelbericht_after_save_default">Mängelbericht(e)</label>
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" name="print_geraetewartmitteilung_after_save_default" id="print_geraetewartmitteilung_after_save_default" value="1" <?php echo $print_geraetewartmitteilung_after_save_default ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="print_geraetewartmitteilung_after_save_default">Gerätewartmitteilung</label>
                 </div>
                 <hr>
                 <div class="form-check form-switch mb-3">
