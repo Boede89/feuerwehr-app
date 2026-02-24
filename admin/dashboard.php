@@ -186,17 +186,18 @@ if ($can_reservations) {
     } catch (Exception $e) {
         echo '<script>console.log("❌ Fahrzeug-Reservierungen:", ' . json_encode($e->getMessage()) . ');</script>';
     }
-    // Raum-Reservierungen (separater try – unabhängig von Fahrzeug-Abfrage)
+    // Raum-Reservierungen (gefiltert nach Einheit: Reservation ODER Raum muss passen; NULL = Einheit 1)
     try {
         $stmt_room = $db->prepare("
             SELECT rr.*, ro.name as room_name
             FROM room_reservations rr
             JOIN rooms ro ON rr.room_id = ro.id
             WHERE rr.status = 'pending'
+            AND (COALESCE(rr.einheit_id, 1) = ? OR COALESCE(ro.einheit_id, 1) = ?)
             ORDER BY rr.created_at DESC
             LIMIT 10
         ");
-        $stmt_room->execute();
+        $stmt_room->execute([$effective_unit_id, $effective_unit_id]);
         $pending_room_reservations = $stmt_room->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         error_log("Dashboard room_reservations: " . $e->getMessage());
