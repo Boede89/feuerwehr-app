@@ -8,17 +8,10 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Datenbankverbindung direkt hier
-$host = "mysql";
-$dbname = "feuerwehr_app";
-$username = "feuerwehr_user";
-$password = "feuerwehr_password";
-
-try {
-    $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    die("Datenbankfehler: " . $e->getMessage());
+// Datenbankverbindung (wie restliche App)
+require_once __DIR__ . '/../config/database.php';
+if (!$db) {
+    die('Datenbankverbindung fehlgeschlagen.');
 }
 
 // Functions laden für Berechtigungsprüfungen
@@ -176,6 +169,7 @@ echo '<script>console.log("user_id:", ' . json_encode($_SESSION['user_id'] ?? 'n
 $pending_reservations = [];
 $pending_room_reservations = [];
 if ($can_reservations) {
+    // Fahrzeug-Reservierungen (eigener try, damit Fehler Raum-Reservierungen nicht blockieren)
     try {
         $stmt = $db->prepare("
             SELECT r.*, v.name as vehicle_name
@@ -189,27 +183,27 @@ if ($can_reservations) {
         ");
         $stmt->execute([$effective_unit_id, $effective_unit_id]);
         $pending_reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        // Raum-Reservierungen laden (alle ausstehenden – Einheiten-Filter entfernt für zuverlässige Anzeige)
-        try {
-            $stmt_room = $db->prepare("
-                SELECT rr.*, ro.name as room_name
-                FROM room_reservations rr
-                JOIN rooms ro ON rr.room_id = ro.id
-                WHERE rr.status = 'pending'
-                ORDER BY rr.created_at DESC
-                LIMIT 10
-            ");
-            $stmt_room->execute();
-            $pending_room_reservations = $stmt_room->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
-            error_log("Dashboard room_reservations: " . $e->getMessage());
-        }
-        echo '<script>console.log("🔍 Reservierungen geladen:", ' . count($pending_reservations) . ' Fahrzeuge, ' . count($pending_room_reservations) . ' Räume);</script>';
-        echo '<script>console.log("Reservierungen:", ' . json_encode($pending_reservations) . ');</script>';
-        echo '<script>console.log("Raum-Reservierungen:", ' . json_encode($pending_room_reservations) . ');</script>';
     } catch (Exception $e) {
-        echo '<script>console.log("❌ Fehler beim Laden der Reservierungen:", ' . json_encode($e->getMessage()) . ');</script>';
+        echo '<script>console.log("❌ Fahrzeug-Reservierungen:", ' . json_encode($e->getMessage()) . ');</script>';
     }
+    // Raum-Reservierungen (separater try – unabhängig von Fahrzeug-Abfrage)
+    try {
+        $stmt_room = $db->prepare("
+            SELECT rr.*, ro.name as room_name
+            FROM room_reservations rr
+            JOIN rooms ro ON rr.room_id = ro.id
+            WHERE rr.status = 'pending'
+            ORDER BY rr.created_at DESC
+            LIMIT 10
+        ");
+        $stmt_room->execute();
+        $pending_room_reservations = $stmt_room->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Dashboard room_reservations: " . $e->getMessage());
+        echo '<script>console.log("❌ Raum-Reservierungen:", ' . json_encode($e->getMessage()) . ');</script>';
+    }
+    echo '<script>console.log("🔍 Reservierungen geladen:", ' . count($pending_reservations) . ' Fahrzeuge, ' . count($pending_room_reservations) . ' Räume);</script>';
+    echo '<script>console.log("Raum-Reservierungen:", ' . json_encode($pending_room_reservations) . ');</script>';
 }
 
 // Divera-Empfänger-Gruppen und Standard für Genehmigung (nur wenn Reservierungen berechtigt)
