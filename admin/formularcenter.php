@@ -1326,7 +1326,7 @@ try {
             var btn = this;
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Laden...';
-            fetch('api-dienstplan-divera.php?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to))
+            fetch('api-dienstplan-divera.php?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to) + (FORMULARCENTER_EINHEIT_ID > 0 ? '&einheit_id=' + FORMULARCENTER_EINHEIT_ID : ''))
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     diveraImportEvents = data.events || [];
@@ -1374,7 +1374,7 @@ try {
             fetch('api-dienstplan-divera.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'import', event_ids: ids })
+                body: JSON.stringify({ action: 'import', event_ids: ids, einheit_id: FORMULARCENTER_EINHEIT_ID > 0 ? FORMULARCENTER_EINHEIT_ID : null })
             })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
@@ -1414,7 +1414,7 @@ try {
             fetch('api-dienstplan-divera.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'export', entry_ids: ids, group_ids: groupIds })
+                body: JSON.stringify({ action: 'export', entry_ids: ids, group_ids: groupIds, einheit_id: FORMULARCENTER_EINHEIT_ID > 0 ? FORMULARCENTER_EINHEIT_ID : null })
             })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
