@@ -719,6 +719,8 @@ if (isset($_SESSION['user_id'])) {
             else alert(success ? 'Druckauftrag wurde gesendet.' : 'Fehler: ' + (msg || 'Druck fehlgeschlagen.'));
         }
         var einheitParam = (typeof ANWESENHEITSLISTE_EINHEIT_ID !== 'undefined' && ANWESENHEITSLISTE_EINHEIT_ID > 0) ? '&einheit_id=' + ANWESENHEITSLISTE_EINHEIT_ID : '';
+        var printWindow = (pending > 0) ? window.open('', '_blank', 'noopener,width=800,height=600') : null;
+        if (printWindow) { try { printWindow.document.write('<html><head><title>Lade PDF...</title></head><body style="font-family:sans-serif;padding:2em;">PDF wird geladen...</body></html>'); } catch (e) {} }
         function handlePrintResult(data) {
             if (data.success && data.open_pdf && data.pdf_base64) {
                 try {
@@ -727,16 +729,33 @@ if (isset($_SESSION['user_id'])) {
                     for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
                     var blob = new Blob([bytes], { type: 'application/pdf' });
                     var url = URL.createObjectURL(blob);
-                    var w = window.open(url, '_blank', 'noopener');
-                    if (w) {
-                        w.onload = function() {
-                            try { w.print(); } catch (e) {}
-                            setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
-                        };
+                    if (printWindow && !printWindow.closed) {
+                        printWindow.location.href = url;
+                        printWindow.onload = function() { try { printWindow.print(); } catch (e) {} setTimeout(function() { URL.revokeObjectURL(url); }, 10000); };
+                        setTimeout(function() { try { printWindow.print(); } catch (e) {} }, 1500);
+                    } else {
+                        var w = window.open(url, '_blank', 'noopener');
+                        if (w) {
+                            w.onload = function() { try { w.print(); } catch (e) {} setTimeout(function() { URL.revokeObjectURL(url); }, 10000); };
+                            setTimeout(function() { try { w.print(); } catch (e) {} }, 1500);
+                        } else {
+                            var iframe = document.createElement('iframe');
+                            iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff';
+                            iframe.src = url;
+                            document.body.appendChild(iframe);
+                            var closeBtn = document.createElement('button');
+                            closeBtn.textContent = 'Schließen';
+                            closeBtn.className = 'btn btn-primary';
+                            closeBtn.style.cssText = 'position:fixed;top:10px;right:10px;z-index:100000';
+                            closeBtn.onclick = function() { iframe.remove(); closeBtn.remove(); URL.revokeObjectURL(url); };
+                            document.body.appendChild(closeBtn);
+                            iframe.onload = function() { setTimeout(function() { try { iframe.contentWindow.print(); } catch (e) {} }, 500); };
+                        }
                     }
                     showResult(true, 'PDF wurde geöffnet. Der Druckdialog sollte sich öffnen – sonst Strg+P drücken.');
                 } catch (e) { showResult(false, 'PDF konnte nicht geöffnet werden.'); }
             } else {
+                if (printWindow) try { printWindow.close(); } catch (x) {}
                 showResult(data.success, data.message);
             }
         }

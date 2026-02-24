@@ -201,6 +201,8 @@ try {
         var m = /[?&]print_maengelbericht=(\d+)/.exec(window.location.search);
         if (m && m[1]) {
             var id = m[1];
+            var printWindow = window.open('', '_blank', 'noopener,width=800,height=600');
+            if (printWindow) { try { printWindow.document.write('<html><head><title>Lade PDF...</title></head><body style="font-family:sans-serif;padding:2em;">PDF wird geladen...</body></html>'); } catch (e) {} }
             var url = 'api/print-maengelbericht.php?id=' + id + (FORMULARE_EINHEIT_ID > 0 ? '&einheit_id=' + FORMULARE_EINHEIT_ID : '');
             fetch(url, { credentials: 'same-origin' })
                 .then(function(r) { return r.json(); })
@@ -212,20 +214,38 @@ try {
                             for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
                             var blob = new Blob([bytes], { type: 'application/pdf' });
                             var blobUrl = URL.createObjectURL(blob);
-                            var w = window.open(blobUrl, '_blank', 'noopener');
-                            if (w) {
-                                w.onload = function() {
-                                    try { w.print(); } catch (e) {}
-                                    setTimeout(function() { URL.revokeObjectURL(blobUrl); }, 5000);
-                                };
+                            if (printWindow && !printWindow.closed) {
+                                printWindow.location.href = blobUrl;
+                                printWindow.onload = function() { try { printWindow.print(); } catch (e) {} setTimeout(function() { URL.revokeObjectURL(blobUrl); }, 10000); };
+                                setTimeout(function() { try { printWindow.print(); } catch (e) {} }, 1500);
+                            } else {
+                                var w = window.open(blobUrl, '_blank', 'noopener');
+                                if (w) {
+                                    w.onload = function() { try { w.print(); } catch (e) {} setTimeout(function() { URL.revokeObjectURL(blobUrl); }, 10000); };
+                                    setTimeout(function() { try { w.print(); } catch (e) {} }, 1500);
+                                } else {
+                                    var iframe = document.createElement('iframe');
+                                    iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff';
+                                    iframe.src = blobUrl;
+                                    document.body.appendChild(iframe);
+                                    var closeBtn = document.createElement('button');
+                                    closeBtn.textContent = 'Schließen';
+                                    closeBtn.className = 'btn btn-primary';
+                                    closeBtn.style.cssText = 'position:fixed;top:10px;right:10px;z-index:100000';
+                                    closeBtn.onclick = function() { iframe.remove(); closeBtn.remove(); URL.revokeObjectURL(blobUrl); };
+                                    document.body.appendChild(closeBtn);
+                                    iframe.onload = function() { setTimeout(function() { try { iframe.contentWindow.print(); } catch (e) {} }, 500); };
+                                }
                             }
                             if (typeof showPrintToast === 'function') showPrintToast('PDF wurde geöffnet. Der Druckdialog sollte sich öffnen – sonst Strg+P drücken.', true);
                             else alert('PDF wurde geöffnet. Der Druckdialog sollte sich öffnen – sonst Strg+P drücken.');
                         } catch (e) {
+                            if (printWindow) try { printWindow.close(); } catch (x) {}
                             if (typeof showPrintToast === 'function') showPrintToast('PDF konnte nicht geöffnet werden.', false);
                             else alert('PDF konnte nicht geöffnet werden.');
                         }
                     } else {
+                        if (printWindow) try { printWindow.close(); } catch (x) {}
                         if (typeof showPrintToast === 'function') showPrintToast(data.success ? 'Druckauftrag wurde gesendet.' : ('Fehler: ' + (data.message || '')), data.success);
                         else alert(data.success ? 'Druckauftrag wurde gesendet.' : 'Fehler: ' + (data.message || ''));
                     }
