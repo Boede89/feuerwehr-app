@@ -110,9 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
         try {
-            $db->beginTransaction();
-
-            // Fahrzeugspezifische Settings (erweiterbar)
+            // Keine Transaktion: DDL (CREATE/ALTER TABLE) in save_setting_for_einheit führt zu implizitem Commit in MySQL
             $veh = [
                 'vehicle_sort_mode' => sanitize_input($_POST['vehicle_sort_mode'] ?? 'manual'),
                 'divera_reservation_enabled' => isset($_POST['divera_reservation_enabled']) ? '1' : '0',
@@ -120,7 +118,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
                 'divera_reservation_default_group_id' => trim((string)($_POST['divera_reservation_default_group_id'] ?? '')),
             ];
 
-            // Persistieren
             if ($einheit_id > 0) {
                 save_settings_bulk_for_einheit($db, $einheit_id, $veh);
             } else {
@@ -130,7 +127,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
                 }
             }
 
-            // E-Mail-Benachrichtigungen speichern
             $notification_users_post = $_POST['notification_users'] ?? [];
             if ($einheit_id > 0) {
                 save_setting_for_einheit($db, $einheit_id, 'reservation_notification_user_ids', json_encode(array_values(array_map('intval', $notification_users_post))));
@@ -147,17 +143,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
                 $notification_users = $stmt->fetchAll(PDO::FETCH_COLUMN);
             }
 
-            $db->commit();
             $message = 'Fahrzeugreservierungs-Einstellungen gespeichert.';
 
-            // Nach dem Speichern neu laden
             $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
             if ($einheit_id > 0) {
                 $json = $settings['reservation_notification_user_ids'] ?? '';
                 $notification_users = ($json !== '' && ($dec = json_decode($json, true)) && is_array($dec)) ? array_map('intval', $dec) : [];
             }
         } catch (Exception $e) {
-            try { if ($db->inTransaction()) $db->rollBack(); } catch (Exception $rb) {}
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
         }
     }
@@ -168,8 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
         try {
-            $db->beginTransaction();
-
+            // Keine Transaktion: DDL in save_setting_for_einheit führt zu implizitem Commit in MySQL
             $room_settings = [
                 'room_sort_mode' => sanitize_input($_POST['room_sort_mode'] ?? 'manual'),
             ];
@@ -189,7 +181,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
                 $room_notification_users = $room_notification_post;
             }
 
-            $db->commit();
             $message = 'Raumreservierungs-Einstellungen gespeichert.';
 
             $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
@@ -198,7 +189,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
                 $room_notification_users = array_map('intval', $dec);
             }
         } catch (Exception $e) {
-            try { if ($db->inTransaction()) $db->rollBack(); } catch (Exception $rb) {}
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
         }
     }
