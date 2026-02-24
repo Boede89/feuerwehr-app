@@ -59,6 +59,10 @@ if (!$current_unit_id && !$current_einheit_id) {
 }
 // Einheit für Abfragen: einheit_id hat Vorrang (Einheiten-System), sonst unit_id
 $effective_unit_id = $current_einheit_id ?: $current_unit_id ?: 1;
+// Sync: Wenn nur einheit_id gesetzt (z.B. von index.php), unit_id für Kompatibilität setzen
+if (!$current_unit_id && $current_einheit_id) {
+    $_SESSION['current_unit_id'] = $current_einheit_id;
+}
 
 // Dashboard-Einstellungen laden
 $dashboard_preferences = [];
