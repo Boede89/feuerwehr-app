@@ -790,12 +790,12 @@ try {
                                 </div>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="can_forms_fill" id="edit_can_forms_fill">
-                                <label class="form-check-label" for="edit_can_forms_fill">Formulare ausfüllen</label>
+                                <input class="form-check-input" type="checkbox" name="can_auswertung" id="edit_can_auswertung">
+                                <label class="form-check-label" for="edit_can_auswertung"><span class="text-muted small">↳</span> Auswertung <small class="text-muted">(Teil von Mitgliederverwaltung)</small></label>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="can_auswertung" id="edit_can_auswertung">
-                                <label class="form-check-label" for="edit_can_auswertung">Auswertung</label>
+                                <input class="form-check-input" type="checkbox" name="can_forms_fill" id="edit_can_forms_fill">
+                                <label class="form-check-label" for="edit_can_forms_fill">Formulare ausfüllen</label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_forms" id="edit_can_forms">
@@ -906,12 +906,12 @@ try {
                                 </div>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="can_forms_fill" id="add_can_forms_fill">
-                                <label class="form-check-label" for="add_can_forms_fill">Formulare ausfüllen</label>
+                                <input class="form-check-input" type="checkbox" name="can_auswertung" id="add_can_auswertung">
+                                <label class="form-check-label" for="add_can_auswertung"><span class="text-muted small">↳</span> Auswertung <small class="text-muted">(Teil von Mitgliederverwaltung)</small></label>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="can_auswertung" id="add_can_auswertung">
-                                <label class="form-check-label" for="add_can_auswertung">Auswertung</label>
+                                <input class="form-check-input" type="checkbox" name="can_forms_fill" id="add_can_forms_fill">
+                                <label class="form-check-label" for="add_can_forms_fill">Formulare ausfüllen</label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_forms" id="add_can_forms">
