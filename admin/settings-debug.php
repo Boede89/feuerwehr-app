@@ -287,8 +287,8 @@ if ($active_tab === 'divera') {
             <span><i class="fas fa-calendar-plus"></i> Divera 24/7 – <?php echo htmlspecialchars($einheit_name); ?></span>
             <?php if (function_exists('is_superadmin') && is_superadmin($_SESSION['user_id'] ?? 0)): ?>
             <div class="d-flex gap-2">
-                <a href="debug-divera.php?einheit_id=<?php echo (int)$einheit_id; ?>" class="btn btn-outline-secondary btn-sm"><i class="fas fa-cog me-1"></i> Divera-Konfiguration prüfen</a>
-                <a href="cleanup-divera-global.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-broom me-1"></i> Globale Keys bereinigen</a>
+                <a href="debug-divera.php?einheit_id=<?php echo (int)$einheit_id; ?>" class="btn btn-primary btn-sm"><i class="fas fa-cog me-1"></i> Divera-Konfiguration prüfen</a>
+                <a href="cleanup-divera-global.php" class="btn btn-primary btn-sm"><i class="fas fa-broom me-1"></i> Globale Keys bereinigen</a>
             </div>
             <?php endif; ?>
         </div>
