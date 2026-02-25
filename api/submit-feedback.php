@@ -57,17 +57,29 @@ try {
     $stmt->execute([$feedback_type, $subject, $message, $email, $user_id, $ip_address]);
     $feedback_id = $db->lastInsertId();
     
-    // Admin-E-Mails abrufen
-    $admin_emails = get_admin_emails();
+    // Empfänger-E-Mails: zuerst feedback_email aus Einstellungen, sonst Admin-E-Mails
+    $feedback_emails = [];
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'feedback_email'");
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $feedback_email_val = trim($row['setting_value'] ?? '');
+        if ($feedback_email_val !== '') {
+            $feedback_emails = array_filter(array_map('trim', preg_split('/[\s,;]+/', $feedback_email_val)));
+        }
+    } catch (Exception $e) {}
+    if (empty($feedback_emails)) {
+        $feedback_emails = get_admin_emails();
+    }
     
-    if (empty($admin_emails)) {
-        error_log('Keine Admin-E-Mails gefunden für Feedback-Benachrichtigung');
-        echo json_encode(['success' => false, 'message' => 'Keine Administratoren gefunden']);
+    if (empty($feedback_emails)) {
+        error_log('Keine Feedback-E-Mail und keine Admin-E-Mails gefunden');
+        echo json_encode(['success' => false, 'message' => 'Keine Empfänger-Adresse konfiguriert. Bitte in den globalen Einstellungen eine Feedback-E-Mail hinterlegen.']);
         exit;
     }
     
-    // E-Mail an alle Admins senden
-    $email_sent = send_feedback_notification($admin_emails, $feedback_type, $subject, $message, $email, $feedback_id);
+    // E-Mail an konfigurierte Empfänger senden
+    $email_sent = send_feedback_notification($feedback_emails, $feedback_type, $subject, $message, $email, $feedback_id);
     
     if ($email_sent) {
         echo json_encode(['success' => true, 'message' => 'Feedback erfolgreich gesendet']);

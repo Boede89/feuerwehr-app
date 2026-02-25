@@ -202,6 +202,9 @@ if (isset($_GET['room_success'])) {
     elseif ($_GET['room_success'] === 'updated') $message = 'Raum wurde erfolgreich aktualisiert.';
     elseif ($_GET['room_success'] === 'deleted') $message = 'Raum wurde erfolgreich gelöscht.';
 }
+if (isset($_GET['global_smtp_applied']) && $_GET['global_smtp_applied'] === '1') {
+    $message = 'Globale SMTP-Einstellungen wurden übernommen.';
+}
 
 // Laden
 $settings = [];
@@ -271,8 +274,31 @@ if ($einheit_id > 0) {
     }
 }
 
-// Speichern
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Globale SMTP auf Einheit übernehmen (nur bei Button-Klick)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'use_global_smtp' && $einheit_id > 0) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } elseif (user_has_einheit_access($_SESSION['user_id'], $einheit_id)) {
+        try {
+            $global_settings = load_settings_for_einheit($db, null);
+            $smtp_keys = ['smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_encryption', 'smtp_from_email', 'smtp_from_name'];
+            $to_save = [];
+            foreach ($smtp_keys as $k) {
+                if (isset($global_settings[$k])) $to_save[$k] = $global_settings[$k];
+            }
+            if (!empty($to_save)) {
+                save_settings_bulk_for_einheit($db, $einheit_id, $to_save);
+                header('Location: settings-global.php?einheit_id=' . (int)$einheit_id . '&tab=smtp&global_smtp_applied=1');
+                exit;
+            }
+        } catch (Exception $e) {
+            $error = 'Fehler beim Übernehmen: ' . $e->getMessage();
+        }
+    }
+}
+
+// Speichern (nicht bei use_global_smtp – wird oben behandelt)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST['action'] !== 'use_global_smtp')) {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
@@ -381,11 +407,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $all = array_merge($smtp, $google, $app, $printer, $divera);
                 save_settings_bulk_for_einheit($db, $save_einheit_id, $all);
             } else {
-                // Global: nur App Name und App URL (Divera ist einheitenspezifisch)
+                // Global: App, Feedback-E-Mail, SMTP (für Feedback/Wünsche unabhängig von Einheiten)
                 $all = [
                     'app_name' => sanitize_input($_POST['app_name'] ?? ''),
                     'app_url' => sanitize_input($_POST['app_url'] ?? ''),
+                    'feedback_email' => trim(sanitize_input($_POST['feedback_email'] ?? '')),
+                    'smtp_host' => sanitize_input($_POST['global_smtp_host'] ?? ''),
+                    'smtp_port' => sanitize_input($_POST['global_smtp_port'] ?? ''),
+                    'smtp_username' => sanitize_input($_POST['global_smtp_username'] ?? ''),
+                    'smtp_encryption' => sanitize_input($_POST['global_smtp_encryption'] ?? ''),
+                    'smtp_from_email' => sanitize_input($_POST['global_smtp_from_email'] ?? ''),
+                    'smtp_from_name' => sanitize_input($_POST['global_smtp_from_name'] ?? ''),
                 ];
+                if (!empty(trim($_POST['global_smtp_password'] ?? ''))) {
+                    $all['smtp_password'] = trim($_POST['global_smtp_password']);
+                } else {
+                    $all['smtp_password'] = $settings['smtp_password'] ?? '';
+                }
                 foreach ($all as $k => $v) {
                     $stmt = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
                     $stmt->execute([$k, $v]);
@@ -462,7 +500,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
     <form method="POST" enctype="multipart/form-data" id="mainForm">
         <?php if ($einheit_id <= 0): ?>
-        <!-- Globale Einstellungen: nur App Name und App URL -->
+        <!-- Globale Einstellungen: App, Feedback-E-Mail, SMTP -->
         <div class="row g-4">
             <div class="col-lg-6">
                 <div class="card h-100">
@@ -476,6 +514,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="form-label">App URL</label>
                             <input class="form-control" name="app_url" value="<?php echo htmlspecialchars($settings['app_url'] ?? ''); ?>" placeholder="z.B. https://feuerwehr.example.de">
                             <small class="text-muted">Basis-URL der Anwendung (wird z.B. für E-Mails und Links verwendet).</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header"><i class="fas fa-envelope"></i> Feedback & Wünsche</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">E-Mail-Adresse für Feedback/Wünsche</label>
+                            <input class="form-control" type="email" name="feedback_email" value="<?php echo htmlspecialchars($settings['feedback_email'] ?? ''); ?>" placeholder="z.B. feedback@feuerwehr.de">
+                            <small class="text-muted">An diese Adresse werden Feedback und Funktionswünsche gesendet. Leer = E-Mail an alle Admins.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row g-4 mt-2">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header"><i class="fas fa-server"></i> Globale SMTP-Einstellungen</div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Für den Versand von Feedback-/Wunsch-Benachrichtigungen und anderer einheitsunabhängiger E-Mails.</p>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">SMTP Host</label>
+                                <input class="form-control" name="global_smtp_host" value="<?php echo htmlspecialchars($settings['smtp_host'] ?? ''); ?>">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">SMTP Port</label>
+                                <input class="form-control" type="number" name="global_smtp_port" value="<?php echo htmlspecialchars($settings['smtp_port'] ?? ''); ?>">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Benutzername</label>
+                                <input class="form-control" name="global_smtp_username" value="<?php echo htmlspecialchars($settings['smtp_username'] ?? ''); ?>">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Passwort</label>
+                                <input class="form-control" type="password" name="global_smtp_password" placeholder="Leer lassen zum Beibehalten">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Verschlüsselung</label>
+                                <select class="form-select" name="global_smtp_encryption">
+                                    <option value="none" <?php echo (($settings['smtp_encryption'] ?? '')==='none')?'selected':''; ?>>Keine</option>
+                                    <option value="tls" <?php echo (($settings['smtp_encryption'] ?? '')==='tls')?'selected':''; ?>>TLS</option>
+                                    <option value="ssl" <?php echo (($settings['smtp_encryption'] ?? '')==='ssl')?'selected':''; ?>>SSL</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Absender E-Mail</label>
+                                <input class="form-control" type="email" name="global_smtp_from_email" value="<?php echo htmlspecialchars($settings['smtp_from_email'] ?? ''); ?>">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Absender Name</label>
+                            <input class="form-control" name="global_smtp_from_name" value="<?php echo htmlspecialchars($settings['smtp_from_name'] ?? ''); ?>">
                         </div>
                     </div>
                 </div>
@@ -509,7 +607,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="tab-content" id="settingsTabContent">
             <div class="tab-pane fade <?php echo $active_tab === 'smtp' ? 'show active' : ''; ?>" id="tab-smtp" role="tabpanel">
                 <div class="card">
-                    <div class="card-header"><i class="fas fa-envelope"></i> SMTP</div>
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-envelope"></i> SMTP</span>
+                        <form method="POST" class="d-inline" onsubmit="return confirm('Globale SMTP-Einstellungen wirklich übernehmen? Die aktuellen Einheiten-Einstellungen werden überschrieben.');">
+                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <input type="hidden" name="action" value="use_global_smtp">
+                            <input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="fas fa-download me-1"></i> Globale SMTP übernehmen</button>
+                        </form>
+                    </div>
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-6 mb-3">
