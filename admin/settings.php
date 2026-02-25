@@ -241,6 +241,20 @@ if (isset($_POST['test_email_btn'])) {
                     </div>
                 </div>
             </div>
+            <!-- Debug -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-bug text-warning"></i> Debug</h5>
+                        <p class="text-muted">Fahrzeugzuordnungen (Person × Fahrzeug: Besatzung, Maschinist, Einheitsführer) pro Einheit prüfen.</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-outline-warning" href="settings-debug.php?tab=fahrzeugzuordnungen">
+                                <i class="fas fa-bug"></i> Debug öffnen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
