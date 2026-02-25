@@ -1,12 +1,13 @@
 <?php
 /**
- * Debug-Einstellungen: Fahrzeugzuordnungen und weitere Debug-Ansichten.
+ * Debug-Einstellungen: Fahrzeugzuordnungen, Divera 24/7 und weitere Debug-Ansichten.
  * Nur für Superadmins / Admins mit Einstellungsrechten.
  */
 session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/einheiten-setup.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -17,8 +18,9 @@ if (!hasAdminPermission()) {
     exit;
 }
 
+$valid_tabs = ['fahrzeugzuordnungen', 'divera'];
 $active_tab = isset($_GET['tab']) ? trim($_GET['tab']) : 'fahrzeugzuordnungen';
-if ($active_tab !== 'fahrzeugzuordnungen') $active_tab = 'fahrzeugzuordnungen';
+if (!in_array($active_tab, $valid_tabs)) $active_tab = 'fahrzeugzuordnungen';
 
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 if ($einheit_id <= 0) {
@@ -117,6 +119,52 @@ if (!empty($debug_missing)) {
         }
     } catch (Exception $ex) {}
 }
+
+// Divera 24/7 Debug (nur bei Tab divera)
+$divera_debug_payloads = [];
+$divera_api_debug = null;
+if ($active_tab === 'divera') {
+    $settings = load_settings_for_einheit($db, $einheit_id);
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key = 'divera_debug_payloads' LIMIT 1");
+        $stmt->execute([$einheit_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row && $row['setting_value'] !== '') {
+            $dec = json_decode($row['setting_value'], true);
+            $divera_debug_payloads = is_array($dec) ? $dec : [];
+        }
+    } catch (Exception $e) {}
+    $divera_key = trim((string) ($settings['divera_access_key'] ?? ''));
+    $api_base = rtrim(trim((string) ($settings['divera_api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
+    $divera_api_debug = [
+        'has_key' => $divera_key !== '',
+        'api_base' => $api_base,
+        'alarms' => null,
+        'events' => null,
+    ];
+    if ($divera_key !== '') {
+        $ctx = stream_context_create(['http' => ['timeout' => 15]]);
+        $url_alarms = $api_base . '/api/v2/alarms/list?accesskey=' . urlencode($divera_key) . '&closed=0';
+        $raw_alarms = @file_get_contents($url_alarms, false, $ctx);
+        $url_alarms_direct = $api_base . '/api/v2/alarms?accesskey=' . urlencode($divera_key);
+        $raw_alarms_direct = @file_get_contents($url_alarms_direct, false, $ctx);
+        $divera_api_debug['alarms'] = [
+            'url' => $api_base . '/api/v2/alarms/list?accesskey=***&closed=0',
+            'url_direct' => $api_base . '/api/v2/alarms?accesskey=***',
+            'raw' => $raw_alarms,
+            'raw_direct' => $raw_alarms_direct,
+            'parsed' => is_string($raw_alarms) ? json_decode($raw_alarms, true) : null,
+            'parsed_direct' => is_string($raw_alarms_direct) ? json_decode($raw_alarms_direct, true) : null,
+        ];
+        $url_events = $api_base . '/api/v2/events?accesskey=' . urlencode($divera_key);
+        $raw_events = @file_get_contents($url_events, false, $ctx);
+        $divera_api_debug['events'] = [
+            'url' => $api_base . '/api/v2/events?accesskey=***',
+            'raw' => $raw_events,
+            'parsed' => is_string($raw_events) ? json_decode($raw_events, true) : null,
+        ];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -148,6 +196,11 @@ if (!empty($debug_missing)) {
         <li class="nav-item">
             <a class="nav-link <?php echo $active_tab === 'fahrzeugzuordnungen' ? 'active' : ''; ?>" href="?tab=fahrzeugzuordnungen&einheit_id=<?php echo (int)$einheit_id; ?>&von=<?php echo urlencode($von); ?>&bis=<?php echo urlencode($bis); ?>">
                 <i class="fas fa-truck"></i> Fahrzeugzuordnungen
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?php echo $active_tab === 'divera' ? 'active' : ''; ?>" href="?tab=divera&einheit_id=<?php echo (int)$einheit_id; ?>">
+                <i class="fas fa-calendar-plus"></i> Divera 24/7
             </a>
         </li>
     </ul>
@@ -224,6 +277,117 @@ if (!empty($debug_missing)) {
                 </table>
             </div>
             <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($active_tab === 'divera'): ?>
+    <div class="card mb-4">
+        <div class="card-header"><i class="fas fa-calendar-plus"></i> Divera 24/7 – <?php echo htmlspecialchars($einheit_name); ?></div>
+        <div class="card-body">
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="divera-api-debug-tab" data-bs-toggle="tab" data-bs-target="#divera-api-debug" type="button">API Debug</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="divera-debug-tab" data-bs-toggle="tab" data-bs-target="#divera-debug" type="button">Letzte API-Anfragen</button>
+                </li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="divera-api-debug" role="tabpanel">
+                    <?php if (!$divera_api_debug || !$divera_api_debug['has_key']): ?>
+                    <div class="alert alert-warning">
+                        <strong>Kein Divera Access Key konfiguriert.</strong> Bitte in den <a href="settings-global.php?einheit_id=<?php echo (int)$einheit_id; ?>&tab=divera">Einheitseinstellungen (Divera)</a> einen Access Key hinterlegen.
+                    </div>
+                    <?php else: ?>
+                    <p class="text-muted small mb-3">API-Basis: <code><?php echo htmlspecialchars($divera_api_debug['api_base']); ?></code></p>
+                    <h6 class="mt-3">1. Alarms API (aktive Einsätze für Anwesenheitsliste)</h6>
+                    <p class="small text-muted">Anfrage-URL (list):</p>
+                    <pre class="bg-light p-2 rounded small overflow-auto"><?php echo htmlspecialchars(($divera_api_debug['alarms'] ?? [])['url'] ?? ''); ?></pre>
+                    <p class="small text-muted mt-2">Antwort (<?php echo (($divera_api_debug['alarms'] ?? [])['raw'] ?? false) === false ? 'Fehler' : strlen(($divera_api_debug['alarms'] ?? [])['raw']) . ' Zeichen'; ?>):</p>
+                    <pre class="bg-dark text-light p-2 rounded small overflow-auto" style="max-height: 200px;"><?php
+                    $raw = ($divera_api_debug['alarms'] ?? [])['raw'] ?? false;
+                    if ($raw === false) echo 'Fehler: Konnte keine Verbindung herstellen.';
+                    else { $pretty = json_encode(json_decode($raw), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE); echo htmlspecialchars($pretty ?: $raw); }
+                    ?></pre>
+                    <?php
+                    $al = $divera_api_debug['alarms'] ?? [];
+                    $alarms_ok = is_array($al['parsed'] ?? null) && !empty($al['parsed']['success']);
+                    $alarms_direct_ok = is_array($al['parsed_direct'] ?? null) && !empty($al['parsed_direct']['success']);
+                    if ($alarms_ok || $alarms_direct_ok):
+                        $use = $alarms_ok ? $al['parsed'] : $al['parsed_direct'];
+                        $count = count($use['data'] ?? []);
+                    ?><p class="mt-2"><span class="badge bg-success">Erfolgreich</span> <?php echo $count; ?> offene Alarmierung(en)</p>
+                    <?php else: ?><p class="mt-2"><span class="badge bg-danger">Fehler</span> <?php
+                        $p = $al['parsed'] ?? $al['parsed_direct'] ?? [];
+                        echo htmlspecialchars($p['message'] ?? $p['error'] ?? 'API gab success: false zurück oder keine Verbindung.');
+                    ?></p><?php endif; ?>
+                    <h6 class="mt-4">2. Events API (Termine für Dienstplan-Import)</h6>
+                    <p class="small text-muted">Anfrage-URL:</p>
+                    <pre class="bg-light p-2 rounded small overflow-auto"><?php echo htmlspecialchars(($divera_api_debug['events'] ?? [])['url'] ?? ''); ?></pre>
+                    <p class="small text-muted mt-2">Antwort (<?php echo (($divera_api_debug['events'] ?? [])['raw'] ?? false) === false ? 'Fehler' : strlen(($divera_api_debug['events'] ?? [])['raw']) . ' Zeichen'; ?>):</p>
+                    <pre class="bg-dark text-light p-2 rounded small overflow-auto" style="max-height: 200px;"><?php
+                    $raw = ($divera_api_debug['events'] ?? [])['raw'] ?? false;
+                    if ($raw === false) echo 'Fehler: Konnte keine Verbindung herstellen.';
+                    else { $pretty = json_encode(json_decode($raw), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE); echo htmlspecialchars($pretty ?: $raw); }
+                    ?></pre>
+                    <?php $ev_parsed = ($divera_api_debug['events'] ?? [])['parsed'] ?? null; if (is_array($ev_parsed) && isset($ev_parsed['success'])): ?>
+                        <p class="mt-2"><?php if ($ev_parsed['success']): ?>
+                            <span class="badge bg-success">Erfolgreich</span>
+                            <?php $ev = $ev_parsed['data'] ?? []; $items = $ev['items'] ?? $ev; echo count(is_array($items) ? $items : []); ?> Termin(e)
+                        <?php else: ?>
+                            <span class="badge bg-danger">Fehler</span> <?php echo htmlspecialchars($ev_parsed['message'] ?? $ev_parsed['error'] ?? ''); ?>
+                        <?php endif; ?></p>
+                    <?php endif; ?>
+                    <?php endif; ?>
+                </div>
+                <div class="tab-pane fade" id="divera-debug" role="tabpanel">
+                    <p class="text-muted small">POST (Erstellen) und DELETE (Löschen) – JSON-Bodies und Lösch-Requests (ohne Access Key).</p>
+                    <?php if (empty($divera_debug_payloads)): ?>
+                    <p class="text-muted">Noch keine Übermittlungen protokolliert.</p>
+                    <?php else: ?>
+                    <?php foreach ($divera_debug_payloads as $i => $entry): ?>
+                        <?php
+                        $entry_type = $entry['type'] ?? 'post';
+                        $is_delete = $entry_type === 'delete';
+                        $is_response = $entry_type === 'response';
+                        $is_skip = $entry_type === 'delete_skip';
+                        $ctx = $entry['context'] ?? '';
+                        $is_failed = ($ctx === 'create_failed');
+                        $badge = $is_delete ? 'DELETE' : ($is_response ? ($is_failed ? 'RESPONSE (Fehler)' : 'RESPONSE') : ($is_skip ? 'DELETE ÜBERSPRUNGEN' : 'POST'));
+                        $badge_class = $is_delete ? 'danger' : ($is_response ? ($is_failed ? 'danger' : 'warning') : ($is_skip ? 'secondary' : (($entry['source'] ?? '') === 'form' ? 'info' : 'primary')));
+                        ?>
+                        <div class="card mb-3">
+                            <div class="card-header py-2 d-flex align-items-center">
+                                <strong>#<?php echo $i + 1; ?></strong>
+                                <span class="ms-2"><?php echo htmlspecialchars($entry['timestamp'] ?? ''); ?></span>
+                                <span class="badge ms-2 bg-<?php echo $badge_class; ?>"><?php echo $badge; ?></span>
+                                <span class="badge bg-secondary ms-1"><?php echo htmlspecialchars($entry['source'] ?? 'unknown'); ?></span>
+                                <?php if ($is_response && !empty($entry['context'])): ?>
+                                    <span class="badge bg-dark ms-1"><?php echo htmlspecialchars($entry['context']); ?></span>
+                                <?php endif; ?>
+                            </div>
+                            <div class="card-body p-2">
+                                <?php if ($is_skip): ?>
+                                    <p class="mb-1"><strong>Reservierungs-ID:</strong> <?php echo (int)($entry['payload']['reservation_id'] ?? 0); ?></p>
+                                    <p class="mb-1"><strong>Grund:</strong> <?php echo htmlspecialchars($entry['payload']['reason'] ?? ''); ?></p>
+                                    <pre class="mb-0 small" style="max-height: 150px; overflow: auto;"><?php echo htmlspecialchars(json_encode($entry['payload'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
+                                <?php elseif ($is_delete): ?>
+                                    <p class="mb-1"><strong>Event-ID:</strong> <?php echo (int)($entry['payload']['event_id'] ?? 0); ?></p>
+                                    <p class="mb-1"><strong>URL-Pfad:</strong> <code><?php echo htmlspecialchars($entry['payload']['url_path'] ?? ''); ?></code></p>
+                                    <pre class="mb-0 small" style="max-height: 150px; overflow: auto;"><?php echo htmlspecialchars(json_encode($entry['payload'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
+                                <?php elseif ($is_response): ?>
+                                    <p class="mb-1 text-muted small">Divera-API-Antwort:</p>
+                                    <pre class="mb-0 small" style="max-height: 300px; overflow: auto;"><?php echo htmlspecialchars($entry['payload']['raw_response'] ?? ''); ?></pre>
+                                <?php else: ?>
+                                    <pre class="mb-0 small" style="max-height: 300px; overflow: auto;"><?php echo htmlspecialchars(json_encode($entry['payload'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
     </div>
     <?php endif; ?>
