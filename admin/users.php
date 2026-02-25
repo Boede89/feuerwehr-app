@@ -155,8 +155,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             // Spalte existiert bereits, ignoriere Fehler
                         }
                         
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, user_type, einheit_id, is_active, is_admin, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_type, $einheit_id, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $email_notifications]);
+                        $divera_key_add = trim((string) ($_POST['divera_access_key'] ?? ''));
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, user_type, einheit_id, is_active, is_admin, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications, divera_access_key) VALUES (?, ?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_type, $einheit_id, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $email_notifications, $divera_key_add ?: null]);
                         $new_user_id = $db->lastInsertId();
                         
                         // Mitglied automatisch erstellen/verknüpfen
@@ -207,13 +208,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         // Spalte existiert bereits, ignoriere Fehler
                     }
                     
+                    $divera_key_input = trim((string) ($_POST['divera_access_key'] ?? ''));
+                    $divera_key_clear = isset($_POST['divera_access_key_clear']) && $_POST['divera_access_key_clear'] === '1';
+                    $divera_key_to_save = null;
+                    if ($divera_key_clear) {
+                        $divera_key_to_save = '';
+                    } elseif ($divera_key_input !== '') {
+                        $divera_key_to_save = $divera_key_input;
+                    }
+                    $stmt_cur = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
+                    $stmt_cur->execute([$user_id]);
+                    $cur = $stmt_cur->fetch(PDO::FETCH_ASSOC);
+                    $divera_key_final = ($divera_key_to_save !== null) ? $divera_key_to_save : trim((string) ($cur['divera_access_key'] ?? ''));
                     if (!empty($password)) {
                         $password_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = 'user', user_type = ?, einheit_id = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_type, $einheit_id, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ?, first_name = ?, last_name = ?, user_role = 'user', user_type = ?, einheit_id = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ?, divera_access_key = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_type, $einheit_id, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $divera_key_final ?: null, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = 'user', user_type = ?, einheit_id = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ? WHERE id = ?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, $user_type, $einheit_id, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, first_name = ?, last_name = ?, user_role = 'user', user_type = ?, einheit_id = ?, is_active = ?, is_admin = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_users = ?, can_settings = ?, can_vehicles = ?, divera_access_key = ? WHERE id = ?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $user_type, $einheit_id, $is_active, $is_admin, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_users, $can_settings, $can_vehicles, $divera_key_final ?: null, $user_id]);
                     }
                     
                     // Mitglied aktualisieren falls vorhanden
@@ -405,7 +418,7 @@ try {
     }
     
     try { $db->exec("ALTER TABLE users ADD COLUMN is_system_user TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
-    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, user_type, einheit_id, is_active, created_at, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles FROM users ORDER BY created_at DESC");
+    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, user_role, user_type, einheit_id, is_active, created_at, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, (divera_access_key IS NOT NULL AND TRIM(divera_access_key) != '') AS has_divera_key FROM users ORDER BY created_at DESC");
     $stmt->execute();
     $all_users = $stmt->fetchAll();
     // Nur Superadmins und Einheitsadmins in der Globalen Benutzerverwaltung anzeigen
@@ -486,6 +499,7 @@ try {
                                         <th>Name</th>
                                         <th>Rolle</th>
                                         <th>Einheit</th>
+                                        <th>Divera</th>
                                         <th>Status</th>
                                         <th>Erstellt</th>
                                         <th>Aktionen</th>
@@ -519,6 +533,13 @@ try {
                                                 ?>
                                             </td>
                                             <td>
+                                                <?php if (!empty($user['has_divera_key'])): ?>
+                                                    <span class="text-success" title="Divera Access Key hinterlegt"><i class="fas fa-check-circle"></i></span>
+                                                <?php else: ?>
+                                                    <span class="text-muted" title="Kein Divera Access Key"><i class="fas fa-minus-circle"></i></span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
                                                 <?php if ($user['is_active']): ?>
                                                     <span class="badge bg-success">Aktiv</span>
                                                 <?php else: ?>
@@ -535,7 +556,8 @@ try {
                                                     data-last-name="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES); ?>"
                                                     data-user-type="<?php echo htmlspecialchars($user['user_type'] ?? 'superadmin', ENT_QUOTES); ?>"
                                                     data-einheit-id="<?php echo (int)($user['einheit_id'] ?? 0); ?>"
-                                                    data-is-active="<?php echo (int)$user['is_active']; ?>">
+                                                    data-is-active="<?php echo (int)$user['is_active']; ?>"
+                                                    data-divera-has-key="<?php echo !empty($user['has_divera_key']) ? '1' : '0'; ?>">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
                                                 <?php if (!empty($user['email'])): ?>
@@ -634,6 +656,15 @@ try {
                             <input type="password" class="form-control" id="password" name="password">
                             <div class="form-text" id="password-help" style="display: none;">
                                 Leer lassen, um das aktuelle Passwort beizubehalten.
+                            </div>
+                        </div>
+                        <div class="mb-3" id="divera_key_wrapper">
+                            <label for="divera_access_key" class="form-label">Divera Access Key (optional)</label>
+                            <input type="password" class="form-control" name="divera_access_key" id="divera_access_key" placeholder="" autocomplete="off">
+                            <small class="text-muted">Gleicher Key wie im Benutzerprofil. Leer lassen = unverändert. Neuen Key eintragen zum Überschreiben.</small>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" name="divera_access_key_clear" id="divera_key_clear" value="1">
+                                <label class="form-check-label" for="divera_key_clear">Divera Key löschen</label>
                             </div>
                         </div>
                         <div class="row">
@@ -817,6 +848,10 @@ try {
                 document.getElementById('submitButton').textContent = 'Hinzufügen';
                 document.getElementById('password-required').textContent = '*';
                 document.getElementById('password-help').style.display = 'none';
+                const dk = document.getElementById('divera_access_key');
+                const dkClear = document.getElementById('divera_key_clear');
+                if (dk) { dk.value = ''; dk.placeholder = 'Key eintragen'; }
+                if (dkClear) dkClear.checked = false;
                 
                 // Modal zuverlässig über Bootstrap-API öffnen
                 if (window.bootstrap && window.bootstrap.Modal) {
@@ -870,6 +905,10 @@ try {
                     document.getElementById('submitButton').textContent = 'Aktualisieren';
                     document.getElementById('password-required').textContent = '';
                     const help = document.getElementById('password-help'); if (help) help.style.display = 'block';
+                    const dk = document.getElementById('divera_access_key');
+                    const dkClear = document.getElementById('divera_key_clear');
+                    if (dk) { dk.value = ''; dk.placeholder = (this.dataset.diveraHasKey === '1') ? 'Leer lassen zum Beibehalten' : 'Key eintragen'; }
+                    if (dkClear) dkClear.checked = false;
                 });
             });
                 // Abbrechen Button
