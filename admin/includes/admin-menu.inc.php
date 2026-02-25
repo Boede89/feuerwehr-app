@@ -63,11 +63,17 @@ $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
         <?php if ($can_auswertung): ?>
         <li><a class="dropdown-item" href="<?php echo $base; ?>members-auswertung.php"><i class="fas fa-chart-pie text-info me-2"></i>Auswertung</a></li>
         <?php endif; ?>
-        <?php if ($can_forms_fill): ?>
-        <li><a class="dropdown-item" href="<?php echo $base; ?>../formulare.php"><i class="fas fa-edit text-info me-2"></i>Formulare ausfüllen</a></li>
+        <?php if ($can_forms_fill): 
+            $ff_eid = function_exists('get_current_einheit_id') ? get_current_einheit_id() : null;
+            $ff_einheit = ($ff_eid && (int)$ff_eid > 0) ? '?einheit_id=' . (int)$ff_eid : '';
+        ?>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>../formulare.php<?php echo $ff_einheit; ?>"><i class="fas fa-edit text-info me-2"></i>Formulare ausfüllen</a></li>
         <?php endif; ?>
-        <?php if ($can_forms): ?>
-        <li><a class="dropdown-item" href="<?php echo $base; ?>formularcenter.php"><i class="fas fa-file-alt text-info me-2"></i>Formularcenter</a></li>
+        <?php if ($can_forms): 
+            $fc_eid = function_exists('get_current_einheit_id') ? get_current_einheit_id() : null;
+            $fc_einheit = ($fc_eid && (int)$fc_eid > 0) ? '?einheit_id=' . (int)$fc_eid : '';
+        ?>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>formularcenter.php<?php echo $fc_einheit; ?>"><i class="fas fa-file-alt text-info me-2"></i>Formularcenter</a></li>
         <?php endif; ?>
         <?php if ($can_settings): ?>
         <li><hr class="dropdown-divider"></li>

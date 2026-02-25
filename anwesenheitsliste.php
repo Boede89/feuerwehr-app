@@ -336,6 +336,7 @@ if ($divera_key !== '') {
 }
 
 // Dienste für gewähltes Datum laden (nur solche, für die noch KEINE Anwesenheitsliste existiert)
+// Bei Einheitsauswahl: nur Anwesenheitslisten dieser Einheit prüfen; Dienste: eigene Einheit, NULL (global), 1 (Legacy)
 $dienste_fuer_tag = [];
 $vorschlag = null;
 try {
@@ -343,7 +344,7 @@ try {
     $dienstplan_params = [$datum];
     $join_einheit = "";
     if ($einheit_id > 0) {
-        $dienstplan_where .= " AND (d.einheit_id = ? OR d.einheit_id IS NULL)";
+        $dienstplan_where .= " AND (d.einheit_id = ? OR d.einheit_id IS NULL OR d.einheit_id = 1)";
         $dienstplan_params[] = $einheit_id;
         $join_einheit = " AND (a.einheit_id = ? OR a.einheit_id IS NULL)";
         $dienstplan_params[] = $einheit_id; // für JOIN-Bedingung
@@ -359,7 +360,13 @@ try {
     $dienste_fuer_tag = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $vorschlag = $dienste_fuer_tag[0] ?? null;
 } catch (Exception $e) {
-    // Tabelle kann fehlen
+    // Tabelle kann fehlen oder Spalte einheit_id fehlt – Fallback ohne Einheitsfilter
+    try {
+        $stmt = $db->prepare("SELECT d.id, d.bezeichnung, d.typ, d.datum FROM dienstplan d LEFT JOIN anwesenheitslisten a ON a.dienstplan_id = d.id WHERE d.datum = ? AND a.id IS NULL ORDER BY d.bezeichnung");
+        $stmt->execute([$datum]);
+        $dienste_fuer_tag = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $vorschlag = $dienste_fuer_tag[0] ?? null;
+    } catch (Exception $e2) {}
 }
 
 // Alle Dienste ohne Anwesenheitsliste (für "Dienst auswählen") - nur bis heute, keine Zukunft
@@ -369,7 +376,7 @@ try {
     $andere_params = [$datum];
     $andere_join = "";
     if ($einheit_id > 0) {
-        $andere_where .= " AND (d.einheit_id = ? OR d.einheit_id IS NULL)";
+        $andere_where .= " AND (d.einheit_id = ? OR d.einheit_id IS NULL OR d.einheit_id = 1)";
         $andere_params[] = $einheit_id;
         $andere_join = " AND (a.einheit_id = ? OR a.einheit_id IS NULL)";
         $andere_params[] = $einheit_id;
@@ -384,7 +391,11 @@ try {
     $stmt->execute($andere_params);
     $andere_dienste = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    // ignore
+    try {
+        $stmt = $db->prepare("SELECT d.id, d.datum, d.bezeichnung FROM dienstplan d LEFT JOIN anwesenheitslisten a ON a.dienstplan_id = d.id WHERE a.id IS NULL AND d.datum <= ? ORDER BY d.datum DESC, d.bezeichnung");
+        $stmt->execute([$datum]);
+        $andere_dienste = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e2) {}
 }
 
 // Speichern erfolgt auf der nächsten Seite (anwesenheitsliste-eingaben.php)

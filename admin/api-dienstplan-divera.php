@@ -17,7 +17,7 @@ if (!isset($_SESSION['user_id']) || !has_permission('forms')) {
     exit;
 }
 
-// Einheits-Kontext: aus GET, POST oder Session (get_admin_einheit_filter)
+// Einheits-Kontext: aus GET, POST oder Session – für Import/Export IMMER Einheits-Key verwenden
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $effective_einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : null;
 if ($effective_einheit_id <= 0) {
@@ -31,7 +31,6 @@ if ($effective_einheit_id <= 0 && function_exists('get_current_einheit_id')) {
     $c = get_current_einheit_id();
     $effective_einheit_id = $c ? (int)$c : null;
 }
-// Fallback: Benutzer-Einheit nutzen, damit importierte Dienste als Vorschlag erscheinen
 if ($effective_einheit_id <= 0 && isset($_SESSION['user_id'])) {
     try {
         $stmt = $db->prepare("SELECT einheit_id FROM users WHERE id = ?");
@@ -46,21 +45,15 @@ $divera_key = '';
 $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
 
 if ($effective_einheit_id > 0) {
-    // Einheit ausgewählt: NUR einheit_settings – kein Fallback auf Benutzer-Key
+    // Einheit ausgewählt: ausschließlich Einheits-Key aus einheit_settings – kein Benutzer-Key
     $cfg = load_divera_config_for_einheit($db, $effective_einheit_id);
     $divera_key = trim((string) ($cfg['access_key'] ?? ''));
     if (!empty($cfg['api_base_url'])) {
         $api_base = rtrim(trim((string) $cfg['api_base_url']), '/') ?: 'https://app.divera247.com';
     }
 } else {
-    // Keine Einheit: config/divera.php (global/Legacy), Fallback auf Benutzer-Key
+    // Keine Einheit: nur globale config – kein Fallback auf Benutzer-Key (Import/Export soll Einheits-Key nutzen)
     $divera_key = trim((string) ($divera_config['access_key'] ?? ''));
-    if ($divera_key === '') {
-        $stmt = $db->prepare("SELECT divera_access_key FROM users WHERE id = ?");
-        $stmt->execute([$_SESSION['user_id']]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        $divera_key = trim((string) ($row['divera_access_key'] ?? ''));
-    }
 }
 
 // GET: Divera-Events abrufen (für Import-Auswahl)

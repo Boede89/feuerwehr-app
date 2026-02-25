@@ -134,8 +134,18 @@ $filter_datum_bis = isset($_GET['filter_datum_bis']) ? trim($_GET['filter_datum_
 $filter_formular = isset($_GET['filter_formular']) ? trim($_GET['filter_formular']) : '';
 $filter_beschreibung = isset($_GET['filter_beschreibung']) ? trim($_GET['filter_beschreibung']) : '';
 
-// Einheit-Filter: strikt nach Einheit – reguläre Benutzer sehen nur ihre Einheit
-$einheit_filter = get_admin_einheit_filter();
+// Einheit: aus URL (Priorität), dann Session, dann get_admin_einheit_filter – für Divera-Import/Export und Vorschläge
+$einheit_filter = isset($_GET['einheit_id']) && (int)$_GET['einheit_id'] > 0 ? (int)$_GET['einheit_id'] : null;
+if (!$einheit_filter && isset($_SESSION['current_einheit_id']) && (int)$_SESSION['current_einheit_id'] > 0) {
+    $einheit_filter = (int)$_SESSION['current_einheit_id'];
+}
+if (!$einheit_filter) {
+    $einheit_filter = get_admin_einheit_filter();
+}
+if ($einheit_filter > 0 && function_exists('user_has_einheit_access') && user_has_einheit_access($_SESSION['user_id'] ?? 0, $einheit_filter)) {
+    $_SESSION['current_einheit_id'] = $einheit_filter;
+}
+$formularcenter_einheit_param = $einheit_filter > 0 ? '&einheit_id=' . (int)$einheit_filter : '';
 
 // CSRF-Token erzeugen
 if (empty($_SESSION['form_center_csrf'])) {
@@ -262,7 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
             try {
                 $db->prepare("DELETE FROM app_form_submissions WHERE id = ?")->execute([$id]);
                 $msg = urlencode('Formulareingabe wurde gelöscht.');
-                $redir = 'formularcenter.php?tab=submissions&message=' . $msg;
+                $redir = 'formularcenter.php?tab=submissions&message=' . $msg . ($einheit_filter > 0 ? '&einheit_id=' . (int)$einheit_filter : '');
                 if (!empty($_POST['filter_typ'])) $redir .= '&filter_typ=' . urlencode($_POST['filter_typ']);
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
@@ -281,7 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
             try {
                 $db->prepare("DELETE FROM anwesenheitslisten WHERE id = ?")->execute([$id]);
                 $msg = urlencode('Anwesenheitsliste wurde gelöscht.');
-                $redir = 'formularcenter.php?tab=submissions&message=' . $msg;
+                $redir = 'formularcenter.php?tab=submissions&message=' . $msg . ($einheit_filter > 0 ? '&einheit_id=' . (int)$einheit_filter : '');
                 if (!empty($_POST['filter_typ'])) $redir .= '&filter_typ=' . urlencode($_POST['filter_typ']);
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
@@ -300,7 +310,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
             try {
                 $db->prepare("DELETE FROM maengelberichte WHERE id = ?")->execute([$id]);
                 $msg = urlencode('Mängelbericht wurde gelöscht.');
-                $redir = 'formularcenter.php?tab=submissions&message=' . $msg;
+                $redir = 'formularcenter.php?tab=submissions&message=' . $msg . ($einheit_filter > 0 ? '&einheit_id=' . (int)$einheit_filter : '');
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
                 if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
@@ -318,7 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
             try {
                 $db->prepare("DELETE FROM geraetewartmitteilungen WHERE id = ?")->execute([$id]);
                 $msg = urlencode('Gerätewartmitteilung wurde gelöscht.');
-                $redir = 'formularcenter.php?tab=submissions&message=' . $msg;
+                $redir = 'formularcenter.php?tab=submissions&message=' . $msg . ($einheit_filter > 0 ? '&einheit_id=' . (int)$einheit_filter : '');
                 if (!empty($_POST['filter_datum_von'])) $redir .= '&filter_datum_von=' . urlencode($_POST['filter_datum_von']);
                 if (!empty($_POST['filter_datum_bis'])) $redir .= '&filter_datum_bis=' . urlencode($_POST['filter_datum_bis']);
                 if (!empty($_POST['filter_formular'])) $redir .= '&filter_formular=' . urlencode($_POST['filter_formular']);
@@ -683,12 +693,12 @@ try {
 
         <ul class="nav nav-tabs mb-3">
             <li class="nav-item">
-                <a class="nav-link <?php echo $active_tab === 'submissions' ? 'active' : ''; ?>" href="?tab=submissions">
+                <a class="nav-link <?php echo $active_tab === 'submissions' ? 'active' : ''; ?>" href="?tab=submissions<?php echo $formularcenter_einheit_param; ?>">
                     <i class="fas fa-inbox"></i> Eingegangene Formulare (<?php echo $submissions_total; ?>)
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <?php echo $active_tab === 'dienstplan' ? 'active' : ''; ?>" href="?tab=dienstplan">
+                <a class="nav-link <?php echo $active_tab === 'dienstplan' ? 'active' : ''; ?>" href="?tab=dienstplan<?php echo $formularcenter_einheit_param; ?>">
                     <i class="fas fa-calendar-alt"></i> Dienstplan
                 </a>
             </li>
@@ -716,6 +726,7 @@ try {
                     <?php endif; ?>
                     <form method="get" class="d-flex flex-wrap align-items-center gap-2">
                         <input type="hidden" name="tab" value="submissions">
+                        <?php if ($einheit_filter > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_filter; ?>"><?php endif; ?>
                         <input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>">
                         <?php if ($filter_formular === '' || $filter_formular === 'anwesenheitsliste'): ?>
                         <select name="filter_typ" id="filter-typ" class="form-select form-select-sm" style="width: auto; min-width: 140px;" onchange="this.form.submit();">
@@ -737,7 +748,7 @@ try {
                         <input type="date" name="filter_datum_bis" class="form-control form-control-sm" style="width: auto;" value="<?php echo htmlspecialchars($filter_datum_bis); ?>" placeholder="Bis" onchange="this.form.submit()">
                         <button type="submit" class="btn btn-outline-dark btn-sm"><i class="fas fa-filter"></i> Filtern</button>
                         <?php if ($filter_typ !== '' || $filter_datum_von !== '' || $filter_datum_bis !== '' || $filter_formular !== '' || $filter_beschreibung !== ''): ?>
-                        <a href="?tab=submissions" class="btn btn-outline-dark btn-sm">Zurücksetzen</a>
+                        <a href="?tab=submissions<?php echo $formularcenter_einheit_param; ?>" class="btn btn-outline-dark btn-sm">Zurücksetzen</a>
                         <?php endif; ?>
                     </form>
                     </div>
@@ -745,6 +756,7 @@ try {
                 <div class="card-body">
                     <?php
                     $base_params = ['tab' => 'submissions'];
+                    if ($einheit_filter > 0) $base_params['einheit_id'] = $einheit_filter;
                     if ($filter_typ !== '') $base_params['filter_typ'] = $filter_typ;
                     if ($filter_datum_von !== '') $base_params['filter_datum_von'] = $filter_datum_von;
                     if ($filter_datum_bis !== '') $base_params['filter_datum_bis'] = $filter_datum_bis;
