@@ -163,10 +163,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                 <div class="card-header"><i class="fas fa-calendar-check"></i> Divera 24/7 Access Key</div>
                 <div class="card-body">
                     <p class="text-muted small">Wenn Sie Fahrzeugreservierungen genehmigen, wird der Termin mit Ihrem persönlichen Access Key an Divera 24/7 übermittelt. Ohne Key erscheint beim Genehmigen ein Hinweis.</p>
+                    <?php $has_divera_key = !empty(trim((string)($user['divera_access_key'] ?? ''))); ?>
+                    <p class="mb-2">
+                        <?php if ($has_divera_key): ?>
+                            <span class="text-success"><i class="fas fa-check-circle"></i></span> Divera Access Key ist hinterlegt
+                        <?php else: ?>
+                            <span class="text-muted"><i class="fas fa-minus-circle"></i></span> Kein Divera Access Key hinterlegt
+                        <?php endif; ?>
+                    </p>
                     <form method="POST">
                         <div class="mb-3">
                             <label class="form-label">Divera Access Key (persönlich)</label>
-                            <input class="form-control" type="password" name="divera_access_key" value="" placeholder="<?php echo !empty($user['divera_access_key'] ?? '') ? 'Leer lassen zum Beibehalten' : 'Key eintragen'; ?>" autocomplete="off">
+                            <input class="form-control" type="password" name="divera_access_key" value="" placeholder="<?php echo $has_divera_key ? 'Leer lassen zum Beibehalten' : 'Key eintragen'; ?>" autocomplete="off">
                             <small class="text-muted">In Divera 24/7: Einstellungen → Debug-Tab → Benutzer-Accesskey. Key ohne Leerzeichen/Zeilenumbrüche eintragen. Leer lassen = bisherigen Key beibehalten. Ohne Key wird der Einheits-Key aus den Divera-Einstellungen verwendet.</small>
                         </div>
                         <input type="hidden" name="action" value="update_divera_key">
