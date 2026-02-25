@@ -675,6 +675,7 @@ try {
                         </button>
                     </div>
                     <p class="text-muted small mt-2 mb-0" id="autologin-validity-hint"></p>
+                    <p class="text-muted small mt-2 mb-0">Falls der Link nicht funktioniert (z. B. 502 Bad Gateway): Prüfen Sie die <strong>App URL</strong> in den globalen Einstellungen – sie muss zur tatsächlichen Adresse der Anwendung passen.</p>
                 </div>
             </div>
         </div>
@@ -993,14 +994,39 @@ try {
         });
         document.getElementById('autologin-copy-btn').addEventListener('click', function() {
             var urlEl = document.getElementById('autologin-url');
-            if (urlEl && urlEl.value) {
-                navigator.clipboard.writeText(urlEl.value).then(function() {
-                    var orig = document.getElementById('autologin-copy-btn').innerHTML;
-                    document.getElementById('autologin-copy-btn').innerHTML = '<i class="fas fa-check"></i> Kopiert!';
-                    setTimeout(function() { document.getElementById('autologin-copy-btn').innerHTML = orig; }, 1500);
+            var copyBtn = document.getElementById('autologin-copy-btn');
+            var text = urlEl && urlEl.value ? urlEl.value : '';
+            if (!text) return;
+            var showSuccess = function() {
+                var orig = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<i class="fas fa-check"></i> Kopiert!';
+                setTimeout(function() { copyBtn.innerHTML = orig; }, 1500);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(showSuccess).catch(function() {
+                    fallbackCopy(text, showSuccess);
                 });
+            } else {
+                fallbackCopy(text, showSuccess);
             }
         });
+        function fallbackCopy(text, onSuccess) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            ta.style.top = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try {
+                if (document.execCommand('copy')) onSuccess();
+                else alert('Kopieren fehlgeschlagen. Bitte den Link manuell markieren und kopieren.');
+            } catch (e) {
+                alert('Kopieren fehlgeschlagen. Bitte den Link manuell markieren und kopieren.');
+            }
+            document.body.removeChild(ta);
+        }
     </script>
 </body>
 </html>

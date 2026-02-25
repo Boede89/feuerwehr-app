@@ -64,11 +64,12 @@ try {
         }
     } catch (Exception $e) {}
     if ($base_url === '') {
-        $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
         $script_dir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
-        $app_base = rtrim(dirname($script_dir), '/');
-        $base_url = $protocol . '://' . $host . $app_base;
+        $app_base = rtrim(dirname($script_dir), '/\\');
+        $base_url = $protocol . '://' . $host . ($app_base !== '' && $app_base !== '/' ? $app_base : '');
+        $base_url = rtrim($base_url, '/');
     }
     $autologin_url = $base_url . '/autologin.php?token=' . urlencode($user['autologin_token']);
 

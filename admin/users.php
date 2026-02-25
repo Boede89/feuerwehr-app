@@ -947,17 +947,37 @@ try {
                 });
             });
 
-            // Kopieren-Button
+            // Kopieren-Button (mit Fallback für Browser ohne Clipboard API)
             const autologinCopyBtn = document.getElementById('autologin-copy-btn');
             if (autologinCopyBtn) {
                 autologinCopyBtn.addEventListener('click', function() {
                     const urlEl = document.getElementById('autologin-url');
-                    if (urlEl && urlEl.value) {
-                        navigator.clipboard.writeText(urlEl.value).then(function() {
-                            const orig = autologinCopyBtn.innerHTML;
-                            autologinCopyBtn.innerHTML = '<i class="fas fa-check"></i> Kopiert!';
-                            setTimeout(function() { autologinCopyBtn.innerHTML = orig; }, 1500);
-                        });
+                    const text = urlEl && urlEl.value ? urlEl.value : '';
+                    if (!text) return;
+                    const showSuccess = function() {
+                        const orig = autologinCopyBtn.innerHTML;
+                        autologinCopyBtn.innerHTML = '<i class="fas fa-check"></i> Kopiert!';
+                        setTimeout(function() { autologinCopyBtn.innerHTML = orig; }, 1500);
+                    };
+                    const fallbackCopy = function() {
+                        const ta = document.createElement('textarea');
+                        ta.value = text;
+                        ta.style.position = 'fixed';
+                        ta.style.left = '-9999px';
+                        document.body.appendChild(ta);
+                        ta.select();
+                        try {
+                            if (document.execCommand('copy')) showSuccess();
+                            else alert('Kopieren fehlgeschlagen. Bitte den Link manuell markieren und kopieren.');
+                        } catch (e) {
+                            alert('Kopieren fehlgeschlagen. Bitte den Link manuell markieren und kopieren.');
+                        }
+                        document.body.removeChild(ta);
+                    };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(showSuccess).catch(fallbackCopy);
+                    } else {
+                        fallbackCopy();
                     }
                 });
             }
