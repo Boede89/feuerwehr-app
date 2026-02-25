@@ -205,7 +205,12 @@ foreach ($vehicle_equipment_sonstiges as $vid => $sonst) {
 }
 
 $titel = $liste['bezeichnung'] ?? $liste['dienst_bezeichnung'] ?? 'Anwesenheit';
-$typ_label = ($liste['typ'] ?? '') === 'einsatz' ? 'Einsatz' : (($liste['typ'] ?? '') === 'manuell' ? 'Manuell' : get_dienstplan_typ_label($liste['dienst_typ'] ?? 'uebungsdienst'));
+$typ_label = get_anwesenheitsliste_typ_label($liste);
+$typ_sonstige_pdf = trim($custom_data_pdf['typ_sonstige'] ?? '');
+$is_sonstiges_pdf = (($liste['typ'] ?? '') === 'dienst' && ($liste['dienst_typ'] ?? '') === 'sonstiges') || (($liste['typ'] ?? '') === 'manuell' && (in_array(trim($liste['bezeichnung'] ?? ''), ['Sonstiges']) || $typ_sonstige_pdf === 'sonstiges'));
+$thema_beschreibung_pdf = $liste['bezeichnung'] ?? ($custom_data_pdf['beschreibung'] ?? '');
+if ($thema_beschreibung_pdf === '' && !empty($custom_data_pdf['beschreibung'])) $thema_beschreibung_pdf = $custom_data_pdf['beschreibung'];
+if ($is_sonstiges_pdf && !empty(trim($custom_data_pdf['beschreibung'] ?? ''))) $thema_beschreibung_pdf = trim($custom_data_pdf['beschreibung']);
 
 $html = '<!DOCTYPE html>
 <html lang="de">
@@ -250,8 +255,8 @@ $uhrzeit_von = _al_val($liste, 'uhrzeit_von', $custom_data);
 $uhrzeit_bis = _al_val($liste, 'uhrzeit_bis', $custom_data);
 $einsatzstichwort = _al_val($liste, 'einsatzstichwort', $custom_data);
 $klassifizierung = _al_val($liste, 'klassifizierung', $custom_data);
-$stichwort_thema_val = $is_uebungsdienst_pdf ? trim((string)($liste['bezeichnung'] ?? '')) : $einsatzstichwort;
-$stichwort_thema_label = $is_uebungsdienst_pdf ? 'Thema' : 'Stichwort';
+$stichwort_thema_val = $is_sonstiges_pdf ? $thema_beschreibung_pdf : ($is_uebungsdienst_pdf ? trim((string)($liste['bezeichnung'] ?? $liste['dienst_bezeichnung'] ?? '')) : $einsatzstichwort);
+$stichwort_thema_label = $is_sonstiges_pdf ? 'Beschreibung' : ($is_uebungsdienst_pdf ? 'Thema' : 'Stichwort');
 $einsatzdauer = _calc_einsatzdauer($uhrzeit_von, $uhrzeit_bis);
 if ($uhrzeit_von !== '' && strlen($uhrzeit_von) >= 5) $uhrzeit_von = substr($uhrzeit_von, 0, 5);
 if ($uhrzeit_bis !== '' && strlen($uhrzeit_bis) >= 5) $uhrzeit_bis = substr($uhrzeit_bis, 0, 5);
@@ -259,13 +264,13 @@ if ($uhrzeit_bis !== '' && strlen($uhrzeit_bis) >= 5) $uhrzeit_bis = substr($uhr
 $datum_formatiert = $liste['datum'] ? date('d.m.Y', strtotime($liste['datum'])) : '-';
 $uebungsdienst_hide_pdf = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
 $html .= '<div class="section"><div class="section-title">Stammdaten</div><table class="stamm-inline">';
-$html .= '<tr><td class="label-cell">Datum</td><td colspan="5">' . htmlspecialchars($datum_formatiert) . '</td></tr>';
+$html .= '<tr><td class="label-cell">Datum</td><td>' . htmlspecialchars($datum_formatiert) . '</td><td class="label-cell">Typ</td><td colspan="3">' . htmlspecialchars($typ_label) . '</td></tr>';
 if (!$is_uebungsdienst_pdf) {
     $html .= '<tr><td class="label-cell">Einsatzbericht Nr.</td><td>' . htmlspecialchars($einsatzbericht_display) . '</td><td class="label-cell">Alarmierung durch</td><td>' . htmlspecialchars($alarmierung ?: '-') . '</td></tr>';
 }
 $html .= '<tr><td class="label-cell">Uhrzeit von</td><td>' . htmlspecialchars($uhrzeit_von ?: '-') . '</td><td class="label-cell">Uhrzeit bis</td><td>' . htmlspecialchars($uhrzeit_bis ?: '-') . '</td><td class="label-cell">Einsatzdauer</td><td>' . htmlspecialchars($einsatzdauer ?: '-') . '</td></tr>';
 $html .= '<tr><td class="label-cell">' . htmlspecialchars($stichwort_thema_label) . '</td><td>' . htmlspecialchars($stichwort_thema_val ?: '-') . '</td><td class="label-cell">Klassifizierung</td><td>' . htmlspecialchars($klassifizierung ?: '-') . '</td></tr>';
-$skip_ids = ['datum','einsatzbericht_nummer','alarmierung_durch','uhrzeit_von','uhrzeit_bis','einsatzstichwort','klassifizierung','einsatzleiter'];
+$skip_ids = ['datum','einsatzbericht_nummer','alarmierung_durch','uhrzeit_von','uhrzeit_bis','einsatzstichwort','thema','beschreibung','klassifizierung','einsatzleiter'];
 foreach ($anwesenheitsliste_felder as $f) {
     if (empty($f['visible'])) continue;
     $fid = $f['id'] ?? '';

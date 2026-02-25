@@ -47,17 +47,6 @@ if (!$liste) {
 }
 $liste_einheit_id = (int)($liste['einheit_id'] ?? 0);
 
-// Weiterleitung zur Ausfüllseite – identisches Layout wie beim Ausfüllen
-$datum = $liste['datum'] ?? '';
-$typ = $liste['typ'] ?? 'dienst';
-$auswahl = ($typ === 'einsatz' || $typ === 'manuell') ? 'einsatz' : (string)($liste['dienstplan_id'] ?? '');
-if ($auswahl === '' && $typ === 'dienst') $auswahl = 'einsatz'; // Fallback wenn Dienstplan gelöscht
-if ($datum !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum)) {
-    $redirect_einheit = $liste_einheit_id > 0 ? '&einheit_id=' . (int)$liste_einheit_id : '';
-    header('Location: ../anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&edit_id=' . (int)$id . '&return=formularcenter' . $redirect_einheit);
-    exit;
-}
-
 $vehicles_list = [];
 try {
     $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name ASC");
@@ -121,6 +110,12 @@ $is_uebungsdienst_edit = !empty($uebungsleiter_ids)
 $typ_sonstige_edit = $custom_data['typ_sonstige'] ?? '';
 $is_jhv_sonstiges_edit = (($liste['typ'] ?? '') === 'dienst' && ($liste['dienst_typ'] ?? '') === 'sonstiges')
     || (($liste['typ'] ?? '') === 'manuell' && ((trim($liste['bezeichnung'] ?? '') === 'Sonstiges') || $typ_sonstige_edit === 'sonstiges'));
+$edit_typ_opt = ($liste['typ'] ?? '') === 'einsatz' ? 'einsatz' : ($is_uebungsdienst_edit ? 'uebungsdienst' : ($is_jhv_sonstiges_edit ? 'sonstiges' : 'einsatz'));
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_typ']) && in_array(trim($_POST['edit_typ'] ?? ''), ['einsatz','uebungsdienst','sonstiges'])) {
+    $edit_typ_opt = trim($_POST['edit_typ']);
+    $is_uebungsdienst_edit = ($edit_typ_opt === 'uebungsdienst');
+    $is_jhv_sonstiges_edit = ($edit_typ_opt === 'sonstiges');
+}
 $uebungsdienst_hide_ids = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
 $berichtersteller_val = $custom_data['berichtersteller'] ?? '';
 $berichtersteller_display = '';
@@ -163,9 +158,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
         $error = 'Ungültiger Sicherheitstoken.';
     } else {
         try {
+            $edit_typ_post = trim($_POST['edit_typ'] ?? '');
+            if (!in_array($edit_typ_post, ['einsatz', 'uebungsdienst', 'sonstiges'])) $edit_typ_post = $edit_typ_opt;
+            $is_uebungsdienst_edit = ($edit_typ_post === 'uebungsdienst');
+            $is_jhv_sonstiges_edit = ($edit_typ_post === 'sonstiges');
+            $new_typ = $edit_typ_post === 'einsatz' ? 'einsatz' : 'manuell';
+            $new_dienstplan_id = null;
+            $new_bezeichnung = null;
+            if ($edit_typ_post === 'einsatz') {
+                $new_bezeichnung = trim($_POST['einsatzstichwort'] ?? $liste['einsatzstichwort'] ?? '') !== '' ? trim($_POST['einsatzstichwort'] ?? $liste['einsatzstichwort']) : (trim($_POST['klassifizierung'] ?? $liste['klassifizierung'] ?? '') !== '' ? trim($_POST['klassifizierung'] ?? $liste['klassifizierung']) : 'Einsatz');
+            } elseif ($edit_typ_post === 'uebungsdienst') {
+                $new_bezeichnung = trim($_POST['thema'] ?? $liste['bezeichnung'] ?? '');
+            } else {
+                $new_bezeichnung = trim($_POST['beschreibung'] ?? $custom_data['beschreibung'] ?? $liste['bezeichnung'] ?? '');
+            }
             $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','einsatzstichwort','einsatzbericht_nummer','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
-            $updates = [];
-            $params = [];
+            $updates = ['typ = ?', 'dienstplan_id = ?', 'bezeichnung = ?'];
+            $params = [$new_typ, $new_dienstplan_id, $new_bezeichnung !== '' ? $new_bezeichnung : null];
             foreach ($anwesenheitsliste_felder as $f) {
                 if (empty($f['visible'])) continue;
                 $fid = $f['id'] ?? '';
@@ -252,17 +261,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
                     } catch (Exception $e) {}
                 }
             }
-            if ($is_jhv_sonstiges_edit) {
-                $beschr = trim($_POST['beschreibung'] ?? '');
+            if ($is_jhv_sonstiges_edit || $edit_typ_post === 'sonstiges') {
+                $beschr = trim($_POST['beschreibung'] ?? $custom_data['beschreibung'] ?? $liste['bezeichnung'] ?? '');
                 if ($beschr !== '') $custom_post['beschreibung'] = $beschr;
-                $ts = $custom_data['typ_sonstige'] ?? '';
-                if ($ts === '' && ($liste['typ'] ?? '') === 'dienst' && ($liste['dienst_typ'] ?? '') === 'sonstiges') {
-                    $ts = 'sonstiges';
-                }
-                if ($ts === '' && ($liste['typ'] ?? '') === 'manuell') {
-                    $ts = 'sonstiges';
-                }
-                if ($ts !== '') $custom_post['typ_sonstige'] = $ts;
+                $custom_post['typ_sonstige'] = 'sonstiges';
             }
             if (!empty($_POST['equipment_sonstiges']) && is_array($_POST['equipment_sonstiges'])) {
                 foreach ($_POST['equipment_sonstiges'] as $vid => $txt) {
@@ -485,6 +487,14 @@ function _al_val($liste, $key, $custom_data = []) {
             <div class="card-body">
                 <p class="text-muted small">Erstellt von <?php echo htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt'); ?> am <?php echo format_datetime_berlin($liste['created_at']); ?></p>
                 <div class="row g-3">
+                    <div class="col-12">
+                        <label for="edit_typ" class="form-label">Typ <span class="text-muted">(kann nachträglich geändert werden)</span></label>
+                        <select class="form-select" name="edit_typ" id="edit_typ" style="max-width: 280px;">
+                            <option value="einsatz" <?php echo $edit_typ_opt === 'einsatz' ? 'selected' : ''; ?>>Einsatz</option>
+                            <option value="uebungsdienst" <?php echo $edit_typ_opt === 'uebungsdienst' ? 'selected' : ''; ?>>Übungsdienst</option>
+                            <option value="sonstiges" <?php echo $edit_typ_opt === 'sonstiges' ? 'selected' : ''; ?>>Sonstiges</option>
+                        </select>
+                    </div>
                     <?php if (!$is_uebungsdienst_edit): ?>
                     <div class="col-md-6">
                         <label for="einsatzbericht_nummer" class="form-label">Einsatzbericht Nummer</label>
