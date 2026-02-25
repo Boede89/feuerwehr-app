@@ -214,8 +214,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
             $error = 'Bitte geben Sie eine Beschreibung ein.';
         } else {
             try {
-                $res_einheit = get_admin_einheit_filter() ?? 1;
+                $res_einheit = get_admin_einheit_filter();
                 try { $db->exec("ALTER TABLE dienstplan ADD COLUMN einheit_id INT NULL"); } catch (Exception $e2) {}
+                try { $db->exec("ALTER TABLE dienstplan MODIFY COLUMN einheit_id INT NULL DEFAULT NULL"); } catch (Exception $e2) {}
                 if ($id) {
                     $stmt = $db->prepare("UPDATE dienstplan SET datum = ?, bezeichnung = ?, typ = ?, uhrzeit_dienstbeginn = ?, uhrzeit_dienstende = ?, einheit_id = ? WHERE id = ?");
                     $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $uhrzeit_ende_val, $res_einheit > 0 ? $res_einheit : null, $id]);

@@ -87,6 +87,10 @@ try {
     try {
         $db->exec("ALTER TABLE dienstplan ADD COLUMN einheit_id INT NOT NULL DEFAULT 1");
     } catch (Exception $e2) {}
+    // Migration: einheit_id NULL erlauben für "globale" Dienste (zeigen für alle Einheiten)
+    try {
+        $db->exec("ALTER TABLE dienstplan MODIFY COLUMN einheit_id INT NULL DEFAULT NULL");
+    } catch (Exception $e2) {}
     try {
         $db->exec("ALTER TABLE dienstplan ADD COLUMN uhrzeit_dienstende TIME NULL AFTER uhrzeit_dienstbeginn");
     } catch (Exception $e2) {

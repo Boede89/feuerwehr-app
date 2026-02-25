@@ -31,6 +31,16 @@ if ($effective_einheit_id <= 0 && function_exists('get_current_einheit_id')) {
     $c = get_current_einheit_id();
     $effective_einheit_id = $c ? (int)$c : null;
 }
+// Fallback: Benutzer-Einheit nutzen, damit importierte Dienste als Vorschlag erscheinen
+if ($effective_einheit_id <= 0 && isset($_SESSION['user_id'])) {
+    try {
+        $stmt = $db->prepare("SELECT einheit_id FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $uid = $row ? (int)($row['einheit_id'] ?? 0) : 0;
+        if ($uid > 0) $effective_einheit_id = $uid;
+    } catch (Exception $e) { /* ignore */ }
+}
 
 $divera_key = '';
 $api_base = rtrim(trim((string) ($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
