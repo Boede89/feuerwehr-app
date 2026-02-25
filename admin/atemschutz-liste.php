@@ -1266,7 +1266,7 @@ document.addEventListener('DOMContentLoaded', function(){
     </table>
     
     <div class="footer">
-        <p>Erstellt am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')} | Feuerwehr App v3.0</p>
+        <p>Erstellt am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')} | Feuerwehr App v3.1</p>
     </div>
 </body>
 </html>`;

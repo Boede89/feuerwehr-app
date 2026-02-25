@@ -947,7 +947,7 @@ try {
                 });
             });
 
-            // Kopieren-Button (mit Fallback für Browser ohne Clipboard API)
+            // Kopieren-Button (mehrere Fallbacks für maximale Kompatibilität)
             const autologinCopyBtn = document.getElementById('autologin-copy-btn');
             if (autologinCopyBtn) {
                 autologinCopyBtn.addEventListener('click', function() {
@@ -959,25 +959,41 @@ try {
                         autologinCopyBtn.innerHTML = '<i class="fas fa-check"></i> Kopiert!';
                         setTimeout(function() { autologinCopyBtn.innerHTML = orig; }, 1500);
                     };
-                    const fallbackCopy = function() {
+                    let ok = false;
+                    if (urlEl && document.execCommand) {
+                        urlEl.removeAttribute('readonly');
+                        urlEl.focus();
+                        urlEl.select();
+                        urlEl.setSelectionRange(0, text.length);
+                        try { ok = document.execCommand('copy'); } catch (e) {}
+                        urlEl.setAttribute('readonly', 'readonly');
+                    }
+                    if (ok) {
+                        showSuccess();
+                    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(showSuccess).catch(function() {
+                            const ta = document.createElement('textarea');
+                            ta.value = text;
+                            ta.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;opacity:0.01;';
+                            document.body.appendChild(ta);
+                            ta.focus();
+                            ta.select();
+                            try { ok = document.execCommand('copy'); } catch (e2) {}
+                            document.body.removeChild(ta);
+                            if (ok) showSuccess();
+                            else alert('Kopieren fehlgeschlagen. Bitte Link manuell markieren (Strg+A) und kopieren (Strg+C).');
+                        });
+                    } else {
                         const ta = document.createElement('textarea');
                         ta.value = text;
-                        ta.style.position = 'fixed';
-                        ta.style.left = '-9999px';
+                        ta.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;opacity:0.01;';
                         document.body.appendChild(ta);
+                        ta.focus();
                         ta.select();
-                        try {
-                            if (document.execCommand('copy')) showSuccess();
-                            else alert('Kopieren fehlgeschlagen. Bitte den Link manuell markieren und kopieren.');
-                        } catch (e) {
-                            alert('Kopieren fehlgeschlagen. Bitte den Link manuell markieren und kopieren.');
-                        }
+                        try { ok = document.execCommand('copy'); } catch (e2) {}
                         document.body.removeChild(ta);
-                    };
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                        navigator.clipboard.writeText(text).then(showSuccess).catch(fallbackCopy);
-                    } else {
-                        fallbackCopy();
+                        if (ok) showSuccess();
+                        else alert('Kopieren fehlgeschlagen. Bitte Link manuell markieren (Strg+A) und kopieren (Strg+C).');
                     }
                 });
             }

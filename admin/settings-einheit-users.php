@@ -1002,30 +1002,35 @@ try {
                 copyBtn.innerHTML = '<i class="fas fa-check"></i> Kopiert!';
                 setTimeout(function() { copyBtn.innerHTML = orig; }, 1500);
             };
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(showSuccess).catch(function() {
-                    fallbackCopy(text, showSuccess);
-                });
+            var ok = false;
+            if (urlEl && document.execCommand) {
+                urlEl.removeAttribute('readonly');
+                urlEl.focus();
+                urlEl.select();
+                urlEl.setSelectionRange(0, text.length);
+                try { ok = document.execCommand('copy'); } catch (e) {}
+                urlEl.setAttribute('readonly', 'readonly');
+            }
+            if (ok) {
+                showSuccess();
+            } else if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(showSuccess).catch(function() { copyViaTextarea(text, showSuccess); });
             } else {
-                fallbackCopy(text, showSuccess);
+                copyViaTextarea(text, showSuccess);
             }
         });
-        function fallbackCopy(text, onSuccess) {
+        function copyViaTextarea(text, onSuccess) {
             var ta = document.createElement('textarea');
             ta.value = text;
-            ta.style.position = 'fixed';
-            ta.style.left = '-9999px';
-            ta.style.top = '0';
+            ta.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;padding:0;border:0;outline:none;opacity:0.01;';
             document.body.appendChild(ta);
             ta.focus();
             ta.select();
-            try {
-                if (document.execCommand('copy')) onSuccess();
-                else alert('Kopieren fehlgeschlagen. Bitte den Link manuell markieren und kopieren.');
-            } catch (e) {
-                alert('Kopieren fehlgeschlagen. Bitte den Link manuell markieren und kopieren.');
-            }
+            var ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) {}
             document.body.removeChild(ta);
+            if (ok) onSuccess();
+            else alert('Kopieren fehlgeschlagen. Bitte den Link manuell markieren (Strg+A) und kopieren (Strg+C).');
         }
     </script>
 </body>
