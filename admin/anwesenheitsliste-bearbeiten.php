@@ -172,9 +172,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
             } else {
                 $new_bezeichnung = trim($_POST['beschreibung'] ?? $custom_data['beschreibung'] ?? $liste['bezeichnung'] ?? '');
             }
+            $new_datum = trim($_POST['datum'] ?? $liste['datum'] ?? '');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $new_datum)) $new_datum = $liste['datum'] ?? date('Y-m-d');
             $builtin = ['uhrzeit_von','uhrzeit_bis','alarmierung_durch','einsatzstelle','einsatzstichwort','einsatzbericht_nummer','objekt','eigentuemer','geschaedigter','klassifizierung','kostenpflichtiger_einsatz','personenschaeden','brandwache','bemerkung'];
-            $updates = ['typ = ?', 'dienstplan_id = ?', 'bezeichnung = ?'];
-            $params = [$new_typ, $new_dienstplan_id, $new_bezeichnung !== '' ? $new_bezeichnung : null];
+            $updates = ['datum = ?', 'typ = ?', 'dienstplan_id = ?', 'bezeichnung = ?'];
+            $params = [$new_datum, $new_typ, $new_dienstplan_id, $new_bezeichnung !== '' ? $new_bezeichnung : null];
             foreach ($anwesenheitsliste_felder as $f) {
                 if (empty($f['visible'])) continue;
                 $fid = $f['id'] ?? '';
@@ -487,6 +489,10 @@ function _al_val($liste, $key, $custom_data = []) {
             <div class="card-body">
                 <p class="text-muted small">Erstellt von <?php echo htmlspecialchars(trim($liste['user_first_name'] . ' ' . $liste['user_last_name']) ?: 'Unbekannt'); ?> am <?php echo format_datetime_berlin($liste['created_at']); ?></p>
                 <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="datum" class="form-label">Datum</label>
+                        <input type="date" class="form-control" name="datum" id="datum" value="<?php echo htmlspecialchars($liste['datum'] ?? date('Y-m-d')); ?>" required>
+                    </div>
                     <div class="col-12">
                         <label for="edit_typ" class="form-label">Typ <span class="text-muted">(kann nachträglich geändert werden)</span></label>
                         <select class="form-select" name="edit_typ" id="edit_typ" style="max-width: 280px;">
