@@ -630,7 +630,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                             <input type="hidden" name="action" value="use_global_smtp">
                             <input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>">
-                            <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="fas fa-download me-1"></i> Globale SMTP übernehmen</button>
+                            <button type="submit" class="btn btn-outline-primary btn-sm"><i class="fas fa-download me-1"></i> Globale SMTP übernehmen</button>
                         </form>
                     </div>
                     <div class="card-body">
