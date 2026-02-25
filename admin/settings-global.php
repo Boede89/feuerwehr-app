@@ -719,13 +719,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     <div class="card-header"><i class="fas fa-calendar-plus"></i> Divera 24/7</div>
                     <div class="card-body">
                                 <p class="text-muted small mb-3">Einstellungen für die automatische Übermittlung genehmigter Fahrzeugreservierungen und Dienstplan-Termine an Divera (einheitenspezifisch).</p>
-                                <p class="small mb-3">
-                                    <a href="settings-debug.php?tab=divera&einheit_id=<?php echo (int)$einheit_id; ?>"><i class="fas fa-bug me-1"></i> API Debug & Letzte API-Anfragen</a>
-                                    <?php if (is_superadmin($_SESSION['user_id'] ?? 0)): ?>
-                                    · <a href="debug-divera.php?einheit_id=<?php echo (int)$einheit_id; ?>">Divera-Konfiguration prüfen</a> ·
-                                    <a href="cleanup-divera-global.php">Globale Keys bereinigen</a>
-                                    <?php endif; ?>
-                                </p>
                                 <div class="mb-3">
                                     <label class="form-label">Access Key (Einheits-Key)</label>
                                     <div class="input-group">
