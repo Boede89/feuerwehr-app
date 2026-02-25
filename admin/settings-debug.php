@@ -20,84 +20,102 @@ if (!hasAdminPermission()) {
 $active_tab = isset($_GET['tab']) ? trim($_GET['tab']) : 'fahrzeugzuordnungen';
 if ($active_tab !== 'fahrzeugzuordnungen') $active_tab = 'fahrzeugzuordnungen';
 
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+if ($einheit_id <= 0) {
+    header('Location: settings.php');
+    exit;
+}
+
 $jahr = isset($_GET['jahr']) ? (int)$_GET['jahr'] : (int)date('Y');
 $von = isset($_GET['von']) ? trim($_GET['von']) : $jahr . '-01-01';
 $bis = isset($_GET['bis']) ? trim($_GET['bis']) : date('Y-m-d');
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $von)) $von = $jahr . '-01-01';
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bis)) $bis = date('Y-m-d');
 
-// Einheiten laden
-$einheiten = [];
+// Ausgewählte Einheit prüfen
+$einheit_name = '';
 try {
-    $stmt = $db->query("SELECT id, name FROM einheiten WHERE is_active = 1 ORDER BY sort_order, name");
-    $einheiten = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $db->prepare("SELECT id, name FROM einheiten WHERE id = ? AND is_active = 1");
+    $stmt->execute([$einheit_id]);
+    $einheit_row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$einheit_row) {
+        header('Location: settings.php');
+        exit;
+    }
+    $einheit_name = $einheit_row['name'];
+} catch (Exception $e) {
+    header('Location: settings.php');
+    exit;
+}
+
+$einheit_where_a = " AND (a.einheit_id = " . $einheit_id . " OR a.einheit_id IS NULL)";
+
+$debug_data = [];
+$vehicles = [];
+$members = [];
+
+try {
+    $stmt = $db->prepare("SELECT id, name FROM vehicles WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY name");
+    $stmt->execute([$einheit_id]);
+    $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $ex) {}
+
+try {
+    $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
+    $stmt->execute([$einheit_id]);
+    $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $ex) {}
+
+$init_member = function($mid) use (&$debug_data) {
+    if (!isset($debug_data[$mid])) {
+        $debug_data[$mid] = [
+            'auf_fahrzeug' => [],
+            'maschinist' => [],
+            'einheitsfuehrer' => []
+        ];
+    }
+};
+
+try {
+    $stmt = $db->prepare("SELECT am.member_id, am.vehicle_id, a.datum FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0" . $einheit_where_a);
+    $stmt->execute([$von, $bis]);
+    while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $mid = (int)$r['member_id'];
+        $vid = (int)$r['vehicle_id'];
+        $init_member($mid);
+        $debug_data[$mid]['auf_fahrzeug'][$vid] = ($debug_data[$mid]['auf_fahrzeug'][$vid] ?? 0) + 1;
+    }
+    
+    $stmt = $db->prepare("SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ?" . $einheit_where_a);
+    $stmt->execute([$von, $bis]);
+    while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $vid = (int)$r['vehicle_id'];
+        if (!empty($r['maschinist_member_id'])) {
+            $mid = (int)$r['maschinist_member_id'];
+            $init_member($mid);
+            $debug_data[$mid]['maschinist'][$vid] = ($debug_data[$mid]['maschinist'][$vid] ?? 0) + 1;
+        }
+        if (!empty($r['einheitsfuehrer_member_id'])) {
+            $mid = (int)$r['einheitsfuehrer_member_id'];
+            $init_member($mid);
+            $debug_data[$mid]['einheitsfuehrer'][$vid] = ($debug_data[$mid]['einheitsfuehrer'][$vid] ?? 0) + 1;
+        }
+    }
 } catch (Exception $e) {}
 
-// Debug-Daten pro Einheit
-$debug_data_by_einheit = [];
-$vehicles_by_einheit = [];
-$members_by_einheit = [];
-
-foreach ($einheiten as $e) {
-    $eid = (int)$e['id'];
-    $einheit_where_a = " AND (a.einheit_id = " . $eid . " OR a.einheit_id IS NULL)";
-    
-    $debug_data = [];
-    $vehicles = [];
-    $members = [];
-    
+$member_map = [];
+foreach ($members as $m) $member_map[(int)$m['id']] = $m;
+$debug_mids = array_keys($debug_data);
+$debug_missing = array_filter($debug_mids, fn($mid) => (int)$mid > 0 && !isset($member_map[(int)$mid]));
+if (!empty($debug_missing)) {
     try {
-        $stmt = $db->prepare("SELECT id, name FROM vehicles WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY name");
-        $stmt->execute([$eid]);
-        $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $ph = implode(',', array_fill(0, count($debug_missing), '?'));
+        $st = $db->prepare("SELECT id, first_name, last_name FROM members WHERE id IN ($ph)");
+        $st->execute(array_values($debug_missing));
+        while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+            $member_map[(int)$row['id']] = ['last_name' => $row['last_name'] ?? '', 'first_name' => $row['first_name'] ?? ''];
+        }
     } catch (Exception $ex) {}
-    
-    try {
-        $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
-        $stmt->execute([$eid]);
-        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $ex) {}
-    
-    $init_member = function($mid) use (&$debug_data) {
-        if (!isset($debug_data[$mid])) {
-            $debug_data[$mid] = [
-                'auf_fahrzeug' => [],
-                'maschinist' => [],
-                'einheitsfuehrer' => []
-            ];
-        }
-    };
-    
-    try {
-        $stmt = $db->prepare("SELECT am.member_id, am.vehicle_id, a.datum FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0" . $einheit_where_a);
-        $stmt->execute([$von, $bis]);
-        while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $mid = (int)$r['member_id'];
-            $vid = (int)$r['vehicle_id'];
-            $init_member($mid);
-            $debug_data[$mid]['auf_fahrzeug'][$vid] = ($debug_data[$mid]['auf_fahrzeug'][$vid] ?? 0) + 1;
-        }
-        
-        $stmt = $db->prepare("SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ?" . $einheit_where_a);
-        $stmt->execute([$von, $bis]);
-        while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $vid = (int)$r['vehicle_id'];
-            if (!empty($r['maschinist_member_id'])) {
-                $mid = (int)$r['maschinist_member_id'];
-                $init_member($mid);
-                $debug_data[$mid]['maschinist'][$vid] = ($debug_data[$mid]['maschinist'][$vid] ?? 0) + 1;
-            }
-            if (!empty($r['einheitsfuehrer_member_id'])) {
-                $mid = (int)$r['einheitsfuehrer_member_id'];
-                $init_member($mid);
-                $debug_data[$mid]['einheitsfuehrer'][$vid] = ($debug_data[$mid]['einheitsfuehrer'][$vid] ?? 0) + 1;
-            }
-        }
-    } catch (Exception $e) {}
-    
-    $debug_data_by_einheit[$eid] = $debug_data;
-    $vehicles_by_einheit[$eid] = $vehicles;
-    $members_by_einheit[$eid] = $members;
 }
 ?>
 <!DOCTYPE html>
@@ -122,13 +140,13 @@ foreach ($einheiten as $e) {
 
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <h1 class="h3 mb-0"><i class="fas fa-bug text-warning"></i> Debug</h1>
+        <h1 class="h3 mb-0"><i class="fas fa-bug text-warning"></i> Debug – <?php echo htmlspecialchars($einheit_name); ?></h1>
         <a href="settings.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Zurück zu Einstellungen</a>
     </div>
 
     <ul class="nav nav-tabs mb-4">
         <li class="nav-item">
-            <a class="nav-link <?php echo $active_tab === 'fahrzeugzuordnungen' ? 'active' : ''; ?>" href="?tab=fahrzeugzuordnungen&von=<?php echo urlencode($von); ?>&bis=<?php echo urlencode($bis); ?>">
+            <a class="nav-link <?php echo $active_tab === 'fahrzeugzuordnungen' ? 'active' : ''; ?>" href="?tab=fahrzeugzuordnungen&einheit_id=<?php echo (int)$einheit_id; ?>&von=<?php echo urlencode($von); ?>&bis=<?php echo urlencode($bis); ?>">
                 <i class="fas fa-truck"></i> Fahrzeugzuordnungen
             </a>
         </li>
@@ -140,6 +158,7 @@ foreach ($einheiten as $e) {
         <div class="card-body">
             <form method="get" class="row g-3 align-items-end">
                 <input type="hidden" name="tab" value="fahrzeugzuordnungen">
+                <input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>">
                 <div class="col-auto">
                     <label class="form-label">Von</label>
                     <input type="date" name="von" class="form-control" value="<?php echo htmlspecialchars($von); ?>">
@@ -157,28 +176,8 @@ foreach ($einheiten as $e) {
 
     <p class="text-muted small mb-3"><i class="fas fa-info-circle"></i> Person × Fahrzeug (pro Fahrzeug: Besatzung | Maschinist | Einheitsführer). Nur Anwesenheitslisten, keine Gerätewartmitteilungen. Zeitraum: <?php echo htmlspecialchars($von); ?> – <?php echo htmlspecialchars($bis); ?></p>
 
-    <?php foreach ($einheiten as $e):
-        $eid = (int)$e['id'];
-        $debug_data = $debug_data_by_einheit[$eid] ?? [];
-        $vehicles = $vehicles_by_einheit[$eid] ?? [];
-        $members = $members_by_einheit[$eid] ?? [];
-        $member_map = [];
-        foreach ($members as $m) $member_map[(int)$m['id']] = $m;
-        $debug_mids = array_keys($debug_data);
-        $debug_missing = array_filter($debug_mids, fn($mid) => (int)$mid > 0 && !isset($member_map[(int)$mid]));
-        if (!empty($debug_missing)) {
-            try {
-                $ph = implode(',', array_fill(0, count($debug_missing), '?'));
-                $st = $db->prepare("SELECT id, first_name, last_name FROM members WHERE id IN ($ph)");
-                $st->execute(array_values($debug_missing));
-                while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
-                    $member_map[(int)$row['id']] = ['last_name' => $row['last_name'] ?? '', 'first_name' => $row['first_name'] ?? ''];
-                }
-            } catch (Exception $ex) {}
-        }
-    ?>
     <div class="card mb-4">
-        <div class="card-header bg-light"><strong><?php echo htmlspecialchars($e['name']); ?></strong></div>
+        <div class="card-header bg-light"><strong><?php echo htmlspecialchars($einheit_name); ?></strong></div>
         <div class="card-body p-0">
             <?php if (empty($debug_data)): ?>
             <p class="text-muted p-3 mb-0">Keine Daten im gefilterten Zeitraum.</p>
@@ -227,7 +226,6 @@ foreach ($einheiten as $e) {
             <?php endif; ?>
         </div>
     </div>
-    <?php endforeach; ?>
     <?php endif; ?>
 </div>
 

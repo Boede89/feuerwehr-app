@@ -25,6 +25,13 @@ if (is_einheitsadmin()) {
     }
 }
 
+// Einheiten für Debug-Auswahl laden
+$einheiten = [];
+try {
+    $stmt = $db->query("SELECT id, name FROM einheiten WHERE is_active = 1 ORDER BY sort_order, name");
+    $einheiten = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
 $message = '';
 $error = '';
 if (isset($_GET['error']) && $_GET['error'] === 'superadmin_only') {
@@ -248,9 +255,13 @@ if (isset($_POST['test_email_btn'])) {
                         <h5 class="card-title"><i class="fas fa-bug text-warning"></i> Debug</h5>
                         <p class="text-muted">Fahrzeugzuordnungen (Person × Fahrzeug: Besatzung, Maschinist, Einheitsführer) pro Einheit prüfen.</p>
                         <div class="mt-auto">
-                            <a class="btn btn-outline-warning" href="settings-debug.php?tab=fahrzeugzuordnungen">
-                                <i class="fas fa-bug"></i> Debug öffnen
-                            </a>
+                            <div class="d-flex flex-wrap gap-2">
+                                <?php foreach ($einheiten as $e): ?>
+                                <a class="btn btn-outline-warning" href="settings-debug.php?tab=fahrzeugzuordnungen&einheit_id=<?php echo (int)$e['id']; ?>">
+                                    <i class="fas fa-bug"></i> <?php echo htmlspecialchars($e['name']); ?>
+                                </a>
+                                <?php endforeach; ?>
+                            </div>
                         </div>
                     </div>
                 </div>
