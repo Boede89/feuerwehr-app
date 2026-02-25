@@ -17,10 +17,16 @@ if (!hasAdminPermission()) {
 
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 $einheit = null;
-$active_tab = isset($_GET['tab']) ? preg_replace('/[^a-z0-9_-]/', '', $_GET['tab']) : 'smtp';
 $valid_tabs = ['smtp', 'google', 'einheit', 'drucker', 'divera', 'fahrzeuge', 'raeume'];
-if (!in_array($active_tab, $valid_tabs)) $active_tab = 'smtp';
-if ($active_tab === 'app') $active_tab = 'einheit'; // Kompatibilität mit alten Links
+$global_valid_tabs = ['app', 'feedback', 'smtp'];
+if ($einheit_id <= 0) {
+    $active_tab = isset($_GET['tab']) ? preg_replace('/[^a-z0-9_-]/', '', $_GET['tab']) : 'app';
+    if (!in_array($active_tab, $global_valid_tabs)) $active_tab = 'app';
+} else {
+    $active_tab = isset($_GET['tab']) ? preg_replace('/[^a-z0-9_-]/', '', $_GET['tab']) : 'smtp';
+    if (!in_array($active_tab, $valid_tabs)) $active_tab = 'smtp';
+    if ($active_tab === 'app') $active_tab = 'einheit'; // Kompatibilität mit alten Links
+}
 if ($einheit_id > 0) {
     try {
         $stmt = $db->prepare("SELECT id, name, kurzbeschreibung FROM einheiten WHERE id = ?");
@@ -446,7 +452,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     if (!in_array($return_tab, $valid_tabs)) $return_tab = 'smtp';
                     $redirect_url .= '?einheit_id=' . $save_einheit_id . '&saved=1&tab=' . $return_tab;
                 } else {
-                    $redirect_url .= '?saved=1';
+                    $return_tab = preg_replace('/[^a-z0-9_-]/', '', $_POST['return_tab'] ?? 'app');
+                    if (!in_array($return_tab, $global_valid_tabs)) $return_tab = 'app';
+                    $redirect_url .= '?saved=1&tab=' . $return_tab;
                 }
                 header('Location: ' . $redirect_url);
                 exit;
@@ -500,10 +508,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
     <?php endif; ?>
     <form method="POST" enctype="multipart/form-data" id="mainForm">
         <?php if ($einheit_id <= 0): ?>
-        <!-- Globale Einstellungen: App, Feedback-E-Mail, SMTP -->
-        <div class="row g-4">
-            <div class="col-lg-6">
-                <div class="card h-100">
+        <!-- Globale Einstellungen – Tab-Navigation -->
+        <ul class="nav nav-tabs mb-4" id="globalSettingsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?php echo $active_tab === 'app' ? 'active' : ''; ?>" id="tab-global-app-btn" data-bs-toggle="tab" data-bs-target="#tab-global-app" type="button" role="tab"><i class="fas fa-cog me-1"></i> App</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?php echo $active_tab === 'feedback' ? 'active' : ''; ?>" id="tab-global-feedback-btn" data-bs-toggle="tab" data-bs-target="#tab-global-feedback" type="button" role="tab"><i class="fas fa-comment-dots me-1"></i> Feedback & Wünsche</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link <?php echo $active_tab === 'smtp' ? 'active' : ''; ?>" id="tab-global-smtp-btn" data-bs-toggle="tab" data-bs-target="#tab-global-smtp" type="button" role="tab"><i class="fas fa-envelope me-1"></i> SMTP</button>
+            </li>
+        </ul>
+        <div class="tab-content" id="globalSettingsTabContent">
+            <div class="tab-pane fade <?php echo $active_tab === 'app' ? 'show active' : ''; ?>" id="tab-global-app" role="tabpanel">
+                <div class="card">
                     <div class="card-header"><i class="fas fa-cog"></i> App</div>
                     <div class="card-body">
                         <div class="mb-3">
@@ -518,9 +537,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6">
-                <div class="card h-100">
-                    <div class="card-header"><i class="fas fa-envelope"></i> Feedback & Wünsche</div>
+            <div class="tab-pane fade <?php echo $active_tab === 'feedback' ? 'show active' : ''; ?>" id="tab-global-feedback" role="tabpanel">
+                <div class="card">
+                    <div class="card-header"><i class="fas fa-comment-dots"></i> Feedback & Wünsche</div>
                     <div class="card-body">
                         <div class="mb-3">
                             <label class="form-label">E-Mail-Adresse für Feedback/Wünsche</label>
@@ -530,9 +549,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="row g-4 mt-2">
-            <div class="col-12">
+            <div class="tab-pane fade <?php echo $active_tab === 'smtp' ? 'show active' : ''; ?>" id="tab-global-smtp" role="tabpanel">
                 <div class="card">
                     <div class="card-header"><i class="fas fa-server"></i> Globale SMTP-Einstellungen</div>
                     <div class="card-body">
@@ -1024,7 +1041,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
             <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Speichern</button>
         </div>
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-        <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><input type="hidden" name="return_tab" id="return_tab" value="<?php echo htmlspecialchars($active_tab); ?>"><?php endif; ?>
+        <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?><input type="hidden" name="return_tab" id="return_tab" value="<?php echo htmlspecialchars($active_tab); ?>">
     </form>
 
     <?php if ($einheit_id > 0): ?>
@@ -1127,6 +1144,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (history.replaceState) history.replaceState(null, '', '?einheit_id=<?php echo (int)$einheit_id; ?>&tab=' + target);
                     var saveRow = document.getElementById('settingsSaveRow');
                     if (saveRow) saveRow.style.display = (target === 'fahrzeuge' || target === 'raeume' || target === 'einheit') ? 'none' : 'flex';
+                }
+            });
+        });
+    }
+    var globalTabBtns = document.querySelectorAll('#globalSettingsTabs button[data-bs-toggle="tab"]');
+    if (returnTab && globalTabBtns.length) {
+        globalTabBtns.forEach(function(btn) {
+            btn.addEventListener('shown.bs.tab', function(e) {
+                var target = (e.target.getAttribute('data-bs-target') || '').replace('#tab-global-', '');
+                if (target) {
+                    returnTab.value = target;
+                    if (history.replaceState) history.replaceState(null, '', '?tab=' + target);
                 }
             });
         });
