@@ -197,6 +197,8 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                         <span class="fw-semibold">Anmelden</span>
                     </a>
                 </div>
+                <?php else: ?>
+                <?php include __DIR__ . '/includes/system-user-nav.inc.php'; ?>
                 <?php endif; ?>
             <?php endif; ?>
         </div>

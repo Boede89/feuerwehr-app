@@ -228,6 +228,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                         <span class="fw-semibold">Anmelden</span>
                     </a>
                 </div>
+                <?php else: ?>
+                <?php include __DIR__ . '/includes/system-user-nav.inc.php'; ?>
                 <?php endif; ?>
             <?php endif; ?>
         </div>

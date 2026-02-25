@@ -3,10 +3,28 @@ session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
 
-// Bereits eingeloggt? Weiterleitung
+// Bereits eingeloggt? Weiterleitung (außer Systembenutzer mit as_user=1)
 if (is_logged_in()) {
     if (is_system_user()) {
-        redirect('formulare.php');
+        if (isset($_GET['as_user']) && $_GET['as_user'] == '1') {
+            // Token in Cookie speichern für Wiederherstellung nach Logout
+            $stmt = $db->prepare("SELECT autologin_token FROM users WHERE id = ? AND is_system_user = 1");
+            $stmt->execute([$_SESSION['user_id']]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row && !empty($row['autologin_token'])) {
+                $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+                setcookie('system_user_restore_token', $row['autologin_token'], [
+                    'expires' => time() + 3600,
+                    'path' => '/',
+                    'secure' => $secure,
+                    'httponly' => true,
+                    'samesite' => 'Lax'
+                ]);
+            }
+            // Nicht weiterleiten – Login-Formular anzeigen
+        } else {
+            redirect('formulare.php');
+        }
     } else {
         redirect('admin/dashboard.php');
     }
@@ -143,6 +161,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && (!isset($_POST['action']) || $_POST[
                     $_SESSION['current_einheit_id'] = null;
                 }
                 
+                // Systembenutzer-Session-Flag entfernen (falls vorher als Systembenutzer eingeloggt)
+                unset($_SESSION['is_system_user']);
+
                 // Aktivität loggen
                 log_activity($user['id'], 'login', 'Benutzer angemeldet');
                 
