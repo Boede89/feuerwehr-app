@@ -450,6 +450,10 @@ function _anwesenheitsliste_draft_value($id, $draft) {
 // Speichern (nur auf dieser Seite): Liste anlegen + Personal/Fahrzeuge aus Session
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
     $edit_id_save = isset($_POST['edit_id']) ? (int)$_POST['edit_id'] : (int)($draft['edit_id'] ?? 0);
+    if (isset($_POST['datum']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($_POST['datum']))) {
+        $draft['datum'] = trim($_POST['datum']);
+        $datum = $draft['datum'];
+    }
     $ber = trim($_POST['berichtersteller'] ?? '');
     if ($ber === '') $ber = trim($_POST['berichtersteller_display'] ?? '');
     $draft['berichtersteller'] = $ber !== '' ? $ber : null;
@@ -980,12 +984,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
     }
 }
 
+$datum_display = $draft['datum'] ?? $datum;
 $url_edit_suffix = ($edit_id > 0 ? '&edit_id=' . (int)$edit_id : '') . ($return_formularcenter ? '&return=formularcenter' : '') . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '');
-$back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
-$personal_url = 'anwesenheitsliste-personal.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
-$fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
-$geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
-$maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
+$back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum_display) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
+$personal_url = 'anwesenheitsliste-personal.php?datum=' . urlencode($datum_display) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
+$fahrzeuge_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum_display) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
+$geraete_url = 'anwesenheitsliste-geraete.php?datum=' . urlencode($datum_display) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
+$maengel_url = 'anwesenheitsliste-maengel.php?datum=' . urlencode($datum_display) . '&auswahl=' . urlencode($auswahl) . $url_edit_suffix;
 if ($is_einsatz) {
     $ts = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
     $typ_key = array_search($ts, get_dienstplan_typen_auswahl());
@@ -1082,7 +1087,7 @@ if ($is_einsatz) {
                                 <form method="get" class="d-inline-flex align-items-center gap-2">
                                     <input type="hidden" name="auswahl" value="<?php echo htmlspecialchars($auswahl); ?>">
                                     <label for="datum_aendern" class="form-label mb-0 small">Datum:</label>
-                                    <input type="date" id="datum_aendern" name="datum" class="form-control form-control-sm" value="<?php echo htmlspecialchars($datum); ?>" style="width: auto;">
+                                    <input type="date" id="datum_aendern" name="datum" class="form-control form-control-sm" value="<?php echo htmlspecialchars($draft['datum'] ?? $datum); ?>" style="width: auto;">
                                     <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="fas fa-sync-alt"></i> Übernehmen</button>
                                 </form>
                                 <?php
@@ -1104,6 +1109,7 @@ if ($is_einsatz) {
                         </div>
                         <form method="post" id="mainForm">
                             <input type="hidden" name="save_final" value="1">
+                            <input type="hidden" name="datum" id="datum_for_main" value="<?php echo htmlspecialchars($draft['datum'] ?? $datum); ?>">
                             <input type="hidden" name="print_after_save" id="print_after_save" value="0">
                             <input type="hidden" name="print_maengelbericht_after_save" id="print_maengelbericht_after_save" value="0">
                             <input type="hidden" name="print_geraetewartmitteilung_after_save" id="print_geraetewartmitteilung_after_save" value="0">
@@ -1545,18 +1551,40 @@ if ($is_einsatz) {
     window.addEventListener('beforeunload', function() {
         var form = document.getElementById('mainForm');
         if (form) {
+            var datumInput = document.getElementById('datum_aendern');
+            var datumHidden = form.querySelector('input[name="datum"]');
+            if (datumInput && datumHidden) datumHidden.value = datumInput.value;
             var fd = new FormData(form);
             navigator.sendBeacon('api/save-anwesenheit-draft.php', fd);
         } else {
             navigator.sendBeacon('api/save-anwesenheit-draft.php', '');
         }
     });
+    (function(){
+        var datumInput = document.getElementById('datum_aendern');
+        var datumHidden = document.getElementById('datum_for_main');
+        if (datumInput && datumHidden) {
+            datumInput.addEventListener('change', function() { datumHidden.value = this.value; });
+            datumInput.addEventListener('blur', function() { datumHidden.value = this.value; });
+        }
+    })();
     document.querySelectorAll('.anwesenheits-save-before-nav').forEach(function(link) {
         link.addEventListener('click', function(e) {
             e.preventDefault();
             var url = this.getAttribute('href');
             var form = document.getElementById('mainForm');
             if (!form || !url) { window.location.href = url || '#'; return; }
+            var datumInput = document.getElementById('datum_aendern');
+            var datumHidden = form.querySelector('input[name="datum"]');
+            if (datumInput && datumHidden) datumHidden.value = datumInput.value;
+            var datumVal = datumHidden ? datumHidden.value : '';
+            if (datumVal && /^\d{4}-\d{2}-\d{2}$/.test(datumVal)) {
+                try {
+                    var u = new URL(url, window.location.origin);
+                    u.searchParams.set('datum', datumVal);
+                    url = u.pathname + u.search;
+                } catch(z) {}
+            }
             var typSel = form.querySelector('[name="typ_sonstige"]');
             var uebItems = form.querySelectorAll('.uebungsleiter-item-selected input[type="checkbox"][name="uebungsleiter[]"]');
             var params = [];

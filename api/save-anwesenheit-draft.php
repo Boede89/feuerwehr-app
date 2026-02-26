@@ -172,9 +172,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
         }
         $draft['maengel'] = $maengel;
     } else {
-    $builtin = ['uhrzeit_von', 'uhrzeit_bis', 'alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzstichwort', 'thema', 'beschreibung'];
+    $builtin = ['datum', 'uhrzeit_von', 'uhrzeit_bis', 'alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzstichwort', 'thema', 'beschreibung'];
     foreach ($builtin as $k) {
-        if (isset($_POST[$k])) $draft[$k] = trim((string)$_POST[$k]);
+        if (isset($_POST[$k])) {
+            $v = trim((string)$_POST[$k]);
+            if ($k === 'datum' && $v !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $v)) continue;
+            $draft[$k] = $v;
+        }
     }
     if (isset($_POST['thema']) && trim((string)$_POST['thema']) === '__neu__' && isset($_POST['thema_neu'])) {
         $draft['thema'] = trim((string)$_POST['thema_neu']);
