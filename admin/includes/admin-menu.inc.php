@@ -26,6 +26,12 @@ if (!isset($can_reservations)) {
     $can_forms = $is_adm ? true : has_permission('forms');
     $can_forms_fill = $is_adm ? true : (function_exists('has_form_fill_permission') && has_form_fill_permission());
 }
+if (!isset($can_auswertung)) {
+    $can_auswertung = function_exists('has_permission') && has_permission('auswertung');
+}
+if (!isset($can_forms_fill)) {
+    $can_forms_fill = function_exists('has_form_fill_permission') && has_form_fill_permission();
+}
 $has_any = $can_reservations || $can_atemschutz || $can_settings || $can_members || $can_auswertung || $can_forms || $can_forms_fill;
 $btn_class = (!empty($admin_menu_in_navbar)) ? 'btn-outline-light' : 'btn-outline-primary';
 $base = isset($admin_menu_base) ? $admin_menu_base : '';
