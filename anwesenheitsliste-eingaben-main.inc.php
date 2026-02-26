@@ -687,7 +687,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             $stmt = $db->prepare("INSERT INTO anwesenheitsliste_mitglieder (anwesenheitsliste_id, member_id, vehicle_id) VALUES (?, ?, ?)");
             $stmt->execute([$list_id, $mid, $vid]);
         }
-        $all_vehicle_ids = array_unique(array_merge($draft['vehicles'], array_values(array_filter($draft['member_vehicle']))));
+        $all_vehicle_ids = array_unique(array_merge(
+            $draft['vehicles'] ?? [],
+            array_values(array_filter($draft['member_vehicle'] ?? [])),
+            array_keys($draft['vehicle_equipment'] ?? []),
+            array_keys($draft['vehicle_equipment_sonstiges'] ?? []),
+            array_filter(array_map(function($m) {
+                $vid = isset($m['vehicle_id']) && preg_match('/^\d+$/', (string)$m['vehicle_id']) ? (int)$m['vehicle_id'] : 0;
+                return $vid > 0 ? $vid : null;
+            }, $draft['maengel'] ?? []))
+        ));
         $all_vehicle_ids = array_filter(array_map('intval', $all_vehicle_ids), fn($x) => $x > 0);
         foreach ($all_vehicle_ids as $vid) {
             $masch = isset($draft['vehicle_maschinist'][$vid]) ? (int)$draft['vehicle_maschinist'][$vid] : null;
