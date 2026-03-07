@@ -262,6 +262,13 @@ if (isset($_POST['test_email_btn'])) {
                                 </a>
                                 <?php endforeach; ?>
                             </div>
+                            <?php if (is_superadmin()): ?>
+                            <div class="mt-2 pt-2 border-top">
+                                <a class="btn btn-warning" href="debug-scripts.php">
+                                    <i class="fas fa-list"></i> Alle Debug-/Test-Skripte
+                                </a>
+                            </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
