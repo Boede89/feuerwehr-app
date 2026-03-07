@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Detailliertes SMTP-Debug für E-Mail-Problem
  */

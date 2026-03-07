@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 // Einfaches Debug-Dashboard um das Problem zu finden
 error_reporting(E_ALL);
 ini_set('display_errors', 1);

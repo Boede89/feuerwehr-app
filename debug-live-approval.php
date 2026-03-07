@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Debug für echte Live-Genehmigung - simuliert exakt den echten POST-Request
  */

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Debug: Prüfe Datenbank-Schema für calendar_conflicts Feld
  */

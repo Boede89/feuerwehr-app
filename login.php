@@ -37,6 +37,8 @@ $success_message = '';
 if (isset($_GET['error'])) {
     if ($_GET['error'] === 'access_denied') {
         $error = "Zugriff verweigert. Sie müssen als Administrator angemeldet sein, um das Dashboard zu verwenden.";
+    } elseif ($_GET['error'] === 'superadmin_only') {
+        $error = "Zugriff verweigert. Nur Superadmins haben Zugriff auf Debug-Skripte.";
     } elseif ($_GET['error'] === 'invalid_token') {
         $error = "Ungültiger oder abgelaufener Autologin-Link. Bitte fordern Sie einen neuen Link an.";
     } elseif ($_GET['error'] === 'token_expired') {

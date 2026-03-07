@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Debug: Genehmigung vs Button - Warum funktioniert Button aber nicht Genehmigung?
  */

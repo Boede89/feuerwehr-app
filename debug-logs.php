@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Debug-Log-System: Schreibt Logs direkt in die Datenbank
  * So können wir die Google Calendar Lösch-Logs definitiv sehen
@@ -138,6 +139,7 @@ $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </html>
 
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 // AJAX-Handler
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_GET['action'])) {

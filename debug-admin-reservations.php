@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Debug Admin Reservations - Browser Version
  * Öffnen Sie diese Datei in Ihrem Browser: http://ihre-domain/debug-admin-reservations.php

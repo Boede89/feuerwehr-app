@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Debug: Google Calendar mit Browser-Logging
  */
@@ -282,6 +283,7 @@ function testGoogleCalendarEvent() {
         // Teste direkten Aufruf
         try {
             <?php
+require_once __DIR__ . '/includes/debug-auth.php';
             if ($reservation) {
                 echo "const result = create_google_calendar_event(";
                 echo "'{$reservation['vehicle_name']}', ";
@@ -315,6 +317,7 @@ console.log('🔍 Google Calendar Debug abgeschlossen');
 </script>
 
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 echo "<hr>";
 echo "<p><a href='admin/dashboard.php'>Zum Dashboard</a> | <a href='admin/reservations.php'>Zu den Reservierungen</a></p>";
 echo "</body></html>";

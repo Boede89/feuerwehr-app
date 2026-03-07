@@ -1,16 +1,8 @@
 <?php
+require_once __DIR__ . '/../includes/debug-auth.php';
 /**
  * Debug: Divera-Konfiguration prüfen (nur Superadmin).
  */
-session_start();
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/einheiten-setup.php';
-
-if (!isset($_SESSION['user_id']) || !is_superadmin($_SESSION['user_id'])) {
-    header('Location: ../login.php');
-    exit;
-}
 
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 1;
 $_SESSION['current_einheit_id'] = $einheit_id;

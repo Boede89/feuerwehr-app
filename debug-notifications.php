@@ -1,15 +1,11 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Debug-Datei für Benachrichtigungseinstellungen
  */
 
-session_start();
-require_once 'config/database.php';
-require_once 'includes/functions.php';
-
-if (!isset($_SESSION['user_id']) || !hasAdminPermission()) {
-    die("Keine Berechtigung");
-}
+require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/functions.php';
 
 echo "<h1>🔍 Benachrichtigungseinstellungen Debug</h1>";
 

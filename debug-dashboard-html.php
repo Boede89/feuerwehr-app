@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 // HTML Debug Dashboard
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -26,6 +27,7 @@ ini_set('display_errors', 1);
         </div>
 
         <?php
+require_once __DIR__ . '/includes/debug-auth.php';
         // Datenbankverbindung testen
         echo '<div class="alert alert-warning">';
         echo '<h4>Datenbank Test:</h4>';

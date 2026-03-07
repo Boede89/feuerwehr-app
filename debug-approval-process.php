@@ -1,11 +1,11 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Debug: Reservierungsgenehmigung testen
  */
 
-session_start();
-require_once 'config/database.php';
-require_once 'includes/functions.php';
+require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/functions.php';
 
 // Simuliere Admin-Session
 $_SESSION['user_id'] = 1;

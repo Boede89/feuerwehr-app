@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Temporäre Debug-Datei – zeigt PHP-Fehler an.
  * Nach dem Test wieder löschen!

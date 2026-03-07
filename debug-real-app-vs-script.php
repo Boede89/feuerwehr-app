@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Debug für Unterschied zwischen echter App und Debug-Script
  */

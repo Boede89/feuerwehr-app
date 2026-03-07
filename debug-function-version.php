@@ -1,6 +1,7 @@
 <?php
-require_once 'config/database.php';
-require_once 'includes/functions.php';
+require_once __DIR__ . '/includes/debug-auth.php';
+require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/functions.php';
 
 echo "<h1>🔍 Debug: Prüfe Funktion-Version und Cache</h1>";
 

@@ -1,17 +1,12 @@
 <?php
+require_once __DIR__ . '/../includes/debug-auth.php';
 /**
  * Debug: Zeigt alle pending Raumreservierungen und prüft die Datenbank-Struktur.
  * Aufruf: admin/debug-room-reservations.php
  */
-session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/rooms-setup.php';
-
-if (!isset($_SESSION['user_id']) || !hasAdminPermission()) {
-    header('Location: ../login.php');
-    exit;
-}
 
 header('Content-Type: text/html; charset=utf-8');
 ?>

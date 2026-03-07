@@ -1,9 +1,9 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Umfassende E-Mail-System-Diagnose
  */
 
-session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
 require_once 'includes/smtp.php';

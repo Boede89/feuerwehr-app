@@ -1,11 +1,11 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Debug für echte App-Genehmigung mit detailliertem Logging
  */
 
-session_start();
-require_once 'config/database.php';
-require_once 'includes/functions.php';
+require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/functions.php';
 
 echo "<h1>Debug: Echte App-Genehmigung</h1>";
 echo "<p>Zeitstempel: " . date('d.m.Y H:i:s') . "</p>";

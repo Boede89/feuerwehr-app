@@ -1,11 +1,12 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Detaillierte Gmail SMTP-Diagnose
  */
 
-require_once 'config/database.php';
-require_once 'includes/functions.php';
-require_once 'includes/smtp.php';
+require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/smtp.php';
 
 echo "🔍 Detaillierte Gmail SMTP-Diagnose\n";
 echo "===================================\n\n";

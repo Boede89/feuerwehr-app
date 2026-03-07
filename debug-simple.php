@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Debug Simple - Browser Version
  * Öffnen Sie diese Datei in Ihrem Browser: http://ihre-domain/debug-simple.php
