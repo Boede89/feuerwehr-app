@@ -448,7 +448,10 @@ try {
         if (($u['user_role'] ?? '') === 'admin') return true;
         return false;
     });
-    $superadmin_count = function_exists('count_superadmins') ? count_superadmins() : 0;
+    // Superadmins aus der angezeigten Liste zählen (nicht aus DB) – damit Lösch-Button konsistent ist
+    $superadmin_count = function_exists('user_has_superadmin_rights') 
+        ? count(array_filter($users, 'user_has_superadmin_rights')) 
+        : (function_exists('count_superadmins') ? count_superadmins() : 0);
     $einheiten = [];
     try {
         $stmt_e = $db->query("SELECT id, name FROM einheiten WHERE is_active = 1 ORDER BY sort_order, name");
