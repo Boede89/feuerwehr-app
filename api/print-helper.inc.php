@@ -50,7 +50,18 @@ function print_get_printer_config($db, $einheit_id = null) {
     if ($cups_server === '' && (getenv('DOCKER') || file_exists('/.dockerenv'))) {
         $cups_server = 'host.docker.internal:631';
     }
+    $cups_server = print_normalize_cups_server($cups_server);
     return ['printer' => $printer, 'cups_server' => $cups_server, 'cloud_url' => $cloud_url, 'cloud_url_raw' => $cloud_url_raw];
+}
+
+/**
+ * Hängt /version=1.1 an CUPS-Server an, falls nötig (Kompatibilität mit älteren CUPS-Servern).
+ */
+function print_normalize_cups_server($cups_server) {
+    $cups_server = trim($cups_server);
+    if ($cups_server === '') return '';
+    if (stripos($cups_server, 'version=') !== false) return $cups_server;
+    return rtrim($cups_server, '/') . '/version=1.1';
 }
 
 /**

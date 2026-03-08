@@ -702,8 +702,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     <div class="card-body">
                         <div class="mb-3">
                             <label class="form-label">CUPS-Server</label>
-                            <input class="form-control" name="printer_cups_server" id="printer_cups_server" placeholder="host.docker.internal:631" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
-                            <small class="text-muted">Bei Docker: <code>host.docker.internal:631</code>. CUPS muss auf dem Host laufen.</small>
+                            <input class="form-control" name="printer_cups_server" id="printer_cups_server" placeholder="host.docker.internal:631 oder 172.17.0.1:631/version=1.1" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
+                            <small class="text-muted">Bei Docker: <code>host.docker.internal:631/version=1.1</code> oder <code>172.17.0.1:631/version=1.1</code>. /version=1.1 für ältere CUPS-Server.</small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Konfigurierte Drucker</label>
