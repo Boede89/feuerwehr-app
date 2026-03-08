@@ -19,7 +19,7 @@ function print_get_printer_config($db, $einheit_id = null) {
         if ($override !== '') $cups_server = $override;
     }
     if ($cups_server === '' && (getenv('DOCKER') || file_exists('/.dockerenv'))) {
-        $cups_server = 'host.docker.internal:631';
+        $cups_server = '172.17.0.1:631';
     }
     $cups_server = print_normalize_cups_server($cups_server);
     return ['printer' => $printer, 'cups_server' => $cups_server, 'cloud_url' => $cloud_url, 'cloud_url_raw' => $cloud_url_raw];

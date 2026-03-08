@@ -699,8 +699,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                         <p class="text-muted small mb-3">Drucker werden auf dem Host per <code>lpadmin</code> angelegt (siehe Anleitung unten). Hier wählen Sie den in CUPS installierten Drucker.</p>
                         <div class="mb-3">
                             <label class="form-label">CUPS-Server</label>
-                            <input class="form-control" name="printer_cups_server" id="printer_cups_server" placeholder="172.17.0.1:631/version=1.1" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
-                            <small class="text-muted">Bei Docker auf Linux: <code>172.17.0.1:631/version=1.1</code></small>
+                            <input class="form-control" name="printer_cups_server" id="printer_cups_server" placeholder="172.17.0.1:631" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
+                            <small class="text-muted">Docker: <code>172.17.0.1:631</code> (Linux) oder <code>host.docker.internal:631</code> (Windows/Mac). /version=1.1 wird bei Bedarf angehängt.</small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Drucker</label>
@@ -1081,12 +1081,12 @@ document.getElementById('btn_divera_key_loeschen')?.addEventListener('click', fu
         document.getElementById('mainForm').submit();
     }
 });
-document.getElementById('btn_list_printers')?.addEventListener('click', function() {
-    var btn = this;
+function loadPrintersFromCups() {
+    var btn = document.getElementById('btn_list_printers');
     var out = document.getElementById('printers_list');
-    if (!out) return;
+    if (!btn || !out) return;
     out.style.display = 'block';
-    out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Drucker...</span>';
+    out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Drucker aus CUPS...</span>';
     btn.disabled = true;
     var cups = document.getElementById('printer_cups_server').value || '172.17.0.1:631';
     fetch('../api/list-printers.php?einheit_id=<?php echo (int)$einheit_id; ?>&cups_server=' + encodeURIComponent(cups))
@@ -1094,7 +1094,7 @@ document.getElementById('btn_list_printers')?.addEventListener('click', function
         .then(function(data) {
             btn.disabled = false;
             if (data.success && data.printers && data.printers.length > 0) {
-                var html = '<strong>Verfügbare Drucker (Klick zum Übernehmen):</strong> ';
+                var html = '<strong>Verfügbare Drucker aus CUPS (Klick zum Übernehmen):</strong> ';
                 data.printers.forEach(function(p) {
                     var def = (data.default_printer === p.name) ? ' (Standard)' : '';
                     var safe = (p.name || '').replace(/"/g, '&quot;');
@@ -1114,7 +1114,10 @@ document.getElementById('btn_list_printers')?.addEventListener('click', function
             btn.disabled = false;
             out.innerHTML = '<span class="text-danger">Fehler beim Laden.</span>';
         });
-});
+}
+document.getElementById('btn_list_printers')?.addEventListener('click', loadPrintersFromCups);
+document.getElementById('tab-drucker-btn')?.addEventListener('shown.bs.tab', function() { loadPrintersFromCups(); });
+if (document.getElementById('tab-drucker')?.classList.contains('show')) { loadPrintersFromCups(); }
 document.getElementById('btn_test_print')?.addEventListener('click', function() {
     var btn = this;
     var out = document.getElementById('test_print_result');
