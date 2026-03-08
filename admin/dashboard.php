@@ -244,6 +244,22 @@ if ($can_reservations && $effective_unit_id > 0) {
 $atemschutz_entries = [];
 if ($can_atemschutz) {
     try {
+        // atemschutz_traeger MUSS vor atemschutz_entry_traeger existieren (FK-Abhängigkeit)
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS atemschutz_traeger (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                first_name VARCHAR(100) NOT NULL,
+                last_name VARCHAR(100) NOT NULL,
+                email VARCHAR(255) NULL,
+                birthdate DATE NOT NULL,
+                strecke_am DATE NOT NULL,
+                g263_am DATE NOT NULL,
+                uebung_am DATE NOT NULL,
+                status VARCHAR(50) NOT NULL DEFAULT 'Aktiv',
+                member_id INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
         // Stelle sicher, dass die Tabellen existieren
         $db->exec("
             CREATE TABLE IF NOT EXISTS atemschutz_entries (
@@ -279,24 +295,24 @@ if ($can_atemschutz) {
                     try { $db->exec("ALTER TABLE atemschutz_entries ADD COLUMN unit_id INT NULL"); } catch (Exception $e) {}
                     // Lade offene Atemschutzeintrag-Anträge nur für die gewählte Einheit
                     $stmt = $db->prepare("
-                        SELECT ae.*, 
+                        SELECT ae.*,
                                COALESCE(u.first_name, 'Unbekannt') as first_name, 
                                COALESCE(u.last_name, '') as last_name,
-                               GROUP_CONCAT(CONCAT(at.first_name, ' ', at.last_name) ORDER BY at.last_name, at.first_name SEPARATOR ', ') as traeger_names,
-                               COUNT(aet.traeger_id) as traeger_count
+                               (SELECT GROUP_CONCAT(CONCAT(at2.first_name, ' ', at2.last_name) ORDER BY at2.last_name, at2.first_name SEPARATOR ', ')
+                                FROM atemschutz_entry_traeger aet2
+                                LEFT JOIN atemschutz_traeger at2 ON aet2.traeger_id = at2.id
+                                WHERE aet2.entry_id = ae.id) as traeger_names,
+                               (SELECT COUNT(*) FROM atemschutz_entry_traeger WHERE entry_id = ae.id) as traeger_count
                         FROM atemschutz_entries ae
                         LEFT JOIN users u ON ae.requester_id = u.id
-                        LEFT JOIN atemschutz_entry_traeger aet ON ae.id = aet.entry_id
-                        LEFT JOIN atemschutz_traeger at ON aet.traeger_id = at.id
                         WHERE ae.status = 'pending' 
                         AND (COALESCE(ae.einheit_id, ae.unit_id, 1) = ?
-                        GROUP BY ae.id
                         ORDER BY ae.created_at DESC
                     ");
         $stmt->execute([$effective_unit_id]);
         $atemschutz_entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        error_log("Atemschutzeintrag-Anträge geladen: " . count($atemschutz_entries));
+        error_log("Atemschutzeintrag-Anträge geladen: " . count($atemschutz_entries) . " (effective_unit_id=" . $effective_unit_id . ")");
     } catch (Exception $e) {
         error_log("Fehler beim Laden der Atemschutzeintrag-Anträge: " . $e->getMessage());
     }
@@ -1130,6 +1146,7 @@ if ($can_atemschutz) {
                                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
                                 <h5 class="text-muted">Keine offenen Anträge</h5>
                                 <p class="text-muted">Alle Atemschutzeintrag-Anträge wurden bearbeitet.</p>
+                                <p class="small mt-2"><a href="../api/debug-atemschutz-entries.php?einheit_id=<?php echo (int)$effective_unit_id; ?>" target="_blank" class="text-muted">Diagnose: Pending-Einträge prüfen</a></p>
                             </div>
                         <?php else: ?>
                             <div class="row">
