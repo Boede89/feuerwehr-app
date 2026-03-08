@@ -147,7 +147,7 @@ function migrate_settings_to_amern($db) {
             $db->exec("ALTER TABLE users ADD COLUMN atemschutz_notifications TINYINT(1) DEFAULT 0");
         } catch (Exception $e) {}
         try {
-            $stmt = $db->query("SELECT id FROM users WHERE atemschutz_notifications = 1");
+            $stmt = $db->query("SELECT id FROM users WHERE atemschutz_notifications = 1 AND (COALESCE(is_system_user, 0) = 0)");
             $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
             $ins->execute([$amern_id, 'atemschutz_notification_user_ids', json_encode(array_map('intval', $ids))]);
         } catch (Exception $e) {}

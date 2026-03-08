@@ -50,7 +50,7 @@ try {
             $ccRecipientIds = json_decode($val, true);
             if (!empty($ccRecipientIds) && is_array($ccRecipientIds)) {
                 $placeholders = implode(',', array_fill(0, count($ccRecipientIds), '?'));
-                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($placeholders) AND email IS NOT NULL AND email != ''");
+                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($placeholders) AND (COALESCE(is_system_user, 0) = 0) AND email IS NOT NULL AND email != ''");
                 $stmt->execute($ccRecipientIds);
                 $ccRecipientEmails = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 error_log("send-atemschutz-email: CC-Empfänger E-Mails: " . implode(', ', $ccRecipientEmails));

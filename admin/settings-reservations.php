@@ -44,7 +44,7 @@ $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null)
 
 // Kein Fallback auf globale Divera-Einstellungen – jede Einheit hat eigene Konfiguration.
 
-// Benutzer für E-Mail-Benachrichtigungen laden (nur Benutzer der aktuellen Einheit)
+// Benutzer für E-Mail-Benachrichtigungen laden (nur echte Benutzer, keine Systembenutzer/Endgeräte)
 $users = [];
 try {
     ensure_einheit_id_in_tables($db);
@@ -52,7 +52,8 @@ try {
     if ($amern_id > 0) {
         try { $db->exec("UPDATE users SET einheit_id = " . (int)$amern_id . " WHERE einheit_id IS NULL"); } catch (Exception $e) {}
     }
-    $where = "is_active = 1";
+    try { $db->exec("ALTER TABLE users ADD COLUMN is_system_user TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+    $where = "is_active = 1 AND (COALESCE(is_system_user, 0) = 0)";
     $params = [];
     if ($einheit_id > 0) {
         if ($amern_id > 0 && $amern_id === $einheit_id) {
@@ -78,29 +79,40 @@ try {
 }
 
 // Aktuelle E-Mail-Benachrichtigungseinstellungen laden (Fahrzeug vs. Raum)
+// Systembenutzer-IDs aus gespeicherten Listen entfernen (keine Benachrichtigungen an Endgeräte)
+$filter_system_users = function($ids) use ($db) {
+    if (empty($ids)) return [];
+    $ids = array_map('intval', $ids);
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $db->prepare("SELECT id FROM users WHERE id IN ($placeholders) AND COALESCE(is_system_user, 0) = 1");
+    $stmt->execute($ids);
+    $sys_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    return array_values(array_diff($ids, $sys_ids));
+};
 $notification_users = [];
 $room_notification_users = [];
 if ($einheit_id > 0) {
     $json = $settings['reservation_notification_user_ids'] ?? '';
     if ($json !== '') {
         $dec = json_decode($json, true);
-        $notification_users = is_array($dec) ? array_map('intval', $dec) : [];
+        $notification_users = $filter_system_users(is_array($dec) ? array_map('intval', $dec) : []);
     }
     $json_room = $settings['room_reservation_notification_user_ids'] ?? '';
     if ($json_room !== '') {
         $dec = json_decode($json_room, true);
-        $room_notification_users = is_array($dec) ? array_map('intval', $dec) : [];
+        $room_notification_users = $filter_system_users(is_array($dec) ? array_map('intval', $dec) : []);
     } else {
         $room_notification_users = $notification_users; // Fallback: gleiche wie Fahrzeug
     }
 } else {
     try {
-        $stmt = $db->query("SELECT id FROM users WHERE email_notifications = 1 AND is_active = 1");
+        $stmt = $db->query("SELECT id FROM users WHERE email_notifications = 1 AND is_active = 1 AND (COALESCE(is_system_user, 0) = 0)");
         $notification_users = $stmt->fetchAll(PDO::FETCH_COLUMN);
         $json_room = $settings['room_reservation_notification_user_ids'] ?? '';
         if ($json_room !== '') {
             $dec = json_decode($json_room, true);
-            $room_notification_users = is_array($dec) ? array_map('intval', $dec) : $notification_users;
+            $room_notification_users = $filter_system_users(is_array($dec) ? array_map('intval', $dec) : []);
+            if (empty($room_notification_users)) $room_notification_users = $notification_users;
         } else {
             $room_notification_users = $notification_users;
         }
@@ -130,6 +142,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
             }
 
             $notification_users_post = $_POST['notification_users'] ?? [];
+            // Systembenutzer aus der Liste entfernen (keine E-Mail-Benachrichtigungen an Endgeräte)
+            if (!empty($notification_users_post)) {
+                $ids = array_values(array_map('intval', $notification_users_post));
+                $ph = implode(',', array_fill(0, count($ids), '?'));
+                $stmt_sys = $db->prepare("SELECT id FROM users WHERE id IN ($ph) AND COALESCE(is_system_user, 0) = 1");
+                $stmt_sys->execute($ids);
+                $sys_ids = $stmt_sys->fetchAll(PDO::FETCH_COLUMN);
+                $notification_users_post = array_values(array_diff($ids, $sys_ids));
+            }
             if ($einheit_id > 0) {
                 save_setting_for_einheit($db, $einheit_id, 'reservation_notification_user_ids', json_encode(array_values(array_map('intval', $notification_users_post))));
                 $notification_users = $notification_users_post;
@@ -141,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
                     $stmt = $db->prepare("UPDATE users SET email_notifications = 1 WHERE id IN ($placeholders)");
                     $stmt->execute($notification_users_post);
                 }
-                $stmt = $db->query("SELECT id FROM users WHERE email_notifications = 1 AND is_active = 1");
+                $stmt = $db->query("SELECT id FROM users WHERE email_notifications = 1 AND is_active = 1 AND (COALESCE(is_system_user, 0) = 0)");
                 $notification_users = $stmt->fetchAll(PDO::FETCH_COLUMN);
             }
 
@@ -150,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
             $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
             if ($einheit_id > 0) {
                 $json = $settings['reservation_notification_user_ids'] ?? '';
-                $notification_users = ($json !== '' && ($dec = json_decode($json, true)) && is_array($dec)) ? array_map('intval', $dec) : [];
+                $notification_users = ($json !== '' && ($dec = json_decode($json, true)) && is_array($dec)) ? $filter_system_users(array_map('intval', $dec)) : [];
             }
         } catch (Exception $e) {
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
@@ -171,18 +192,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
                 'room_divera_reservation_default_group_id' => trim((string)($_POST['room_divera_reservation_default_group_id'] ?? '')),
             ];
 
+            $room_notification_post = $_POST['room_notification_users'] ?? [];
+            if (!empty($room_notification_post)) {
+                $ids = array_values(array_map('intval', $room_notification_post));
+                $ph = implode(',', array_fill(0, count($ids), '?'));
+                $stmt_sys = $db->prepare("SELECT id FROM users WHERE id IN ($ph) AND COALESCE(is_system_user, 0) = 1");
+                $stmt_sys->execute($ids);
+                $sys_ids = $stmt_sys->fetchAll(PDO::FETCH_COLUMN);
+                $room_notification_post = array_values(array_diff($ids, $sys_ids));
+            }
             if ($einheit_id > 0) {
                 save_settings_bulk_for_einheit($db, $einheit_id, $room_settings);
-                $room_notification_post = $_POST['room_notification_users'] ?? [];
-                save_setting_for_einheit($db, $einheit_id, 'room_reservation_notification_user_ids', json_encode(array_values(array_map('intval', $room_notification_post))));
+                save_setting_for_einheit($db, $einheit_id, 'room_reservation_notification_user_ids', json_encode($room_notification_post));
                 $room_notification_users = $room_notification_post;
             } else {
                 $stmtUpsert = $db->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
                 foreach ($room_settings as $k => $v) {
                     $stmtUpsert->execute([$k, $v]);
                 }
-                $room_notification_post = $_POST['room_notification_users'] ?? [];
-                $stmtUpsert->execute(['room_reservation_notification_user_ids', json_encode(array_values(array_map('intval', $room_notification_post)))]);
+                $stmtUpsert->execute(['room_reservation_notification_user_ids', json_encode($room_notification_post)]);
                 $room_notification_users = $room_notification_post;
             }
 
@@ -191,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
             $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
             $json_room = $settings['room_reservation_notification_user_ids'] ?? '';
             if ($json_room !== '' && ($dec = json_decode($json_room, true)) && is_array($dec)) {
-                $room_notification_users = array_map('intval', $dec);
+                $room_notification_users = $filter_system_users(array_map('intval', $dec));
             }
         } catch (Exception $e) {
             $error = 'Fehler beim Speichern: ' . $e->getMessage();

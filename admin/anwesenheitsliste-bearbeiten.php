@@ -407,7 +407,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
                         $entry_id = $db->lastInsertId();
                         $stmt_et = $db->prepare("INSERT INTO atemschutz_entry_traeger (entry_id, traeger_id) VALUES (?, ?)");
                         foreach ($traeger_ids as $tid) { $stmt_et->execute([$entry_id, $tid]); }
-                        $stmt_adm = $db->prepare("SELECT email FROM users WHERE atemschutz_notifications = 1");
+                        $stmt_adm = $db->prepare("SELECT email FROM users WHERE atemschutz_notifications = 1 AND (COALESCE(is_system_user, 0) = 0)");
                         $stmt_adm->execute();
                         $admins = $stmt_adm->fetchAll(PDO::FETCH_COLUMN);
                         if (!empty($admins) && function_exists('send_email')) {

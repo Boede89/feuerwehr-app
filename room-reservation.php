@@ -92,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_room_rese
                                 $unit_filter = ($amern_id > 0 && $einheit_for_mail === $amern_id)
                                     ? " AND (einheit_id = ? OR einheit_id IS NULL)"
                                     : " AND einheit_id = ?";
-                                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1 AND email IS NOT NULL AND email != ''" . $unit_filter);
+                                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1 AND (COALESCE(is_system_user, 0) = 0) AND email IS NOT NULL AND email != ''" . $unit_filter);
                                 $params = array_merge(array_map('intval', $ids), [$einheit_for_mail]);
                                 $stmt->execute($params);
                                 $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -228,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                                 $unit_filter = ($amern_id > 0 && $einheit_for_mail === $amern_id)
                                     ? " AND (einheit_id = ? OR einheit_id IS NULL)"
                                     : " AND einheit_id = ?";
-                                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1 AND email IS NOT NULL AND email != ''" . $unit_filter);
+                                $stmt = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND is_active = 1 AND (COALESCE(is_system_user, 0) = 0) AND email IS NOT NULL AND email != ''" . $unit_filter);
                                 $params = array_merge(array_map('intval', $ids), [$einheit_for_mail]);
                                 $stmt->execute($params);
                                 $admin_emails = $stmt->fetchAll(PDO::FETCH_COLUMN);

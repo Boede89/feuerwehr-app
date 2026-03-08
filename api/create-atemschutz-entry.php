@@ -180,7 +180,7 @@ try {
         }
         
         // Sende E-Mail-Benachrichtigung an Atemschutz-Admins
-        $stmt = $db->prepare("SELECT email, first_name, last_name FROM users WHERE atemschutz_notifications = 1 AND is_active = 1");
+        $stmt = $db->prepare("SELECT email, first_name, last_name FROM users WHERE atemschutz_notifications = 1 AND is_active = 1 AND (COALESCE(is_system_user, 0) = 0)");
         $stmt->execute();
         $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
         

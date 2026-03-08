@@ -172,15 +172,24 @@ try {
     $emailTemplates = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { /* ignore */ }
 
-// Benutzer für Benachrichtigungseinstellungen laden (nur Benutzer der aktuellen Einheit)
+// Benutzer für Benachrichtigungseinstellungen laden (nur Benutzer der aktuellen Einheit, keine Systembenutzer/Endgeräte)
 $users = [];
 $atemschutz_notification_ids = [];
+$filter_system_users = function($ids) use ($db) {
+    if (empty($ids)) return [];
+    $ids = array_map('intval', $ids);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $db->prepare("SELECT id FROM users WHERE id IN ($ph) AND COALESCE(is_system_user, 0) = 1");
+    $stmt->execute($ids);
+    $sys_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    return array_values(array_diff($ids, $sys_ids));
+};
 if ($einheit_id > 0) {
     $settings_e = load_settings_for_einheit($db, $einheit_id);
     $json = $settings_e['atemschutz_notification_user_ids'] ?? '';
     if ($json !== '') {
         $dec = json_decode($json, true);
-        $atemschutz_notification_ids = is_array($dec) ? array_map('intval', $dec) : [];
+        $atemschutz_notification_ids = $filter_system_users(is_array($dec) ? array_map('intval', $dec) : []);
     }
 }
 try {
@@ -191,11 +200,14 @@ try {
     try {
         $db->exec("ALTER TABLE users ADD COLUMN einheit_id INT NULL");
     } catch (Exception $e) {}
+    try {
+        $db->exec("ALTER TABLE users ADD COLUMN is_system_user TINYINT(1) DEFAULT 0");
+    } catch (Exception $e) {}
     $amern_id = get_einheit_amern_id($db);
     if ($amern_id > 0) {
         try { $db->exec("UPDATE users SET einheit_id = $amern_id WHERE einheit_id IS NULL"); } catch (Exception $e) {}
     }
-    $where = "is_active = 1";
+    $where = "is_active = 1 AND (COALESCE(is_system_user, 0) = 0)";
     $params = [];
     if ($einheit_id > 0) {
         if ($amern_id > 0 && $amern_id === $einheit_id) {
@@ -317,10 +329,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Atemschutz-Benachrichtigungseinstellungen speichern
         if (isset($_POST['action']) && $_POST['action'] === 'update_atemschutz_notifications') {
             $einheit_id_notif = isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0;
+            $ids_raw = isset($_POST['atemschutz_notifications']) && is_array($_POST['atemschutz_notifications']) ? array_map('intval', $_POST['atemschutz_notifications']) : [];
+            if (!empty($ids_raw)) {
+                $ph = implode(',', array_fill(0, count($ids_raw), '?'));
+                $stmt_sys = $db->prepare("SELECT id FROM users WHERE id IN ($ph) AND COALESCE(is_system_user, 0) = 1");
+                $stmt_sys->execute($ids_raw);
+                $sys_ids = $stmt_sys->fetchAll(PDO::FETCH_COLUMN);
+                $ids_raw = array_values(array_diff($ids_raw, $sys_ids));
+            }
             if ($einheit_id_notif > 0) {
-                $ids = isset($_POST['atemschutz_notifications']) && is_array($_POST['atemschutz_notifications']) ? array_map('intval', $_POST['atemschutz_notifications']) : [];
-                save_setting_for_einheit($db, $einheit_id_notif, 'atemschutz_notification_user_ids', json_encode($ids));
-                $atemschutz_notification_ids = $ids;
+                save_setting_for_einheit($db, $einheit_id_notif, 'atemschutz_notification_user_ids', json_encode($ids_raw));
+                $atemschutz_notification_ids = $ids_raw;
                 $message = "Benachrichtigungseinstellungen erfolgreich aktualisiert.";
             } else {
                 try {
@@ -328,15 +347,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } catch (Exception $e) {}
                 $stmt = $db->prepare("UPDATE users SET atemschutz_notifications = 0");
                 $stmt->execute();
-                if (isset($_POST['atemschutz_notifications']) && is_array($_POST['atemschutz_notifications'])) {
-                    $placeholders = str_repeat('?,', count($_POST['atemschutz_notifications']) - 1) . '?';
+                if (!empty($ids_raw)) {
+                    $placeholders = str_repeat('?,', count($ids_raw) - 1) . '?';
                     $stmt = $db->prepare("UPDATE users SET atemschutz_notifications = 1 WHERE id IN ($placeholders)");
-                    $stmt->execute($_POST['atemschutz_notifications']);
+                    $stmt->execute($ids_raw);
                 }
                 $message = "Benachrichtigungseinstellungen erfolgreich aktualisiert.";
                 // Benutzerliste neu laden nach dem Speichern (Legacy)
                 try {
-                    $where = "is_active = 1";
+                    $where = "is_active = 1 AND (COALESCE(is_system_user, 0) = 0)";
                     $params = [];
                     if ($einheit_id_notif > 0) {
                         $amern_id = get_einheit_amern_id($db);
@@ -367,6 +386,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $selectedCcRecipients = isset($_POST['cc_recipients']) && is_array($_POST['cc_recipients']) 
                     ? array_map('intval', $_POST['cc_recipients']) 
                     : [];
+                $selectedCcRecipients = $filter_system_users($selectedCcRecipients);
                 
                 error_log("Ausgewählte CC-Empfänger IDs: " . print_r($selectedCcRecipients, true));
                 
