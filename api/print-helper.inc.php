@@ -29,27 +29,40 @@ function print_send_pdf($pdf_content, $printer_config, $debug = false) {
     if (empty($pdf_content) || strlen($pdf_content) < 100) {
         return ['success' => false, 'message' => 'PDF konnte nicht erzeugt werden.'];
     }
-    $tmp = tempnam(sys_get_temp_dir(), 'print_') . '.pdf';
-    if (file_put_contents($tmp, $pdf_content) === false) {
-        return ['success' => false, 'message' => 'Temporäre Datei konnte nicht erstellt werden.'];
-    }
     $printer = escapeshellarg($printer_config['printer']);
-    $file = escapeshellarg($tmp);
     $cups_server = $printer_config['cups_server'] ?: getenv('CUPS_SERVER') ?: ($_SERVER['CUPS_SERVER'] ?? '');
-    $env = '';
+    $old_cups = $cups_server !== '' ? getenv('CUPS_SERVER') : null;
     if ($cups_server !== '') {
-        $env = 'CUPS_SERVER=' . escapeshellarg($cups_server) . ' ';
+        putenv('CUPS_SERVER=' . $cups_server);
     }
-    $cmd = $env . 'lp -d ' . $printer . ' ' . $file . ' 2>&1';
-    $out = [];
-    exec($cmd, $out, $code);
-    $output_str = implode("\n", $out);
-    // Kurze Verzögerung vor Löschen: Cloud-Connector (z.B. Princh) können die Datei
-    // asynchron lesen. Ohne Delay kann "file info is queued" auftreten.
-    usleep(500000); // 0,5 Sekunden
-    @unlink($tmp);
+    // PDF per stdin pipen – kein Temp-File, vollständige Übertragung. Hilft bei Cloud-Druckern (Princh).
+    $cmd = 'lp -d ' . $printer . ' -';
+    $descriptorspec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $proc = @proc_open($cmd, $descriptorspec, $pipes, null, null);
+    if (is_resource($proc)) {
+        fwrite($pipes[0], $pdf_content);
+        fclose($pipes[0]);
+        $output_str = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $code = proc_close($proc);
+    } else {
+        // Fallback: Temp-Datei
+        $tmp = tempnam(sys_get_temp_dir(), 'print_') . '.pdf';
+        if (file_put_contents($tmp, $pdf_content) === false) {
+            return ['success' => false, 'message' => 'Temporäre Datei konnte nicht erstellt werden.'];
+        }
+        $file = escapeshellarg($tmp);
+        $envStr = ($cups_server !== '') ? 'CUPS_SERVER=' . escapeshellarg($cups_server) . ' ' : '';
+        exec($envStr . 'lp -d ' . $printer . ' ' . $file . ' 2>&1', $out, $code);
+        $output_str = implode("\n", $out);
+        @unlink($tmp);
+    }
+    if ($cups_server !== '') {
+        putenv($old_cups !== false ? 'CUPS_SERVER=' . $old_cups : 'CUPS_SERVER=');
+    }
     if ($code !== 0) {
-        $msg = 'Druck fehlgeschlagen: ' . implode(' ', $out);
+        $msg = 'Druck fehlgeschlagen: ' . trim($output_str);
         $result = ['success' => false, 'message' => $msg];
         if ($debug) {
             $result['debug'] = [
