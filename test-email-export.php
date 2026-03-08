@@ -1,10 +1,11 @@
 <?php
+require_once __DIR__ . '/includes/debug-auth.php';
 /**
  * Test-Skript für E-Mail-Export der PA-Träger-Liste
  */
 
-require_once 'config/database.php';
-require_once 'includes/functions.php';
+require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/functions.php';
 
 echo "<h1>🧪 E-Mail-Export Test</h1>";
 

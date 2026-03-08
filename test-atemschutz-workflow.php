@@ -1,5 +1,6 @@
 <?php
-require_once 'config/database.php';
+require_once __DIR__ . '/includes/debug-auth.php';
+require_once __DIR__ . '/config/database.php';
 
 try {
     echo "<h2>Atemschutz Workflow Test</h2>";
