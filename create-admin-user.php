@@ -7,6 +7,11 @@
 require_once 'config/database.php';
 
 try {
+    // user_type-Spalte sicherstellen (für Superadmin-Logik)
+    try {
+        $db->exec("ALTER TABLE users ADD COLUMN user_type VARCHAR(50) NULL");
+    } catch (Exception $e) { /* Spalte existiert bereits */ }
+    
     $username = 'admin';
     $email = 'admin@feuerwehr.local';
     $password = 'admin123';
@@ -21,13 +26,14 @@ try {
     if ($existing) {
         echo "ℹ️ Benutzer '$username' existiert bereits - aktualisiere Berechtigungen\n";
         
-        // Bestehenden User auf Admin setzen
+        // Bestehenden User auf Admin setzen (user_type='superadmin' für Löschbarkeit)
         $stmt = $db->prepare("UPDATE users SET 
             password_hash = ?, 
             first_name = ?, 
             last_name = ?, 
             user_role = 'admin',
             role = 'admin',
+            user_type = 'superadmin',
             is_admin = 1, 
             can_reservations = 1, 
             can_users = 1, 
@@ -44,12 +50,12 @@ try {
     } else {
         echo "🆕 Erstelle neuen Admin-User '$username'\n";
         
-        // Neuen User erstellen
+        // Neuen User erstellen (user_type='superadmin' für Löschbarkeit)
         $stmt = $db->prepare("INSERT INTO users 
-            (username, email, password_hash, first_name, last_name, user_role, role, 
+            (username, email, password_hash, first_name, last_name, user_role, role, user_type,
              is_admin, can_reservations, can_users, can_settings, can_vehicles, 
              is_active, email_notifications, created_at) 
-            VALUES (?, ?, ?, ?, ?, 'admin', 'admin', 1, 1, 1, 1, 1, 1, 1, NOW())");
+            VALUES (?, ?, ?, ?, ?, 'admin', 'admin', 'superadmin', 1, 1, 1, 1, 1, 1, 1, NOW())");
         
         $password_hash = password_hash($password, PASSWORD_DEFAULT);
         $stmt->execute([$username, $email, $password_hash, $first_name, $last_name]);

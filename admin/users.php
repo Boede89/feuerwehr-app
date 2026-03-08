@@ -377,13 +377,13 @@ if (isset($_GET['delete'])) {
     if ($user_id == $_SESSION['user_id']) {
         $error = "Sie können sich nicht selbst löschen.";
     } else {
-        $stmt = $db->prepare("SELECT id, username, user_type FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT id, username, user_type, is_admin, user_role FROM users WHERE id = ?");
         $stmt->execute([$user_id]);
         $to_delete = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if (!$to_delete) {
             $error = "Benutzer nicht gefunden.";
-        } elseif (($to_delete['user_type'] ?? '') === 'superadmin') {
+        } elseif (function_exists('user_has_superadmin_rights') && user_has_superadmin_rights($to_delete)) {
             if (count_superadmins() <= 1) {
                 $error = "Der letzte Superadmin kann nicht gelöscht werden. Es muss immer mindestens ein Superadmin existieren.";
             } else {
@@ -441,7 +441,12 @@ try {
     $stmt->execute();
     $all_users = $stmt->fetchAll();
     // Nur Superadmins und Einheitsadmins in der Globalen Benutzerverwaltung anzeigen
-    $users = array_filter($all_users, fn($u) => empty($u['is_system_user']) && in_array($u['user_type'] ?? '', ['superadmin', 'einheitsadmin']));
+    $users = array_filter($all_users, function($u) {
+        if (!empty($u['is_system_user'])) return false;
+        if (in_array($u['user_type'] ?? '', ['superadmin', 'einheitsadmin'])) return true;
+        if (($u['is_admin'] ?? 0) == 1 && ($u['user_role'] ?? '') === 'admin') return true;
+        return false;
+    });
     $superadmin_count = function_exists('count_superadmins') ? count_superadmins() : 0;
     $einheiten = [];
     try {
@@ -590,7 +595,7 @@ try {
                                                 <?php endif; ?>
                                                 <?php
                                                 $can_delete = ($user['id'] != $_SESSION['user_id']);
-                                                $is_last_superadmin = (($user['user_type'] ?? '') === 'superadmin' && $superadmin_count <= 1);
+                                                $is_last_superadmin = (function_exists('user_has_superadmin_rights') && user_has_superadmin_rights($user) && $superadmin_count <= 1);
                                                 if ($can_delete && !$is_last_superadmin): ?>
                                                     <a href="?delete=<?php echo $user['id']; ?>" class="btn btn-outline-danger btn-sm" 
                                                        onclick="return confirm('Sind Sie sicher, dass Sie diesen Benutzer löschen möchten?')"

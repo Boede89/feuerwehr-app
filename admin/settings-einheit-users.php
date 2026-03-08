@@ -266,11 +266,11 @@ if (isset($_GET['delete_user'])) {
     $user_id = (int)$_GET['delete_user'];
     if ($user_id > 0 && $user_id !== $_SESSION['user_id']) {
         try {
-            $stmt = $db->prepare("SELECT id, username, user_type FROM users WHERE id = ? AND is_system_user = 0 AND (einheit_id = ? OR id IN (SELECT user_id FROM user_einheiten WHERE einheit_id = ?))");
+            $stmt = $db->prepare("SELECT id, username, user_type, is_admin, user_role FROM users WHERE id = ? AND is_system_user = 0 AND (einheit_id = ? OR id IN (SELECT user_id FROM user_einheiten WHERE einheit_id = ?))");
             $stmt->execute([$user_id, $einheit_id, $einheit_id]);
             $u = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($u) {
-                $is_superadmin = ($u['user_type'] ?? '') === 'superadmin';
+                $is_superadmin = function_exists('user_has_superadmin_rights') && user_has_superadmin_rights($u);
                 if ($is_superadmin && count_superadmins() <= 1) {
                     $error = "Der letzte Superadmin kann nicht gelöscht werden. Es muss immer mindestens ein Superadmin existieren.";
                 } else {

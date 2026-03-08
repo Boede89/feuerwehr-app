@@ -698,16 +698,30 @@ function get_current_einheit_id() {
 }
 
 /**
- * Zählt Superadmins in der Datenbank
+ * Zählt Superadmins in der Datenbank.
+ * Berücksichtigt auch Legacy-Admins (user_role='admin' oder is_admin=1), die von Skripten
+ * erstellt wurden und möglicherweise kein user_type='superadmin' haben.
  */
 function count_superadmins() {
     global $db;
     try {
-        $stmt = $db->query("SELECT COUNT(*) FROM users WHERE COALESCE(user_type, '') = 'superadmin'");
+        $stmt = $db->query("SELECT COUNT(*) FROM users WHERE 
+            COALESCE(user_type, '') = 'superadmin' 
+            OR (COALESCE(is_admin, 0) = 1 AND COALESCE(user_role, '') = 'admin')");
         return (int)$stmt->fetchColumn();
     } catch (Exception $e) {
         return 0;
     }
+}
+
+/**
+ * Prüft ob ein Benutzer Superadmin-Rechte hat (für Löschlogik).
+ * Berücksichtigt user_type und Legacy-Felder (is_admin, user_role).
+ */
+function user_has_superadmin_rights($user) {
+    if (($user['user_type'] ?? '') === 'superadmin') return true;
+    if (($user['is_admin'] ?? 0) == 1 && ($user['user_role'] ?? '') === 'admin') return true;
+    return false;
 }
 
 /**
@@ -729,10 +743,14 @@ function delete_user_safe($user_id, &$error = '') {
             ['dashboard_preferences', 'user_id'],
             ['dashboard_settings', 'user_id'],
             ['anwesenheitsliste_drafts', 'user_id'],
+            ['reservations', 'approved_by'],
+            ['room_reservations', 'approved_by'],
+            ['atemschutz_entries', 'requester_id'],
+            ['atemschutz_entries', 'approved_by'],
         ];
         foreach ($updates as $t) {
             try {
-                $db->exec("UPDATE {$t[0]} SET {$t[1]} = NULL WHERE {$t[1]} = $user_id");
+                $db->exec("UPDATE `{$t[0]}` SET `{$t[1]}` = NULL WHERE `{$t[1]}` = $user_id");
             } catch (Exception $e) { /* Tabelle/Spalte kann fehlen */ }
         }
         // activity_log: Einträge des Benutzers löschen (user_id oft NOT NULL)
