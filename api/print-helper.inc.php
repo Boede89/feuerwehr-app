@@ -80,20 +80,38 @@ function print_get_printer_list($db, $einheit_id) {
 
 /**
  * Registriert einen CUPS-Drucker per lpadmin (remote möglich mit CUPS_SERVER).
+ * Hinweis: Von Docker aus schlägt lpadmin oft fehl („Bad file descriptor“).
+ * Dann den Befehl auf dem Host ausführen.
  */
 function print_register_cups_printer($name, $uri, $model, $cups_server = '') {
     $name = preg_replace('/[^a-zA-Z0-9_-]/', '', $name);
     if ($name === '' || strlen($uri) < 5) {
         return ['success' => false, 'message' => 'Ungültiger Druckername oder URI.'];
     }
-    $env = $cups_server ? 'CUPS_SERVER=' . escapeshellarg($cups_server) . ' ' : '';
-    $cmd = $env . 'lpadmin -p ' . escapeshellarg($name) . ' -E -v ' . escapeshellarg($uri) . ' -m ' . escapeshellarg($model ?: 'everywhere') . ' 2>&1';
-    exec($cmd, $out, $code);
-    $output = implode("\n", $out);
-    if ($code !== 0) {
-        return ['success' => false, 'message' => 'lpadmin fehlgeschlagen: ' . trim($output), 'lpadmin_cmd' => $cmd];
+    $model = $model ?: 'everywhere';
+    $cmd = 'lpadmin -p ' . escapeshellarg($name) . ' -E -v ' . escapeshellarg($uri) . ' -m ' . escapeshellarg($model) . ' 2>&1';
+
+    $old_cups = getenv('CUPS_SERVER');
+    if ($cups_server !== '') {
+        putenv('CUPS_SERVER=' . $cups_server);
     }
-    return ['success' => true, 'message' => 'Drucker registriert.', 'lpadmin_cmd' => $cmd];
+    $out = [];
+    exec($cmd, $out, $code);
+    if ($cups_server !== '') {
+        putenv($old_cups !== false ? 'CUPS_SERVER=' . $old_cups : 'CUPS_SERVER=');
+    }
+
+    $output = implode("\n", $out);
+    $host_cmd = ($cups_server ? "CUPS_SERVER=" . escapeshellarg($cups_server) . " " : "") . $cmd;
+
+    if ($code !== 0) {
+        return [
+            'success' => false,
+            'message' => 'lpadmin fehlgeschlagen: ' . trim($output) . ' (Von Docker aus oft nicht möglich – Befehl auf dem Host ausführen.)',
+            'lpadmin_cmd' => $host_cmd,
+        ];
+    }
+    return ['success' => true, 'message' => 'Drucker registriert.', 'lpadmin_cmd' => $host_cmd];
 }
 
 /**

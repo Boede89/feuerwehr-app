@@ -83,14 +83,17 @@ if ($action === 'add' || $action === 'edit') {
             'cups_model' => $model,
             'is_default' => $is_default,
         ];
-        $reg = print_register_cups_printer($cups_name, $uri, $model, $cups_server);
-        if (!$reg['success']) {
-            echo json_encode([
-                'success' => false,
-                'message' => $reg['message'] . ' Führen Sie ggf. auf dem Host aus: ' . ($reg['lpadmin_cmd'] ?? ''),
-                'lpadmin_cmd' => $reg['lpadmin_cmd'] ?? '',
-            ]);
-            exit;
+        $skip_lpadmin = isset($_POST['printer_skip_lpadmin']) && $_POST['printer_skip_lpadmin'] === '1';
+        if (!$skip_lpadmin) {
+            $reg = print_register_cups_printer($cups_name, $uri, $model, $cups_server);
+            if (!$reg['success']) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => $reg['message'],
+                    'lpadmin_cmd' => $reg['lpadmin_cmd'] ?? '',
+                ]);
+                exit;
+            }
         }
     }
 

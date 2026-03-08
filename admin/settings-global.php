@@ -762,6 +762,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                                     <input type="text" class="form-control" id="printer_model" value="everywhere" placeholder="everywhere">
                                     <small class="text-muted">Standard: <code>everywhere</code> (generischer PDF-Drucker)</small>
                                 </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="printer_skip_lpadmin" value="1">
+                                    <label class="form-check-label" for="printer_skip_lpadmin">Drucker bereits auf Host registriert (lpadmin überspringen)</label>
+                                    <small class="text-muted d-block">Wenn lpadmin von Docker aus fehlschlägt: Befehl auf dem Host ausführen, dann hier mit Haken speichern.</small>
+                                </div>
                             </div>
                             <div id="printer_cloud_fields" style="display:none;">
                                 <div class="mb-3">
@@ -1192,6 +1197,7 @@ function openPrinterModal(id) {
     document.getElementById('printer_model').value = 'everywhere';
     document.getElementById('printer_cloud_url_input').value = '';
     document.getElementById('printer_cloud_raw').checked = false;
+    document.getElementById('printer_skip_lpadmin').checked = false;
     document.getElementById('printer_is_default').checked = false;
     if (id) {
         title.textContent = 'Drucker bearbeiten';
@@ -1235,6 +1241,7 @@ function savePrinter() {
     fd.append('printer_type', document.getElementById('printer_type').value);
     fd.append('printer_uri', document.getElementById('printer_uri').value);
     fd.append('printer_model', document.getElementById('printer_model').value);
+    fd.append('printer_skip_lpadmin', document.getElementById('printer_skip_lpadmin').checked ? '1' : '0');
     fd.append('printer_cloud_url', document.getElementById('printer_cloud_url_input').value);
     fd.append('printer_cloud_raw', document.getElementById('printer_cloud_raw').checked ? '1' : '0');
     fd.append('printer_is_default', document.getElementById('printer_is_default').checked ? '1' : '0');
