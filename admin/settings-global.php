@@ -580,12 +580,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <span><i class="fas fa-envelope"></i> SMTP</span>
-                        <form method="POST" class="d-inline" onsubmit="return confirm('Globale SMTP-Einstellungen wirklich übernehmen? Die aktuellen Einheiten-Einstellungen werden überschrieben.');">
-                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                            <input type="hidden" name="action" value="use_global_smtp">
-                            <input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>">
-                            <button type="submit" class="btn btn-outline-primary btn-sm"><i class="fas fa-download me-1"></i> Globale SMTP übernehmen</button>
-                        </form>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="btn_apply_global_smtp"><i class="fas fa-download me-1"></i> Globale SMTP übernehmen</button>
                     </div>
                     <div class="card-body">
                         <div class="row">
@@ -989,6 +984,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    var btnApplySmtp = document.getElementById('btn_apply_global_smtp');
+    if (btnApplySmtp) {
+        btnApplySmtp.addEventListener('click', function() {
+            if (!confirm('Globale SMTP-Einstellungen wirklich übernehmen? Die aktuellen Einheiten-Einstellungen werden überschrieben.')) return;
+            var f = document.createElement('form');
+            f.method = 'POST';
+            f.innerHTML = '<input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>"><input type="hidden" name="action" value="use_global_smtp"><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>">';
+            document.body.appendChild(f);
+            f.submit();
+        });
+    }
     var returnTab = document.getElementById('return_tab');
     var tabBtns = document.querySelectorAll('#settingsTabs button[data-bs-toggle="tab"]');
     if (returnTab && tabBtns.length) {
