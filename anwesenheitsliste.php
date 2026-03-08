@@ -736,8 +736,6 @@ if (isset($_SESSION['user_id'])) {
             else alert(success ? 'Druckauftrag wurde gesendet.' : 'Fehler: ' + (msg || 'Druck fehlgeschlagen.'));
         }
         var einheitParam = (typeof ANWESENHEITSLISTE_EINHEIT_ID !== 'undefined' && ANWESENHEITSLISTE_EINHEIT_ID > 0) ? '&einheit_id=' + ANWESENHEITSLISTE_EINHEIT_ID : '';
-        var printWindow = (pending > 0) ? window.open('', '_blank', 'noopener,width=800,height=600') : null;
-        if (printWindow) { try { printWindow.document.write('<html><head><title>Lade PDF...</title></head><body style="font-family:sans-serif;padding:2em;">PDF wird geladen...</body></html>'); } catch (e) {} }
         function handlePrintResult(data) {
             if (data.success && data.open_pdf && data.pdf_base64) {
                 try {
@@ -746,40 +744,33 @@ if (isset($_SESSION['user_id'])) {
                     for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
                     var blob = new Blob([bytes], { type: 'application/pdf' });
                     var url = URL.createObjectURL(blob);
-                    if (printWindow && !printWindow.closed) {
-                        printWindow.location.href = url;
-                        printWindow.onload = function() { try { printWindow.print(); } catch (e) {} setTimeout(function() { URL.revokeObjectURL(url); }, 10000); };
-                        setTimeout(function() { try { printWindow.print(); } catch (e) {} }, 1500);
+                    var w = window.open(url, '_blank', 'noopener,width=900,height=700');
+                    if (w) {
+                        w.onload = function() { try { w.print(); } catch (e) {} setTimeout(function() { URL.revokeObjectURL(url); }, 10000); };
+                        setTimeout(function() { try { w.print(); } catch (e) {} }, 1500);
                     } else {
-                        var w = window.open(url, '_blank', 'noopener');
-                        if (w) {
-                            w.onload = function() { try { w.print(); } catch (e) {} setTimeout(function() { URL.revokeObjectURL(url); }, 10000); };
-                            setTimeout(function() { try { w.print(); } catch (e) {} }, 1500);
-                        } else {
-                            var iframe = document.createElement('iframe');
-                            iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff';
-                            iframe.src = url;
-                            document.body.appendChild(iframe);
-                            var btnBar = document.createElement('div');
-                            btnBar.style.cssText = 'position:fixed;top:10px;right:10px;z-index:100000;display:flex;gap:8px';
-                            var newWinBtn = document.createElement('button');
-                            newWinBtn.textContent = 'In neuem Fenster öffnen';
-                            newWinBtn.className = 'btn btn-outline-primary';
-                            newWinBtn.onclick = function() { var w = window.open(url, '_blank', 'noopener,width=900,height=700'); if (w) w.onload = function() { try { w.print(); } catch (e) {} }; };
-                            var closeBtn = document.createElement('button');
-                            closeBtn.textContent = 'Schließen';
-                            closeBtn.className = 'btn btn-primary';
-                            closeBtn.onclick = function() { iframe.remove(); btnBar.remove(); URL.revokeObjectURL(url); };
-                            btnBar.appendChild(newWinBtn);
-                            btnBar.appendChild(closeBtn);
-                            document.body.appendChild(btnBar);
-                            iframe.onload = function() { setTimeout(function() { try { iframe.contentWindow.print(); } catch (e) {} }, 500); };
-                        }
+                        var iframe = document.createElement('iframe');
+                        iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff';
+                        iframe.src = url;
+                        document.body.appendChild(iframe);
+                        var btnBar = document.createElement('div');
+                        btnBar.style.cssText = 'position:fixed;top:10px;right:10px;z-index:100000;display:flex;gap:8px';
+                        var newWinBtn = document.createElement('button');
+                        newWinBtn.textContent = 'In neuem Fenster öffnen';
+                        newWinBtn.className = 'btn btn-outline-primary';
+                        newWinBtn.onclick = function() { var w2 = window.open(url, '_blank', 'noopener,width=900,height=700'); if (w2) w2.onload = function() { try { w2.print(); } catch (e) {} }; };
+                        var closeBtn = document.createElement('button');
+                        closeBtn.textContent = 'Schließen';
+                        closeBtn.className = 'btn btn-primary';
+                        closeBtn.onclick = function() { iframe.remove(); btnBar.remove(); URL.revokeObjectURL(url); };
+                        btnBar.appendChild(newWinBtn);
+                        btnBar.appendChild(closeBtn);
+                        document.body.appendChild(btnBar);
+                        iframe.onload = function() { setTimeout(function() { try { iframe.contentWindow.print(); } catch (e) {} }, 500); };
                     }
-                    showResult(true, 'PDF wurde geöffnet. Der Druckdialog sollte sich öffnen – sonst Strg+P drücken.');
+                    showResult(true, 'PDF wurde geöffnet. Sie können lokal drucken (Strg+P).');
                 } catch (e) { showResult(false, 'PDF konnte nicht geöffnet werden.'); }
             } else {
-                if (printWindow) try { printWindow.close(); } catch (x) {}
                 showResult(data.success, data.message);
             }
         }
