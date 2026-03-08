@@ -22,7 +22,7 @@ function print_get_printer_config($db, $einheit_id = null) {
     return ['printer' => $printer, 'cups_server' => $cups_server];
 }
 
-function print_send_pdf($pdf_content, $printer_config) {
+function print_send_pdf($pdf_content, $printer_config, $debug = false) {
     if (empty($printer_config['printer'])) {
         return ['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte in den Einstellungen der Einheit (Drucker-Tab) einen Druckernamen eintragen.'];
     }
@@ -45,7 +45,18 @@ function print_send_pdf($pdf_content, $printer_config) {
     exec($cmd, $out, $code);
     @unlink($tmp);
     if ($code !== 0) {
-        return ['success' => false, 'message' => 'Druck fehlgeschlagen: ' . implode(' ', $out)];
+        $msg = 'Druck fehlgeschlagen: ' . implode(' ', $out);
+        $result = ['success' => false, 'message' => $msg];
+        if ($debug) {
+            $result['debug'] = [
+                'command' => $cmd,
+                'exit_code' => $code,
+                'output' => implode("\n", $out),
+                'printer' => $printer_config['printer'],
+                'cups_server' => $printer_config['cups_server'] ?: '(Standard)',
+            ];
+        }
+        return $result;
     }
     return ['success' => true, 'message' => 'Druckauftrag wurde gesendet.'];
 }

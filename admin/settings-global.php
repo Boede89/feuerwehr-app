@@ -711,6 +711,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                             <input class="form-control" name="printer_cups_server" placeholder="host.docker.internal:631" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
                             <small class="text-muted">Bei Docker <strong>unbedingt</strong> eintragen: <code>host.docker.internal:631</code> – sonst findet „Drucker auflisten“ keine Drucker und der Druck funktioniert nicht.</small>
                         </div>
+                        <?php if ($einheit_id > 0): ?>
+                        <div class="mb-0 mt-3">
+                            <button type="button" class="btn btn-primary" id="btn_test_print" title="Testseite an den konfigurierten Drucker senden"><i class="fas fa-print me-1"></i> Testdruck</button>
+                            <span id="test_print_result" class="ms-2 small"></span>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -1106,6 +1112,34 @@ document.getElementById('btn_list_printers')?.addEventListener('click', function
         .catch(function() {
             btn.disabled = false;
             out.innerHTML = '<span class="text-danger">Fehler beim Laden. CUPS-Server erreichbar?</span>';
+        });
+});
+document.getElementById('btn_test_print')?.addEventListener('click', function() {
+    var btn = this;
+    var out = document.getElementById('test_print_result');
+    if (!out) return;
+    btn.disabled = true;
+    out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Sende Testdruck...</span>';
+    fetch('../api/print-test.php?einheit_id=<?php echo (int)$einheit_id; ?>')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            if (data.success) {
+                out.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>' + (data.message || 'Testdruck gesendet.') + '</span>';
+            } else {
+                var msg = (data.message || 'Fehler');
+                if (data.debug && data.debug.output) {
+                    msg += ' Ausgabe: ' + String(data.debug.output).replace(/</g, '&lt;').substring(0, 200);
+                    if (data.debug.output.length > 200) msg += '…';
+                } else if (data.debug) {
+                    msg += ' (Drucker: ' + (data.debug.printer || '') + ', CUPS: ' + (data.debug.cups_server || '') + ')';
+                }
+                out.innerHTML = '<span class="text-danger" title="' + (data.debug && data.debug.command ? String(data.debug.command).replace(/"/g, '&quot;') : '') + '"><i class="fas fa-exclamation-triangle me-1"></i>' + msg + '</span>';
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            out.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Verbindungsfehler</span>';
         });
 });
 </script>
