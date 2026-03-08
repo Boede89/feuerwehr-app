@@ -295,18 +295,18 @@ if ($can_atemschutz) {
                     try { $db->exec("ALTER TABLE atemschutz_entries ADD COLUMN unit_id INT NULL"); } catch (Exception $e) {}
                     // Lade offene Atemschutzeintrag-Anträge nur für die gewählte Einheit
                     $stmt = $db->prepare("
-                        SELECT ae.*,
-                               COALESCE(u.first_name, 'Unbekannt') as first_name, 
-                               COALESCE(u.last_name, '') as last_name,
-                               (SELECT GROUP_CONCAT(CONCAT(at2.first_name, ' ', at2.last_name) ORDER BY at2.last_name, at2.first_name SEPARATOR ', ')
-                                FROM atemschutz_entry_traeger aet2
-                                LEFT JOIN atemschutz_traeger at2 ON aet2.traeger_id = at2.id
-                                WHERE aet2.entry_id = ae.id) as traeger_names,
-                               (SELECT COUNT(*) FROM atemschutz_entry_traeger WHERE entry_id = ae.id) as traeger_count
+                        SELECT ae.id, ae.entry_type, ae.entry_date, ae.status, ae.created_at, ae.requester_id, ae.rejection_reason, ae.approved_by, ae.approved_at, ae.updated_at, ae.einheit_id, ae.unit_id,
+                               COALESCE(MAX(u.first_name), 'Unbekannt') as first_name, 
+                               COALESCE(MAX(u.last_name), '') as last_name,
+                               GROUP_CONCAT(CONCAT(COALESCE(at.first_name,''), ' ', COALESCE(at.last_name,'')) ORDER BY at.last_name, at.first_name SEPARATOR ', ') as traeger_names,
+                               COUNT(aet.traeger_id) as traeger_count
                         FROM atemschutz_entries ae
                         LEFT JOIN users u ON ae.requester_id = u.id
+                        LEFT JOIN atemschutz_entry_traeger aet ON ae.id = aet.entry_id
+                        LEFT JOIN atemschutz_traeger at ON aet.traeger_id = at.id
                         WHERE ae.status = 'pending' 
                         AND (COALESCE(ae.einheit_id, ae.unit_id, 1) = ?
+                        GROUP BY ae.id
                         ORDER BY ae.created_at DESC
                     ");
         $stmt->execute([$effective_unit_id]);
