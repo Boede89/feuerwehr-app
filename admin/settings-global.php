@@ -337,6 +337,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                 $printer = [
                     'printer_destination' => sanitize_input($_POST['printer_destination'] ?? ''),
                     'printer_cups_server' => trim(sanitize_input($_POST['printer_cups_server'] ?? '')),
+                    'printer_cloud_url' => trim(sanitize_input($_POST['printer_cloud_url'] ?? '')),
+                    'printer_cloud_url_raw' => isset($_POST['printer_cloud_url_raw']) && $_POST['printer_cloud_url_raw'] === '1' ? '1' : '0',
                 ];
                 $divera_access_key = trim($_POST['divera_access_key'] ?? '');
                 $divera_key_clear = isset($_POST['divera_access_key_clear']) && $_POST['divera_access_key_clear'] === '1';
@@ -710,6 +712,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                             <label class="form-label">CUPS-Server</label>
                             <input class="form-control" name="printer_cups_server" placeholder="host.docker.internal:631" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
                             <small class="text-muted">Bei Docker <strong>unbedingt</strong> eintragen: <code>host.docker.internal:631</code> – sonst findet „Drucker auflisten“ keine Drucker und der Druck funktioniert nicht.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Cloud-Drucker-URL <span class="text-muted">(Alternative zu CUPS)</span></label>
+                            <input class="form-control" type="url" name="printer_cloud_url" id="printer_cloud_url" placeholder="https://..." value="<?php echo htmlspecialchars($settings['printer_cloud_url'] ?? ''); ?>">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" name="printer_cloud_url_raw" id="printer_cloud_url_raw" value="1" <?php echo ($settings['printer_cloud_url_raw'] ?? '') === '1' ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="printer_cloud_url_raw">Als Raw-PDF senden (Content-Type: application/pdf) – falls die API multipart nicht akzeptiert</label>
+                            </div>
+                            <small class="text-muted d-block mt-1">Das PDF wird per HTTP POST an diese URL gesendet. Bei gesetzter URL hat diese Vorrang vor CUPS.</small>
                         </div>
                         <?php if ($einheit_id > 0): ?>
                         <div class="mb-0 mt-3">

@@ -22,8 +22,8 @@ if ($einheit_id <= 0) {
 }
 
 $config = print_get_printer_config($db, $einheit_id);
-if (empty($config['printer'])) {
-    echo json_encode(['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte zuerst Druckername und ggf. CUPS-Server eintragen und speichern.']);
+if (empty($config['printer']) && empty($config['cloud_url'])) {
+    echo json_encode(['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte Druckername, CUPS-Server oder Cloud-Drucker-URL eintragen und speichern.']);
     exit;
 }
 

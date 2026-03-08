@@ -1,11 +1,13 @@
 <?php
 /**
- * Hilfsfunktionen für Druck über CUPS.
+ * Hilfsfunktionen für Druck über CUPS oder Cloud-Drucker-URL.
  * Drucker nur aus einheit_settings (bei einheit_id > 0). Keine globalen Druckeinstellungen.
  */
 function print_get_printer_config($db, $einheit_id = null) {
     $printer = '';
     $cups_server = getenv('CUPS_SERVER') ?: ($_SERVER['CUPS_SERVER'] ?? '');
+    $cloud_url = '';
+    $cloud_url_raw = false;
     $einheit_id = $einheit_id !== null ? (int)$einheit_id : 0;
     if ($einheit_id > 0) {
         if (!function_exists('load_settings_for_einheit')) {
@@ -13,21 +15,84 @@ function print_get_printer_config($db, $einheit_id = null) {
         }
         $settings = load_settings_for_einheit($db, $einheit_id);
         $printer = trim($settings['printer_destination'] ?? '');
+        $cloud_url = trim($settings['printer_cloud_url'] ?? '');
+        $cloud_url_raw = ($settings['printer_cloud_url_raw'] ?? '') === '1';
         $override = trim($settings['printer_cups_server'] ?? '');
         if ($override !== '') $cups_server = $override;
     }
     if ($cups_server === '' && (getenv('DOCKER') || file_exists('/.dockerenv'))) {
         $cups_server = 'host.docker.internal:631';
     }
-    return ['printer' => $printer, 'cups_server' => $cups_server];
+    return ['printer' => $printer, 'cups_server' => $cups_server, 'cloud_url' => $cloud_url, 'cloud_url_raw' => $cloud_url_raw];
+}
+
+/**
+ * Sendet PDF per HTTP POST an eine Cloud-Drucker-URL.
+ * Unterstützt multipart/form-data (Standard) oder Raw-PDF (Content-Type: application/pdf).
+ */
+function print_send_pdf_via_url($pdf_content, $url, $debug = false, $raw_pdf = false) {
+    $url = trim($url);
+    if (empty($url) || !preg_match('#^https?://#i', $url)) {
+        return ['success' => false, 'message' => 'Ungültige Cloud-Drucker-URL.'];
+    }
+    if ($raw_pdf) {
+        $body = $pdf_content;
+        $content_type = 'application/pdf';
+    } else {
+        $boundary = '----FeuerwehrAppPrint' . bin2hex(random_bytes(8));
+        $body = "--$boundary\r\n"
+            . "Content-Disposition: form-data; name=\"file\"; filename=\"druck.pdf\"\r\n"
+            . "Content-Type: application/pdf\r\n\r\n"
+            . $pdf_content . "\r\n"
+            . "--$boundary--\r\n";
+        $content_type = "multipart/form-data; boundary=$boundary";
+    }
+    $opts = [
+        'http' => [
+            'method' => 'POST',
+            'header' => "Content-Type: $content_type\r\nContent-Length: " . strlen($body) . "\r\n",
+            'content' => $body,
+            'timeout' => 30,
+            'ignore_errors' => true,
+        ],
+    ];
+    $ctx = stream_context_create($opts);
+    $response = @file_get_contents($url, false, $ctx);
+    $http_code = 0;
+    if (isset($http_response_header) && is_array($http_response_header)) {
+        foreach ($http_response_header as $h) {
+            if (preg_match('#^HTTP/\d\.\d\s+(\d+)#i', $h, $m)) {
+                $http_code = (int)$m[1];
+                break;
+            }
+        }
+    }
+    if ($http_code >= 200 && $http_code < 300) {
+        $result = ['success' => true, 'message' => 'Druckauftrag wurde an Cloud-Drucker gesendet.'];
+        if ($debug) {
+            $result['debug'] = ['url' => $url, 'http_code' => $http_code];
+        }
+        return $result;
+    }
+    $result = ['success' => false, 'message' => 'Cloud-Drucker: HTTP ' . $http_code . ' – ' . ($response ? substr(trim($response), 0, 200) : 'Keine Antwort')];
+    if ($debug) {
+        $result['debug'] = ['url' => $url, 'http_code' => $http_code, 'response' => substr($response ?? '', 0, 500)];
+    }
+    return $result;
 }
 
 function print_send_pdf($pdf_content, $printer_config, $debug = false) {
-    if (empty($printer_config['printer'])) {
-        return ['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte in den Einstellungen der Einheit (Drucker-Tab) einen Druckernamen eintragen.'];
+    $cloud_url = trim($printer_config['cloud_url'] ?? '');
+    $printer = trim($printer_config['printer'] ?? '');
+    if (empty($cloud_url) && empty($printer)) {
+        return ['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte Druckername oder Cloud-Drucker-URL in den Einstellungen der Einheit (Drucker-Tab) eintragen.'];
     }
     if (empty($pdf_content) || strlen($pdf_content) < 100) {
         return ['success' => false, 'message' => 'PDF konnte nicht erzeugt werden.'];
+    }
+    // Cloud-Drucker-URL: PDF per HTTP POST senden
+    if (!empty($cloud_url)) {
+        return print_send_pdf_via_url($pdf_content, $cloud_url, $debug, !empty($printer_config['cloud_url_raw']));
     }
     $printer = escapeshellarg($printer_config['printer']);
     $cups_server = $printer_config['cups_server'] ?: getenv('CUPS_SERVER') ?: ($_SERVER['CUPS_SERVER'] ?? '');
