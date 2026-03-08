@@ -264,28 +264,17 @@ function print_send_pdf($pdf_content, $printer_config, $debug = false) {
     $cups_server = $cups_server ? print_normalize_cups_server($cups_server) : '';
     $lp_h = $cups_server ? ' -h ' . escapeshellarg($cups_server) : '';
     $printer_esc = escapeshellarg($printer);
-    // PDF per stdin pipen – document-format für IPP-Cloud-Drucker (z.B. Workplace Pure) wichtig
-    $cmd = 'lp' . $lp_h . ' -d ' . $printer_esc . ' -o document-format=application/pdf -';
-    $descriptorspec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-    $proc = @proc_open($cmd, $descriptorspec, $pipes, null, null);
-    if (is_resource($proc)) {
-        fwrite($pipes[0], $pdf_content);
-        fclose($pipes[0]);
-        $output_str = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $code = proc_close($proc);
-    } else {
-        // Fallback: Temp-Datei
-        $tmp = tempnam(sys_get_temp_dir(), 'print_') . '.pdf';
-        if (file_put_contents($tmp, $pdf_content) === false) {
-            return ['success' => false, 'message' => 'Temporäre Datei konnte nicht erstellt werden.'];
-        }
-        $file = escapeshellarg($tmp);
-        exec('lp' . $lp_h . ' -d ' . $printer_esc . ' -o document-format=application/pdf ' . $file . ' 2>&1', $out, $code);
-        $output_str = implode("\n", $out);
-        @unlink($tmp);
+    // Temp-Datei verwenden – zuverlässiger für IPP-Cloud-Drucker (Workplace Pure etc.) als stdin-Pipe
+    $tmp = tempnam(sys_get_temp_dir(), 'print_') . '.pdf';
+    if (file_put_contents($tmp, $pdf_content) === false) {
+        return ['success' => false, 'message' => 'Temporäre Datei konnte nicht erstellt werden.'];
     }
+    $file = escapeshellarg($tmp);
+    $job_title = escapeshellarg('Feuerwehr-App-' . date('Y-m-d-His') . '.pdf');
+    $cmd = 'lp' . $lp_h . ' -d ' . $printer_esc . ' -t ' . $job_title . ' -o document-format=application/pdf ' . $file;
+    exec($cmd . ' 2>&1', $out, $code);
+    $output_str = implode("\n", $out);
+    @unlink($tmp);
     if ($code !== 0) {
         $msg = 'Druck fehlgeschlagen: ' . trim($output_str);
         $result = ['success' => false, 'message' => $msg];
