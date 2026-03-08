@@ -335,10 +335,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     $error = $logo_upload_error;
                 }
                 $printer = [
-                    'printer_destination' => sanitize_input($_POST['printer_destination'] ?? ''),
                     'printer_cups_server' => trim(sanitize_input($_POST['printer_cups_server'] ?? '')),
-                    'printer_cloud_url' => trim(sanitize_input($_POST['printer_cloud_url'] ?? '')),
-                    'printer_cloud_url_raw' => isset($_POST['printer_cloud_url_raw']) && $_POST['printer_cloud_url_raw'] === '1' ? '1' : '0',
                 ];
                 $divera_access_key = trim($_POST['divera_access_key'] ?? '');
                 $divera_key_clear = isset($_POST['divera_access_key_clear']) && $_POST['divera_access_key_clear'] === '1';
@@ -696,45 +693,99 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
             </div>
             <div class="tab-pane fade <?php echo $active_tab === 'drucker' ? 'show active' : ''; ?>" id="tab-drucker" role="tabpanel">
                 <div class="card">
-                    <div class="card-header"><i class="fas fa-print"></i> Drucker</div>
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-print"></i> Drucker</span>
+                        <?php if ($einheit_id > 0): ?>
+                        <button type="button" class="btn btn-sm btn-primary" id="btn_add_printer"><i class="fas fa-plus me-1"></i> Drucker hinzufügen</button>
+                        <?php endif; ?>
+                    </div>
                     <div class="card-body">
-                        <p class="text-muted small mb-3">Der Drucker wird auf dem Host mit <code>lpadmin</code> angelegt. Hier tragen Sie den Druckernamen ein, unter dem er in CUPS registriert ist.</p>
-                        <div class="mb-3">
-                            <label class="form-label">Druckername</label>
-                            <div class="input-group">
-                                <input class="form-control" name="printer_destination" id="printer_destination" placeholder="z.B. workplacepure" value="<?php echo htmlspecialchars($settings['printer_destination'] ?? ''); ?>">
-                                <button type="button" class="btn btn-outline-secondary" id="btn_list_printers" title="Verfügbare Drucker anzeigen"><i class="fas fa-list"></i> Drucker auflisten</button>
-                            </div>
-                            <small class="text-muted d-block mt-1">Der Name, den Sie beim <code>lpadmin -p NAME</code> Befehl verwenden.</small>
-                            <div id="printers_list" class="mt-2 small" style="display:none;"></div>
-                        </div>
                         <div class="mb-3">
                             <label class="form-label">CUPS-Server</label>
-                            <input class="form-control" name="printer_cups_server" placeholder="host.docker.internal:631" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
-                            <small class="text-muted">Bei Docker <strong>unbedingt</strong> eintragen: <code>host.docker.internal:631</code> – sonst findet „Drucker auflisten“ keine Drucker und der Druck funktioniert nicht.</small>
+                            <input class="form-control" name="printer_cups_server" id="printer_cups_server" placeholder="host.docker.internal:631" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
+                            <small class="text-muted">Bei Docker: <code>host.docker.internal:631</code>. CUPS muss auf dem Host laufen.</small>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Cloud-Drucker-URL <span class="text-muted">(Alternative zu CUPS)</span></label>
-                            <input class="form-control" type="url" name="printer_cloud_url" id="printer_cloud_url" placeholder="https://..." value="<?php echo htmlspecialchars($settings['printer_cloud_url'] ?? ''); ?>">
-                            <div class="form-check mt-2">
-                                <input class="form-check-input" type="checkbox" name="printer_cloud_url_raw" id="printer_cloud_url_raw" value="1" <?php echo ($settings['printer_cloud_url_raw'] ?? '') === '1' ? 'checked' : ''; ?>>
-                                <label class="form-check-label" for="printer_cloud_url_raw">Als Raw-PDF senden (Content-Type: application/pdf) – falls die API multipart nicht akzeptiert</label>
+                            <label class="form-label">Konfigurierte Drucker</label>
+                            <div id="printers_table_container">
+                                <table class="table table-sm table-hover" id="printers_table">
+                                    <thead><tr><th>Name</th><th>Typ</th><th>Details</th><th>Standard</th><th>Aktionen</th></tr></thead>
+                                    <tbody id="printers_tbody"></tbody>
+                                </table>
+                                <p id="printers_empty" class="text-muted small mb-0" style="display:none;">Keine Drucker angelegt. Klicken Sie auf „Drucker hinzufügen“.</p>
                             </div>
-                            <small class="text-muted d-block mt-1">Das PDF wird per HTTP POST an diese URL gesendet. Bei gesetzter URL hat diese Vorrang vor CUPS. Bei Verbindungsfehlern: cURL-Erweiterung prüfen (<code>php -m | grep curl</code>).</small>
                         </div>
                         <?php if ($einheit_id > 0): ?>
                         <div class="mb-0 mt-3">
                             <button type="button" class="btn btn-primary" id="btn_test_print" title="Testseite an den konfigurierten Drucker senden"><i class="fas fa-print me-1"></i> Testdruck</button>
                             <button type="button" class="btn btn-outline-secondary ms-2" id="btn_print_diagnose" title="CUPS-Warteschlange und Druckerstatus prüfen"><i class="fas fa-stethoscope me-1"></i> Diagnose</button>
+                            <button type="button" class="btn btn-outline-secondary ms-2" id="btn_list_printers" title="Verfügbare CUPS-Drucker anzeigen"><i class="fas fa-list me-1"></i> CUPS-Drucker auflisten</button>
                             <span id="test_print_result" class="ms-2 small"></span>
                         </div>
+                        <div id="printers_list" class="mt-2 small" style="display:none;"></div>
                         <div id="print_diagnose_output" class="mt-3 p-3 bg-light rounded small font-monospace" style="display:none;max-height:300px;overflow:auto;white-space:pre-wrap;font-size:11px;"></div>
-                        <p class="text-muted small mt-2 mb-0">Falls „Druckauftrag gesendet“ erscheint, aber nichts gedruckt wird: CUPS hat den Auftrag angenommen. Prüfen Sie auf dem Host: <code>lpq -a</code> (Warteschlange), Drucker online? Bei Docker: CUPS-Server <code>host.docker.internal:631</code> – CUPS muss auf dem Host laufen.</p>
-                        <p class="text-muted small mt-2 mb-0">Bei Cloud-Druckern (z.B. Princh): Fehler „file info is queued“ – Auftrag in der Cloud, aber Datei-Metadaten hängen. <strong>Lösung:</strong> 1) „Als Raw-PDF senden" aktivieren und erneut testen. 2) Betroffene Jobs im Princh-Verwaltungspanel stornieren, Cloud-Connector neu starten, Drucker neu starten. 3) Statische IP für den Drucker verwenden.</p>
+                        <p class="text-muted small mt-2 mb-0">CUPS-Drucker werden automatisch per <code>lpadmin</code> registriert. Cloud-Drucker: PDF wird per HTTP POST gesendet.</p>
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
+            <?php if ($einheit_id > 0): ?>
+            <!-- Drucker-Modal -->
+            <div class="modal fade" id="printerModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="printerModalTitle">Drucker hinzufügen</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <input type="hidden" id="printer_edit_id" value="">
+                            <div class="mb-3">
+                                <label class="form-label">Typ</label>
+                                <select class="form-select" id="printer_type">
+                                    <option value="cups">CUPS (Netzwerk/USB)</option>
+                                    <option value="cloud">Cloud-Drucker (URL)</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Anzeigename *</label>
+                                <input type="text" class="form-control" id="printer_name" placeholder="z.B. Bürodrucker" required>
+                            </div>
+                            <div id="printer_cups_fields">
+                                <div class="mb-3">
+                                    <label class="form-label">Drucker-URI *</label>
+                                    <input type="text" class="form-control" id="printer_uri" placeholder="ipp://192.168.1.10/ipp/print oder usb://...">
+                                    <small class="text-muted">Beispiele: <code>ipp://IP/ipp/print</code>, <code>usb://Hersteller/Modell</code></small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Treiber/Modell</label>
+                                    <input type="text" class="form-control" id="printer_model" value="everywhere" placeholder="everywhere">
+                                    <small class="text-muted">Standard: <code>everywhere</code> (generischer PDF-Drucker)</small>
+                                </div>
+                            </div>
+                            <div id="printer_cloud_fields" style="display:none;">
+                                <div class="mb-3">
+                                    <label class="form-label">Cloud-Drucker-URL *</label>
+                                    <input type="url" class="form-control" id="printer_cloud_url_input" placeholder="https://...">
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="printer_cloud_raw" value="1">
+                                    <label class="form-check-label" for="printer_cloud_raw">Als Raw-PDF senden</label>
+                                </div>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="printer_is_default" value="1">
+                                <label class="form-check-label" for="printer_is_default">Als Standard-Drucker verwenden</label>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                            <button type="button" class="btn btn-primary" id="printer_modal_save">Speichern</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
             <div class="tab-pane fade <?php echo $active_tab === 'divera' ? 'show active' : ''; ?>" id="tab-divera" role="tabpanel">
                 <div class="card">
                     <div class="card-header"><i class="fas fa-calendar-plus"></i> Divera 24/7</div>
@@ -1093,9 +1144,144 @@ document.getElementById('btn_divera_key_loeschen')?.addEventListener('click', fu
         document.getElementById('mainForm').submit();
     }
 });
+(function() {
+var einheitId = <?php echo (int)$einheit_id; ?>;
+var csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
+function loadPrinters() {
+    fetch('../api/printer-manage.php?einheit_id=' + einheitId + '&action=list')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var tbody = document.getElementById('printers_tbody');
+            var empty = document.getElementById('printers_empty');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            var list = data.printers || [];
+            if (list.length === 0) {
+                tbody.closest('table').style.display = 'none';
+                if (empty) empty.style.display = 'block';
+            } else {
+                if (empty) empty.style.display = 'none';
+                tbody.closest('table').style.display = 'table';
+                list.forEach(function(p) {
+                    var typ = (p.type || 'cups') === 'cloud' ? 'Cloud' : 'CUPS';
+                    var details = (p.type || 'cups') === 'cloud' ? ((p.cloud_url || '').substring(0, 40) + '...') : (p.cups_uri || p.cups_name || '');
+                    var defBtn = p.is_default ? '<span class="badge bg-success">Standard</span>' : '<button type="button" class="btn btn-sm btn-outline-secondary btn-set-default" data-id="' + (p.id || '').replace(/"/g, '&quot;') + '">Als Standard</button>';
+                    var actBtn = '<button type="button" class="btn btn-sm btn-outline-primary btn-edit-printer" data-id="' + (p.id || '').replace(/"/g, '&quot;') + '"><i class="fas fa-edit"></i></button> <button type="button" class="btn btn-sm btn-outline-danger btn-delete-printer" data-id="' + (p.id || '').replace(/"/g, '&quot;') + '"><i class="fas fa-trash"></i></button>';
+                    var tr = document.createElement('tr');
+                    tr.innerHTML = '<td>' + (p.name || '').replace(/</g, '&lt;') + '</td><td>' + typ + '</td><td class="small text-muted">' + (details || '').replace(/</g, '&lt;') + '</td><td>' + defBtn + '</td><td>' + actBtn + '</td>';
+                    tbody.appendChild(tr);
+                });
+                tbody.querySelectorAll('.btn-set-default').forEach(function(b) {
+                    b.onclick = function() { setDefaultPrinter(this.getAttribute('data-id')); };
+                });
+                tbody.querySelectorAll('.btn-edit-printer').forEach(function(b) {
+                    b.onclick = function() { openPrinterModal(this.getAttribute('data-id')); };
+                });
+                tbody.querySelectorAll('.btn-delete-printer').forEach(function(b) {
+                    b.onclick = function() { deletePrinter(this.getAttribute('data-id')); };
+                });
+            }
+        });
+}
+function openPrinterModal(id) {
+    var modal = document.getElementById('printerModal');
+    var title = document.getElementById('printerModalTitle');
+    document.getElementById('printer_edit_id').value = id || '';
+    document.getElementById('printer_name').value = '';
+    document.getElementById('printer_uri').value = '';
+    document.getElementById('printer_model').value = 'everywhere';
+    document.getElementById('printer_cloud_url_input').value = '';
+    document.getElementById('printer_cloud_raw').checked = false;
+    document.getElementById('printer_is_default').checked = false;
+    if (id) {
+        title.textContent = 'Drucker bearbeiten';
+        fetch('../api/printer-manage.php?einheit_id=' + einheitId + '&action=list').then(function(r) { return r.json(); }).then(function(d) {
+            var p = (d.printers || []).find(function(x) { return (x.id || '') === id; });
+            if (p) {
+                document.getElementById('printer_name').value = p.name || '';
+                document.getElementById('printer_type').value = p.type || 'cups';
+                document.getElementById('printer_uri').value = p.cups_uri || '';
+                document.getElementById('printer_model').value = p.cups_model || 'everywhere';
+                document.getElementById('printer_cloud_url_input').value = p.cloud_url || '';
+                document.getElementById('printer_cloud_raw').checked = !!p.cloud_raw;
+                document.getElementById('printer_is_default').checked = !!p.is_default;
+                togglePrinterTypeFields();
+            }
+        });
+    } else {
+        title.textContent = 'Drucker hinzufügen';
+        document.getElementById('printer_type').value = 'cups';
+        togglePrinterTypeFields();
+    }
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        new bootstrap.Modal(modal).show();
+    } else {
+        modal.style.display = 'block';
+    }
+}
+function togglePrinterTypeFields() {
+    var t = document.getElementById('printer_type').value;
+    document.getElementById('printer_cups_fields').style.display = t === 'cups' ? 'block' : 'none';
+    document.getElementById('printer_cloud_fields').style.display = t === 'cloud' ? 'block' : 'none';
+}
+function savePrinter() {
+    var fd = new FormData();
+    fd.append('action', document.getElementById('printer_edit_id').value ? 'edit' : 'add');
+    fd.append('einheit_id', einheitId);
+    fd.append('csrf_token', csrfToken);
+    fd.append('printer_cups_server', document.getElementById('printer_cups_server').value || 'host.docker.internal:631');
+    fd.append('printer_id', document.getElementById('printer_edit_id').value);
+    fd.append('printer_name', document.getElementById('printer_name').value);
+    fd.append('printer_type', document.getElementById('printer_type').value);
+    fd.append('printer_uri', document.getElementById('printer_uri').value);
+    fd.append('printer_model', document.getElementById('printer_model').value);
+    fd.append('printer_cloud_url', document.getElementById('printer_cloud_url_input').value);
+    fd.append('printer_cloud_raw', document.getElementById('printer_cloud_raw').checked ? '1' : '0');
+    fd.append('printer_is_default', document.getElementById('printer_is_default').checked ? '1' : '0');
+    fetch('../api/printer-manage.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    bootstrap.Modal.getInstance(document.getElementById('printerModal')).hide();
+                }
+                loadPrinters();
+                alert(data.message);
+            } else {
+                alert('Fehler: ' + (data.message || 'Unbekannt'));
+            }
+        });
+}
+function setDefaultPrinter(id) {
+    var fd = new FormData();
+    fd.append('action', 'set_default');
+    fd.append('einheit_id', einheitId);
+    fd.append('csrf_token', csrfToken);
+    fd.append('printer_id', id);
+    fetch('../api/printer-manage.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) { if (data.success) loadPrinters(); });
+}
+function deletePrinter(id) {
+    if (!confirm('Drucker wirklich entfernen?')) return;
+    var fd = new FormData();
+    fd.append('action', 'delete');
+    fd.append('einheit_id', einheitId);
+    fd.append('csrf_token', csrfToken);
+    fd.append('printer_id', id);
+    fetch('../api/printer-manage.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) { if (data.success) loadPrinters(); });
+}
+document.getElementById('printer_type')?.addEventListener('change', togglePrinterTypeFields);
+document.getElementById('btn_add_printer')?.addEventListener('click', function() { openPrinterModal(null); });
+document.getElementById('printer_modal_save')?.addEventListener('click', savePrinter);
+if (einheitId > 0) loadPrinters();
+})();
 document.getElementById('btn_list_printers')?.addEventListener('click', function() {
     var btn = this;
     var out = document.getElementById('printers_list');
+    if (!out) return;
     out.style.display = 'block';
     out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Drucker...</span>';
     btn.disabled = true;
@@ -1104,29 +1290,20 @@ document.getElementById('btn_list_printers')?.addEventListener('click', function
         .then(function(data) {
             btn.disabled = false;
             if (data.success && data.printers && data.printers.length > 0) {
-                var html = '<strong>Verfügbare Drucker:</strong> ';
+                var html = '<strong>Verfügbare CUPS-Drucker:</strong> ';
                 data.printers.forEach(function(p) {
                     var def = (data.default_printer === p.name) ? ' (Standard)' : '';
                     var safe = (p.name || '').replace(/"/g, '&quot;');
-                    html += '<span class="badge bg-secondary me-1" style="cursor:pointer" data-name="' + safe + '" role="button">' + (p.name || '').replace(/</g, '&lt;') + def + '</span> ';
+                    html += '<span class="badge bg-secondary me-1">' + (p.name || '').replace(/</g, '&lt;') + def + '</span> ';
                 });
                 out.innerHTML = html;
-                out.querySelectorAll('[data-name]').forEach(function(el) {
-                    el.addEventListener('click', function() {
-                        document.getElementById('printer_destination').value = this.getAttribute('data-name').replace(/&quot;/g, '"');
-                    });
-                });
             } else {
-                var html = '<span class="text-warning">' + (data.message || 'Keine Drucker gefunden.') + '</span>';
-                if (data.configured_printer) {
-                    html += '<div class="mt-2 text-muted">Aktuell eingetragen: <code>' + (data.configured_printer || '').replace(/</g, '&lt;') + '</code></div>';
-                }
-                out.innerHTML = html;
+                out.innerHTML = '<span class="text-warning">' + (data.message || 'Keine Drucker gefunden. CUPS-Server prüfen.') + '</span>';
             }
         })
         .catch(function() {
             btn.disabled = false;
-            out.innerHTML = '<span class="text-danger">Fehler beim Laden. CUPS-Server erreichbar?</span>';
+            out.innerHTML = '<span class="text-danger">Fehler beim Laden.</span>';
         });
 });
 document.getElementById('btn_test_print')?.addEventListener('click', function() {

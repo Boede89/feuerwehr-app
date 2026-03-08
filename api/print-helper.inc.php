@@ -1,7 +1,7 @@
 <?php
 /**
  * Hilfsfunktionen für Druck über CUPS oder Cloud-Drucker-URL.
- * Drucker nur aus einheit_settings (bei einheit_id > 0). Keine globalen Druckeinstellungen.
+ * Drucker aus einheit_settings: printer_list (JSON) oder Legacy printer_destination/printer_cloud_url.
  */
 function print_get_printer_config($db, $einheit_id = null) {
     $printer = '';
@@ -14,16 +14,86 @@ function print_get_printer_config($db, $einheit_id = null) {
             require_once dirname(__DIR__) . '/includes/einheit-settings-helper.php';
         }
         $settings = load_settings_for_einheit($db, $einheit_id);
-        $printer = trim($settings['printer_destination'] ?? '');
-        $cloud_url = trim($settings['printer_cloud_url'] ?? '');
-        $cloud_url_raw = ($settings['printer_cloud_url_raw'] ?? '') === '1';
         $override = trim($settings['printer_cups_server'] ?? '');
         if ($override !== '') $cups_server = $override;
+
+        $list_raw = trim($settings['printer_list'] ?? '');
+        if ($list_raw !== '') {
+            $list = json_decode($list_raw, true);
+            if (is_array($list)) {
+                $default = null;
+                foreach ($list as $p) {
+                    if (!empty($p['is_default'])) {
+                        $default = $p;
+                        break;
+                    }
+                }
+                if ($default === null && count($list) > 0) {
+                    $default = $list[0];
+                }
+                if ($default !== null) {
+                    if (($default['type'] ?? '') === 'cloud') {
+                        $cloud_url = trim($default['cloud_url'] ?? '');
+                        $cloud_url_raw = !empty($default['cloud_raw']);
+                    } else {
+                        $printer = trim($default['cups_name'] ?? '');
+                    }
+                }
+            }
+        }
+        if ($printer === '' && $cloud_url === '') {
+            $printer = trim($settings['printer_destination'] ?? '');
+            $cloud_url = trim($settings['printer_cloud_url'] ?? '');
+            $cloud_url_raw = ($settings['printer_cloud_url_raw'] ?? '') === '1';
+        }
     }
     if ($cups_server === '' && (getenv('DOCKER') || file_exists('/.dockerenv'))) {
         $cups_server = 'host.docker.internal:631';
     }
     return ['printer' => $printer, 'cups_server' => $cups_server, 'cloud_url' => $cloud_url, 'cloud_url_raw' => $cloud_url_raw];
+}
+
+/**
+ * Lädt die Druckerliste für eine Einheit.
+ */
+function print_get_printer_list($db, $einheit_id) {
+    $list = [];
+    if ($einheit_id <= 0) return $list;
+    if (!function_exists('load_settings_for_einheit')) {
+        require_once dirname(__DIR__) . '/includes/einheit-settings-helper.php';
+    }
+    $settings = load_settings_for_einheit($db, $einheit_id);
+    $raw = trim($settings['printer_list'] ?? '');
+    if ($raw !== '') {
+        $dec = json_decode($raw, true);
+        if (is_array($dec)) $list = $dec;
+    }
+    if (empty($list) && (trim($settings['printer_destination'] ?? '') !== '' || trim($settings['printer_cloud_url'] ?? '') !== '')) {
+        $p = ['id' => 'legacy', 'name' => 'Legacy-Drucker', 'type' => 'cups', 'cups_name' => trim($settings['printer_destination'] ?? ''), 'cups_uri' => '', 'cups_model' => 'everywhere', 'is_default' => true];
+        if (trim($settings['printer_cloud_url'] ?? '') !== '') {
+            $p = ['id' => 'legacy', 'name' => 'Cloud-Drucker', 'type' => 'cloud', 'cloud_url' => trim($settings['printer_cloud_url'] ?? ''), 'cloud_raw' => ($settings['printer_cloud_url_raw'] ?? '') === '1', 'is_default' => true];
+        }
+        $list = [$p];
+    }
+    return $list;
+}
+
+/**
+ * Registriert einen CUPS-Drucker per lpadmin (remote möglich mit CUPS_SERVER).
+ */
+function print_register_cups_printer($name, $uri, $model, $cups_server = '') {
+    $name = preg_replace('/[^a-zA-Z0-9_-]/', '', $name);
+    if ($name === '' || strlen($uri) < 5) {
+        return ['success' => false, 'message' => 'Ungültiger Druckername oder URI.'];
+    }
+    $env = $cups_server ? 'CUPS_SERVER=' . escapeshellarg($cups_server) . ' ' : '';
+    $cmd = $env . 'lpadmin -p ' . escapeshellarg($name) . ' -E -v ' . escapeshellarg($uri) . ' -m ' . escapeshellarg($model ?: 'everywhere') . ' 2>&1';
+    exec($cmd, $out, $code);
+    $output = implode("\n", $out);
+    if ($code !== 0) {
+        return ['success' => false, 'message' => 'lpadmin fehlgeschlagen: ' . trim($output), 'lpadmin_cmd' => $cmd];
+    }
+    return ['success' => true, 'message' => 'Drucker registriert.', 'lpadmin_cmd' => $cmd];
 }
 
 /**
