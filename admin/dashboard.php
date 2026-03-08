@@ -265,7 +265,13 @@ if ($can_atemschutz) {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
         
-                    // Lade offene Atemschutzeintrag-Anträge
+                    // Lade offene Atemschutzeintrag-Anträge – für alle Einheiten, auf die der Benutzer Zugriff hat
+                    $user_einheiten = function_exists('get_user_einheiten') ? get_user_einheiten() : [];
+                    $einheit_ids = array_map('intval', array_column($user_einheiten, 'id'));
+                    if (empty($einheit_ids)) {
+                        $einheit_ids = [$effective_unit_id];
+                    }
+                    $placeholders = implode(',', array_fill(0, count($einheit_ids), '?'));
                     $stmt = $db->prepare("
                         SELECT ae.*, 
                                COALESCE(u.first_name, 'Unbekannt') as first_name, 
@@ -276,11 +282,12 @@ if ($can_atemschutz) {
                         LEFT JOIN users u ON ae.requester_id = u.id
                         LEFT JOIN atemschutz_entry_traeger aet ON ae.id = aet.entry_id
                         LEFT JOIN atemschutz_traeger at ON aet.traeger_id = at.id
-                        WHERE ae.status = 'pending' AND (COALESCE(ae.unit_id, ae.einheit_id, 1) = ?)
+                        WHERE ae.status = 'pending' 
+                        AND (COALESCE(ae.einheit_id, ae.unit_id, 1) IN ($placeholders))
                         GROUP BY ae.id
                         ORDER BY ae.created_at DESC
                     ");
-        $stmt->execute([$effective_unit_id]);
+        $stmt->execute($einheit_ids);
         $atemschutz_entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         error_log("Atemschutzeintrag-Anträge geladen: " . count($atemschutz_entries));
