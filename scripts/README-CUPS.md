@@ -1,13 +1,13 @@
 # CUPS neu einrichten
 
-CUPS läuft auf dem **Host** (nicht im Docker-Container). Die App verbindet sich über `host.docker.internal:631`.
+CUPS läuft auf dem **Host** (nicht im Docker-Container). Die App verbindet sich über den CUPS-Server.
 
 ## Voraussetzungen
 
-- **Linux** (Debian/Ubuntu) oder **WSL2** unter Windows
+- **Linux** (Debian/Ubuntu)
 - Root-Rechte (sudo)
 
-## CUPS komplett deinstallieren und neu einrichten
+## 1. CUPS komplett deinstallieren und neu einrichten
 
 ```bash
 cd scripts
@@ -15,41 +15,35 @@ chmod +x cups-neu-einrichten.sh
 sudo ./cups-neu-einrichten.sh
 ```
 
-Das Skript:
+## 2. Drucker per Shell hinzufügen
 
-1. Stoppt CUPS
-2. Deinstalliert CUPS und alle zugehörigen Pakete
-3. Löscht alle alten Konfigurationen und Drucker
-4. Installiert CUPS neu
-5. Konfiguriert CUPS für Zugriff von Docker (Port 631, alle Interfaces)
-6. Startet CUPS
-
-## Nach dem Neustart: Drucker hinzufügen
-
+**Workplace Pure (mit Benutzer/Passwort):**
 ```bash
-# IPP-Drucker (z.B. Workplace Pure, Netzwerkdrucker)
-sudo lpadmin -p workplacepure -E -v ipp://DRUCKER-IP/ipp/print -m everywhere
-
-# USB-Drucker (URI mit: lpinfo -v)
-sudo lpadmin -p meindrucker -E -v usb://Hersteller/Modell -m everywhere
-
-# Drucker anzeigen
-lpstat -v
-
-# Testdruck
-lp -d workplacepure /etc/hosts
+sudo lpadmin -p WacheAmern -E -v 'https://BENUTZER:PASSWORT@ipp.workplacepure.com/ipp/print/IHRE-ID/DRUCKER-ID' -m everywhere
 ```
 
-## App-Einstellungen
+**IPP-Netzwerkdrucker (ohne Auth):**
+```bash
+sudo lpadmin -p DruckerName -E -v ipp://192.168.1.10/ipp/print -m everywhere
+```
 
-In der Feuerwehr-App: **Admin → Einstellungen → Drucker-Tab**:
+**USB-Drucker:**
+```bash
+lpinfo -v | grep usb   # URI ermitteln
+sudo lpadmin -p DruckerName -E -v usb://Hersteller/Modell -m everywhere
+```
 
-- **CUPS-Server**: `host.docker.internal:631`
-- **Druckername**: Der Name, den Sie mit `lpadmin -p` vergeben haben (z.B. `workplacepure`)
+**Drucker prüfen:**
+```bash
+lpstat -v
+lp -d WacheAmern /etc/hosts   # Testdruck
+```
 
-## Unter Windows
+## 3. App-Einstellungen
 
-CUPS läuft nicht nativ unter Windows. Optionen:
+**Admin → Einstellungen → Drucker-Tab**:
 
-1. **WSL2** mit Ubuntu installieren, dort CUPS einrichten und das Skript ausführen
-2. **Separater Linux-Server** oder **VM** mit CUPS – dann in der App die IP des Servers statt `host.docker.internal` eintragen
+- **CUPS-Server**: `172.17.0.1:631/version=1.1` (Docker auf Linux)
+- **Drucker**: Der Name aus `lpstat -v` (z.B. WacheAmern)
+
+Speichern, dann „Drucker auflisten“ klicken um die installierten Drucker zu laden.

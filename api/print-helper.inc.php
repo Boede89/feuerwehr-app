@@ -1,7 +1,7 @@
 <?php
 /**
- * Hilfsfunktionen für Druck über CUPS oder Cloud-Drucker-URL.
- * Drucker aus einheit_settings: printer_list (JSON) oder Legacy printer_destination/printer_cloud_url.
+ * Hilfsfunktionen für Druck über CUPS.
+ * Drucker aus einheit_settings: printer_destination (Name aus lpstat -v).
  */
 function print_get_printer_config($db, $einheit_id = null) {
     $printer = '';
@@ -14,38 +14,9 @@ function print_get_printer_config($db, $einheit_id = null) {
             require_once dirname(__DIR__) . '/includes/einheit-settings-helper.php';
         }
         $settings = load_settings_for_einheit($db, $einheit_id);
+        $printer = trim($settings['printer_destination'] ?? '');
         $override = trim($settings['printer_cups_server'] ?? '');
         if ($override !== '') $cups_server = $override;
-
-        $list_raw = trim($settings['printer_list'] ?? '');
-        if ($list_raw !== '') {
-            $list = json_decode($list_raw, true);
-            if (is_array($list)) {
-                $default = null;
-                foreach ($list as $p) {
-                    if (!empty($p['is_default'])) {
-                        $default = $p;
-                        break;
-                    }
-                }
-                if ($default === null && count($list) > 0) {
-                    $default = $list[0];
-                }
-                if ($default !== null) {
-                    if (($default['type'] ?? '') === 'cloud') {
-                        $cloud_url = trim($default['cloud_url'] ?? '');
-                        $cloud_url_raw = !empty($default['cloud_raw']);
-                    } else {
-                        $printer = trim($default['cups_name'] ?? '');
-                    }
-                }
-            }
-        }
-        if ($printer === '' && $cloud_url === '') {
-            $printer = trim($settings['printer_destination'] ?? '');
-            $cloud_url = trim($settings['printer_cloud_url'] ?? '');
-            $cloud_url_raw = ($settings['printer_cloud_url_raw'] ?? '') === '1';
-        }
     }
     if ($cups_server === '' && (getenv('DOCKER') || file_exists('/.dockerenv'))) {
         $cups_server = 'host.docker.internal:631';

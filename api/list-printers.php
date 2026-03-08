@@ -16,7 +16,10 @@ if (!isset($_SESSION['user_id']) || !hasAdminPermission()) {
 
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 $config = print_get_printer_config($db, $einheit_id);
-$cups_server = $config['cups_server'] ?: getenv('CUPS_SERVER') ?: ($_SERVER['CUPS_SERVER'] ?? '');
+$cups_server = trim($_GET['cups_server'] ?? '') ?: $config['cups_server'] ?: getenv('CUPS_SERVER') ?: ($_SERVER['CUPS_SERVER'] ?? '');
+if ($cups_server !== '') {
+    $cups_server = print_normalize_cups_server($cups_server);
+}
 $configured = $config['printer'];
 
 $printers = [];
