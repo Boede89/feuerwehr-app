@@ -100,8 +100,8 @@ function print_send_pdf($pdf_content, $printer_config, $debug = false) {
     if ($cups_server !== '') {
         putenv('CUPS_SERVER=' . $cups_server);
     }
-    // PDF per stdin pipen – kein Temp-File, vollständige Übertragung. Hilft bei Cloud-Druckern (Princh).
-    $cmd = 'lp -d ' . $printer . ' -';
+    // PDF per stdin pipen – document-format für IPP-Cloud-Drucker (z.B. Workplace Pure) wichtig
+    $cmd = 'lp -d ' . $printer . ' -o document-format=application/pdf -';
     $descriptorspec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
     $proc = @proc_open($cmd, $descriptorspec, $pipes, null, null);
     if (is_resource($proc)) {
@@ -119,7 +119,7 @@ function print_send_pdf($pdf_content, $printer_config, $debug = false) {
         }
         $file = escapeshellarg($tmp);
         $envStr = ($cups_server !== '') ? 'CUPS_SERVER=' . escapeshellarg($cups_server) . ' ' : '';
-        exec($envStr . 'lp -d ' . $printer . ' ' . $file . ' 2>&1', $out, $code);
+        exec($envStr . 'lp -d ' . $printer . ' -o document-format=application/pdf ' . $file . ' 2>&1', $out, $code);
         $output_str = implode("\n", $out);
         @unlink($tmp);
     }
@@ -162,6 +162,9 @@ function print_diagnose($printer_config) {
     @exec($env . 'lpstat -t 2>&1', $out1);
     $result['lpstat_t'] = implode("\n", $out1 ?? []);
     @exec($env . 'lpq -a 2>&1', $out2);
+    if (empty($out2) || (isset($out2[0]) && strpos($out2[0], 'not found') !== false)) {
+        @exec($env . 'lpstat -o 2>&1', $out2); // Fallback wenn lpq fehlt
+    }
     $result['lpq'] = implode("\n", $out2 ?? []);
     @exec($env . 'lpstat -v 2>&1', $out3);
     $result['lpstat_v'] = implode("\n", $out3 ?? []);
