@@ -720,7 +720,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                                 <input class="form-check-input" type="checkbox" name="printer_cloud_url_raw" id="printer_cloud_url_raw" value="1" <?php echo ($settings['printer_cloud_url_raw'] ?? '') === '1' ? 'checked' : ''; ?>>
                                 <label class="form-check-label" for="printer_cloud_url_raw">Als Raw-PDF senden (Content-Type: application/pdf) – falls die API multipart nicht akzeptiert</label>
                             </div>
-                            <small class="text-muted d-block mt-1">Das PDF wird per HTTP POST an diese URL gesendet. Bei gesetzter URL hat diese Vorrang vor CUPS.</small>
+                            <small class="text-muted d-block mt-1">Das PDF wird per HTTP POST an diese URL gesendet. Bei gesetzter URL hat diese Vorrang vor CUPS. Bei Verbindungsfehlern: cURL-Erweiterung prüfen (<code>php -m | grep curl</code>).</small>
                         </div>
                         <?php if ($einheit_id > 0): ?>
                         <div class="mb-0 mt-3">
@@ -1148,9 +1148,15 @@ document.getElementById('btn_test_print')?.addEventListener('click', function() 
                     msg += ' Ausgabe: ' + String(data.debug.output).replace(/</g, '&lt;').substring(0, 200);
                     if (data.debug.output.length > 200) msg += '…';
                 } else if (data.debug) {
-                    msg += ' (Drucker: ' + (data.debug.printer || '') + ', CUPS: ' + (data.debug.cups_server || '') + ')';
+                    if (data.debug.curl_error) {
+                        msg += ' [cURL: ' + String(data.debug.curl_error).replace(/</g, '&lt;').substring(0, 80) + ']';
+                    } else if (data.debug.http_code) {
+                        msg += ' (HTTP ' + data.debug.http_code + (data.debug.response ? ': ' + String(data.debug.response).replace(/</g, '&lt;').substring(0, 80) : '') + ')';
+                    } else {
+                        msg += ' (Drucker: ' + (data.debug.printer || '') + ', CUPS: ' + (data.debug.cups_server || '') + ')';
+                    }
                 }
-                out.innerHTML = '<span class="text-danger" title="' + (data.debug && data.debug.command ? String(data.debug.command).replace(/"/g, '&quot;') : '') + '"><i class="fas fa-exclamation-triangle me-1"></i>' + msg + '</span>';
+                out.innerHTML = '<span class="text-danger" title="' + (data.debug && (data.debug.command || data.debug.curl_error) ? String(data.debug.command || data.debug.curl_error || '').replace(/"/g, '&quot;') : '') + '"><i class="fas fa-exclamation-triangle me-1"></i>' + msg + '</span>';
             }
         })
         .catch(function() {

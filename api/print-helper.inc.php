@@ -29,6 +29,7 @@ function print_get_printer_config($db, $einheit_id = null) {
 /**
  * Sendet PDF per HTTP POST an eine Cloud-Drucker-URL.
  * Unterstützt multipart/form-data (Standard) oder Raw-PDF (Content-Type: application/pdf).
+ * Verwendet cURL (zuverlässiger für HTTPS) mit Fallback auf file_get_contents.
  */
 function print_send_pdf_via_url($pdf_content, $url, $debug = false, $raw_pdf = false) {
     $url = trim($url);
@@ -47,26 +48,82 @@ function print_send_pdf_via_url($pdf_content, $url, $debug = false, $raw_pdf = f
             . "--$boundary--\r\n";
         $content_type = "multipart/form-data; boundary=$boundary";
     }
-    $opts = [
-        'http' => [
-            'method' => 'POST',
-            'header' => "Content-Type: $content_type\r\nContent-Length: " . strlen($body) . "\r\n",
-            'content' => $body,
-            'timeout' => 30,
-            'ignore_errors' => true,
-        ],
+
+    $headers = [
+        "Content-Type: $content_type",
+        'Content-Length: ' . strlen($body),
+        'User-Agent: Feuerwehr-App/1.0',
     ];
-    $ctx = stream_context_create($opts);
-    $response = @file_get_contents($url, false, $ctx);
-    $http_code = 0;
-    if (isset($http_response_header) && is_array($http_response_header)) {
-        foreach ($http_response_header as $h) {
-            if (preg_match('#^HTTP/\d\.\d\s+(\d+)#i', $h, $m)) {
-                $http_code = (int)$m[1];
-                break;
+
+    // cURL: zuverlässiger für HTTPS, bessere SSL/TLS-Unterstützung
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        $curl_opts = [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $body,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 45,
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 3,
+        ];
+        if (defined('CURLOPT_POSTREDIR')) {
+            $curl_opts[CURLOPT_POSTREDIR] = 3; // POST bei 301/302 beibehalten
+        }
+        curl_setopt_array($ch, $curl_opts);
+        // TLS 1.2+ erzwingen für Cloud-Server
+        if (defined('CURLOPT_SSLVERSION')) {
+            curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+        }
+        $response = curl_exec($ch);
+        $http_code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_err = curl_error($ch);
+        curl_close($ch);
+        if ($response === false && $curl_err !== '') {
+            $err_msg = 'SSL/Verbindung: ' . $curl_err;
+            if ($debug) {
+                return ['success' => false, 'message' => $err_msg, 'debug' => ['url' => $url, 'curl_error' => $curl_err]];
+            }
+            return ['success' => false, 'message' => $err_msg];
+        }
+    } else {
+        // Fallback: file_get_contents mit SSL-Kontext
+        $opts = [
+            'http' => [
+                'method' => 'POST',
+                'header' => implode("\r\n", $headers) . "\r\n",
+                'content' => $body,
+                'timeout' => 45,
+                'ignore_errors' => true,
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ],
+        ];
+        if (defined('STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT')) {
+            $opts['ssl']['crypto_method'] = STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
+        }
+        $ctx = stream_context_create($opts);
+        $response = @file_get_contents($url, false, $ctx);
+        $http_code = 0;
+        if (isset($http_response_header) && is_array($http_response_header)) {
+            foreach ($http_response_header as $h) {
+                if (preg_match('#^HTTP/\d\.\d\s+(\d+)#i', $h, $m)) {
+                    $http_code = (int)$m[1];
+                    break;
+                }
             }
         }
+        if ($response === false && $http_code === 0) {
+            $err_msg = 'Verbindung fehlgeschlagen. Prüfen: allow_url_fopen, OpenSSL, Firewall. Bei HTTPS: cURL-Erweiterung empfohlen.';
+            return ['success' => false, 'message' => $err_msg];
+        }
     }
+
     if ($http_code >= 200 && $http_code < 300) {
         $result = ['success' => true, 'message' => 'Druckauftrag wurde an Cloud-Drucker gesendet.'];
         if ($debug) {
@@ -74,7 +131,8 @@ function print_send_pdf_via_url($pdf_content, $url, $debug = false, $raw_pdf = f
         }
         return $result;
     }
-    $result = ['success' => false, 'message' => 'Cloud-Drucker: HTTP ' . $http_code . ' – ' . ($response ? substr(trim($response), 0, 200) : 'Keine Antwort')];
+    $response_preview = is_string($response) ? substr(trim($response), 0, 200) : 'Keine Antwort';
+    $result = ['success' => false, 'message' => 'Cloud-Drucker: HTTP ' . $http_code . ' – ' . $response_preview];
     if ($debug) {
         $result['debug'] = ['url' => $url, 'http_code' => $http_code, 'response' => substr($response ?? '', 0, 500)];
     }
