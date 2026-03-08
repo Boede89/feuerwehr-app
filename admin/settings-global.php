@@ -714,8 +714,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                         <?php if ($einheit_id > 0): ?>
                         <div class="mb-0 mt-3">
                             <button type="button" class="btn btn-primary" id="btn_test_print" title="Testseite an den konfigurierten Drucker senden"><i class="fas fa-print me-1"></i> Testdruck</button>
+                            <button type="button" class="btn btn-outline-secondary ms-2" id="btn_print_diagnose" title="CUPS-Warteschlange und Druckerstatus prüfen"><i class="fas fa-stethoscope me-1"></i> Diagnose</button>
                             <span id="test_print_result" class="ms-2 small"></span>
                         </div>
+                        <div id="print_diagnose_output" class="mt-3 p-3 bg-light rounded small font-monospace" style="display:none;max-height:300px;overflow:auto;white-space:pre-wrap;font-size:11px;"></div>
+                        <p class="text-muted small mt-2 mb-0">Falls „Druckauftrag gesendet“ erscheint, aber nichts gedruckt wird: CUPS hat den Auftrag angenommen. Prüfen Sie auf dem Host: <code>lpq -a</code> (Warteschlange), Drucker online? Bei Docker: CUPS-Server <code>host.docker.internal:631</code> – CUPS muss auf dem Host laufen.</p>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1125,7 +1128,8 @@ document.getElementById('btn_test_print')?.addEventListener('click', function() 
         .then(function(data) {
             btn.disabled = false;
             if (data.success) {
-                out.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>' + (data.message || 'Testdruck gesendet.') + '</span>';
+                var jobInfo = (data.debug && data.debug.lp_output) ? ' <span class="text-muted">(' + String(data.debug.lp_output).replace(/</g, '&lt;').trim() + ')</span>' : '';
+                out.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>' + (data.message || 'Testdruck gesendet.') + jobInfo + '</span>';
             } else {
                 var msg = (data.message || 'Fehler');
                 if (data.debug && data.debug.output) {
@@ -1140,6 +1144,33 @@ document.getElementById('btn_test_print')?.addEventListener('click', function() 
         .catch(function() {
             btn.disabled = false;
             out.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Verbindungsfehler</span>';
+        });
+});
+document.getElementById('btn_print_diagnose')?.addEventListener('click', function() {
+    var btn = this;
+    var out = document.getElementById('print_diagnose_output');
+    if (!out) return;
+    btn.disabled = true;
+    out.style.display = 'block';
+    out.textContent = 'Lade Diagnose...';
+    fetch('../api/print-diagnose.php?einheit_id=<?php echo (int)$einheit_id; ?>')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            if (data.success) {
+                var d = data.diagnose || {};
+                var txt = '=== Drucker: ' + (data.printer || '') + ' | CUPS: ' + (data.cups_server || '') + ' ===\n\n';
+                txt += '--- lpstat -v (Drucker) ---\n' + (d.lpstat_v || '(leer)') + '\n\n';
+                txt += '--- lpstat -t (Status) ---\n' + (d.lpstat_t || '(leer)') + '\n\n';
+                txt += '--- lpq -a (Warteschlange) ---\n' + (d.lpq || '(leer)');
+                out.textContent = txt;
+            } else {
+                out.textContent = 'Fehler: ' + (data.message || 'Unbekannt');
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            out.textContent = 'Verbindungsfehler beim Laden der Diagnose.';
         });
 });
 </script>
