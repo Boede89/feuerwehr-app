@@ -373,41 +373,37 @@ if (isset($_POST['regenerate_token']) || isset($_GET['regenerate_token'])) {
 if (isset($_GET['delete'])) {
     $user_id = (int)$_GET['delete'];
     
-    try {
-        // Nicht sich selbst löschen
-        if ($user_id == $_SESSION['user_id']) {
-            $error = "Sie können sich nicht selbst löschen.";
-        } else {
-            // Prüfen ob zu löschender Benutzer Superadmin ist
-            $stmt = $db->prepare("SELECT user_type FROM users WHERE id = ?");
-            $stmt->execute([$user_id]);
-            $to_delete = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if (!$to_delete) {
-                $error = "Benutzer nicht gefunden.";
-            } elseif (($to_delete['user_type'] ?? '') === 'superadmin') {
-                // Es muss immer mindestens ein Superadmin existieren
-                $stmt_sa = $db->query("SELECT COUNT(*) FROM users WHERE COALESCE(user_type, '') = 'superadmin'");
-                $superadmin_count = (int)$stmt_sa->fetchColumn();
-                
-                if ($superadmin_count <= 1) {
-                    $error = "Der letzte Superadmin kann nicht gelöscht werden. Es muss immer mindestens ein Superadmin existieren.";
-                } else {
-                    $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
-                    $stmt->execute([$user_id]);
-                    $message = "Benutzer wurde erfolgreich gelöscht.";
-                    log_activity($_SESSION['user_id'], 'user_deleted', "Benutzer ID $user_id gelöscht");
-                }
+    // Nicht sich selbst löschen
+    if ($user_id == $_SESSION['user_id']) {
+        $error = "Sie können sich nicht selbst löschen.";
+    } else {
+        $stmt = $db->prepare("SELECT id, username, user_type FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $to_delete = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$to_delete) {
+            $error = "Benutzer nicht gefunden.";
+        } elseif (($to_delete['user_type'] ?? '') === 'superadmin') {
+            if (count_superadmins() <= 1) {
+                $error = "Der letzte Superadmin kann nicht gelöscht werden. Es muss immer mindestens ein Superadmin existieren.";
             } else {
-                // Kein Superadmin – normal löschen
-                $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
-                $stmt->execute([$user_id]);
+                $del_error = '';
+                if (delete_user_safe($user_id, $del_error)) {
+                    $message = "Benutzer wurde erfolgreich gelöscht.";
+                    log_activity($_SESSION['user_id'], 'user_deleted', "Benutzer '{$to_delete['username']}' (ID $user_id) gelöscht");
+                } else {
+                    $error = "Fehler beim Löschen: " . ($del_error ?: "Unbekannter Fehler");
+                }
+            }
+        } else {
+            $del_error = '';
+            if (delete_user_safe($user_id, $del_error)) {
                 $message = "Benutzer wurde erfolgreich gelöscht.";
-                log_activity($_SESSION['user_id'], 'user_deleted', "Benutzer ID $user_id gelöscht");
+                log_activity($_SESSION['user_id'], 'user_deleted', "Benutzer '{$to_delete['username']}' (ID $user_id) gelöscht");
+            } else {
+                $error = "Fehler beim Löschen: " . ($del_error ?: "Unbekannter Fehler");
             }
         }
-    } catch(PDOException $e) {
-        $error = "Fehler beim Löschen des Benutzers: " . $e->getMessage();
     }
 }
 
@@ -446,11 +442,7 @@ try {
     $all_users = $stmt->fetchAll();
     // Nur Superadmins und Einheitsadmins in der Globalen Benutzerverwaltung anzeigen
     $users = array_filter($all_users, fn($u) => empty($u['is_system_user']) && in_array($u['user_type'] ?? '', ['superadmin', 'einheitsadmin']));
-    $superadmin_count = 0;
-    try {
-        $stmt_sa = $db->query("SELECT COUNT(*) FROM users WHERE COALESCE(user_type, '') = 'superadmin'");
-        $superadmin_count = (int)$stmt_sa->fetchColumn();
-    } catch (Exception $e) {}
+    $superadmin_count = function_exists('count_superadmins') ? count_superadmins() : 0;
     $einheiten = [];
     try {
         $stmt_e = $db->query("SELECT id, name FROM einheiten WHERE is_active = 1 ORDER BY sort_order, name");

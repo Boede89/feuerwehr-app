@@ -269,12 +269,20 @@ if (isset($_GET['delete_user'])) {
             $stmt = $db->prepare("SELECT id, username, user_type FROM users WHERE id = ? AND is_system_user = 0 AND (einheit_id = ? OR id IN (SELECT user_id FROM user_einheiten WHERE einheit_id = ?))");
             $stmt->execute([$user_id, $einheit_id, $einheit_id]);
             $u = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($u && ($u['user_type'] ?? '') !== 'superadmin') {
-                $stmt_del = $db->prepare("DELETE FROM users WHERE id = ?");
-                $stmt_del->execute([$user_id]);
-                log_activity($_SESSION['user_id'], 'user_deleted', "Benutzer '{$u['username']}' gelöscht");
-                header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=user_deleted");
-                exit;
+            if ($u) {
+                $is_superadmin = ($u['user_type'] ?? '') === 'superadmin';
+                if ($is_superadmin && count_superadmins() <= 1) {
+                    $error = "Der letzte Superadmin kann nicht gelöscht werden. Es muss immer mindestens ein Superadmin existieren.";
+                } else {
+                    $del_error = '';
+                    if (delete_user_safe($user_id, $del_error)) {
+                        log_activity($_SESSION['user_id'], 'user_deleted', "Benutzer '{$u['username']}' gelöscht");
+                        header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=user_deleted");
+                        exit;
+                    } else {
+                        $error = "Fehler beim Löschen: " . ($del_error ?: "Unbekannter Fehler");
+                    }
+                }
             }
         } catch (Exception $e) {
             $error = "Fehler: " . $e->getMessage();

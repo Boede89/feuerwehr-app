@@ -698,6 +698,57 @@ function get_current_einheit_id() {
 }
 
 /**
+ * Zählt Superadmins in der Datenbank
+ */
+function count_superadmins() {
+    global $db;
+    try {
+        $stmt = $db->query("SELECT COUNT(*) FROM users WHERE COALESCE(user_type, '') = 'superadmin'");
+        return (int)$stmt->fetchColumn();
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+
+/**
+ * Löscht einen Benutzer sicher (bereinigt Referenzen vor dem Löschen).
+ * Gibt true bei Erfolg zurück, sonst false. Fehlermeldung in $error (byref).
+ */
+function delete_user_safe($user_id, &$error = '') {
+    global $db;
+    $user_id = (int)$user_id;
+    if ($user_id <= 0) {
+        $error = 'Ungültige Benutzer-ID.';
+        return false;
+    }
+    try {
+        // Tabellen mit user_id-Referenz bereinigen (vor DELETE, falls FK blockiert)
+        $updates = [
+            ['members', 'user_id'],
+            ['user_einheiten', 'user_id'],
+            ['dashboard_preferences', 'user_id'],
+            ['dashboard_settings', 'user_id'],
+            ['anwesenheitsliste_drafts', 'user_id'],
+        ];
+        foreach ($updates as $t) {
+            try {
+                $db->exec("UPDATE {$t[0]} SET {$t[1]} = NULL WHERE {$t[1]} = $user_id");
+            } catch (Exception $e) { /* Tabelle/Spalte kann fehlen */ }
+        }
+        // activity_log: Einträge des Benutzers löschen (user_id oft NOT NULL)
+        try {
+            $db->exec("DELETE FROM activity_log WHERE user_id = $user_id");
+        } catch (Exception $e) {}
+        $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        return $stmt->rowCount() > 0;
+    } catch (PDOException $e) {
+        $error = $e->getMessage();
+        return false;
+    }
+}
+
+/**
  * Einheiten-System: Prüft ob Benutzer Superadmin ist
  */
 function is_superadmin($user_id = null) {
