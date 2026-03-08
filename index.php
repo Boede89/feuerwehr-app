@@ -572,8 +572,8 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
         document.getElementById('submitAtemschutzBtn').addEventListener('click', function() {
             const form = document.getElementById('atemschutzForm');
             const formData = new FormData(form);
-            
-            // Füge ausgewählte Geräteträger hinzu
+            var urlEid = (new URLSearchParams(window.location.search)).get('einheit_id');
+            if (urlEid && !formData.has('einheit_id')) formData.append('einheit_id', urlEid);
             window.selectedTraeger.forEach(traegerId => {
                 formData.append('traeger[]', traegerId);
             });

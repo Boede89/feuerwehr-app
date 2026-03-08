@@ -43,6 +43,15 @@ if (!isset($_SESSION["user_id"])) {
     exit();
 }
 
+// Einheit aus URL setzen (z.B. dashboard.php?einheit_id=5), falls Berechtigung
+if (isset($_GET['einheit_id']) && function_exists('user_has_einheit_access')) {
+    $eid = (int)$_GET['einheit_id'];
+    if ($eid > 0 && user_has_einheit_access($_SESSION['user_id'], $eid)) {
+        $_SESSION['current_einheit_id'] = $eid;
+        $_SESSION['current_unit_id'] = $eid;
+    }
+}
+
 // Einheit muss gewählt sein (unit_id ODER einheit_id aus Einheiten-System)
 $current_unit_id = function_exists('get_current_unit_id') ? get_current_unit_id() : null;
 $current_einheit_id = function_exists('get_current_einheit_id') ? get_current_einheit_id() : null;
@@ -265,13 +274,10 @@ if ($can_atemschutz) {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
         
-                    // Lade offene Atemschutzeintrag-Anträge – für alle Einheiten, auf die der Benutzer Zugriff hat
-                    $user_einheiten = function_exists('get_user_einheiten') ? get_user_einheiten() : [];
-                    $einheit_ids = array_map('intval', array_column($user_einheiten, 'id'));
-                    if (empty($einheit_ids)) {
-                        $einheit_ids = [$effective_unit_id];
-                    }
-                    $placeholders = implode(',', array_fill(0, count($einheit_ids), '?'));
+                    // Spalten einheit_id/unit_id sicherstellen (für Abfrage)
+                    try { $db->exec("ALTER TABLE atemschutz_entries ADD COLUMN einheit_id INT NULL"); } catch (Exception $e) {}
+                    try { $db->exec("ALTER TABLE atemschutz_entries ADD COLUMN unit_id INT NULL"); } catch (Exception $e) {}
+                    // Lade offene Atemschutzeintrag-Anträge nur für die gewählte Einheit
                     $stmt = $db->prepare("
                         SELECT ae.*, 
                                COALESCE(u.first_name, 'Unbekannt') as first_name, 
@@ -283,11 +289,11 @@ if ($can_atemschutz) {
                         LEFT JOIN atemschutz_entry_traeger aet ON ae.id = aet.entry_id
                         LEFT JOIN atemschutz_traeger at ON aet.traeger_id = at.id
                         WHERE ae.status = 'pending' 
-                        AND (COALESCE(ae.einheit_id, ae.unit_id, 1) IN ($placeholders))
+                        AND (COALESCE(ae.einheit_id, ae.unit_id, 1) = ?
                         GROUP BY ae.id
                         ORDER BY ae.created_at DESC
                     ");
-        $stmt->execute($einheit_ids);
+        $stmt->execute([$effective_unit_id]);
         $atemschutz_entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         error_log("Atemschutzeintrag-Anträge geladen: " . count($atemschutz_entries));
