@@ -754,8 +754,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                             <div id="printer_cups_fields">
                                 <div class="mb-3">
                                     <label class="form-label">Drucker-URI *</label>
-                                    <input type="text" class="form-control" id="printer_uri" placeholder="ipp://192.168.1.10/ipp/print oder usb://...">
-                                    <small class="text-muted">Beispiele: <code>ipp://IP/ipp/print</code>, <code>usb://Hersteller/Modell</code></small>
+                                    <input type="text" class="form-control" id="printer_uri" placeholder="ipp://192.168.1.10/ipp/print oder https://ipp.workplacepure.com/...">
+                                    <small class="text-muted">Beispiele: <code>ipp://IP/ipp/print</code>, <code>https://ipp.workplacepure.com/ipp/print/...</code></small>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">IPP-Benutzername</label>
+                                        <input type="text" class="form-control" id="printer_ipp_user" placeholder="Optional bei Authentifizierung">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">IPP-Passwort</label>
+                                        <input type="password" class="form-control" id="printer_ipp_pass" placeholder="Optional, leer = unverändert" autocomplete="new-password">
+                                    </div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Treiber/Modell</label>
@@ -1195,6 +1205,8 @@ function openPrinterModal(id) {
     document.getElementById('printer_name').value = '';
     document.getElementById('printer_uri').value = '';
     document.getElementById('printer_model').value = 'everywhere';
+    document.getElementById('printer_ipp_user').value = '';
+    document.getElementById('printer_ipp_pass').value = '';
     document.getElementById('printer_cloud_url_input').value = '';
     document.getElementById('printer_cloud_raw').checked = false;
     document.getElementById('printer_skip_lpadmin').checked = false;
@@ -1206,8 +1218,12 @@ function openPrinterModal(id) {
             if (p) {
                 document.getElementById('printer_name').value = p.name || '';
                 document.getElementById('printer_type').value = p.type || 'cups';
-                document.getElementById('printer_uri').value = p.cups_uri || '';
+                var uri = p.cups_uri || '';
+                document.getElementById('printer_uri').value = uri.replace(/^([^:]+:\/\/)[^@]+@/, '$1');
                 document.getElementById('printer_model').value = p.cups_model || 'everywhere';
+                document.getElementById('printer_ipp_user').value = p.cups_ipp_user || '';
+                document.getElementById('printer_ipp_pass').value = '';
+                document.getElementById('printer_ipp_pass').placeholder = (p.cups_ipp_pass === '***' || p.cups_ipp_pass) ? 'Unverändert lassen' : 'Optional';
                 document.getElementById('printer_cloud_url_input').value = p.cloud_url || '';
                 document.getElementById('printer_cloud_raw').checked = !!p.cloud_raw;
                 document.getElementById('printer_is_default').checked = !!p.is_default;
@@ -1241,6 +1257,8 @@ function savePrinter() {
     fd.append('printer_type', document.getElementById('printer_type').value);
     fd.append('printer_uri', document.getElementById('printer_uri').value);
     fd.append('printer_model', document.getElementById('printer_model').value);
+    fd.append('printer_ipp_user', document.getElementById('printer_ipp_user').value);
+    fd.append('printer_ipp_pass', document.getElementById('printer_ipp_pass').value);
     fd.append('printer_skip_lpadmin', document.getElementById('printer_skip_lpadmin').checked ? '1' : '0');
     fd.append('printer_cloud_url', document.getElementById('printer_cloud_url_input').value);
     fd.append('printer_cloud_raw', document.getElementById('printer_cloud_raw').checked ? '1' : '0');

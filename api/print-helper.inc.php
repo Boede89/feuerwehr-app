@@ -79,6 +79,25 @@ function print_get_printer_list($db, $einheit_id) {
 }
 
 /**
+ * Fügt Benutzername und Passwort in eine IPP/HTTPS-URI ein.
+ * Format: scheme://user:password@host/path
+ */
+function print_inject_ipp_credentials($uri, $user, $password) {
+    if ($user === '' && $password === '') return $uri;
+    if (preg_match('#^(https?|ipp)://([^/]+)(/.*)?$#i', $uri, $m)) {
+        $scheme = $m[1];
+        $rest = $m[2];
+        $path = $m[3] ?? '';
+        if (strpos($rest, '@') !== false) {
+            return $uri;
+        }
+        $cred = rawurlencode($user) . ':' . rawurlencode($password);
+        return $scheme . '://' . $cred . '@' . $rest . $path;
+    }
+    return $uri;
+}
+
+/**
  * Registriert einen CUPS-Drucker per lpadmin (remote möglich mit CUPS_SERVER).
  * Hinweis: Von Docker aus schlägt lpadmin oft fehl („Bad file descriptor“).
  * Dann den Befehl auf dem Host ausführen.

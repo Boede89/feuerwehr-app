@@ -34,7 +34,14 @@ $list = print_get_printer_list($db, $einheit_id);
 $cups_server_saved = trim($settings['printer_cups_server'] ?? '') ?: 'host.docker.internal:631';
 
 if ($action === 'list' || $action === '') {
-    echo json_encode(['success' => true, 'printers' => $list, 'cups_server' => $cups_server_saved]);
+    $list_safe = array_map(function ($p) {
+        $q = $p;
+        if (isset($q['cups_ipp_pass']) && $q['cups_ipp_pass'] !== '') {
+            $q['cups_ipp_pass'] = '***';
+        }
+        return $q;
+    }, $list);
+    echo json_encode(['success' => true, 'printers' => $list_safe, 'cups_server' => $cups_server_saved]);
     exit;
 }
 
@@ -70,10 +77,29 @@ if ($action === 'add' || $action === 'edit') {
     } else {
         $uri = trim($_POST['printer_uri'] ?? '');
         $model = trim($_POST['printer_model'] ?? 'everywhere') ?: 'everywhere';
+        $ipp_user = trim($_POST['printer_ipp_user'] ?? '');
+        $ipp_pass = trim($_POST['printer_ipp_pass'] ?? '');
+
         if ($uri === '' || !preg_match('#^(ipp|usb|socket|lpd|smb|https?)://#i', $uri)) {
-            echo json_encode(['success' => false, 'message' => 'Ungültige Drucker-URI. Beispiele: ipp://192.168.1.10/ipp/print, usb://...']);
+            echo json_encode(['success' => false, 'message' => 'Ungültige Drucker-URI. Beispiele: ipp://192.168.1.10/ipp/print, https://ipp.workplacepure.com/...']);
             exit;
         }
+
+        $stored_pass = '';
+        if ($action === 'edit' && $id && $ipp_pass === '') {
+            foreach ($list as $p) {
+                if (($p['id'] ?? '') === $id && !empty($p['cups_ipp_pass'])) {
+                    $stored_pass = $p['cups_ipp_pass'];
+                    break;
+                }
+            }
+        }
+        $pass_for_uri = $ipp_pass !== '' ? $ipp_pass : $stored_pass;
+
+        if ($ipp_user !== '' || $pass_for_uri !== '') {
+            $uri = print_inject_ipp_credentials($uri, $ipp_user, $pass_for_uri);
+        }
+
         $printer = [
             'id' => $id ?: 'p' . uniqid(),
             'name' => $name,
@@ -81,6 +107,8 @@ if ($action === 'add' || $action === 'edit') {
             'cups_name' => $cups_name,
             'cups_uri' => $uri,
             'cups_model' => $model,
+            'cups_ipp_user' => $ipp_user,
+            'cups_ipp_pass' => $ipp_pass !== '' ? $ipp_pass : $stored_pass,
             'is_default' => $is_default,
         ];
         $skip_lpadmin = isset($_POST['printer_skip_lpadmin']) && $_POST['printer_skip_lpadmin'] === '1';
@@ -116,7 +144,12 @@ if ($action === 'add' || $action === 'edit') {
     save_setting_for_einheit($db, $einheit_id, 'printer_list', json_encode($list));
     save_setting_for_einheit($db, $einheit_id, 'printer_cups_server', $cups_server);
 
-    echo json_encode(['success' => true, 'message' => $action === 'edit' ? 'Drucker aktualisiert.' : 'Drucker hinzugefügt.', 'printers' => $list]);
+    $list_safe = array_map(function ($p) {
+        $q = $p;
+        if (isset($q['cups_ipp_pass']) && $q['cups_ipp_pass'] !== '') $q['cups_ipp_pass'] = '***';
+        return $q;
+    }, $list);
+    echo json_encode(['success' => true, 'message' => $action === 'edit' ? 'Drucker aktualisiert.' : 'Drucker hinzugefügt.', 'printers' => $list_safe]);
     exit;
 }
 
