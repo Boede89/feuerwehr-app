@@ -135,12 +135,14 @@ try {
         throw new Exception('Ein oder mehrere ausgewählte Geräteträger existieren nicht');
     }
     
+    // Schema-Migration VOR beginTransaction - ALTER TABLE führt in MySQL implizit COMMIT aus!
+    try {
+        $db->exec("ALTER TABLE atemschutz_entries ADD COLUMN einheit_id INT NULL");
+    } catch (Exception $e) {}
+    
     $db->beginTransaction();
     
     try {
-        try {
-            $db->exec("ALTER TABLE atemschutz_entries ADD COLUMN einheit_id INT NULL");
-        } catch (Exception $e) {}
         try {
             $stmt = $db->prepare("
                 INSERT INTO atemschutz_entries 
@@ -216,7 +218,9 @@ try {
         ]);
         
     } catch (Exception $e) {
-        $db->rollBack();
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
         throw $e;
     }
     
