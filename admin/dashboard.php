@@ -257,8 +257,8 @@ if ($can_atemschutz) {
                     $stmt = $db->prepare("
                         SELECT id, entry_type, entry_date, status, requester_id, created_at
                         FROM atemschutz_entries
-                        WHERE status = 'pending' 
-                        AND (COALESCE(einheit_id, unit_id, 1) = ?
+                        WHERE status = 'pending'
+                        AND (COALESCE(einheit_id, unit_id, 1) = ?)
                         ORDER BY created_at DESC
                     ");
         $stmt->execute([$effective_unit_id]);
