@@ -44,6 +44,9 @@ function print_send_pdf($pdf_content, $printer_config, $debug = false) {
     $out = [];
     exec($cmd, $out, $code);
     $output_str = implode("\n", $out);
+    // Kurze Verzögerung vor Löschen: Cloud-Connector (z.B. Princh) können die Datei
+    // asynchron lesen. Ohne Delay kann "file info is queued" auftreten.
+    usleep(500000); // 0,5 Sekunden
     @unlink($tmp);
     if ($code !== 0) {
         $msg = 'Druck fehlgeschlagen: ' . implode(' ', $out);
