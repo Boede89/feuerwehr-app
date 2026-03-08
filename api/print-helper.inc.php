@@ -36,9 +36,22 @@ function print_send_pdf_via_url($pdf_content, $url, $debug = false, $raw_pdf = f
     if (empty($url) || !preg_match('#^https?://#i', $url)) {
         return ['success' => false, 'message' => 'Ungültige Cloud-Drucker-URL.'];
     }
+    $use_curlfile = false;
+    $tmp = '';
+    if (function_exists('curl_init') && class_exists('CURLFile') && !$raw_pdf) {
+        $use_curlfile = true; // CURLFile = korrektes multipart, oft besser für Cloud-Drucker (z.B. Princh)
+    }
+
     if ($raw_pdf) {
         $body = $pdf_content;
         $content_type = 'application/pdf';
+    } elseif ($use_curlfile) {
+        $tmp = tempnam(sys_get_temp_dir(), 'print_') . '.pdf';
+        if (file_put_contents($tmp, $pdf_content) === false) {
+            return ['success' => false, 'message' => 'Temporäre Datei konnte nicht erstellt werden.'];
+        }
+        $body = ['file' => new CURLFile($tmp, 'application/pdf', 'druck.pdf')];
+        $content_type = null; // cURL setzt multipart automatisch
     } else {
         $boundary = '----FeuerwehrAppPrint' . bin2hex(random_bytes(8));
         $body = "--$boundary\r\n"
@@ -49,11 +62,13 @@ function print_send_pdf_via_url($pdf_content, $url, $debug = false, $raw_pdf = f
         $content_type = "multipart/form-data; boundary=$boundary";
     }
 
-    $headers = [
-        "Content-Type: $content_type",
-        'Content-Length: ' . strlen($body),
-        'User-Agent: Feuerwehr-App/1.0',
-    ];
+    $headers = ['User-Agent: Feuerwehr-App/1.0'];
+    if ($content_type !== null) {
+        $headers[] = "Content-Type: $content_type";
+        if (is_string($body)) {
+            $headers[] = 'Content-Length: ' . strlen($body);
+        }
+    }
 
     // cURL: zuverlässiger für HTTPS, bessere SSL/TLS-Unterstützung
     if (function_exists('curl_init')) {
@@ -82,6 +97,9 @@ function print_send_pdf_via_url($pdf_content, $url, $debug = false, $raw_pdf = f
         $http_code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curl_err = curl_error($ch);
         curl_close($ch);
+        if (!empty($tmp)) {
+            @unlink($tmp);
+        }
         if ($response === false && $curl_err !== '') {
             $err_msg = 'SSL/Verbindung: ' . $curl_err;
             if ($debug) {

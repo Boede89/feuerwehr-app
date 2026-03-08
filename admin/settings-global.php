@@ -730,7 +730,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                         </div>
                         <div id="print_diagnose_output" class="mt-3 p-3 bg-light rounded small font-monospace" style="display:none;max-height:300px;overflow:auto;white-space:pre-wrap;font-size:11px;"></div>
                         <p class="text-muted small mt-2 mb-0">Falls „Druckauftrag gesendet“ erscheint, aber nichts gedruckt wird: CUPS hat den Auftrag angenommen. Prüfen Sie auf dem Host: <code>lpq -a</code> (Warteschlange), Drucker online? Bei Docker: CUPS-Server <code>host.docker.internal:631</code> – CUPS muss auf dem Host laufen.</p>
-                        <p class="text-muted small mt-2 mb-0">Bei Cloud-Druckern (z.B. Princh): Fehler „file info is queued“ – Auftrag in der Cloud, aber Datei-Metadaten hängen. <strong>Lösung:</strong> Betroffene Jobs im Princh-Verwaltungspanel stornieren, Cloud-Connector neu starten, Drucker neu starten. Statische IP für den Drucker verwenden.</p>
+                        <p class="text-muted small mt-2 mb-0">Bei Cloud-Druckern (z.B. Princh): Fehler „file info is queued“ – Auftrag in der Cloud, aber Datei-Metadaten hängen. <strong>Lösung:</strong> 1) „Als Raw-PDF senden" aktivieren und erneut testen. 2) Betroffene Jobs im Princh-Verwaltungspanel stornieren, Cloud-Connector neu starten, Drucker neu starten. 3) Statische IP für den Drucker verwenden.</p>
                         <?php endif; ?>
                     </div>
                 </div>
