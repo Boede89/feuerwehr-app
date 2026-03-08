@@ -28,6 +28,7 @@ $default_printer = '';
 $env = $cups_server ? 'CUPS_SERVER=' . escapeshellarg($cups_server) . ' ' : '';
 $out = [];
 @exec($env . 'lpstat -v 2>&1', $out);
+$lpstat_raw = implode("\n", $out);
 foreach ($out as $line) {
     if (preg_match('/device for (\S+):\s*(.+)/', $line, $m)) {
         $printers[] = ['name' => $m[1], 'device_uri' => trim($m[2])];
@@ -43,9 +44,14 @@ foreach ($out2 as $line) {
     }
 }
 
-echo json_encode([
+$response = [
     'success' => true,
     'printers' => $printers,
     'default_printer' => $default_printer,
     'configured_printer' => $configured,
-]);
+    'cups_server_used' => $cups_server,
+];
+if (empty($printers) && $lpstat_raw !== '') {
+    $response['lpstat_raw'] = $lpstat_raw;
+}
+echo json_encode($response);

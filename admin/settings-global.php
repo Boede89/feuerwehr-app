@@ -1107,7 +1107,11 @@ function loadPrintersFromCups() {
                     });
                 });
             } else {
-                out.innerHTML = '<span class="text-warning">' + (data.message || 'Keine Drucker gefunden. CUPS-Server prüfen.') + '</span>';
+                var msg = data.message || 'Keine Drucker gefunden. CUPS-Server prüfen.';
+                if (data.lpstat_raw) {
+                    msg += ' <details class="mt-2"><summary class="small" style="cursor:pointer">lpstat-Ausgabe anzeigen</summary><pre class="small mt-1 p-2 bg-dark text-light rounded" style="font-size:10px;max-height:120px;overflow:auto">' + (data.lpstat_raw || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre></details>';
+                }
+                out.innerHTML = '<span class="text-warning">' + msg + '</span>';
             }
         })
         .catch(function() {
