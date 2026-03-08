@@ -378,10 +378,33 @@ if (isset($_GET['delete'])) {
         if ($user_id == $_SESSION['user_id']) {
             $error = "Sie können sich nicht selbst löschen.";
         } else {
-            $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
+            // Prüfen ob zu löschender Benutzer Superadmin ist
+            $stmt = $db->prepare("SELECT user_type FROM users WHERE id = ?");
             $stmt->execute([$user_id]);
-            $message = "Benutzer wurde erfolgreich gelöscht.";
-            log_activity($_SESSION['user_id'], 'user_deleted', "Benutzer ID $user_id gelöscht");
+            $to_delete = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$to_delete) {
+                $error = "Benutzer nicht gefunden.";
+            } elseif (($to_delete['user_type'] ?? '') === 'superadmin') {
+                // Es muss immer mindestens ein Superadmin existieren
+                $stmt_sa = $db->query("SELECT COUNT(*) FROM users WHERE COALESCE(user_type, '') = 'superadmin'");
+                $superadmin_count = (int)$stmt_sa->fetchColumn();
+                
+                if ($superadmin_count <= 1) {
+                    $error = "Der letzte Superadmin kann nicht gelöscht werden. Es muss immer mindestens ein Superadmin existieren.";
+                } else {
+                    $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
+                    $stmt->execute([$user_id]);
+                    $message = "Benutzer wurde erfolgreich gelöscht.";
+                    log_activity($_SESSION['user_id'], 'user_deleted', "Benutzer ID $user_id gelöscht");
+                }
+            } else {
+                // Kein Superadmin – normal löschen
+                $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
+                $stmt->execute([$user_id]);
+                $message = "Benutzer wurde erfolgreich gelöscht.";
+                log_activity($_SESSION['user_id'], 'user_deleted', "Benutzer ID $user_id gelöscht");
+            }
         }
     } catch(PDOException $e) {
         $error = "Fehler beim Löschen des Benutzers: " . $e->getMessage();
@@ -423,6 +446,11 @@ try {
     $all_users = $stmt->fetchAll();
     // Nur Superadmins und Einheitsadmins in der Globalen Benutzerverwaltung anzeigen
     $users = array_filter($all_users, fn($u) => empty($u['is_system_user']) && in_array($u['user_type'] ?? '', ['superadmin', 'einheitsadmin']));
+    $superadmin_count = 0;
+    try {
+        $stmt_sa = $db->query("SELECT COUNT(*) FROM users WHERE COALESCE(user_type, '') = 'superadmin'");
+        $superadmin_count = (int)$stmt_sa->fetchColumn();
+    } catch (Exception $e) {}
     $einheiten = [];
     try {
         $stmt_e = $db->query("SELECT id, name FROM einheiten WHERE is_active = 1 ORDER BY sort_order, name");
@@ -431,6 +459,7 @@ try {
 } catch(PDOException $e) {
     $error = "Fehler beim Laden der Benutzer: " . $e->getMessage();
     $users = [];
+    $superadmin_count = 0;
 }
 ?>
 <!DOCTYPE html>
@@ -567,11 +596,19 @@ try {
                                                         <i class="fas fa-key"></i>
                                                     </a>
                                                 <?php endif; ?>
-                                                <?php if ($user['id'] != $_SESSION['user_id']): ?>
+                                                <?php
+                                                $can_delete = ($user['id'] != $_SESSION['user_id']);
+                                                $is_last_superadmin = (($user['user_type'] ?? '') === 'superadmin' && $superadmin_count <= 1);
+                                                if ($can_delete && !$is_last_superadmin): ?>
                                                     <a href="?delete=<?php echo $user['id']; ?>" class="btn btn-outline-danger btn-sm" 
-                                                       onclick="return confirm('Sind Sie sicher, dass Sie diesen Benutzer löschen möchten?')">
+                                                       onclick="return confirm('Sind Sie sicher, dass Sie diesen Benutzer löschen möchten?')"
+                                                       title="Benutzer löschen">
                                                         <i class="fas fa-trash"></i>
                                                     </a>
+                                                <?php elseif ($can_delete && $is_last_superadmin): ?>
+                                                    <span class="btn btn-outline-secondary btn-sm disabled" title="Der letzte Superadmin kann nicht gelöscht werden. Es muss immer mindestens ein Superadmin existieren.">
+                                                        <i class="fas fa-trash"></i>
+                                                    </span>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>
