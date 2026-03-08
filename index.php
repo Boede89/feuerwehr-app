@@ -270,6 +270,7 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
 
                 <?php $link_suffix = $hat_einheit && $einheit_id_url > 0 ? '?einheit_id=' . (int)$einheit_id_url : ''; ?>
                 <div class="row g-4">
+                    <?php if (!is_logged_in() || has_permission('reservations')): ?>
                     <div class="col-12 col-sm-6 col-lg-4">
                         <a href="reservation-choice.php<?php echo $link_suffix; ?>" class="text-decoration-none">
                             <div class="card h-100 shadow-sm feature-card clickable-card">
@@ -282,7 +283,9 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
                             </div>
                         </a>
                     </div>
+                    <?php endif; ?>
 
+                    <?php if (is_logged_in() && has_permission('atemschutz')): ?>
                     <div class="col-12 col-sm-6 col-lg-4">
                         <div class="card h-100 shadow-sm feature-card clickable-card" data-bs-toggle="modal" data-bs-target="#atemschutzModal" style="cursor: pointer;">
                             <div class="card-body text-center p-4 d-flex flex-column">
@@ -296,6 +299,7 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
                             </div>
                         </div>
                     </div>
+                    <?php endif; ?>
 
                     <?php if (is_logged_in() && has_form_fill_permission()): ?>
                     <div class="col-12 col-sm-6 col-lg-4">

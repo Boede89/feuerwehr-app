@@ -23,6 +23,12 @@ if ($einheit_id_url > 0) {
 }
 $einheit_filter = $einheit_id_url > 0 ? $einheit_id_url : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : null);
 $einheit_param = $einheit_filter > 0 ? '?einheit_id=' . (int)$einheit_filter : '';
+
+// Eingeloggte Benutzer (inkl. Systembenutzer) brauchen Reservierungs-Berechtigung
+if (is_logged_in() && !has_permission('reservations')) {
+    header('Location: index.php' . $einheit_param);
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">

@@ -24,9 +24,16 @@ if ($einheit_id_url > 0) {
     }
 }
 
-$rooms = [];
 $einheit_filter = $einheit_id_url > 0 ? $einheit_id_url : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : null);
 $einheit_param = $einheit_filter > 0 ? '?einheit_id=' . (int)$einheit_filter : '';
+
+// Eingeloggte Benutzer (inkl. Systembenutzer) brauchen Reservierungs-Berechtigung
+if (is_logged_in() && !has_permission('reservations')) {
+    header('Location: index.php' . $einheit_param);
+    exit;
+}
+
+$rooms = [];
 $room_settings = load_settings_for_einheit($db, $einheit_filter > 0 ? $einheit_filter : null);
 $sort_mode = $room_settings['room_sort_mode'] ?? 'manual';
 try {

@@ -15,6 +15,12 @@ if ($einheit_id > 0) {
 $einheit_id = $einheit_id > 0 ? $einheit_id : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
 $einheit_param = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : '';
 
+// Eingeloggte Benutzer (inkl. Systembenutzer) brauchen Reservierungs-Berechtigung
+if (is_logged_in() && !has_permission('reservations')) {
+    header('Location: index.php' . $einheit_param);
+    exit;
+}
+
 // Browser Console Logging für Debugging
 echo '<script>';
 echo 'console.log("🔍 Reservation Page Debug");';

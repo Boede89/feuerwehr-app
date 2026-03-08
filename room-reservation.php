@@ -13,6 +13,12 @@ if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
 $einheit_id = $einheit_id > 0 ? $einheit_id : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : 0);
 $einheit_param = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : '';
 
+// Eingeloggte Benutzer (inkl. Systembenutzer) brauchen Reservierungs-Berechtigung
+if (is_logged_in() && !has_permission('reservations')) {
+    header('Location: index.php' . $einheit_param);
+    exit;
+}
+
 $room_id = (int)($_GET['room_id'] ?? $_POST['room_id'] ?? 0);
 if ($room_id > 0) {
     try {
