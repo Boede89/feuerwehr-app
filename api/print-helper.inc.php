@@ -255,6 +255,9 @@ function print_send_pdf($pdf_content, $printer_config, $debug = false) {
     if (empty($pdf_content) || strlen($pdf_content) < 100) {
         return ['success' => false, 'message' => 'PDF konnte nicht erzeugt werden.'];
     }
+    if (substr($pdf_content, 0, 5) !== '%PDF-') {
+        return ['success' => false, 'message' => 'PDF-Inhalt ungültig (kein PDF-Header).'];
+    }
     // Cloud-Drucker-URL: PDF per HTTP POST senden
     if (!empty($cloud_url)) {
         return print_send_pdf_via_url($pdf_content, $cloud_url, $debug, !empty($printer_config['cloud_url_raw']));
@@ -271,7 +274,8 @@ function print_send_pdf($pdf_content, $printer_config, $debug = false) {
     }
     $file = escapeshellarg($tmp);
     $job_title = escapeshellarg('Feuerwehr-App-' . date('Y-m-d-His') . '.pdf');
-    $cmd = 'lp' . $lp_h . ' -d ' . $printer_esc . ' -t ' . $job_title . ' -o document-format=application/pdf ' . $file;
+    // Ohne -t: Job-Titel kann bei manchen IPP-Cloud-Druckern (Workplace Pure) "file info queued" verursachen
+    $cmd = 'lp' . $lp_h . ' -d ' . $printer_esc . ' -o document-format=application/pdf ' . $file;
     exec($cmd . ' 2>&1', $out, $code);
     $output_str = implode("\n", $out);
     @unlink($tmp);
