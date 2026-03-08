@@ -24,10 +24,17 @@ try {
     
     if ($admin_exists) {
         echo "✅ Admin-Benutzer bereits vorhanden\n";
+        // Bestehenden Admin auf user_type='superadmin' setzen (für Löschbarkeit)
+        try {
+            $db->exec("ALTER TABLE users ADD COLUMN user_type VARCHAR(50) NULL");
+        } catch (Exception $e) {}
+        $stmt = $db->prepare("UPDATE users SET user_type = 'superadmin' WHERE username = 'admin' AND (user_type IS NULL OR user_type = '' OR user_type = 'user')");
+        $stmt->execute();
     } else {
-        // Admin-Benutzer erstellen
+        // Admin-Benutzer erstellen (user_type='superadmin' für Löschbarkeit in Benutzerverwaltung)
+        try { $db->exec("ALTER TABLE users ADD COLUMN user_type VARCHAR(50) NULL"); } catch (Exception $e) {}
         $admin_password = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'; // admin123
-        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, is_admin) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, is_admin, user_type) VALUES (?, ?, ?, ?, ?, ?, 'superadmin')");
         $stmt->execute(['admin', 'admin@feuerwehr-app.local', $admin_password, 'Admin', 'User', 1]);
         echo "✅ Admin-Benutzer erstellt\n";
     }

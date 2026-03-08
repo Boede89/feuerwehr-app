@@ -699,15 +699,16 @@ function get_current_einheit_id() {
 
 /**
  * Zählt Superadmins in der Datenbank.
- * Berücksichtigt auch Legacy-Admins (user_role='admin' oder is_admin=1), die von Skripten
- * erstellt wurden und möglicherweise kein user_type='superadmin' haben.
+ * Berücksichtigt auch Legacy-Admins (is_admin=1 oder user_role='admin'), die von Skripten
+ * wie init-database.php erstellt wurden und kein user_type='superadmin' haben.
  */
 function count_superadmins() {
     global $db;
     try {
         $stmt = $db->query("SELECT COUNT(*) FROM users WHERE 
             COALESCE(user_type, '') = 'superadmin' 
-            OR (COALESCE(is_admin, 0) = 1 AND COALESCE(user_role, '') = 'admin')");
+            OR COALESCE(is_admin, 0) = 1 
+            OR COALESCE(user_role, '') = 'admin'");
         return (int)$stmt->fetchColumn();
     } catch (Exception $e) {
         return 0;
@@ -720,7 +721,8 @@ function count_superadmins() {
  */
 function user_has_superadmin_rights($user) {
     if (($user['user_type'] ?? '') === 'superadmin') return true;
-    if (($user['is_admin'] ?? 0) == 1 && ($user['user_role'] ?? '') === 'admin') return true;
+    if (($user['is_admin'] ?? 0) == 1) return true;
+    if (($user['user_role'] ?? '') === 'admin') return true;
     return false;
 }
 

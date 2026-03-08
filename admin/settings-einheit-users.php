@@ -486,7 +486,10 @@ try {
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <?php if (($u['user_type'] ?? '') !== 'superadmin'): ?>
+                                    <?php 
+                                    $is_superadmin_row = (function_exists('user_has_superadmin_rights') && user_has_superadmin_rights($u));
+                                    $can_delete_superadmin = $is_superadmin_row && ($u['id'] != $_SESSION['user_id']) && (function_exists('count_superadmins') && count_superadmins() > 1);
+                                    if (!$is_superadmin_row): ?>
                                     <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editUserModal"
                                         data-user-id="<?php echo (int)$u['id']; ?>"
                                         data-username="<?php echo htmlspecialchars($u['username'], ENT_QUOTES); ?>"
@@ -512,6 +515,10 @@ try {
                                         <i class="fas fa-edit"></i> Bearbeiten
                                     </button>
                                     <a href="settings-einheit-users.php?id=<?php echo $einheit_id; ?>&delete_user=<?php echo (int)$u['id']; ?>" class="btn btn-outline-danger btn-sm" title="Löschen" onclick="return confirm('Benutzer wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.');">
+                                        <i class="fas fa-trash"></i> Löschen
+                                    </a>
+                                    <?php elseif ($can_delete_superadmin): ?>
+                                    <a href="users.php?delete=<?php echo (int)$u['id']; ?>" class="btn btn-outline-danger btn-sm" title="Superadmin löschen" onclick="return confirm('Superadmin wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.');">
                                         <i class="fas fa-trash"></i> Löschen
                                     </a>
                                     <?php else: ?>

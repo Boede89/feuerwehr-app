@@ -444,7 +444,8 @@ try {
     $users = array_filter($all_users, function($u) {
         if (!empty($u['is_system_user'])) return false;
         if (in_array($u['user_type'] ?? '', ['superadmin', 'einheitsadmin'])) return true;
-        if (($u['is_admin'] ?? 0) == 1 && ($u['user_role'] ?? '') === 'admin') return true;
+        if (($u['is_admin'] ?? 0) == 1) return true;
+        if (($u['user_role'] ?? '') === 'admin') return true;
         return false;
     });
     $superadmin_count = function_exists('count_superadmins') ? count_superadmins() : 0;
