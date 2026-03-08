@@ -719,6 +719,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                         </div>
                         <?php if ($einheit_id > 0): ?>
                         <div class="mb-0 mt-3">
+                            <button type="submit" form="mainForm" class="btn btn-success me-2"><i class="fas fa-save me-1"></i> Drucker-Einstellungen speichern</button>
                             <button type="button" class="btn btn-primary" id="btn_test_print"><i class="fas fa-print me-1"></i> Testdruck</button>
                             <button type="button" class="btn btn-outline-secondary ms-2" id="btn_print_diagnose"><i class="fas fa-stethoscope me-1"></i> Diagnose</button>
                             <span id="test_print_result" class="ms-2 small"></span>
