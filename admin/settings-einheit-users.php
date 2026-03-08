@@ -209,8 +209,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         $autologin_expires = $days > 0 ? date('Y-m-d H:i:s', strtotime("+{$days} days")) : null;
                     }
                     try { $db->exec("ALTER TABLE users ADD COLUMN can_forms_fill TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
-                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires, einheit_id) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, ?, ?, ?)");
-                    $stmt->execute([$username, $first_name ?: $username, $last_name, $autologin_token, $autologin_expires, $einheit_id]);
+                    $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
+                    $can_atemschutz = isset($_POST['can_atemschutz']) ? 1 : 0;
+                    $can_forms_fill = isset($_POST['can_forms_fill']) ? 1 : 0;
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires, einheit_id) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, ?, ?, 0, 0, 0, 0, 0, ?, 0, 0, 0, 0, ?, ?, ?)");
+                    $stmt->execute([$username, $first_name ?: $username, $last_name, $can_reservations, $can_atemschutz, $can_forms_fill, $autologin_token, $autologin_expires, $einheit_id]);
                     log_activity($_SESSION['user_id'], 'user_added', "Systembenutzer '$username' für Einheit {$einheit['name']} angelegt");
                     header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=system_added");
                     exit;
@@ -232,6 +235,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $first_name = sanitize_input($_POST['first_name'] ?? '');
         $last_name = sanitize_input($_POST['last_name'] ?? '');
         $is_active = isset($_POST['is_active']) ? 1 : 0;
+        $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
+        $can_atemschutz = isset($_POST['can_atemschutz']) ? 1 : 0;
+        $can_forms_fill = isset($_POST['can_forms_fill']) ? 1 : 0;
         if (!$user_id || empty($username)) {
             $error = "Ungültige Anfrage.";
         } else {
@@ -247,8 +253,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     if ($stmt_check->fetch()) {
                         $error = "Dieser Benutzername existiert bereits.";
                     } else {
-                        $stmt_up = $db->prepare("UPDATE users SET username = ?, first_name = ?, last_name = ?, is_active = ? WHERE id = ?");
-                        $stmt_up->execute([$username, $first_name, $last_name, $is_active, $user_id]);
+                        $stmt_up = $db->prepare("UPDATE users SET username = ?, first_name = ?, last_name = ?, is_active = ?, can_reservations = ?, can_atemschutz = ?, can_forms_fill = ? WHERE id = ?");
+                        $stmt_up->execute([$username, $first_name, $last_name, $is_active, $can_reservations, $can_atemschutz, $can_forms_fill, $user_id]);
                         log_activity($_SESSION['user_id'], 'user_updated', "Systembenutzer '$username' bearbeitet");
                         header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=system_updated");
                         exit;
@@ -375,7 +381,7 @@ try {
 // Systembenutzer dieser Einheit laden
 $system_users = [];
 try {
-    $stmt = $db->prepare("SELECT id, username, first_name, last_name, is_active, autologin_token, autologin_expires, created_at FROM users WHERE einheit_id = ? AND is_system_user = 1 ORDER BY username");
+    $stmt = $db->prepare("SELECT id, username, first_name, last_name, is_active, autologin_token, autologin_expires, created_at, can_reservations, can_atemschutz, can_forms_fill FROM users WHERE einheit_id = ? AND is_system_user = 1 ORDER BY username");
     $stmt->execute([$einheit_id]);
     $system_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
@@ -539,16 +545,16 @@ try {
         <div class="card mt-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-robot text-info"></i> Systembenutzer (Autologin)</h5>
-                <span class="badge bg-secondary">Nur Formulare ausfüllen</span>
             </div>
             <div class="card-body">
-                <p class="text-muted small mb-3">Systembenutzer haben keinen Login. Sie erhalten einen Link, mit dem sie direkt Formulare ausfüllen können – z.B. für Tablets am Gerätehaus.</p>
+                <p class="text-muted small mb-3">Systembenutzer haben keinen Login. Sie erhalten einen Autologin-Link – z.B. für Tablets am Gerätehaus. Berechtigungen können beim Anlegen und Bearbeiten gesetzt werden.</p>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
                             <tr>
                                 <th>Name</th>
                                 <th>Benutzername</th>
+                                <th>Berechtigungen</th>
                                 <th>Status</th>
                                 <th>Gültigkeit</th>
                                 <th>Aktionen</th>
@@ -559,6 +565,14 @@ try {
                             <tr>
                                 <td><?php echo htmlspecialchars(trim(($su['first_name'] ?? '') . ' ' . ($su['last_name'] ?? '')) ?: '-'); ?></td>
                                 <td><?php echo htmlspecialchars($su['username']); ?></td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <?php if (!empty($su['can_reservations'])): ?><span class="badge bg-primary">Reservierungen</span><?php endif; ?>
+                                        <?php if (!empty($su['can_atemschutz'])): ?><span class="badge bg-success">Atemschutz</span><?php endif; ?>
+                                        <?php if (!empty($su['can_forms_fill'])): ?><span class="badge bg-secondary">Formulare</span><?php endif; ?>
+                                        <?php if (empty($su['can_reservations']) && empty($su['can_atemschutz']) && empty($su['can_forms_fill'])): ?><span class="text-muted small">—</span><?php endif; ?>
+                                    </div>
+                                </td>
                                 <td>
                                     <?php if ($su['is_active']): ?><span class="badge bg-success">Aktiv</span><?php else: ?><span class="badge bg-secondary">Inaktiv</span><?php endif; ?>
                                 </td>
@@ -582,6 +596,9 @@ try {
                                         data-first-name="<?php echo htmlspecialchars($su['first_name'] ?? '', ENT_QUOTES); ?>"
                                         data-last-name="<?php echo htmlspecialchars($su['last_name'] ?? '', ENT_QUOTES); ?>"
                                         data-is-active="<?php echo (int)$su['is_active']; ?>"
+                                        data-can-reservations="<?php echo (int)($su['can_reservations'] ?? 0); ?>"
+                                        data-can-atemschutz="<?php echo (int)($su['can_atemschutz'] ?? 0); ?>"
+                                        data-can-forms-fill="<?php echo (int)($su['can_forms_fill'] ?? 0); ?>"
                                         title="Bearbeiten">
                                         <i class="fas fa-edit"></i> Bearbeiten
                                     </button>
@@ -619,7 +636,7 @@ try {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <p class="text-muted small mb-3">Systembenutzer erhalten einen Autologin-Link und können nur Formulare ausfüllen – ideal für Tablets am Gerätehaus.</p>
+                        <p class="text-muted small mb-3">Systembenutzer erhalten einen Autologin-Link. Wählen Sie die Berechtigungen – ideal für Tablets am Gerätehaus.</p>
                         <div class="mb-3">
                             <label for="sys_username" class="form-label">Benutzername *</label>
                             <input type="text" class="form-control" id="sys_username" name="username" required placeholder="z.B. tablet-eingang">
@@ -632,6 +649,21 @@ try {
                             <div class="col-md-6 mb-3">
                                 <label for="sys_last_name" class="form-label">Nachname (optional)</label>
                                 <input type="text" class="form-control" id="sys_last_name" name="last_name">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Berechtigungen</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_reservations" id="sys_can_reservations">
+                                <label class="form-check-label" for="sys_can_reservations">Reservierungen tätigen</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_atemschutz" id="sys_can_atemschutz">
+                                <label class="form-check-label" for="sys_can_atemschutz">Atemschutzeinträge erstellen</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_forms_fill" id="sys_can_forms_fill" checked>
+                                <label class="form-check-label" for="sys_can_forms_fill">Formulare ausfüllen</label>
                             </div>
                         </div>
                         <div class="mb-3">
@@ -679,6 +711,21 @@ try {
                             <div class="col-md-6 mb-3">
                                 <label for="edit_sys_last_name" class="form-label">Nachname (optional)</label>
                                 <input type="text" class="form-control" id="edit_sys_last_name" name="last_name">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Berechtigungen</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_reservations" id="edit_sys_can_reservations">
+                                <label class="form-check-label" for="edit_sys_can_reservations">Reservierungen tätigen</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_atemschutz" id="edit_sys_can_atemschutz">
+                                <label class="form-check-label" for="edit_sys_can_atemschutz">Atemschutzeinträge erstellen</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="can_forms_fill" id="edit_sys_can_forms_fill">
+                                <label class="form-check-label" for="edit_sys_can_forms_fill">Formulare ausfüllen</label>
                             </div>
                         </div>
                         <div class="mb-3">
@@ -1024,6 +1071,9 @@ try {
             document.getElementById('edit_sys_first_name').value = btn.dataset.firstName || '';
             document.getElementById('edit_sys_last_name').value = btn.dataset.lastName || '';
             document.getElementById('edit_sys_is_active').checked = btn.dataset.isActive == '1';
+            document.getElementById('edit_sys_can_reservations').checked = btn.dataset.canReservations == '1';
+            document.getElementById('edit_sys_can_atemschutz').checked = btn.dataset.canAtemschutz == '1';
+            document.getElementById('edit_sys_can_forms_fill').checked = btn.dataset.canFormsFill == '1';
         });
         document.querySelectorAll('.btn-show-autologin').forEach(function(btn) {
             btn.addEventListener('click', function() {

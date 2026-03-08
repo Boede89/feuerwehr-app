@@ -108,8 +108,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             $days = (int)$validity;
                             $autologin_expires = $days > 0 ? date('Y-m-d H:i:s', strtotime("+{$days} days")) : null;
                         }
-                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, ?, ?)");
-                        $stmt->execute([$username, $first_name ?: $username, $last_name, $autologin_token, $autologin_expires]);
+                        try { $db->exec("ALTER TABLE users ADD COLUMN can_forms_fill TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+                        $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
+                        $can_atemschutz = isset($_POST['can_atemschutz']) ? 1 : 0;
+                        $can_forms_fill = isset($_POST['can_forms_fill']) ? 1 : 0;
+                        $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, ?, ?, 0, 0, 0, 0, ?, 0, 0, 0, 0, ?, ?)");
+                        $stmt->execute([$username, $first_name ?: $username, $last_name, $can_reservations, $can_atemschutz, $can_forms_fill, $autologin_token, $autologin_expires]);
                         log_activity($_SESSION['user_id'], 'user_added', "Systembenutzer '$username' hinzugefügt");
                         header("Location: users.php?tab=system&success=system_added");
                         exit;
@@ -759,28 +763,16 @@ try {
                         <div class="mb-3">
                             <label class="form-label">Berechtigungen</label>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="can_forms" id="sys_can_forms" checked>
-                                <label class="form-check-label" for="sys_can_forms">Formulare ausfüllen</label>
-                            </div>
-                            <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_reservations" id="sys_can_reservations">
-                                <label class="form-check-label" for="sys_can_reservations">Fahrzeugreservierungen</label>
+                                <label class="form-check-label" for="sys_can_reservations">Reservierungen tätigen</label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="can_atemschutz" id="sys_can_atemschutz">
-                                <label class="form-check-label" for="sys_can_atemschutz">Atemschutz</label>
+                                <label class="form-check-label" for="sys_can_atemschutz">Atemschutzeinträge erstellen</label>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="can_members" id="sys_can_members">
-                                <label class="form-check-label" for="sys_can_members">Mitgliederverwaltung</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="can_ric" id="sys_can_ric">
-                                <label class="form-check-label" for="sys_can_ric">RIC Verwaltung</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="can_courses" id="sys_can_courses">
-                                <label class="form-check-label" for="sys_can_courses">Lehrgangsverwaltung</label>
+                                <input class="form-check-input" type="checkbox" name="can_forms_fill" id="sys_can_forms_fill" checked>
+                                <label class="form-check-label" for="sys_can_forms_fill">Formulare ausfüllen</label>
                             </div>
                         </div>
                         <div class="mb-3">
