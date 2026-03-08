@@ -322,16 +322,17 @@ function print_send_pdf($pdf_content, $printer_config, $debug = false) {
  */
 function print_diagnose($printer_config) {
     $cups_server = $printer_config['cups_server'] ?: getenv('CUPS_SERVER') ?: ($_SERVER['CUPS_SERVER'] ?? '');
-    $env = $cups_server ? 'CUPS_SERVER=' . escapeshellarg($cups_server) . ' ' : '';
+    $cups_server = $cups_server ? print_normalize_cups_server($cups_server) : '';
+    $h = $cups_server ? ' -h ' . escapeshellarg($cups_server) : '';
     $result = ['lpstat_t' => '', 'lpq' => '', 'lpstat_v' => ''];
-    @exec($env . 'lpstat -t 2>&1', $out1);
+    @exec('lpstat' . $h . ' -t 2>&1', $out1);
     $result['lpstat_t'] = implode("\n", $out1 ?? []);
-    @exec($env . 'lpq -a 2>&1', $out2);
+    @exec(($cups_server ? 'CUPS_SERVER=' . escapeshellarg($cups_server) . ' ' : '') . 'lpq -a 2>&1', $out2);
     if (empty($out2) || (isset($out2[0]) && strpos($out2[0], 'not found') !== false)) {
-        @exec($env . 'lpstat -o 2>&1', $out2); // Fallback wenn lpq fehlt
+        @exec('lpstat' . $h . ' -o 2>&1', $out2);
     }
     $result['lpq'] = implode("\n", $out2 ?? []);
-    @exec($env . 'lpstat -v 2>&1', $out3);
+    @exec('lpstat' . $h . ' -v 2>&1', $out3);
     $result['lpstat_v'] = implode("\n", $out3 ?? []);
     return $result;
 }

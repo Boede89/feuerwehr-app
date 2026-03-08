@@ -25,9 +25,9 @@ $configured = $config['printer'];
 $printers = [];
 $default_printer = '';
 
-$env = $cups_server ? 'CUPS_SERVER=' . escapeshellarg($cups_server) . ' ' : '';
+$lpstat_h = $cups_server ? ' -h ' . escapeshellarg($cups_server) : '';
 $out = [];
-@exec($env . 'lpstat -v 2>&1', $out);
+@exec('lpstat' . $lpstat_h . ' -v 2>&1', $out);
 $lpstat_raw = implode("\n", $out);
 foreach ($out as $line) {
     if (preg_match('/device for (\S+):\s*(.+)/', $line, $m)) {
@@ -36,7 +36,7 @@ foreach ($out as $line) {
 }
 
 $out2 = [];
-@exec($env . 'lpstat -d 2>/dev/null', $out2);
+@exec('lpstat' . $lpstat_h . ' -d 2>/dev/null', $out2);
 foreach ($out2 as $line) {
     if (preg_match('/system default destination:\s*(\S+)/', $line, $m)) {
         $default_printer = $m[1];
