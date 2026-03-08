@@ -697,9 +697,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     <div class="card-header"><i class="fas fa-print"></i> Drucker</div>
                     <div class="card-body">
                         <p class="text-muted small mb-3">Drucker werden auf dem Host per <code>lpadmin</code> angelegt (siehe Anleitung unten). Hier wählen Sie den in CUPS installierten Drucker.</p>
+                        <?php
+                        $printer_cups_display = trim($settings['printer_cups_server'] ?? '');
+                        if ($printer_cups_display === '' && (getenv('DOCKER') || file_exists('/.dockerenv'))) {
+                            $printer_cups_display = '172.17.0.1:631';
+                        }
+                        ?>
                         <div class="mb-3">
                             <label class="form-label">CUPS-Server</label>
-                            <input class="form-control" name="printer_cups_server" id="printer_cups_server" placeholder="172.17.0.1:631" value="<?php echo htmlspecialchars($settings['printer_cups_server'] ?? ''); ?>">
+                            <input class="form-control" name="printer_cups_server" id="printer_cups_server" placeholder="172.17.0.1:631" value="<?php echo htmlspecialchars($printer_cups_display); ?>">
                             <small class="text-muted">Docker: <code>172.17.0.1:631</code> (Linux) oder <code>host.docker.internal:631</code> (Windows/Mac). /version=1.1 wird bei Bedarf angehängt.</small>
                         </div>
                         <div class="mb-3">
