@@ -22,8 +22,16 @@ if ($einheit_id <= 0) {
 }
 
 $config = print_get_printer_config($db, $einheit_id);
+$printer_override = trim($_GET['printer'] ?? $_POST['printer'] ?? '');
+$cups_override = trim($_GET['cups_server'] ?? $_POST['cups_server'] ?? '');
+if ($printer_override !== '') {
+    $config['printer'] = $printer_override;
+}
+if ($cups_override !== '') {
+    $config['cups_server'] = print_normalize_cups_server($cups_override);
+}
 if (empty($config['printer']) && empty($config['cloud_url'])) {
-    echo json_encode(['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte Druckername, CUPS-Server oder Cloud-Drucker-URL eintragen und speichern.']);
+    echo json_encode(['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte Drucker aus der Liste wählen oder Namen eintragen.']);
     exit;
 }
 

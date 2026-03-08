@@ -259,14 +259,13 @@ function print_send_pdf($pdf_content, $printer_config, $debug = false) {
     if (!empty($cloud_url)) {
         return print_send_pdf_via_url($pdf_content, $cloud_url, $debug, !empty($printer_config['cloud_url_raw']));
     }
-    $printer = escapeshellarg($printer_config['printer']);
+    $printer = trim($printer_config['printer']);
     $cups_server = $printer_config['cups_server'] ?: getenv('CUPS_SERVER') ?: ($_SERVER['CUPS_SERVER'] ?? '');
-    $old_cups = $cups_server !== '' ? getenv('CUPS_SERVER') : null;
-    if ($cups_server !== '') {
-        putenv('CUPS_SERVER=' . $cups_server);
-    }
+    $cups_server = $cups_server ? print_normalize_cups_server($cups_server) : '';
+    $lp_h = $cups_server ? ' -h ' . escapeshellarg($cups_server) : '';
+    $printer_esc = escapeshellarg($printer);
     // PDF per stdin pipen – document-format für IPP-Cloud-Drucker (z.B. Workplace Pure) wichtig
-    $cmd = 'lp -d ' . $printer . ' -o document-format=application/pdf -';
+    $cmd = 'lp' . $lp_h . ' -d ' . $printer_esc . ' -o document-format=application/pdf -';
     $descriptorspec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
     $proc = @proc_open($cmd, $descriptorspec, $pipes, null, null);
     if (is_resource($proc)) {
@@ -283,13 +282,9 @@ function print_send_pdf($pdf_content, $printer_config, $debug = false) {
             return ['success' => false, 'message' => 'Temporäre Datei konnte nicht erstellt werden.'];
         }
         $file = escapeshellarg($tmp);
-        $envStr = ($cups_server !== '') ? 'CUPS_SERVER=' . escapeshellarg($cups_server) . ' ' : '';
-        exec($envStr . 'lp -d ' . $printer . ' -o document-format=application/pdf ' . $file . ' 2>&1', $out, $code);
+        exec('lp' . $lp_h . ' -d ' . $printer_esc . ' -o document-format=application/pdf ' . $file . ' 2>&1', $out, $code);
         $output_str = implode("\n", $out);
         @unlink($tmp);
-    }
-    if ($cups_server !== '') {
-        putenv($old_cups !== false ? 'CUPS_SERVER=' . $old_cups : 'CUPS_SERVER=');
     }
     if ($code !== 0) {
         $msg = 'Druck fehlgeschlagen: ' . trim($output_str);

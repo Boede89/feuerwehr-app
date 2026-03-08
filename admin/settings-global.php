@@ -1126,9 +1126,17 @@ document.getElementById('btn_test_print')?.addEventListener('click', function() 
     var btn = this;
     var out = document.getElementById('test_print_result');
     if (!out) return;
+    var printer = document.getElementById('printer_destination')?.value?.trim() || '';
+    var cups = document.getElementById('printer_cups_server')?.value?.trim() || '';
+    if (!printer) {
+        out.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Bitte zuerst einen Drucker aus der Liste wählen oder eintragen.</span>';
+        return;
+    }
     btn.disabled = true;
     out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Sende Testdruck...</span>';
-    fetch('../api/print-test.php?einheit_id=<?php echo (int)$einheit_id; ?>')
+    var url = '../api/print-test.php?einheit_id=<?php echo (int)$einheit_id; ?>&printer=' + encodeURIComponent(printer);
+    if (cups) url += '&cups_server=' + encodeURIComponent(cups);
+    fetch(url)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             btn.disabled = false;
