@@ -242,79 +242,60 @@ if ($can_reservations && $effective_unit_id > 0) {
 
 // Atemschutzeintrag-Anträge laden (nur wenn berechtigt)
 $atemschutz_entries = [];
+$atemschutz_load_error = null;
 if ($can_atemschutz) {
     try {
-        // atemschutz_traeger MUSS vor atemschutz_entry_traeger existieren (FK-Abhängigkeit)
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS atemschutz_traeger (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                first_name VARCHAR(100) NOT NULL,
-                last_name VARCHAR(100) NOT NULL,
-                email VARCHAR(255) NULL,
-                birthdate DATE NOT NULL,
-                strecke_am DATE NOT NULL,
-                g263_am DATE NOT NULL,
-                uebung_am DATE NOT NULL,
-                status VARCHAR(50) NOT NULL DEFAULT 'Aktiv',
-                member_id INT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        ");
-        // Stelle sicher, dass die Tabellen existieren
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS atemschutz_entries (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                entry_type ENUM('einsatz', 'uebung', 'atemschutzstrecke', 'g263') NOT NULL,
-                entry_date DATE NOT NULL,
-                requester_id INT NOT NULL,
-                status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-                rejection_reason TEXT NULL,
-                approved_by INT NULL,
-                approved_at TIMESTAMP NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
-            )
-        ");
-        
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS atemschutz_entry_traeger (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                entry_id INT NOT NULL,
-                traeger_id INT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (entry_id) REFERENCES atemschutz_entries(id) ON DELETE CASCADE,
-                FOREIGN KEY (traeger_id) REFERENCES atemschutz_traeger(id) ON DELETE CASCADE,
-                UNIQUE KEY unique_entry_traeger (entry_id, traeger_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        ");
+        // Tabellen erstellen (einzeln, Fehler blockieren nicht den Rest)
+        try { $db->exec("CREATE TABLE IF NOT EXISTS atemschutz_traeger (id INT AUTO_INCREMENT PRIMARY KEY, first_name VARCHAR(100) NOT NULL, last_name VARCHAR(100) NOT NULL, email VARCHAR(255) NULL, birthdate DATE NOT NULL, strecke_am DATE NOT NULL, g263_am DATE NOT NULL, uebung_am DATE NOT NULL, status VARCHAR(50) NOT NULL DEFAULT 'Aktiv', member_id INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Exception $e) {}
+        try { $db->exec("CREATE TABLE IF NOT EXISTS atemschutz_entries (id INT AUTO_INCREMENT PRIMARY KEY, entry_type ENUM('einsatz', 'uebung', 'atemschutzstrecke', 'g263') NOT NULL, entry_date DATE NOT NULL, requester_id INT NULL, status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending', rejection_reason TEXT NULL, approved_by INT NULL, approved_at TIMESTAMP NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Exception $e) {}
+        try { $db->exec("CREATE TABLE IF NOT EXISTS atemschutz_entry_traeger (id INT AUTO_INCREMENT PRIMARY KEY, entry_id INT NOT NULL, traeger_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_entry_traeger (entry_id, traeger_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Exception $e) {}
         
                     // Spalten einheit_id/unit_id sicherstellen (für Abfrage)
                     try { $db->exec("ALTER TABLE atemschutz_entries ADD COLUMN einheit_id INT NULL"); } catch (Exception $e) {}
                     try { $db->exec("ALTER TABLE atemschutz_entries ADD COLUMN unit_id INT NULL"); } catch (Exception $e) {}
-                    // Lade offene Atemschutzeintrag-Anträge nur für die gewählte Einheit
+                    // Einfache Abfrage (wie Debug-API) – ohne JOINs, die Fehler verursachen könnten
                     $stmt = $db->prepare("
-                        SELECT ae.id, ae.entry_type, ae.entry_date, ae.status, ae.created_at, ae.requester_id, ae.rejection_reason, ae.approved_by, ae.approved_at, ae.updated_at, ae.einheit_id, ae.unit_id,
-                               COALESCE(MAX(u.first_name), 'Unbekannt') as first_name, 
-                               COALESCE(MAX(u.last_name), '') as last_name,
-                               GROUP_CONCAT(CONCAT(COALESCE(at.first_name,''), ' ', COALESCE(at.last_name,'')) ORDER BY at.last_name, at.first_name SEPARATOR ', ') as traeger_names,
-                               COUNT(aet.traeger_id) as traeger_count
-                        FROM atemschutz_entries ae
-                        LEFT JOIN users u ON ae.requester_id = u.id
-                        LEFT JOIN atemschutz_entry_traeger aet ON ae.id = aet.entry_id
-                        LEFT JOIN atemschutz_traeger at ON aet.traeger_id = at.id
-                        WHERE ae.status = 'pending' 
-                        AND (COALESCE(ae.einheit_id, ae.unit_id, 1) = ?
-                        GROUP BY ae.id
-                        ORDER BY ae.created_at DESC
+                        SELECT id, entry_type, entry_date, status, requester_id, created_at
+                        FROM atemschutz_entries
+                        WHERE status = 'pending' 
+                        AND (COALESCE(einheit_id, unit_id, 1) = ?
+                        ORDER BY created_at DESC
                     ");
         $stmt->execute([$effective_unit_id]);
-        $atemschutz_entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $atemschutz_entries = [];
+        foreach ($rows as $row) {
+            $eid = (int)$row['id'];
+            $traeger_names = '';
+            $traeger_count = 0;
+            try {
+                $st = $db->prepare("
+                    SELECT at.first_name, at.last_name FROM atemschutz_entry_traeger aet
+                    LEFT JOIN atemschutz_traeger at ON aet.traeger_id = at.id
+                    WHERE aet.entry_id = ?
+                ");
+                $st->execute([$eid]);
+                $tr = $st->fetchAll(PDO::FETCH_ASSOC);
+                $traeger_count = count($tr);
+                $traeger_names = implode(', ', array_map(function($t) { return trim(($t['first_name']??'').' '.($t['last_name']??'')); }, $tr));
+            } catch (Exception $e2) {}
+            $first_name = 'Unbekannt';
+            $last_name = '';
+            if (!empty($row['requester_id'])) {
+                try {
+                    $st = $db->prepare("SELECT first_name, last_name FROM users WHERE id = ?");
+                    $st->execute([$row['requester_id']]);
+                    $u = $st->fetch(PDO::FETCH_ASSOC);
+                    if ($u) { $first_name = $u['first_name'] ?? 'Unbekannt'; $last_name = $u['last_name'] ?? ''; }
+                } catch (Exception $e2) {}
+            }
+            $atemschutz_entries[] = array_merge($row, ['first_name' => $first_name, 'last_name' => $last_name, 'traeger_names' => $traeger_names, 'traeger_count' => $traeger_count]);
+        }
         
         error_log("Atemschutzeintrag-Anträge geladen: " . count($atemschutz_entries) . " (effective_unit_id=" . $effective_unit_id . ")");
     } catch (Exception $e) {
         error_log("Fehler beim Laden der Atemschutzeintrag-Anträge: " . $e->getMessage());
+        $atemschutz_load_error = $e->getMessage();
     }
 }
 
@@ -1137,7 +1118,7 @@ if ($can_atemschutz) {
                     <div class="card-header dashboard-section-header" data-section="atemschutz" style="cursor: pointer;">
                         <h6 class="m-0 font-weight-bold text-info">
                             <i class="fas fa-chevron-down collapse-icon" data-section="atemschutz"></i>
-                            <i class="fas fa-clipboard-list"></i> Offene Atemschutzeinträge (<?php echo count($atemschutz_entries); ?>)
+                            <i class="fas fa-clipboard-list"></i> Offene Atemschutzeinträge (<?php echo count($atemschutz_entries); ?>)<?php if ($can_atemschutz && empty($atemschutz_entries)): ?><small class="text-muted ms-1">[Einheit <?php echo (int)$effective_unit_id; ?>]</small><?php endif; ?>
                         </h6>
                     </div>
                     <div class="card-body dashboard-section-body" data-section="atemschutz" <?php echo (isset($dashboard_preferences['atemschutz']) && $dashboard_preferences['atemschutz']) ? 'style="display: none;"' : ''; ?>>
@@ -1146,6 +1127,9 @@ if ($can_atemschutz) {
                                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
                                 <h5 class="text-muted">Keine offenen Anträge</h5>
                                 <p class="text-muted">Alle Atemschutzeintrag-Anträge wurden bearbeitet.</p>
+                                <?php if (!empty($atemschutz_load_error) && hasAdminPermission()): ?>
+                                <p class="small text-danger mt-2">Fehler: <?php echo htmlspecialchars($atemschutz_load_error); ?></p>
+                                <?php endif; ?>
                                 <p class="small mt-2"><a href="../api/debug-atemschutz-entries.php?einheit_id=<?php echo (int)$effective_unit_id; ?>" target="_blank" class="text-muted">Diagnose: Pending-Einträge prüfen</a></p>
                             </div>
                         <?php else: ?>
