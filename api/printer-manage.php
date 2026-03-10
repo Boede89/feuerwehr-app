@@ -1,6 +1,7 @@
 <?php
 /**
- * Drucker verwalten: hinzufügen, bearbeiten, löschen, als Standard setzen.
+ * Drucker verwalten: Cloud-Drucker hinzufügen, bearbeiten, löschen.
+ * CUPS wurde entfernt – nur Cloud-Drucker und E-Mail-Druck.
  */
 session_start();
 require_once __DIR__ . '/../config/database.php';
@@ -28,25 +29,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET' && !validate_csrf_token($_POST['csrf_to
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $settings = load_settings_for_einheit($db, $einheit_id);
-$cups_server = trim($_POST['printer_cups_server'] ?? $settings['printer_cups_server'] ?? '') ?: (getenv('CUPS_SERVER') ?: 'host.docker.internal:631');
-
 $list = print_get_printer_list($db, $einheit_id);
-$cups_server_saved = trim($settings['printer_cups_server'] ?? '') ?: 'host.docker.internal:631';
 
 if ($action === 'list' || $action === '') {
-    $list_safe = array_map(function ($p) {
-        $q = $p;
-        if (isset($q['cups_ipp_pass']) && $q['cups_ipp_pass'] !== '') {
-            $q['cups_ipp_pass'] = '***';
-        }
-        return $q;
-    }, $list);
-    echo json_encode(['success' => true, 'printers' => $list_safe, 'cups_server' => $cups_server_saved]);
+    echo json_encode(['success' => true, 'printers' => $list]);
     exit;
 }
 
 if ($action === 'add' || $action === 'edit') {
-    $type = trim($_POST['printer_type'] ?? 'cups');
+    $type = trim($_POST['printer_type'] ?? 'cloud');
+    if ($type !== 'cloud') {
+        echo json_encode(['success' => false, 'message' => 'Nur Cloud-Drucker werden unterstützt. CUPS wurde entfernt.']);
+        exit;
+    }
     $name = trim($_POST['printer_name'] ?? '');
     $id = trim($_POST['printer_id'] ?? '');
     $is_default = isset($_POST['printer_is_default']) && $_POST['printer_is_default'] === '1';
@@ -56,74 +51,21 @@ if ($action === 'add' || $action === 'edit') {
         exit;
     }
 
-    $cups_name = preg_replace('/[^a-zA-Z0-9_-]/', '', $name);
-    if ($cups_name === '') $cups_name = 'printer' . time();
-
-    if ($type === 'cloud') {
-        $cloud_url = trim($_POST['printer_cloud_url'] ?? '');
-        $cloud_raw = isset($_POST['printer_cloud_raw']) && $_POST['printer_cloud_raw'] === '1';
-        if ($cloud_url === '' || !preg_match('#^https?://#i', $cloud_url)) {
-            echo json_encode(['success' => false, 'message' => 'Ungültige Cloud-Drucker-URL.']);
-            exit;
-        }
-        $printer = [
-            'id' => $id ?: 'p' . uniqid(),
-            'name' => $name,
-            'type' => 'cloud',
-            'cloud_url' => $cloud_url,
-            'cloud_raw' => $cloud_raw,
-            'is_default' => $is_default,
-        ];
-    } else {
-        $uri = trim($_POST['printer_uri'] ?? '');
-        $model = trim($_POST['printer_model'] ?? 'everywhere') ?: 'everywhere';
-        $ipp_user = trim($_POST['printer_ipp_user'] ?? '');
-        $ipp_pass = trim($_POST['printer_ipp_pass'] ?? '');
-
-        if ($uri === '' || !preg_match('#^(ipp|usb|socket|lpd|smb|https?)://#i', $uri)) {
-            echo json_encode(['success' => false, 'message' => 'Ungültige Drucker-URI. Beispiele: ipp://192.168.1.10/ipp/print, https://ipp.workplacepure.com/...']);
-            exit;
-        }
-
-        $stored_pass = '';
-        if ($action === 'edit' && $id && $ipp_pass === '') {
-            foreach ($list as $p) {
-                if (($p['id'] ?? '') === $id && !empty($p['cups_ipp_pass'])) {
-                    $stored_pass = $p['cups_ipp_pass'];
-                    break;
-                }
-            }
-        }
-        $pass_for_uri = $ipp_pass !== '' ? $ipp_pass : $stored_pass;
-
-        if ($ipp_user !== '' || $pass_for_uri !== '') {
-            $uri = print_inject_ipp_credentials($uri, $ipp_user, $pass_for_uri);
-        }
-
-        $printer = [
-            'id' => $id ?: 'p' . uniqid(),
-            'name' => $name,
-            'type' => 'cups',
-            'cups_name' => $cups_name,
-            'cups_uri' => $uri,
-            'cups_model' => $model,
-            'cups_ipp_user' => $ipp_user,
-            'cups_ipp_pass' => $ipp_pass !== '' ? $ipp_pass : $stored_pass,
-            'is_default' => $is_default,
-        ];
-        $skip_lpadmin = isset($_POST['printer_skip_lpadmin']) && $_POST['printer_skip_lpadmin'] === '1';
-        if (!$skip_lpadmin) {
-            $reg = print_register_cups_printer($cups_name, $uri, $model, $cups_server);
-            if (!$reg['success']) {
-                echo json_encode([
-                    'success' => false,
-                    'message' => $reg['message'],
-                    'lpadmin_cmd' => $reg['lpadmin_cmd'] ?? '',
-                ]);
-                exit;
-            }
-        }
+    $cloud_url = trim($_POST['printer_cloud_url'] ?? '');
+    $cloud_raw = isset($_POST['printer_cloud_raw']) && $_POST['printer_cloud_raw'] === '1';
+    if ($cloud_url === '' || !preg_match('#^https?://#i', $cloud_url)) {
+        echo json_encode(['success' => false, 'message' => 'Ungültige Cloud-Drucker-URL.']);
+        exit;
     }
+
+    $printer = [
+        'id' => $id ?: 'p' . uniqid(),
+        'name' => $name,
+        'type' => 'cloud',
+        'cloud_url' => $cloud_url,
+        'cloud_raw' => $cloud_raw,
+        'is_default' => $is_default,
+    ];
 
     if ($action === 'edit' && $id) {
         foreach ($list as $i => $p) {
@@ -142,14 +84,8 @@ if ($action === 'add' || $action === 'edit') {
 
     ensure_einheit_settings_table($db);
     save_setting_for_einheit($db, $einheit_id, 'printer_list', json_encode($list));
-    save_setting_for_einheit($db, $einheit_id, 'printer_cups_server', $cups_server);
 
-    $list_safe = array_map(function ($p) {
-        $q = $p;
-        if (isset($q['cups_ipp_pass']) && $q['cups_ipp_pass'] !== '') $q['cups_ipp_pass'] = '***';
-        return $q;
-    }, $list);
-    echo json_encode(['success' => true, 'message' => $action === 'edit' ? 'Drucker aktualisiert.' : 'Drucker hinzugefügt.', 'printers' => $list_safe]);
+    echo json_encode(['success' => true, 'message' => $action === 'edit' ? 'Drucker aktualisiert.' : 'Drucker hinzugefügt.', 'printers' => $list]);
     exit;
 }
 

@@ -1,7 +1,7 @@
 <?php
 /**
  * Testdruck für Druckereinstellungen einer Einheit.
- * Sendet eine einfache Testseite an den konfigurierten Drucker.
+ * Sendet eine einfache Testseite per E-Mail oder an Cloud-Drucker.
  */
 session_start();
 require_once __DIR__ . '/../config/database.php';
@@ -22,16 +22,8 @@ if ($einheit_id <= 0) {
 }
 
 $config = print_get_printer_config($db, $einheit_id);
-$printer_override = trim($_GET['printer'] ?? $_POST['printer'] ?? '');
-$cups_override = trim($_GET['cups_server'] ?? $_POST['cups_server'] ?? '');
-if ($printer_override !== '') {
-    $config['printer'] = $printer_override;
-}
-if ($cups_override !== '') {
-    $config['cups_server'] = print_normalize_cups_server($cups_override);
-}
-if (empty($config['printer']) && empty($config['cloud_url'])) {
-    echo json_encode(['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte Drucker aus der Liste wählen oder Namen eintragen.']);
+if (empty($config['printer_email_recipient']) && empty($config['cloud_url'])) {
+    echo json_encode(['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte E-Mail-Postfach in den Einstellungen eintragen.']);
     exit;
 }
 
@@ -103,8 +95,8 @@ if (empty($pdf_content) || strlen($pdf_content) < 100) {
 $result = print_send_pdf($pdf_content, $config, true);
 if (!isset($result['debug'])) {
     $result['debug'] = [
-        'printer' => $config['printer'],
-        'cups_server' => $config['cups_server'] ?: '(Standard)',
+        'printer_email' => $config['printer_email_recipient'] ?? '',
+        'cloud_url' => $config['cloud_url'] ?? '',
     ];
 }
 echo json_encode($result);

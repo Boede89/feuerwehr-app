@@ -1,6 +1,6 @@
 <?php
 /**
- * Mängelbericht drucken (PDF an CUPS senden).
+ * Mängelbericht drucken (PDF per E-Mail oder Cloud-Drucker).
  */
 session_start();
 require_once __DIR__ . '/../config/database.php';

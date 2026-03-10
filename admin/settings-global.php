@@ -335,8 +335,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     $error = $logo_upload_error;
                 }
                 $printer = [
-                    'printer_cups_server' => trim(sanitize_input($_POST['printer_cups_server'] ?? '')),
-                    'printer_destination' => trim(sanitize_input($_POST['printer_destination'] ?? '')),
                     'printer_email_recipient' => trim(sanitize_input($_POST['printer_email_recipient'] ?? '')),
                     'printer_email_subject' => trim(sanitize_input($_POST['printer_email_subject'] ?? '')) ?: 'DRUCK',
                 ];
@@ -693,30 +691,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                 <div class="card">
                     <div class="card-header"><i class="fas fa-print"></i> Drucker</div>
                     <div class="card-body">
-                        <p class="text-muted small mb-3">Drucker werden auf dem Host per <code>lpadmin</code> angelegt (siehe Anleitung unten). Hier wählen Sie den in CUPS installierten Drucker.</p>
-                        <?php
-                        $printer_cups_display = trim($settings['printer_cups_server'] ?? '');
-                        if ($printer_cups_display === '' && (getenv('DOCKER') || file_exists('/.dockerenv'))) {
-                            $printer_cups_display = '172.17.0.1:631';
-                        }
-                        ?>
-                        <div class="mb-3">
-                            <label class="form-label">CUPS-Server</label>
-                            <input class="form-control" name="printer_cups_server" id="printer_cups_server" placeholder="172.17.0.1:631" value="<?php echo htmlspecialchars($printer_cups_display); ?>">
-                            <small class="text-muted">Docker: <code>172.17.0.1:631</code> (Linux) oder <code>host.docker.internal:631</code> (Windows/Mac). /version=1.1 wird bei Bedarf angehängt.</small>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Drucker</label>
-                            <div class="input-group">
-                                <input class="form-control" name="printer_destination" id="printer_destination" placeholder="z.B. WacheAmern" value="<?php echo htmlspecialchars($settings['printer_destination'] ?? ''); ?>">
-                                <button type="button" class="btn btn-outline-secondary" id="btn_list_printers" title="Verfügbare Drucker aus CUPS laden"><i class="fas fa-list"></i> Drucker auflisten</button>
-                            </div>
-                            <small class="text-muted">Der Name aus <code>lpstat -v</code> (z.B. WacheAmern)</small>
-                            <div id="printers_list" class="mt-2 small" style="display:none;"></div>
-                        </div>
-                        <hr class="my-4">
                         <h6 class="text-muted mb-2"><i class="fas fa-envelope me-1"></i> Druck per E-Mail (E-Mail Druck Tool)</h6>
-                        <p class="text-muted small mb-3">Statt CUPS/Cloud-Drucker können Sie ein E-Mail-Postfach nutzen. Die App sendet PDFs per E-Mail dorthin. Das <strong>E-Mail Druck Tool</strong> am Zielrechner überwacht das Postfach und druckt PDF-Anhänge bei passendem Betreff.</p>
+                        <p class="text-muted small mb-3">Die App sendet PDFs per E-Mail an ein überwachtes Postfach. Das <strong>E-Mail Druck Tool</strong> am Zielrechner überwacht das Postfach und druckt PDF-Anhänge bei passendem Betreff.</p>
                         <div class="mb-3">
                             <label class="form-label">E-Mail-Postfach (Empfänger)</label>
                             <input class="form-control" type="email" name="printer_email_recipient" id="printer_email_recipient" placeholder="druck@beispiel.de" value="<?php echo htmlspecialchars($settings['printer_email_recipient'] ?? ''); ?>">
@@ -741,11 +717,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                         <div class="mb-0 mt-3">
                             <button type="submit" form="mainForm" class="btn btn-success me-2"><i class="fas fa-save me-1"></i> Drucker-Einstellungen speichern</button>
                             <button type="button" class="btn btn-primary" id="btn_test_print"><i class="fas fa-print me-1"></i> Testdruck</button>
-                            <button type="button" class="btn btn-outline-secondary ms-2" id="btn_print_diagnose"><i class="fas fa-stethoscope me-1"></i> Diagnose</button>
                             <span id="test_print_result" class="ms-2 small"></span>
                         </div>
-                        <div id="print_diagnose_output" class="mt-3 p-3 bg-light rounded small font-monospace" style="display:none;max-height:300px;overflow:auto;white-space:pre-wrap;font-size:11px;"></div>
-                        <p class="text-muted small mt-2 mb-0">Drucker per Shell hinzufügen: <code>sudo lpadmin -p WacheAmern -E -v 'https://USER:PASS@ipp.workplacepure.com/ipp/print/...' -m everywhere</code></p>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1119,68 +1092,24 @@ document.getElementById('btn_divera_key_loeschen')?.addEventListener('click', fu
         document.getElementById('mainForm').submit();
     }
 });
-function loadPrintersFromCups() {
-    var btn = document.getElementById('btn_list_printers');
-    var out = document.getElementById('printers_list');
-    if (!btn || !out) return;
-    out.style.display = 'block';
-    out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Drucker aus CUPS...</span>';
-    btn.disabled = true;
-    var cups = document.getElementById('printer_cups_server').value || '172.17.0.1:631';
-    fetch('../api/list-printers.php?einheit_id=<?php echo (int)$einheit_id; ?>&cups_server=' + encodeURIComponent(cups))
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            btn.disabled = false;
-            if (data.success && data.printers && data.printers.length > 0) {
-                var html = '<strong>Verfügbare Drucker aus CUPS (Klick zum Übernehmen):</strong> ';
-                data.printers.forEach(function(p) {
-                    var def = (data.default_printer === p.name) ? ' (Standard)' : '';
-                    var safe = (p.name || '').replace(/"/g, '&quot;');
-                    html += '<span class="badge bg-secondary me-1" style="cursor:pointer" data-name="' + safe + '" role="button">' + (p.name || '').replace(/</g, '&lt;') + def + '</span> ';
-                });
-                out.innerHTML = html;
-                out.querySelectorAll('[data-name]').forEach(function(el) {
-                    el.addEventListener('click', function() {
-                        document.getElementById('printer_destination').value = this.getAttribute('data-name').replace(/&quot;/g, '"');
-                    });
-                });
-            } else {
-                var msg = data.message || 'Keine Drucker gefunden. CUPS-Server prüfen.';
-                if (data.lpstat_raw) {
-                    msg += ' <details class="mt-2"><summary class="small" style="cursor:pointer">lpstat-Ausgabe anzeigen</summary><pre class="small mt-1 p-2 bg-dark text-light rounded" style="font-size:10px;max-height:120px;overflow:auto">' + (data.lpstat_raw || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre></details>';
-                }
-                out.innerHTML = '<span class="text-warning">' + msg + '</span>';
-            }
-        })
-        .catch(function() {
-            btn.disabled = false;
-            out.innerHTML = '<span class="text-danger">Fehler beim Laden.</span>';
-        });
-}
-document.getElementById('btn_list_printers')?.addEventListener('click', loadPrintersFromCups);
-document.getElementById('tab-drucker-btn')?.addEventListener('shown.bs.tab', function() { loadPrintersFromCups(); });
-if (document.getElementById('tab-drucker')?.classList.contains('show')) { loadPrintersFromCups(); }
 document.getElementById('btn_test_print')?.addEventListener('click', function() {
     var btn = this;
     var out = document.getElementById('test_print_result');
     if (!out) return;
-    var printer = document.getElementById('printer_destination')?.value?.trim() || '';
-    var cups = document.getElementById('printer_cups_server')?.value?.trim() || '';
-    if (!printer) {
-        out.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Bitte zuerst einen Drucker aus der Liste wählen oder eintragen.</span>';
+    var email = document.getElementById('printer_email_recipient')?.value?.trim() || '';
+    if (!email) {
+        out.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Bitte zuerst ein E-Mail-Postfach eintragen.</span>';
         return;
     }
     btn.disabled = true;
     out.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Sende Testdruck...</span>';
-    var url = '../api/print-test.php?einheit_id=<?php echo (int)$einheit_id; ?>&printer=' + encodeURIComponent(printer);
-    if (cups) url += '&cups_server=' + encodeURIComponent(cups);
+    var url = '../api/print-test.php?einheit_id=<?php echo (int)$einheit_id; ?>';
     fetch(url)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             btn.disabled = false;
             if (data.success) {
-                var jobInfo = (data.debug && data.debug.lp_output) ? ' <span class="text-muted">(' + String(data.debug.lp_output).replace(/</g, '&lt;').trim() + ')</span>' : '';
-                out.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>' + (data.message || 'Testdruck gesendet.') + jobInfo + '</span>';
+                out.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>' + (data.message || 'Testdruck gesendet.') + '</span>';
             } else {
                 var msg = (data.message || 'Fehler');
                 if (data.debug && data.debug.output) {
@@ -1192,7 +1121,7 @@ document.getElementById('btn_test_print')?.addEventListener('click', function() 
                     } else if (data.debug.http_code) {
                         msg += ' (HTTP ' + data.debug.http_code + (data.debug.response ? ': ' + String(data.debug.response).replace(/</g, '&lt;').substring(0, 80) : '') + ')';
                     } else {
-                        msg += ' (Drucker: ' + (data.debug.printer || '') + ', CUPS: ' + (data.debug.cups_server || '') + ')';
+                        msg += ' (Details: ' + (data.debug.to || data.debug.subject || '') + ')';
                     }
                 }
                 out.innerHTML = '<span class="text-danger" title="' + (data.debug && (data.debug.command || data.debug.curl_error) ? String(data.debug.command || data.debug.curl_error || '').replace(/"/g, '&quot;') : '') + '"><i class="fas fa-exclamation-triangle me-1"></i>' + msg + '</span>';
@@ -1201,33 +1130,6 @@ document.getElementById('btn_test_print')?.addEventListener('click', function() 
         .catch(function() {
             btn.disabled = false;
             out.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Verbindungsfehler</span>';
-        });
-});
-document.getElementById('btn_print_diagnose')?.addEventListener('click', function() {
-    var btn = this;
-    var out = document.getElementById('print_diagnose_output');
-    if (!out) return;
-    btn.disabled = true;
-    out.style.display = 'block';
-    out.textContent = 'Lade Diagnose...';
-    fetch('../api/print-diagnose.php?einheit_id=<?php echo (int)$einheit_id; ?>')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            btn.disabled = false;
-            if (data.success) {
-                var d = data.diagnose || {};
-                var txt = '=== Drucker: ' + (data.printer || '') + ' | CUPS: ' + (data.cups_server || '') + ' ===\n\n';
-                txt += '--- lpstat -v (Drucker) ---\n' + (d.lpstat_v || '(leer)') + '\n\n';
-                txt += '--- lpstat -t (Status) ---\n' + (d.lpstat_t || '(leer)') + '\n\n';
-                txt += '--- lpq -a (Warteschlange) ---\n' + (d.lpq || '(leer)');
-                out.textContent = txt;
-            } else {
-                out.textContent = 'Fehler: ' + (data.message || 'Unbekannt');
-            }
-        })
-        .catch(function() {
-            btn.disabled = false;
-            out.textContent = 'Verbindungsfehler beim Laden der Diagnose.';
         });
 });
 </script>
