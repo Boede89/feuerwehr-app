@@ -40,7 +40,7 @@ if ($alle || $ids !== '') {
 }
 
 $config = print_get_printer_config($db, $einheit_id);
-if (empty($config['printer']) && empty($config['cloud_url'])) {
+if (empty($config['cloud_url']) && empty($config['printer_email_recipient'])) {
     if (empty($pdf_content) || strlen($pdf_content) < 100) {
         echo json_encode(['success' => false, 'message' => 'PDF konnte nicht erzeugt werden.']);
     } else {
