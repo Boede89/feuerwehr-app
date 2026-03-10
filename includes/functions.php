@@ -214,13 +214,13 @@ function send_email_with_pdf_for_einheit($to, $subject, $message, $pdfContent, $
     $smtp_encryption = trim($settings['smtp_encryption'] ?? '') ?: 'tls';
     $smtp_from_email = trim($settings['smtp_from_email'] ?? '') ?: 'noreply@feuerwehr-app.local';
     $smtp_from_name = trim($settings['smtp_from_name'] ?? '') ?: 'Feuerwehr App';
-    if (!empty($smtp_host) && !empty($smtp_username) && !empty($smtp_password)) {
-        require_once __DIR__ . '/smtp.php';
-        $smtp = new SimpleSMTP($smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name);
-        return $smtp->sendWithAttachment($to, $subject, $message, true, $pdfContent, $pdfFilename);
+    if (empty($smtp_host) || empty($smtp_username) || empty($smtp_password)) {
+        error_log("send_email_with_pdf_for_einheit: Einheit $einheit_id hat keine SMTP-Einstellungen – keine E-Mail gesendet.");
+        return false;
     }
-    // Fallback: Globale SMTP-Einstellungen (wenn Einheit keine eigenen hat)
-    return send_email_with_pdf_attachment($to, $subject, $message, $pdfContent, $pdfFilename);
+    require_once __DIR__ . '/smtp.php';
+    $smtp = new SimpleSMTP($smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name);
+    return $smtp->sendWithAttachment($to, $subject, $message, true, $pdfContent, $pdfFilename);
 }
 
 /**
