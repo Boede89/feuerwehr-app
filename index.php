@@ -285,7 +285,7 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
                     </div>
                     <?php endif; ?>
 
-                    <?php if (is_logged_in() && has_permission('atemschutz')): ?>
+                    <?php if (!is_logged_in() || has_permission('atemschutz')): ?>
                     <div class="col-12 col-sm-6 col-lg-4">
                         <div class="card h-100 shadow-sm feature-card clickable-card" data-bs-toggle="modal" data-bs-target="#atemschutzModal" style="cursor: pointer;">
                             <div class="card-body text-center p-4 d-flex flex-column">
