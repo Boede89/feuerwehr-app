@@ -12,8 +12,8 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: ../login.php');
     exit;
 }
-// Nur Superadmin darf die Einheit wechseln
-if (!is_superadmin()) {
+// Superadmin und Admins dürfen die Einheit wechseln
+if (!is_superadmin() && !(function_exists('hasAdminPermission') && hasAdminPermission())) {
     header('Location: dashboard.php');
     exit;
 }

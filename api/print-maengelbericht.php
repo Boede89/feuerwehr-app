@@ -26,6 +26,13 @@ $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : null;
 $_GET['_return'] = '1';
 $pdf_content = null;
 
+if (!$alle && $ids === '' && $id > 0 && $einheit_id <= 0) {
+    $stmt = $db->prepare("SELECT einheit_id FROM maengelberichte WHERE id = ?");
+    $stmt->execute([$id]);
+    $r = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($r && (int)($r['einheit_id'] ?? 0) > 0) $einheit_id = (int)$r['einheit_id'];
+}
+
 if ($alle || $ids !== '') {
     if ($ids !== '') $_GET['ids'] = $ids;
     require_once __DIR__ . '/maengelbericht-pdf-alle.php';

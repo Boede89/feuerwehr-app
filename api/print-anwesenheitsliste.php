@@ -33,6 +33,12 @@ if ($alle) {
         echo json_encode(['success' => false, 'message' => 'Ungültige ID']);
         exit;
     }
+    if ($einheit_id <= 0) {
+        $stmt = $db->prepare("SELECT einheit_id FROM anwesenheitslisten WHERE id = ?");
+        $stmt->execute([$id]);
+        $r = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($r && (int)($r['einheit_id'] ?? 0) > 0) $einheit_id = (int)$r['einheit_id'];
+    }
     require_once __DIR__ . '/anwesenheitsliste-pdf.php';
     $pdf_content = $GLOBALS['_al_pdf_content'] ?? null;
 }

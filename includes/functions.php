@@ -861,7 +861,7 @@ function get_user_einheiten($user_id = null) {
         $stmt = $db->query("SHOW TABLES LIKE 'einheiten'");
         if (!$stmt || !$stmt->fetch()) return [];
     } catch (Exception $e) { return []; }
-    if (is_superadmin($user_id)) {
+    if (is_superadmin($user_id) || (function_exists('hasAdminPermission') && hasAdminPermission($user_id))) {
         $stmt = $db->query("SELECT id, name, sort_order FROM einheiten WHERE is_active = 1 ORDER BY sort_order, name");
         return $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
     }
@@ -913,10 +913,10 @@ function get_admin_einheit_filter() {
 
 /**
  * Einheiten-System: Kann Benutzer Einheit wechseln?
- * Nur Superadmin darf die Einheit im Menü wechseln – reguläre Benutzer sehen ausschließlich ihre Einheit.
+ * Superadmin und Admins (hasAdminPermission) dürfen die Einheit im Menü wechseln.
  */
 function can_switch_einheit() {
-    return is_logged_in() && !is_system_user() && is_superadmin();
+    return is_logged_in() && !is_system_user() && (is_superadmin() || (function_exists('hasAdminPermission') && hasAdminPermission()));
 }
 
 /**
