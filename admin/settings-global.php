@@ -337,6 +337,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                 $printer = [
                     'printer_cups_server' => trim(sanitize_input($_POST['printer_cups_server'] ?? '')),
                     'printer_destination' => trim(sanitize_input($_POST['printer_destination'] ?? '')),
+                    'printer_email_recipient' => trim(sanitize_input($_POST['printer_email_recipient'] ?? '')),
+                    'printer_email_subject' => trim(sanitize_input($_POST['printer_email_subject'] ?? '')) ?: 'DRUCK',
                 ];
                 $divera_access_key = trim($_POST['divera_access_key'] ?? '');
                 $divera_key_clear = isset($_POST['divera_access_key_clear']) && $_POST['divera_access_key_clear'] === '1';
@@ -711,6 +713,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                             </div>
                             <small class="text-muted">Der Name aus <code>lpstat -v</code> (z.B. WacheAmern)</small>
                             <div id="printers_list" class="mt-2 small" style="display:none;"></div>
+                        </div>
+                        <hr class="my-4">
+                        <h6 class="text-muted mb-2"><i class="fas fa-envelope me-1"></i> Druck per E-Mail (E-Mail Druck Tool)</h6>
+                        <p class="text-muted small mb-3">Statt CUPS/Cloud-Drucker können Sie ein E-Mail-Postfach nutzen. Die App sendet PDFs per E-Mail dorthin. Das <strong>E-Mail Druck Tool</strong> am Zielrechner überwacht das Postfach und druckt PDF-Anhänge bei passendem Betreff.</p>
+                        <div class="mb-3">
+                            <label class="form-label">E-Mail-Postfach (Empfänger)</label>
+                            <input class="form-control" type="email" name="printer_email_recipient" id="printer_email_recipient" placeholder="druck@beispiel.de" value="<?php echo htmlspecialchars($settings['printer_email_recipient'] ?? ''); ?>">
+                            <small class="text-muted">E-Mail-Adresse, an die Druck-PDFs gesendet werden. Muss mit dem Postfach im E-Mail Druck Tool übereinstimmen.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Betreff für Druck-E-Mails</label>
+                            <input class="form-control" name="printer_email_subject" id="printer_email_subject" placeholder="DRUCK" value="<?php echo htmlspecialchars($settings['printer_email_subject'] ?? 'DRUCK'); ?>">
+                            <small class="text-muted">Dieser Betreff muss im E-Mail Druck Tool als Filter hinterlegt sein (z.B. „DRUCK“ oder „Feuerwehr Druck“).</small>
+                        </div>
+                        <div class="alert alert-info small mb-3">
+                            <strong>So funktioniert der Druck mit dem E-Mail Druck Tool:</strong>
+                            <ol class="mb-0 mt-2 ps-3">
+                                <li>Installieren Sie das <strong>E-Mail Druck Tool</strong> auf dem Rechner, an dem gedruckt werden soll.</li>
+                                <li>Richten Sie dort das Postfach ein (IMAP) – dieselbe Adresse wie oben.</li>
+                                <li>Fügen Sie einen Betreff-Filter hinzu (z.B. „DRUCK“) – muss exakt mit dem Betreff oben übereinstimmen.</li>
+                                <li>Wählen Sie den Drucker und ggf. SumatraPDF-Pfad im E-Mail Druck Tool.</li>
+                                <li>Starten Sie das Tool (oder aktivieren Sie Autostart bei Windows-Start).</li>
+                            </ol>
                         </div>
                         <?php if ($einheit_id > 0): ?>
                         <div class="mb-0 mt-3">

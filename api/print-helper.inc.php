@@ -8,12 +8,14 @@ function print_get_printer_config($db, $einheit_id = null) {
     $cups_server = getenv('CUPS_SERVER') ?: ($_SERVER['CUPS_SERVER'] ?? '');
     $cloud_url = '';
     $cloud_url_raw = false;
+    $settings = [];
     $einheit_id = $einheit_id !== null ? (int)$einheit_id : 0;
     if ($einheit_id > 0) {
         if (!function_exists('load_settings_for_einheit')) {
             require_once dirname(__DIR__) . '/includes/einheit-settings-helper.php';
         }
         $settings = load_settings_for_einheit($db, $einheit_id);
+        $settings = is_array($settings) ? $settings : [];
         $override = trim($settings['printer_cups_server'] ?? '');
         if ($override !== '') $cups_server = $override;
 
@@ -51,7 +53,17 @@ function print_get_printer_config($db, $einheit_id = null) {
         $cups_server = '172.17.0.1:631';
     }
     $cups_server = print_normalize_cups_server($cups_server);
-    return ['printer' => $printer, 'cups_server' => $cups_server, 'cloud_url' => $cloud_url, 'cloud_url_raw' => $cloud_url_raw];
+    $printer_email = $einheit_id > 0 ? trim($settings['printer_email_recipient'] ?? '') : '';
+    $printer_email_subject = $einheit_id > 0 ? trim($settings['printer_email_subject'] ?? '') ?: 'DRUCK' : 'DRUCK';
+    return [
+        'printer' => $printer,
+        'cups_server' => $cups_server,
+        'cloud_url' => $cloud_url,
+        'cloud_url_raw' => $cloud_url_raw,
+        'printer_email_recipient' => $printer_email,
+        'printer_email_subject' => $printer_email_subject ?: 'DRUCK',
+        'einheit_id' => $einheit_id,
+    ];
 }
 
 /**
@@ -275,17 +287,49 @@ function print_send_pdf_via_url($pdf_content, $url, $debug = false, $raw_pdf = f
     return $result;
 }
 
+/**
+ * Sendet PDF per E-Mail an ein überwachtes Postfach (E-Mail Druck Tool).
+ * Nutzt SMTP der Einheit. Der Betreff muss im E-Mail Druck Tool als Filter hinterlegt sein.
+ */
+function print_send_pdf_via_email($pdf_content, $printer_config, $debug = false) {
+    $to = trim($printer_config['printer_email_recipient'] ?? '');
+    $subject = trim($printer_config['printer_email_subject'] ?? 'DRUCK');
+    $einheit_id = (int)($printer_config['einheit_id'] ?? 0);
+    if (empty($to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        return ['success' => false, 'message' => 'Ungültige E-Mail-Adresse für Druck per E-Mail.'];
+    }
+    if (!function_exists('send_email_with_pdf_for_einheit')) {
+        require_once dirname(__DIR__) . '/includes/functions.php';
+    }
+    $body = 'Druckauftrag von der Feuerwehr-App. Das PDF ist angehängt.';
+    $filename = 'Feuerwehr-App-' . date('Y-m-d-His') . '.pdf';
+    $ok = send_email_with_pdf_for_einheit($to, $subject, $body, $pdf_content, $filename, $einheit_id);
+    if ($ok) {
+        $result = ['success' => true, 'message' => 'Druckauftrag wurde per E-Mail gesendet. Das E-Mail Druck Tool druckt das PDF am Zielrechner.'];
+        if ($debug) {
+            $result['debug'] = ['to' => $to, 'subject' => $subject];
+        }
+        return $result;
+    }
+    return ['success' => false, 'message' => 'E-Mail-Versand fehlgeschlagen. SMTP-Einstellungen der Einheit prüfen.'];
+}
+
 function print_send_pdf($pdf_content, $printer_config, $debug = false) {
     $cloud_url = trim($printer_config['cloud_url'] ?? '');
     $printer = trim($printer_config['printer'] ?? '');
-    if (empty($cloud_url) && empty($printer)) {
-        return ['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte Druckername oder Cloud-Drucker-URL in den Einstellungen der Einheit (Drucker-Tab) eintragen.'];
+    $printer_email = trim($printer_config['printer_email_recipient'] ?? '');
+    if (empty($cloud_url) && empty($printer) && empty($printer_email)) {
+        return ['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte Drucker, Cloud-URL oder E-Mail-Postfach in den Einstellungen der Einheit (Drucker-Tab) eintragen.'];
     }
     if (empty($pdf_content) || strlen($pdf_content) < 100) {
         return ['success' => false, 'message' => 'PDF konnte nicht erzeugt werden.'];
     }
     if (substr($pdf_content, 0, 5) !== '%PDF-') {
         return ['success' => false, 'message' => 'PDF-Inhalt ungültig (kein PDF-Header).'];
+    }
+    // E-Mail-Druck (E-Mail Druck Tool): PDF per E-Mail an überwachtes Postfach senden
+    if (!empty($printer_email)) {
+        return print_send_pdf_via_email($pdf_content, $printer_config, $debug);
     }
     // Cloud-Drucker-URL: PDF per HTTP POST senden
     if (!empty($cloud_url)) {

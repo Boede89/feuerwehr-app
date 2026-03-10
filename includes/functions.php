@@ -194,7 +194,37 @@ function send_email_for_einheit($to, $subject, $message, $einheit_id, $isHtml = 
 }
 
 /**
- * E-Mail mit PDF-Anhang senden
+ * E-Mail mit PDF-Anhang senden (SMTP der Einheit).
+ * Für Druck per E-Mail: PDF wird an Postfach gesendet, das E-Mail Druck Tool druckt es.
+ * @param int $einheit_id Einheit-ID (> 0). Bei 0 wird false zurückgegeben.
+ * @return bool true bei Erfolg
+ */
+function send_email_with_pdf_for_einheit($to, $subject, $message, $pdfContent, $pdfFilename, $einheit_id) {
+    global $db;
+    $einheit_id = (int)$einheit_id;
+    if ($einheit_id <= 0) return false;
+    if (!function_exists('load_settings_for_einheit')) {
+        require_once __DIR__ . '/einheit-settings-helper.php';
+    }
+    $settings = load_settings_for_einheit($db, $einheit_id);
+    $smtp_host = trim($settings['smtp_host'] ?? '');
+    $smtp_port = trim($settings['smtp_port'] ?? '') ?: '587';
+    $smtp_username = trim($settings['smtp_username'] ?? '');
+    $smtp_password = trim($settings['smtp_password'] ?? '');
+    $smtp_encryption = trim($settings['smtp_encryption'] ?? '') ?: 'tls';
+    $smtp_from_email = trim($settings['smtp_from_email'] ?? '') ?: 'noreply@feuerwehr-app.local';
+    $smtp_from_name = trim($settings['smtp_from_name'] ?? '') ?: 'Feuerwehr App';
+    if (empty($smtp_host) || empty($smtp_username) || empty($smtp_password)) {
+        error_log("send_email_with_pdf_for_einheit: Einheit $einheit_id hat keine SMTP-Einstellungen – keine E-Mail gesendet.");
+        return false;
+    }
+    require_once __DIR__ . '/smtp.php';
+    $smtp = new SimpleSMTP($smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name);
+    return $smtp->sendWithAttachment($to, $subject, $message, true, $pdfContent, $pdfFilename);
+}
+
+/**
+ * E-Mail mit PDF-Anhang senden (globale SMTP-Einstellungen)
  */
 function send_email_with_pdf_attachment($to, $subject, $htmlBody, $pdfContent, $pdfFilename) {
     global $db;
