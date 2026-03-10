@@ -28,6 +28,15 @@ $referer = $_SERVER['HTTP_REFERER'] ?? '';
 $host = $_SERVER['HTTP_HOST'] ?? '';
 if (!empty($referer) && !empty($host) && (strpos($referer, 'http://' . $host) === 0 || strpos($referer, 'https://' . $host) === 0)) {
     $redirect = $referer;
+    // einheit_id aus URL entfernen, damit die neu gesetzte Session-Einheit greift
+    $parsed = parse_url($redirect);
+    if (!empty($parsed['query'])) {
+        parse_str($parsed['query'], $params);
+        unset($params['einheit_id']);
+        $parsed['query'] = http_build_query($params);
+        $port = isset($parsed['port']) ? ':' . $parsed['port'] : '';
+        $redirect = ($parsed['scheme'] ?? 'http') . '://' . ($parsed['host'] ?? '') . $port . ($parsed['path'] ?? '') . ($parsed['query'] ? '?' . $parsed['query'] : '');
+    }
 }
 header('Location: ' . $redirect);
 exit;

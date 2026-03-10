@@ -680,23 +680,6 @@ try {
     <div class="container-fluid mt-4">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
             <h1 class="h3 mb-0"><i class="fas fa-file-alt"></i> Formularcenter</h1>
-            <?php if (function_exists('can_switch_einheit') && can_switch_einheit() && !empty($user_eins = function_exists('get_user_einheiten') ? get_user_einheiten() : [])): ?>
-            <form method="get" class="d-flex align-items-center gap-2">
-                <input type="hidden" name="tab" value="<?php echo htmlspecialchars($active_tab); ?>">
-                <?php if ($filter_formular !== ''): ?><input type="hidden" name="filter_formular" value="<?php echo htmlspecialchars($filter_formular); ?>"><?php endif; ?>
-                <?php if ($filter_typ !== ''): ?><input type="hidden" name="filter_typ" value="<?php echo htmlspecialchars($filter_typ); ?>"><?php endif; ?>
-                <?php if ($filter_datum_von !== ''): ?><input type="hidden" name="filter_datum_von" value="<?php echo htmlspecialchars($filter_datum_von); ?>"><?php endif; ?>
-                <?php if ($filter_datum_bis !== ''): ?><input type="hidden" name="filter_datum_bis" value="<?php echo htmlspecialchars($filter_datum_bis); ?>"><?php endif; ?>
-                <?php if ($filter_beschreibung !== ''): ?><input type="hidden" name="filter_beschreibung" value="<?php echo htmlspecialchars($filter_beschreibung); ?>"><?php endif; ?>
-                <label class="form-label mb-0 small text-muted">Einheit:</label>
-                <select name="einheit_id" class="form-select form-select-sm" style="width: auto; min-width: 180px;" onchange="this.form.submit();">
-                    <option value="">Alle Einheiten</option>
-                    <?php foreach ($user_eins as $ue): ?>
-                    <option value="<?php echo (int)$ue['id']; ?>" <?php echo ($einheit_filter && (int)$ue['id'] === (int)$einheit_filter) ? 'selected' : ''; ?>><?php echo htmlspecialchars($ue['name']); ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </form>
-            <?php endif; ?>
         </div>
 
         <?php if ($message): ?>
