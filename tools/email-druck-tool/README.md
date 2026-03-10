@@ -24,8 +24,12 @@
 
 1. „Autostart bei Windows-Start (im Hintergrund)“ aktivieren
 2. **Speichern** klicken
-3. Das Tool wird in den Windows-Startup-Ordner eingetragen und startet beim nächsten Neustart automatisch – ohne sichtbares Fenster
+3. Es wird ein Windows-Task (Task Scheduler) angelegt – mit vollem Python-Pfad, damit es auch beim Start (ohne PATH) funktioniert
+4. Beim nächsten Anmelden startet das Tool automatisch im Hintergrund
 
-## Manueller Start im Hintergrund
+**Falls Autostart nicht funktioniert:** Task Scheduler öffnen (`taskschd.msc`), nach „E-Mail-Druck-Tool“ suchen. Der Task muss den vollen Pfad zu `pythonw.exe` verwenden.
 
-`start_hidden.bat` startet das Tool ohne Fenster (ohne Autostart).
+## Manueller Start
+
+- `start.bat` – startet die Überwachung im Hintergrund und öffnet die Einstellungs-GUI
+- `start_hidden.bat` – startet nur die Überwachung (ohne Fenster)

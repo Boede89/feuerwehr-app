@@ -140,13 +140,16 @@ class EmailDruckGUI:
 
     def _get_values(self):
         """Sammelt alle Werte aus der UI – inkl. Passwort (immer mitschreiben)."""
+        pwd = self.imap_password.get()
+        if not isinstance(pwd, str):
+            pwd = str(pwd or "")
         return {
             "imap": {
                 "host": self.imap_host.get().strip(),
                 "port": int(self.imap_port.get() or 993),
                 "use_ssl": self.imap_ssl.get(),
                 "username": self.imap_username.get().strip(),
-                "password": self.imap_password.get(),  # Immer speichern – kein "nur wenn geändert"
+                "password": pwd,  # Immer explizit speichern
                 "folder": self.imap_folder.get().strip() or "INBOX"
             },
             "filter": {
@@ -163,41 +166,82 @@ class EmailDruckGUI:
     def _save(self):
         config = self._get_values()
         if save_config(config):
-            messagebox.showinfo("Gespeichert", "Alle Einstellungen wurden in config.json gespeichert.")
+            # Prüfen ob Passwort in Datei steht
+            saved_pwd = (config.get("imap") or {}).get("password", "")
+            cfg_path = Path(__file__).parent / "config.json"
+            msg = f"Alle Einstellungen wurden in config.json gespeichert.\n\nSpeicherort: {cfg_path}"
+            if saved_pwd:
+                msg += "\n\nPasswort wurde gespeichert."
+            messagebox.showinfo("Gespeichert", msg)
             self.config = config
             # Autostart einrichten oder entfernen
             self._setup_autostart(config.get("autostart_enabled"))
         else:
             messagebox.showerror("Fehler", "Konfiguration konnte nicht gespeichert werden.")
 
+    def _get_pythonw_path(self):
+        """Vollen Pfad zu pythonw.exe ermitteln – wichtig für Autostart (PATH oft leer)."""
+        import sys
+        import shutil
+        base = Path(sys.executable).parent.resolve()
+        pythonw = base / "pythonw.exe"
+        if pythonw.exists():
+            return str(pythonw)
+        found = shutil.which("pythonw")
+        if found:
+            return found
+        return str(base / "python.exe")
+
     def _setup_autostart(self, enabled):
-        """Richtet Windows-Autostart ein oder entfernt ihn – ohne sichtbares Fenster."""
+        """Richtet Windows-Autostart ein (Task Scheduler + Startup) oder entfernt ihn."""
         import os
+        import subprocess
+        script_dir = Path(__file__).parent.resolve()
+        py_script = script_dir / "email_druck_tool.py"
+        pythonw = self._get_pythonw_path()
         startup = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
-        link = startup / "E-Mail-Druck-Tool.vbs"
+        vbs_link = startup / "E-Mail-Druck-Tool.vbs"
+        task_name = "E-Mail-Druck-Tool"
+
         if not enabled:
             try:
-                if link.exists():
-                    link.unlink()
-                    messagebox.showinfo("Autostart", "Autostart wurde deaktiviert.")
+                subprocess.run(["schtasks", "/delete", "/tn", task_name, "/f"], capture_output=True)
+                if vbs_link.exists():
+                    vbs_link.unlink()
+                messagebox.showinfo("Autostart", "Autostart wurde deaktiviert.")
             except Exception as e:
                 messagebox.showwarning("Autostart", f"Autostart konnte nicht entfernt werden: {e}")
             return
-        script_dir = Path(__file__).parent.resolve()
-        py_script = script_dir / "email_druck_tool.py"
+
+        # 1. Task Scheduler (zuverlässig, volle Pfade – kein PATH nötig)
+        cmd = f'"{pythonw}" "{py_script}" --headless'
+        try:
+            r = subprocess.run([
+                "schtasks", "/create", "/tn", task_name,
+                "/tr", cmd,
+                "/sc", "onlogon",
+                "/f"
+            ], capture_output=True, text=True, timeout=10)
+            if r.returncode == 0:
+                messagebox.showinfo("Autostart", "Autostart wurde eingerichtet (Task Scheduler). Das Tool startet beim Anmelden im Hintergrund.")
+                return
+        except Exception:
+            pass
+
+        # 2. Fallback: VBS im Startup-Ordner (mit vollem pythonw-Pfad)
         vbs_content = f'''Set WshShell = CreateObject("WScript.Shell")
 WshShell.CurrentDirectory = "{script_dir}"
-WshShell.Run "pythonw ""{py_script}"" --headless", 0, False
+WshShell.Run """{pythonw}"" ""{py_script}"" --headless", 0, False
 '''
         if startup.exists():
             try:
-                with open(link, "w", encoding="utf-8") as f:
+                with open(vbs_link, "w", encoding="utf-8") as f:
                     f.write(vbs_content)
-                messagebox.showinfo("Autostart", "Autostart wurde eingerichtet. Das Tool startet beim Windows-Start im Hintergrund (ohne Fenster).")
+                messagebox.showinfo("Autostart", "Autostart wurde eingerichtet (Startup-Ordner). Das Tool startet beim Anmelden im Hintergrund.")
             except Exception as e:
-                messagebox.showwarning("Autostart", f"Autostart konnte nicht eingerichtet werden: {e}")
+                messagebox.showerror("Autostart", f"Autostart konnte nicht eingerichtet werden: {e}")
         else:
-            messagebox.showinfo("Autostart", "Startup-Ordner nicht gefunden. Bitte start_hidden.vbs manuell in den Windows-Startup-Ordner kopieren.")
+            messagebox.showerror("Autostart", "Startup-Ordner nicht gefunden.")
 
     def run(self):
         self.root.mainloop()
