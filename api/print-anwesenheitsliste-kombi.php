@@ -81,21 +81,27 @@ if ($print_al > 0) {
     }
 }
 
-// 2. Mängelbericht(e)
+// 2. Mängelbericht(e) – je ein eigenes PDF pro Mängelbericht
 if ($print_mb_ids !== '') {
-    $_GET['ids'] = $print_mb_ids;
-    $GLOBALS['_mb_pdf_content'] = null;
-    try {
-        ob_start();
-        require __DIR__ . '/maengelbericht-pdf-alle.php';
-        ob_end_clean();
-        $pdf = $GLOBALS['_mb_pdf_content'] ?? null;
-        if ($pdf && strlen($pdf) > 100 && substr($pdf, 0, 5) === '%PDF-') {
-            $attachments[] = [$pdf, 'Maengelberichte.pdf'];
-            if ($first_pdf === null) $first_pdf = $pdf;
+    $mb_ids = array_filter(array_map('intval', explode(',', $print_mb_ids)), function($x) { return $x > 0; });
+    $mb_num = 0;
+    foreach ($mb_ids as $mb_id) {
+        $_GET['id'] = $mb_id;
+        $_GET['ids'] = '';
+        $GLOBALS['_mb_pdf_content'] = null;
+        try {
+            ob_start();
+            require __DIR__ . '/maengelbericht-pdf.php';
+            ob_end_clean();
+            $pdf = $GLOBALS['_mb_pdf_content'] ?? null;
+            if ($pdf && strlen($pdf) > 100 && substr($pdf, 0, 5) === '%PDF-') {
+                $mb_num++;
+                $attachments[] = [$pdf, 'Maengelbericht_' . $mb_num . '.pdf'];
+                if ($first_pdf === null) $first_pdf = $pdf;
+            }
+        } catch (Exception $e) {
+            ob_end_clean();
         }
-    } catch (Exception $e) {
-        ob_end_clean();
     }
 }
 
