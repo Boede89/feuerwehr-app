@@ -58,11 +58,14 @@ $stmt = $params ? $db->prepare($sql) : $db->query($sql);
 if ($params) $stmt->execute($params);
 $berichte = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Debug: bei expliziten IDs prüfen, ob alle Berichte gefunden wurden
+// Debug: in Projekt-Log schreiben (logs/debug-maengelbericht.log)
 if ($ids_param !== '' && $return_mode) {
     $ids = array_filter(array_map('intval', explode(',', $ids_param)), function($x) { return $x > 0; });
-    if (count($berichte) < count($ids)) {
-        error_log('maengelbericht-pdf-alle: ids_param=' . $ids_param . ', ids_count=' . count($ids) . ', berichte_count=' . count($berichte) . ', bericht_ids=' . implode(',', array_column($berichte, 'id')));
+    $bericht_ids = array_column($berichte, 'id');
+    $log_file = __DIR__ . '/../logs/debug-maengelbericht.log';
+    if (is_dir(__DIR__ . '/../logs') || @mkdir(__DIR__ . '/../logs', 0755, true)) {
+        $msg = date('Y-m-d H:i:s') . " PDF-ALLE: ids_param=" . $ids_param . ", ids_count=" . count($ids) . ", berichte_count=" . count($berichte) . ", bericht_ids=" . implode(',', $bericht_ids) . "\n";
+        @file_put_contents($log_file, $msg, FILE_APPEND | LOCK_EX);
     }
 }
 
