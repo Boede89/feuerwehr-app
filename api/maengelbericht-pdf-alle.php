@@ -22,6 +22,8 @@ $filter_datum_bis = trim($_GET['filter_datum_bis'] ?? '');
 $ids_param = trim($_GET['ids'] ?? '');
 $return_mode = !empty($_GET['_return']);
 $einheit_filter = isset($_GET['einheit_id']) && (int)$_GET['einheit_id'] > 0 ? (int)$_GET['einheit_id'] : (function_exists('get_admin_einheit_filter') ? get_admin_einheit_filter() : null);
+// Bei expliziten IDs keinen Einheitenfilter – alle angeforderten Berichte liefern
+if ($ids_param !== '') $einheit_filter = null;
 
 $sql = "
     SELECT m.*, COALESCE(u.first_name, '') AS user_first_name, COALESCE(u.last_name, '') AS user_last_name
