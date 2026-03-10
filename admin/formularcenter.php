@@ -881,6 +881,7 @@ try {
                                         <td>
                                             <a href="maengelbericht-bearbeiten.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-edit"></i> Anzeigen & Bearbeiten</a>
                                             <a href="../api/maengelbericht-pdf.php?id=<?php echo (int)$m['id']; ?>" class="btn btn-outline-success btn-sm" title="PDF herunterladen" download><i class="fas fa-file-pdf"></i> PDF</a>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" title="Drucken" onclick="druckenMaengelbericht(<?php echo (int)$m['id']; ?>, this)"><i class="fas fa-print"></i> Drucken</button>
                                             <form method="post" class="d-inline" data-delete-type="Mängelbericht">
                                                 <input type="hidden" name="form_center_csrf" value="<?php echo htmlspecialchars($_SESSION['form_center_csrf']); ?>">
                                                 <input type="hidden" name="action" value="delete_maengelbericht">
