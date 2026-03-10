@@ -58,6 +58,14 @@ $stmt = $params ? $db->prepare($sql) : $db->query($sql);
 if ($params) $stmt->execute($params);
 $berichte = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Debug: bei expliziten IDs prüfen, ob alle Berichte gefunden wurden
+if ($ids_param !== '' && $return_mode) {
+    $ids = array_filter(array_map('intval', explode(',', $ids_param)), function($x) { return $x > 0; });
+    if (count($berichte) < count($ids)) {
+        error_log('maengelbericht-pdf-alle: ids_param=' . $ids_param . ', ids_count=' . count($ids) . ', berichte_count=' . count($berichte) . ', bericht_ids=' . implode(',', array_column($berichte, 'id')));
+    }
+}
+
 if (empty($berichte)) {
     if ($return_mode) {
         $GLOBALS['_mb_pdf_content'] = null;
@@ -71,8 +79,8 @@ if (empty($berichte)) {
 $html_parts = [];
 $berichte_count = count($berichte);
 foreach ($berichte as $idx => $bericht) {
-    $is_last = ($idx === $berichte_count - 1);
-    $page_break_style = $is_last ? '' : 'page-break-after: always;';
+    // page-break-before für 2.+ Seiten (zuverlässiger als page-break-after bei Dompdf/wkhtmltopdf)
+    $page_break_style = ($idx > 0) ? 'page-break-before: always;' : '';
     $aufgenommen_durch = '';
     if (!empty($bericht['aufgenommen_durch_member_id'])) {
         try {
@@ -97,7 +105,7 @@ foreach ($berichte as $idx => $bericht) {
     }
 
     $html_parts[] = '
-    <div class="mb-page" style="' . $page_break_style . '">
+    <div class="mb-page" style="' . $page_break_style . ' page-break-inside: avoid;">
         <div class="section">
             <div class="section-title">Mängelbericht – ' . htmlspecialchars($bericht['standort'] ?? '') . ' (' . date('d.m.Y', strtotime($bericht['aufgenommen_am'])) . ')</div>
             <table>
@@ -225,9 +233,14 @@ if (file_exists($tcpdfPath)) {
             $pdf->setPrintFooter(false);
             $pdf->SetMargins(12, 12, 12);
             $pdf->SetAutoPageBreak(true, 12);
-            $pdf->AddPage();
             $pdf->SetFont('helvetica', '', 10);
-            $pdf->writeHTML($html, true, false, true, false, '');
+            // Pro Mängelbericht eine eigene Seite – zuverlässig für mehrere Berichte
+            $logo_html = '<div class="header">' . get_pdf_logo_html() . '</div>';
+            $page_html = '<style>table{width:100%;border-collapse:collapse;font-size:9pt}.label-cell{width:140px;background:#f5f5f5;font-weight:bold;padding:3px 6px;border:1px solid #ddd}.value-cell{padding:3px 6px;border:1px solid #ddd}.section{margin-bottom:8px}.section-title{font-weight:bold;font-size:10pt;margin-bottom:4px}.geraetewart-section{margin-top:10px;padding-top:8px;border-top:2px solid #333}.signature-section{margin-top:10px;padding-top:8px;border-top:1px solid #333}.signature-line{border-bottom:1px solid #333;width:160px;min-height:22px;margin-top:10px;padding-top:4px}</style>';
+            foreach ($html_parts as $part) {
+                $pdf->AddPage();
+                $pdf->writeHTML($page_html . $logo_html . $part, true, false, true, false, '');
+            }
             $pdf_content = $pdf->Output('', 'S');
             if ($return_mode) { $GLOBALS['_mb_pdf_content'] = $pdf_content; return; }
             header('Content-Type: application/pdf');

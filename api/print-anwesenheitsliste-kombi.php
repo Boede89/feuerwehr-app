@@ -83,6 +83,8 @@ if ($print_al > 0) {
 
 // 2. Mängelbericht(e) – alle in einem PDF (maengelbericht-pdf-alle, zuverlässig)
 if ($print_mb_ids !== '') {
+    $mb_id_count = count(array_filter(array_map('intval', explode(',', $print_mb_ids)), function($x) { return $x > 0; }));
+    if ($mb_id_count > 1) error_log('print-kombi: print_maengelbericht=' . $print_mb_ids . ', count=' . $mb_id_count);
     $_GET['ids'] = $print_mb_ids;
     $_GET['id'] = '';
     $GLOBALS['_mb_pdf_content'] = null;
