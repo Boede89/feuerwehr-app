@@ -20,7 +20,7 @@ if (!has_form_fill_permission()) {
 }
 
 $print_al = (int)($_GET['print'] ?? 0);
-$print_mb_ids = trim($_GET['print_maengelbericht'] ?? '');
+$print_mb_ids = trim(urldecode($_GET['print_maengelbericht'] ?? ''));
 $print_gwm = (int)($_GET['print_geraetewartmitteilung'] ?? 0);
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : null;
 

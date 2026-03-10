@@ -19,7 +19,7 @@ if (!has_form_fill_permission()) {
 
 $filter_datum_von = trim($_GET['filter_datum_von'] ?? '');
 $filter_datum_bis = trim($_GET['filter_datum_bis'] ?? '');
-$ids_param = trim($_GET['ids'] ?? '');
+$ids_param = trim(urldecode($_GET['ids'] ?? ''));
 $return_mode = !empty($_GET['_return']);
 $einheit_filter = isset($_GET['einheit_id']) && (int)$_GET['einheit_id'] > 0 ? (int)$_GET['einheit_id'] : (function_exists('get_admin_einheit_filter') ? get_admin_einheit_filter() : null);
 // Bei expliziten IDs keinen Einheitenfilter – alle angeforderten Berichte liefern
