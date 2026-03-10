@@ -44,6 +44,10 @@ Thumbs.db
 # Docker volumes
 mysql_data/
 
+# Python
+__pycache__/
+*.py[cod]
+
 # PHP
 vendor/
 composer.lock
