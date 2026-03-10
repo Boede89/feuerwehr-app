@@ -225,6 +225,35 @@ function print_send_pdf_via_url($pdf_content, $url, $debug = false, $raw_pdf = f
 }
 
 /**
+ * Sendet mehrere PDFs in einer E-Mail an ein überwachtes Postfach (E-Mail Druck Tool).
+ * @param array $attachments Array von [content, filename]
+ */
+function print_send_pdfs_via_email(array $attachments, $printer_config, $debug = false) {
+    $to = trim($printer_config['printer_email_recipient'] ?? '');
+    $subject = trim($printer_config['printer_email_subject'] ?? 'DRUCK');
+    $einheit_id = (int)($printer_config['einheit_id'] ?? 0);
+    if (empty($to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        return ['success' => false, 'message' => 'Ungültige E-Mail-Adresse für Druck per E-Mail.'];
+    }
+    if (empty($attachments)) {
+        return ['success' => false, 'message' => 'Keine PDFs zum Senden.'];
+    }
+    if (!function_exists('send_email_with_pdfs_for_einheit')) {
+        require_once dirname(__DIR__) . '/includes/functions.php';
+    }
+    $body = 'Druckauftrag von der Feuerwehr-App. ' . count($attachments) . ' PDF(s) sind angehängt.';
+    $ok = send_email_with_pdfs_for_einheit($to, $subject, $body, $attachments, $einheit_id);
+    if ($ok) {
+        $result = ['success' => true, 'message' => 'Druckauftrag wurde per E-Mail gesendet. Das E-Mail Druck Tool druckt die PDFs am Zielrechner.'];
+        if ($debug) {
+            $result['debug'] = ['to' => $to, 'subject' => $subject, 'attachments' => count($attachments)];
+        }
+        return $result;
+    }
+    return ['success' => false, 'message' => 'E-Mail-Versand fehlgeschlagen. SMTP-Einstellungen der Einheit prüfen.'];
+}
+
+/**
  * Sendet PDF per E-Mail an ein überwachtes Postfach (E-Mail Druck Tool).
  * Nutzt SMTP der Einheit. Der Betreff muss im E-Mail Druck Tool als Filter hinterlegt sein.
  */

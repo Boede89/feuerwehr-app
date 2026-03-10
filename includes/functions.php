@@ -224,6 +224,35 @@ function send_email_with_pdf_for_einheit($to, $subject, $message, $pdfContent, $
 }
 
 /**
+ * E-Mail mit mehreren PDF-Anhängen senden (SMTP der Einheit).
+ * @param array $attachments Array von [content, filename] – z.B. [[$pdf1, 'Anwesenheit.pdf'], [$pdf2, 'Maengel.pdf']]
+ * @return bool true bei Erfolg
+ */
+function send_email_with_pdfs_for_einheit($to, $subject, $message, array $attachments, $einheit_id) {
+    global $db;
+    $einheit_id = (int)$einheit_id;
+    if ($einheit_id <= 0 || empty($attachments)) return false;
+    if (!function_exists('load_settings_for_einheit')) {
+        require_once __DIR__ . '/einheit-settings-helper.php';
+    }
+    $settings = load_settings_for_einheit($db, $einheit_id);
+    $smtp_host = trim($settings['smtp_host'] ?? '');
+    $smtp_port = trim($settings['smtp_port'] ?? '') ?: '587';
+    $smtp_username = trim($settings['smtp_username'] ?? '');
+    $smtp_password = trim($settings['smtp_password'] ?? '');
+    $smtp_encryption = trim($settings['smtp_encryption'] ?? '') ?: 'tls';
+    $smtp_from_email = trim($settings['smtp_from_email'] ?? '') ?: 'noreply@feuerwehr-app.local';
+    $smtp_from_name = trim($settings['smtp_from_name'] ?? '') ?: 'Feuerwehr App';
+    if (empty($smtp_host) || empty($smtp_username) || empty($smtp_password)) {
+        error_log("send_email_with_pdfs_for_einheit: Einheit $einheit_id hat keine SMTP-Einstellungen – keine E-Mail gesendet.");
+        return false;
+    }
+    require_once __DIR__ . '/smtp.php';
+    $smtp = new SimpleSMTP($smtp_host, $smtp_port, $smtp_username, $smtp_password, $smtp_encryption, $smtp_from_email, $smtp_from_name);
+    return $smtp->sendWithMultipleAttachments($to, $subject, $message, true, $attachments);
+}
+
+/**
  * E-Mail mit PDF-Anhang senden (globale SMTP-Einstellungen)
  */
 function send_email_with_pdf_attachment($to, $subject, $htmlBody, $pdfContent, $pdfFilename) {

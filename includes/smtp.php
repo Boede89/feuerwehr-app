@@ -68,6 +68,59 @@ class SimpleSMTP {
         return $this->sendRaw($to, $email_data);
     }
 
+    /**
+     * E-Mail mit mehreren PDF-Anhängen senden.
+     * @param array $attachments Array von [content, filename] – z.B. [[$pdf1, 'Anwesenheit.pdf'], [$pdf2, 'Maengel.pdf']]
+     */
+    public function sendWithMultipleAttachments($to, $subject, $message, $isHtml, array $attachments) {
+        $boundary = '----=_Part_' . md5(uniqid(mt_rand(), true));
+        $boundary2 = '----=_Part2_' . md5(uniqid(mt_rand(), true));
+        $from_name_clean = trim($this->from_name);
+        $from_email_clean = trim($this->from_email);
+        $to_clean = trim($to);
+        $subject_clean = trim($subject);
+        $subject_clean = str_replace(["\r", "\n"], "", $subject_clean);
+        $subject_clean = preg_replace('/\s+/', ' ', $subject_clean);
+        if (preg_match('/[^\x20-\x7E]/', $subject_clean)) {
+            $subject_clean = '=?UTF-8?B?' . base64_encode($subject_clean) . '?=';
+        }
+        $from_name_clean = str_replace(["\r", "\n"], "", $from_name_clean);
+        $from_name_clean = preg_replace('/\s+/', ' ', $from_name_clean);
+        $domain = 'localhost';
+        if (preg_match('/@([^@]+)$/', $from_email_clean, $matches)) $domain = $matches[1];
+        $messageId = sprintf('%s.%s@%s', date('YmdHis'), bin2hex(random_bytes(8)), $domain);
+        if (preg_match('/[^\x20-\x7E]/', $from_name_clean) || strpos($from_name_clean, ',') !== false || strpos($from_name_clean, ';') !== false) {
+            $from_name_encoded = '=?UTF-8?B?' . base64_encode($from_name_clean) . '?=';
+            $email_data = "From: {$from_name_encoded} <{$from_email_clean}>\r\n";
+        } else {
+            $email_data = "From: \"{$from_name_clean}\" <{$from_email_clean}>\r\n";
+        }
+        $email_data .= "To: {$to_clean}\r\nReply-To: {$from_email_clean}\r\nReturn-Path: <{$from_email_clean}>\r\n";
+        $email_data .= "Subject: {$subject_clean}\r\nDate: " . date('r') . "\r\nMessage-ID: <{$messageId}>\r\n";
+        $email_data .= "MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"{$boundary}\"\r\n\r\n";
+        $email_data .= "--{$boundary}\r\nContent-Type: multipart/alternative; boundary=\"{$boundary2}\"\r\n\r\n";
+        $plainText = strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>', '</div>', '</li>'], "\n", $message));
+        $plainText = html_entity_decode($plainText, ENT_QUOTES, 'UTF-8');
+        $plainText = preg_replace('/\n{3,}/', "\n\n", trim($plainText));
+        $email_data .= "--{$boundary2}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n";
+        $email_data .= chunk_split(base64_encode($plainText), 76, "\r\n");
+        $email_data .= "--{$boundary2}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n";
+        $email_data .= chunk_split(base64_encode($message), 76, "\r\n");
+        $email_data .= "--{$boundary2}--\r\n";
+        foreach ($attachments as $att) {
+            $content = $att[0] ?? '';
+            $filename = $att[1] ?? 'Anhang.pdf';
+            $filename = preg_replace('/[^\w\.\-]/', '_', $filename);
+            if (strlen($content) > 0) {
+                $email_data .= "--{$boundary}\r\nContent-Type: application/pdf; name=\"" . addslashes($filename) . "\"\r\n";
+                $email_data .= "Content-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=\"" . addslashes($filename) . "\"\r\n\r\n";
+                $email_data .= chunk_split(base64_encode($content), 76, "\r\n");
+            }
+        }
+        $email_data .= "--{$boundary}--\r\n";
+        return $this->sendRaw($to, $email_data);
+    }
+
     private function sendRaw($to, $email_data) {
         try {
             $protocol = ($this->encryption === 'ssl' || $this->port == 465) ? 'ssl://' : '';
