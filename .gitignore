@@ -62,6 +62,7 @@ files/
 config/local.php
 config/production.php
 config/divera.local.php
+tools/email-druck-tool/config.json
 
 # Node modules (if using any frontend build tools)
 node_modules/

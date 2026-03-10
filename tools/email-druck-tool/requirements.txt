@@ -1,0 +1,2 @@
+# E-Mail Druck Tool – nur Standard-Python-Bibliotheken (imaplib, email, json, tkinter)
+# Keine zusätzlichen Pakete nötig

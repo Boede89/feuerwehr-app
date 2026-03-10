@@ -1,0 +1,19 @@
+{
+  "imap": {
+    "host": "imap.gmail.com",
+    "port": 993,
+    "use_ssl": true,
+    "username": "",
+    "password": "",
+    "folder": "INBOX"
+  },
+  "filter": {
+    "subject_contains": "DRUCK"
+  },
+  "printer": {
+    "name": "",
+    "sumatra_pdf_path": ""
+  },
+  "check_interval_seconds": 60,
+  "autostart_enabled": false
+}
