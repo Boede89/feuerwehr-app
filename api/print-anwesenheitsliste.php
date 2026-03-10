@@ -34,10 +34,14 @@ if ($alle) {
         exit;
     }
     if ($einheit_id <= 0) {
-        $stmt = $db->prepare("SELECT einheit_id FROM anwesenheitslisten WHERE id = ?");
+        $stmt = $db->prepare("SELECT a.einheit_id, u.einheit_id AS user_einheit_id FROM anwesenheitslisten a LEFT JOIN users u ON u.id = a.user_id WHERE a.id = ?");
         $stmt->execute([$id]);
         $r = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($r && (int)($r['einheit_id'] ?? 0) > 0) $einheit_id = (int)$r['einheit_id'];
+        if ($r && (int)($r['einheit_id'] ?? 0) > 0) {
+            $einheit_id = (int)$r['einheit_id'];
+        } elseif ($r && (int)($r['user_einheit_id'] ?? 0) > 0) {
+            $einheit_id = (int)$r['user_einheit_id'];
+        }
     }
     require_once __DIR__ . '/anwesenheitsliste-pdf.php';
     $pdf_content = $GLOBALS['_al_pdf_content'] ?? null;

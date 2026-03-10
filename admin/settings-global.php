@@ -717,8 +717,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                         <div class="mb-0 mt-3">
                             <button type="submit" form="mainForm" class="btn btn-success me-2"><i class="fas fa-save me-1"></i> Drucker-Einstellungen speichern</button>
                             <button type="button" class="btn btn-primary" id="btn_test_print"><i class="fas fa-print me-1"></i> Testdruck</button>
+                            <a href="../api/print-debug.php?einheit_id=<?php echo (int)$einheit_id; ?>" class="btn btn-outline-secondary ms-2" target="_blank" title="Druck-Konfiguration und SMTP-Status prüfen"><i class="fas fa-stethoscope me-1"></i> Diagnose</a>
                             <span id="test_print_result" class="ms-2 small"></span>
                         </div>
+                        <p class="text-muted small mt-2">Bei Druckfehlern: „Diagnose“ öffnen – zeigt ob E-Mail-Postfach und SMTP korrekt konfiguriert sind.</p>
                         <?php endif; ?>
                     </div>
                 </div>

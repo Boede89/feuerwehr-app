@@ -27,10 +27,14 @@ $_GET['_return'] = '1';
 $pdf_content = null;
 
 if (!$alle && $ids === '' && $id > 0 && $einheit_id <= 0) {
-    $stmt = $db->prepare("SELECT einheit_id FROM geraetewartmitteilungen WHERE id = ?");
+    $stmt = $db->prepare("SELECT g.einheit_id, u.einheit_id AS user_einheit_id FROM geraetewartmitteilungen g LEFT JOIN users u ON u.id = g.user_id WHERE g.id = ?");
     $stmt->execute([$id]);
     $r = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($r && (int)($r['einheit_id'] ?? 0) > 0) $einheit_id = (int)$r['einheit_id'];
+    if ($r && (int)($r['einheit_id'] ?? 0) > 0) {
+        $einheit_id = (int)$r['einheit_id'];
+    } elseif ($r && (int)($r['user_einheit_id'] ?? 0) > 0) {
+        $einheit_id = (int)$r['user_einheit_id'];
+    }
 }
 
 if ($alle || $ids !== '') {
