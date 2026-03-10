@@ -14,9 +14,38 @@ function print_get_printer_config($db, $einheit_id = null) {
             require_once dirname(__DIR__) . '/includes/einheit-settings-helper.php';
         }
         $settings = load_settings_for_einheit($db, $einheit_id);
-        $printer = trim($settings['printer_destination'] ?? '');
         $override = trim($settings['printer_cups_server'] ?? '');
         if ($override !== '') $cups_server = $override;
+
+        // Zuerst printer_list prüfen (neue Druckerverwaltung)
+        $list = print_get_printer_list($db, $einheit_id);
+        $default = null;
+        foreach ($list as $p) {
+            if (!empty($p['is_default'])) {
+                $default = $p;
+                break;
+            }
+        }
+        if ($default === null && !empty($list)) {
+            $default = $list[0];
+        }
+        if ($default !== null) {
+            if (($default['type'] ?? '') === 'cloud' && !empty($default['cloud_url'])) {
+                $cloud_url = trim($default['cloud_url']);
+                $cloud_url_raw = !empty($default['cloud_raw']);
+            } else {
+                $printer = trim($default['cups_name'] ?? $default['name'] ?? '');
+            }
+        }
+
+        // Fallback: Legacy-Einstellungen
+        if ($cloud_url === '' && $printer === '') {
+            $printer = trim($settings['printer_destination'] ?? '');
+            if ($printer === '' && trim($settings['printer_cloud_url'] ?? '') !== '') {
+                $cloud_url = trim($settings['printer_cloud_url']);
+                $cloud_url_raw = ($settings['printer_cloud_url_raw'] ?? '') === '1';
+            }
+        }
     }
     if ($cups_server === '' && (getenv('DOCKER') || file_exists('/.dockerenv'))) {
         $cups_server = '172.17.0.1:631';
@@ -274,8 +303,8 @@ function print_send_pdf($pdf_content, $printer_config, $debug = false) {
     }
     $file = escapeshellarg($tmp);
     $job_title = escapeshellarg('Feuerwehr-App-' . date('Y-m-d-His') . '.pdf');
-    // Ohne -t: Job-Titel kann bei manchen IPP-Cloud-Druckern (Workplace Pure) "file info queued" verursachen
-    $cmd = 'lp' . $lp_h . ' -d ' . $printer_esc . ' -o document-format=application/pdf ' . $file;
+    // -t Job-Titel erforderlich: Ohne -t verursachen manche IPP-Cloud-Drucker (Workplace Pure, Princh) "file info queued" – Job-Metadaten kommen an, Dokument wird nicht gedruckt
+    $cmd = 'lp' . $lp_h . ' -d ' . $printer_esc . ' -t ' . $job_title . ' -o document-format=application/pdf ' . $file;
     exec($cmd . ' 2>&1', $out, $code);
     $output_str = implode("\n", $out);
     @unlink($tmp);
