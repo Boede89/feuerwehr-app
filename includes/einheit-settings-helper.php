@@ -72,6 +72,26 @@ function load_settings_for_einheit($db, $einheit_id = null) {
 }
 
 /**
+ * Lädt die Atemschutz-Warnschwelle (Tage bis Ablauf für gelbe Markierung).
+ * Zuerst aus einheit_settings (wenn einheit_id > 0), sonst aus globalem settings.
+ */
+function get_atemschutz_warn_days($db, $einheit_id = null) {
+    $default = 90;
+    if ($einheit_id !== null && $einheit_id > 0) {
+        $settings = load_settings_for_einheit($db, $einheit_id);
+        $val = $settings['atemschutz_warn_days'] ?? '';
+        if ($val !== '' && is_numeric($val)) return (int)$val;
+    }
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'atemschutz_warn_days' LIMIT 1");
+        $stmt->execute();
+        $val = $stmt->fetchColumn();
+        if ($val !== false && is_numeric($val)) return (int)$val;
+    } catch (Exception $e) {}
+    return $default;
+}
+
+/**
  * Stellt sicher, dass die Tabelle einheit_settings existiert.
  */
 function ensure_einheit_settings_table($db) {

@@ -374,14 +374,9 @@ if ($can_atemschutz) {
         try { $db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN unit_id INT NULL"); } catch (Exception $e) {}
         try { $db->exec("ALTER TABLE atemschutz_traeger ADD COLUMN einheit_id INT NULL"); } catch (Exception $e) {}
         
-        // Warnschwelle laden (Standard: 90 Tage)
-        $warn_days = 90;
-        $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'atemschutz_warn_days' LIMIT 1");
-        $stmt->execute();
-        $setting = $stmt->fetch();
-        if ($setting && is_numeric($setting['setting_value'])) {
-            $warn_days = (int)$setting['setting_value'];
-        }
+        // Warnschwelle laden (einheitsspezifisch aus Einstellungen)
+        require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+        $warn_days = get_atemschutz_warn_days($db, $effective_unit_id);
         
         $warn_date = date('Y-m-d', strtotime("+{$warn_days} days"));
         

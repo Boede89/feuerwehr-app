@@ -3,6 +3,7 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once __DIR__ . '/../includes/einheiten-setup.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 if (!isset($_SESSION['user_id']) || (!has_permission('atemschutz') && !hasAdminPermission())) {
     header('Location: ../login.php?error=access_denied');
@@ -100,14 +101,9 @@ try {
     $error = "Fehler beim Laden der Geräteträger: " . $e->getMessage();
 }
 
-// Warnschwelle laden
-$warnDays = 90;
-try {
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'atemschutz_warn_days' LIMIT 1");
-    $stmt->execute();
-    $val = $stmt->fetchColumn();
-    if ($val !== false && is_numeric($val)) { $warnDays = (int)$val; }
-} catch (Exception $e) {}
+// Warnschwelle laden (einheitsspezifisch)
+$einheit_for_warn = function_exists('get_admin_einheit_filter') ? get_admin_einheit_filter() : null;
+$warnDays = get_atemschutz_warn_days($db, $einheit_for_warn !== null ? $einheit_for_warn : 0);
 ?>
 <!DOCTYPE html>
 <html lang="de">

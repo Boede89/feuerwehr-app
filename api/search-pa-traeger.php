@@ -3,6 +3,7 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once __DIR__ . '/../includes/einheiten-setup.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 // Berechtigung prüfen
 if (!isset($_SESSION['user_id']) || (!has_permission('atemschutz') && !hasAdminPermission())) {
@@ -37,14 +38,9 @@ if (empty($uebungsDatum) || empty($statusFilter)) {
 }
 
 try {
-    // Warnschwelle laden (Standard: 90 Tage)
-    $warn_days = 90;
-    $stmt = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'atemschutz_warn_days' LIMIT 1");
-    $stmt->execute();
-    $setting = $stmt->fetch();
-    if ($setting && is_numeric($setting['setting_value'])) {
-        $warn_days = (int)$setting['setting_value'];
-    }
+    // Warnschwelle laden (einheitsspezifisch)
+    $einheit_for_warn = function_exists('get_admin_einheit_filter') ? get_admin_einheit_filter() : null;
+    $warn_days = get_atemschutz_warn_days($db, $einheit_for_warn !== null ? $einheit_for_warn : 0);
     
     // Lade aktive Geräteträger (gefiltert nach Einheit für Superadmin/Einheitsadmin)
     $einheit_filter = get_admin_einheit_filter();

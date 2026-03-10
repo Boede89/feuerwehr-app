@@ -163,14 +163,10 @@ if (!$isAdmin && !$canAtemschutz) {
     $dir = strtolower($_GET['dir'] ?? 'asc');
     $dir = $dir === 'desc' ? 'DESC' : 'ASC';
 
-    // Schwellwert (Tage) für gelbe Warnung aus settings, Default 90
-    $warnDays = 90;
-    try {
-        $stmtWarn = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'atemschutz_warn_days' LIMIT 1");
-        $stmtWarn->execute();
-        $v = $stmtWarn->fetchColumn();
-        if ($v !== false && is_numeric($v)) { $warnDays = (int)$v; }
-    } catch (Exception $e) { /* ignore, fallback 90 */ }
+    // Schwellwert (Tage) für gelbe Warnung – einheitsspezifisch aus Einstellungen
+    require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+    $einheit_for_warn = function_exists('get_admin_einheit_filter') ? get_admin_einheit_filter() : null;
+    $warnDays = get_atemschutz_warn_days($db, $einheit_for_warn !== null ? $einheit_for_warn : 0);
 
     $traeger = [];
     $error = null;
