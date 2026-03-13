@@ -42,6 +42,7 @@ function print_get_printer_config($db, $einheit_id = null) {
         $printer_mode = !empty(trim($settings['printer_email_recipient'] ?? '')) ? 'email' : (!empty(trim($settings['printer_cups_name'] ?? '')) ? 'cups' : 'email');
     }
     $printer_cups_name = $einheit_id > 0 ? trim($settings['printer_cups_name'] ?? '') : '';
+    $printer_cups_server = $einheit_id > 0 ? trim($settings['printer_cups_server'] ?? '') : '';
     $printer_email = $einheit_id > 0 ? trim($settings['printer_email_recipient'] ?? '') : '';
     $printer_email_subject = $einheit_id > 0 ? trim($settings['printer_email_subject'] ?? '') ?: 'DRUCK' : 'DRUCK';
     return [
@@ -49,6 +50,7 @@ function print_get_printer_config($db, $einheit_id = null) {
         'cloud_url_raw' => $cloud_url_raw,
         'printer_mode' => $printer_mode ?: 'email',
         'printer_cups_name' => $printer_cups_name,
+        'printer_cups_server' => $printer_cups_server,
         'printer_email_recipient' => $printer_email,
         'printer_email_subject' => $printer_email_subject ?: 'DRUCK',
         'einheit_id' => $einheit_id,
@@ -320,8 +322,12 @@ function print_send_pdf_via_cups($pdf_content, $printer_config, $debug = false) 
         @unlink($tmp);
         return ['success' => false, 'message' => 'lp-Befehl nicht gefunden. CUPS muss installiert sein.'];
     }
-    $cups_server = getenv('CUPS_SERVER');
-    if ($cups_server !== false && $cups_server !== '') {
+    $cups_server = trim($printer_config['printer_cups_server'] ?? '');
+    if ($cups_server === '') {
+        $cups_server = getenv('CUPS_SERVER');
+        $cups_server = ($cups_server !== false && $cups_server !== '') ? $cups_server : '';
+    }
+    if ($cups_server !== '') {
         putenv('CUPS_SERVER=' . $cups_server);
     }
     $cmd = escapeshellcmd($lp_path) . ' -d ' . escapeshellarg($printer_name) . ' ' . escapeshellarg($tmp) . ' 2>&1';

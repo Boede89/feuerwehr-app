@@ -339,6 +339,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                 $printer = [
                     'printer_mode' => $printer_mode_save,
                     'printer_cups_name' => $printer_mode_save === 'cups' ? trim(sanitize_input($_POST['printer_cups_name'] ?? '')) : '',
+                    'printer_cups_server' => $printer_mode_save === 'cups' ? trim(sanitize_input($_POST['printer_cups_server'] ?? '')) : '',
                     'printer_email_recipient' => $printer_mode_save === 'email' ? trim(sanitize_input($_POST['printer_email_recipient'] ?? '')) : '',
                     'printer_email_subject' => $printer_mode_save === 'email' ? (trim(sanitize_input($_POST['printer_email_subject'] ?? '')) ?: 'DRUCK') : 'DRUCK',
                 ];
@@ -727,9 +728,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                                     value="<?php echo htmlspecialchars($cups_name); ?>" maxlength="128">
                                 <small class="text-muted">Falls die Liste leer ist: Druckername aus der CUPS-Weboberfläche (localhost:631) eintragen.</small>
                             </div>
-                            <small class="text-muted d-block">Drucker vom CUPS-Server laden. Bei Docker: CUPS_SERVER auf Host setzen (z.B. host.docker.internal:631).</small>
+                            <div class="mb-2">
+                                <label class="form-label small">CUPS-Server (optional, für Docker)</label>
+                                <input type="text" class="form-control" name="printer_cups_server" id="printer_cups_server"
+                                    placeholder="z.B. host.docker.internal:631 oder 192.168.1.100:631"
+                                    value="<?php echo htmlspecialchars(trim($settings['printer_cups_server'] ?? '')); ?>" maxlength="128">
+                                <small class="text-muted">Wenn die App in Docker läuft: Host-Adresse des CUPS-Servers (wo lpstat/lp Drucker findet). Leer = localhost.</small>
+                            </div>
+                            <small class="text-muted d-block">Drucker vom CUPS-Server laden.</small>
+                            <div class="alert alert-warning small mt-2 mb-0">
+                                <strong>Cloud-Drucker („Job has no data“):</strong> Manche Cloud-Drucker erwarten Daten in anderem Format. In CUPS (localhost:631) den Drucker prüfen: richtigen Treiber wählen, ggf. „Raw“ oder „Generic“ testen.
+                            </div>
                             <div id="cups_status" class="small mt-1"></div>
-                            <a href="../api/list-cups-printers.php?debug=1" target="_blank" class="small text-muted">Debug (lpstat-Ausgabe)</a>
+                            <a href="../api/list-cups-printers.php?einheit_id=<?php echo (int)$einheit_id; ?>&debug=1" target="_blank" class="small text-muted">Debug (lpstat-Ausgabe)</a>
                         </div>
                         <div id="printer_email_section" class="mb-3" style="display:none;">
                             <h6 class="text-muted mb-2"><i class="fas fa-envelope me-1"></i> Druck per E-Mail (E-Mail Druck Tool)</h6>
@@ -1159,7 +1170,7 @@ function loadCupsPrinters() {
     sel.innerHTML = '<option value="">— Lade... —</option>';
     status.textContent = '';
     if (manualWrap) manualWrap.style.display = 'none';
-    fetch('../api/list-cups-printers.php')
+    fetch('../api/list-cups-printers.php?einheit_id=<?php echo (int)$einheit_id; ?>')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             sel.innerHTML = '<option value="">— Bitte wählen —</option>';

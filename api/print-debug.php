@@ -32,6 +32,7 @@ $out = [
     'success' => true,
     'einheit_id' => $einheit_id,
     'printer_mode' => $config['printer_mode'] ?? 'email',
+    'cups_server' => $config['printer_cups_server'] ?? '',
     'cups_server_env' => getenv('CUPS_SERVER') ?: '(nicht gesetzt)',
     'printer_cups_name' => $config['printer_cups_name'] ?: '(nicht gesetzt)',
     'printer_email_recipient' => $config['printer_email_recipient'] ?: '(nicht gesetzt)',

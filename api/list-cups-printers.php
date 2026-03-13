@@ -1,17 +1,29 @@
 <?php
 /**
  * Listet verfügbare CUPS-Drucker auf (lpstat -p, Fallback: lpstat -v).
- * Unterstützt CUPS_SERVER-Umgebungsvariable für Docker (z.B. Host-CUPS).
+ * Unterstützt CUPS_SERVER (Umgebungsvariable oder printer_cups_server aus Einstellungen).
  */
 session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
 if (!isset($_SESSION['user_id']) || !hasAdminPermission()) {
     echo json_encode(['success' => false, 'message' => 'Zugriff verweigert']);
     exit;
+}
+
+$einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
+$cups_server = '';
+if ($einheit_id > 0) {
+    $settings = load_settings_for_einheit($db, $einheit_id);
+    $cups_server = trim($settings['printer_cups_server'] ?? '');
+}
+if ($cups_server === '') {
+    $env_val = getenv('CUPS_SERVER');
+    $cups_server = ($env_val !== false && $env_val !== '') ? $env_val : '';
 }
 
 $printers = [];
@@ -35,18 +47,11 @@ $raw_p = [];
 $raw_v = [];
 
 if ($lpstat_path !== '') {
-    $env = [];
-    $cups_server = getenv('CUPS_SERVER');
-    if ($cups_server !== false && $cups_server !== '') {
-        $env['CUPS_SERVER'] = $cups_server;
+    if ($cups_server !== '') {
+        putenv('CUPS_SERVER=' . $cups_server);
     }
-
-    $cmd = escapeshellarg($lpstat_path) . ' -p 2>/dev/null';
     $output = [];
-    foreach ($env as $k => $v) {
-        putenv($k . '=' . $v);
-    }
-    @exec($cmd, $output);
+    @exec(escapeshellarg($lpstat_path) . ' -p 2>/dev/null', $output);
     $raw_p = $output;
 
     foreach ($output as $line) {
@@ -77,7 +82,8 @@ $response = [
 if ($debug && $lpstat_path !== '') {
     $response['debug'] = [
         'lpstat_path' => $lpstat_path,
-        'cups_server' => getenv('CUPS_SERVER') ?: 'nicht gesetzt',
+        'cups_server' => $cups_server ?: 'nicht gesetzt',
+        'einheit_id' => $einheit_id,
         'lpstat_p_raw' => $raw_p,
         'lpstat_v_raw' => $raw_v,
     ];
