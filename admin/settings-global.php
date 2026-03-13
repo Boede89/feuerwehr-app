@@ -711,7 +711,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                         </div>
                         <div id="printer_cups_section" class="mb-3" style="display:none;">
                             <label class="form-label">CUPS-Drucker auswählen</label>
-                            <div class="input-group">
+                            <div class="input-group mb-2">
                                 <select class="form-select" name="printer_cups_name" id="printer_cups_name">
                                     <option value="">— Bitte wählen —</option>
                                     <?php
@@ -721,8 +721,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                                 </select>
                                 <button type="button" class="btn btn-outline-secondary" id="btn_refresh_cups" title="Druckerliste aktualisieren"><i class="fas fa-sync-alt"></i></button>
                             </div>
-                            <small class="text-muted">Drucker vom CUPS-Server laden. Der Server muss lp/lpstat bereitstellen (z.B. cups-client installiert).</small>
+                            <div id="printer_cups_manual_wrap" class="mb-2" style="display:none;">
+                                <label class="form-label small">Oder Druckername manuell eingeben</label>
+                                <input type="text" class="form-control" id="printer_cups_manual" placeholder="z.B. HP-LaserJet oder Brother_QL-800"
+                                    value="<?php echo htmlspecialchars($cups_name); ?>" maxlength="128">
+                                <small class="text-muted">Falls die Liste leer ist: Druckername aus der CUPS-Weboberfläche (localhost:631) eintragen.</small>
+                            </div>
+                            <small class="text-muted d-block">Drucker vom CUPS-Server laden. Bei Docker: CUPS_SERVER auf Host setzen (z.B. host.docker.internal:631).</small>
                             <div id="cups_status" class="small mt-1"></div>
+                            <a href="../api/list-cups-printers.php?debug=1" target="_blank" class="small text-muted">Debug (lpstat-Ausgabe)</a>
                         </div>
                         <div id="printer_email_section" class="mb-3" style="display:none;">
                             <h6 class="text-muted mb-2"><i class="fas fa-envelope me-1"></i> Druck per E-Mail (E-Mail Druck Tool)</h6>
@@ -1145,10 +1152,13 @@ document.getElementById('btn_divera_key_loeschen')?.addEventListener('click', fu
 function loadCupsPrinters() {
     var sel = document.getElementById('printer_cups_name');
     var status = document.getElementById('cups_status');
+    var manualWrap = document.getElementById('printer_cups_manual_wrap');
+    var manualInput = document.getElementById('printer_cups_manual');
     if (!sel || !status) return;
     var currentVal = sel.value;
     sel.innerHTML = '<option value="">— Lade... —</option>';
     status.textContent = '';
+    if (manualWrap) manualWrap.style.display = 'none';
     fetch('../api/list-cups-printers.php')
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -1161,19 +1171,54 @@ function loadCupsPrinters() {
                     if (p.name === currentVal) opt.selected = true;
                     sel.appendChild(opt);
                 });
+                if (currentVal && !data.printers.some(function(p) { return p.name === currentVal; })) {
+                    var opt = document.createElement('option');
+                    opt.value = currentVal;
+                    opt.textContent = currentVal + ' (manuell)';
+                    opt.selected = true;
+                    sel.appendChild(opt);
+                }
                 status.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>' + data.printers.length + ' Drucker gefunden</span>';
             } else {
+                if (currentVal) {
+                    var opt = document.createElement('option');
+                    opt.value = currentVal;
+                    opt.textContent = currentVal + ' (manuell)';
+                    opt.selected = true;
+                    sel.appendChild(opt);
+                }
+                if (manualWrap) manualWrap.style.display = 'block';
+                if (manualInput && currentVal) manualInput.value = currentVal;
                 status.innerHTML = data.cups_available === false
-                    ? '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>CUPS nicht verfügbar (lpstat nicht gefunden)</span>'
-                    : '<span class="text-muted">Keine CUPS-Drucker gefunden</span>';
+                    ? '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>CUPS nicht verfügbar (lpstat nicht gefunden). Druckername manuell eintragen.</span>'
+                    : '<span class="text-muted">Keine CUPS-Drucker gefunden. Druckername manuell eintragen (z.B. aus localhost:631).</span>';
             }
         })
         .catch(function() {
             sel.innerHTML = '<option value="">— Fehler —</option>';
             status.innerHTML = '<span class="text-danger"><i class="fas fa-times me-1"></i>Fehler beim Laden</span>';
+            if (manualWrap) manualWrap.style.display = 'block';
         });
 }
 document.getElementById('btn_refresh_cups')?.addEventListener('click', loadCupsPrinters);
+document.getElementById('printer_cups_manual')?.addEventListener('input', function() {
+    var sel = document.getElementById('printer_cups_name');
+    var v = this.value.trim();
+    if (!sel) return;
+    var found = false;
+    for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === v) { sel.selectedIndex = i; found = true; break; }
+    }
+    if (!found && v) {
+        var opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v + ' (manuell)';
+        opt.selected = true;
+        sel.appendChild(opt);
+    } else if (!v) {
+        sel.value = '';
+    }
+});
 if (document.getElementById('printer_mode_cups')?.checked) {
     loadCupsPrinters();
 }

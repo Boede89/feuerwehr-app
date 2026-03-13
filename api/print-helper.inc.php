@@ -320,6 +320,10 @@ function print_send_pdf_via_cups($pdf_content, $printer_config, $debug = false) 
         @unlink($tmp);
         return ['success' => false, 'message' => 'lp-Befehl nicht gefunden. CUPS muss installiert sein.'];
     }
+    $cups_server = getenv('CUPS_SERVER');
+    if ($cups_server !== false && $cups_server !== '') {
+        putenv('CUPS_SERVER=' . $cups_server);
+    }
     $cmd = escapeshellcmd($lp_path) . ' -d ' . escapeshellarg($printer_name) . ' ' . escapeshellarg($tmp) . ' 2>&1';
     $output = [];
     exec($cmd, $output, $ret);
