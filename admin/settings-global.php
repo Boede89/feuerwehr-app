@@ -334,9 +334,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                 if ($logo_upload_error !== '') {
                     $error = $logo_upload_error;
                 }
+                $printer_mode_save = trim($_POST['printer_mode'] ?? '');
+                if ($printer_mode_save !== 'cups' && $printer_mode_save !== 'email') $printer_mode_save = 'email';
                 $printer = [
-                    'printer_email_recipient' => trim(sanitize_input($_POST['printer_email_recipient'] ?? '')),
-                    'printer_email_subject' => trim(sanitize_input($_POST['printer_email_subject'] ?? '')) ?: 'DRUCK',
+                    'printer_mode' => $printer_mode_save,
+                    'printer_cups_name' => $printer_mode_save === 'cups' ? trim(sanitize_input($_POST['printer_cups_name'] ?? '')) : '',
+                    'printer_email_recipient' => $printer_mode_save === 'email' ? trim(sanitize_input($_POST['printer_email_recipient'] ?? '')) : '',
+                    'printer_email_subject' => $printer_mode_save === 'email' ? (trim(sanitize_input($_POST['printer_email_subject'] ?? '')) ?: 'DRUCK') : 'DRUCK',
                 ];
                 $divera_access_key = trim($_POST['divera_access_key'] ?? '');
                 $divera_key_clear = isset($_POST['divera_access_key_clear']) && $_POST['divera_access_key_clear'] === '1';
@@ -691,27 +695,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                 <div class="card">
                     <div class="card-header"><i class="fas fa-print"></i> Drucker</div>
                     <div class="card-body">
-                        <h6 class="text-muted mb-2"><i class="fas fa-envelope me-1"></i> Druck per E-Mail (E-Mail Druck Tool)</h6>
-                        <p class="text-muted small mb-3">Die App sendet PDFs per E-Mail an ein überwachtes Postfach. Das <strong>E-Mail Druck Tool</strong> am Zielrechner überwacht das Postfach und druckt PDF-Anhänge bei passendem Betreff.</p>
-                        <div class="mb-3">
-                            <label class="form-label">E-Mail-Postfach (Empfänger)</label>
-                            <input class="form-control" type="email" name="printer_email_recipient" id="printer_email_recipient" placeholder="druck@beispiel.de" value="<?php echo htmlspecialchars($settings['printer_email_recipient'] ?? ''); ?>">
-                            <small class="text-muted">E-Mail-Adresse, an die Druck-PDFs gesendet werden. Muss mit dem Postfach im E-Mail Druck Tool übereinstimmen.</small>
+                        <p class="text-muted small mb-3">Wählen Sie <strong>entweder</strong> einen CUPS-Drucker (direkt am Server) <strong>oder</strong> Druck per E-Mail (E-Mail Druck Tool). Beides gleichzeitig ist nicht möglich.</p>
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Druckmethode</label>
+                            <div class="d-flex flex-wrap gap-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="printer_mode" id="printer_mode_cups" value="cups" <?php echo (($settings['printer_mode'] ?? '') === 'cups' || (empty($settings['printer_mode']) && !empty($settings['printer_cups_name']))) ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="printer_mode_cups"><i class="fas fa-print me-1"></i> CUPS-Drucker (lp)</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="printer_mode" id="printer_mode_email" value="email" <?php echo (($settings['printer_mode'] ?? '') !== 'cups' && (empty($settings['printer_mode']) || !empty($settings['printer_email_recipient']))) ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="printer_mode_email"><i class="fas fa-envelope me-1"></i> Druck per E-Mail</label>
+                                </div>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Betreff für Druck-E-Mails</label>
-                            <input class="form-control" name="printer_email_subject" id="printer_email_subject" placeholder="DRUCK" value="<?php echo htmlspecialchars($settings['printer_email_subject'] ?? 'DRUCK'); ?>">
-                            <small class="text-muted">Dieser Betreff muss im E-Mail Druck Tool als Filter hinterlegt sein (z.B. „DRUCK“ oder „Feuerwehr Druck“).</small>
+                        <div id="printer_cups_section" class="mb-3" style="display:none;">
+                            <label class="form-label">CUPS-Drucker auswählen</label>
+                            <div class="input-group">
+                                <select class="form-select" name="printer_cups_name" id="printer_cups_name">
+                                    <option value="">— Bitte wählen —</option>
+                                    <?php
+                                    $cups_name = trim($settings['printer_cups_name'] ?? '');
+                                    if ($cups_name !== '') echo '<option value="' . htmlspecialchars($cups_name) . '" selected>' . htmlspecialchars($cups_name) . '</option>';
+                                    ?>
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" id="btn_refresh_cups" title="Druckerliste aktualisieren"><i class="fas fa-sync-alt"></i></button>
+                            </div>
+                            <small class="text-muted">Drucker vom CUPS-Server laden. Der Server muss lp/lpstat bereitstellen (z.B. cups-client installiert).</small>
+                            <div id="cups_status" class="small mt-1"></div>
                         </div>
-                        <div class="alert alert-info small mb-3">
-                            <strong>So funktioniert der Druck mit dem E-Mail Druck Tool:</strong>
-                            <ol class="mb-0 mt-2 ps-3">
-                                <li>Installieren Sie das <strong>E-Mail Druck Tool</strong> auf dem Rechner, an dem gedruckt werden soll.</li>
-                                <li>Richten Sie dort das Postfach ein (IMAP) – dieselbe Adresse wie oben.</li>
-                                <li>Fügen Sie einen Betreff-Filter hinzu (z.B. „DRUCK“) – muss exakt mit dem Betreff oben übereinstimmen.</li>
-                                <li>Wählen Sie den Drucker und ggf. SumatraPDF-Pfad im E-Mail Druck Tool.</li>
-                                <li>Starten Sie das Tool (oder aktivieren Sie Autostart bei Windows-Start).</li>
-                            </ol>
+                        <div id="printer_email_section" class="mb-3" style="display:none;">
+                            <h6 class="text-muted mb-2"><i class="fas fa-envelope me-1"></i> Druck per E-Mail (E-Mail Druck Tool)</h6>
+                            <div class="mb-3">
+                                <label class="form-label">E-Mail-Postfach (Empfänger)</label>
+                                <input class="form-control" type="email" name="printer_email_recipient" id="printer_email_recipient" placeholder="druck@beispiel.de" value="<?php echo htmlspecialchars($settings['printer_email_recipient'] ?? ''); ?>">
+                                <small class="text-muted">E-Mail-Adresse, an die Druck-PDFs gesendet werden. Muss mit dem Postfach im E-Mail Druck Tool übereinstimmen.</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Betreff für Druck-E-Mails</label>
+                                <input class="form-control" name="printer_email_subject" id="printer_email_subject" placeholder="DRUCK" value="<?php echo htmlspecialchars($settings['printer_email_subject'] ?? 'DRUCK'); ?>">
+                                <small class="text-muted">Dieser Betreff muss im E-Mail Druck Tool als Filter hinterlegt sein (z.B. „DRUCK“ oder „Feuerwehr Druck“).</small>
+                            </div>
+                            <div class="alert alert-info small mb-3">
+                                <strong>So funktioniert der Druck mit dem E-Mail Druck Tool:</strong>
+                                <ol class="mb-0 mt-2 ps-3">
+                                    <li>Installieren Sie das <strong>E-Mail Druck Tool</strong> auf dem Rechner, an dem gedruckt werden soll.</li>
+                                    <li>Richten Sie dort das Postfach ein (IMAP) – dieselbe Adresse wie oben.</li>
+                                    <li>Fügen Sie einen Betreff-Filter hinzu (z.B. „DRUCK“) – muss exakt mit dem Betreff oben übereinstimmen.</li>
+                                    <li>Wählen Sie den Drucker und ggf. SumatraPDF-Pfad im E-Mail Druck Tool.</li>
+                                    <li>Starten Sie das Tool (oder aktivieren Sie Autostart bei Windows-Start).</li>
+                                </ol>
+                            </div>
                         </div>
                         <?php if ($einheit_id > 0): ?>
                         <div class="mb-0 mt-3">
@@ -1094,13 +1128,64 @@ document.getElementById('btn_divera_key_loeschen')?.addEventListener('click', fu
         document.getElementById('mainForm').submit();
     }
 });
+(function() {
+    var modeCups = document.getElementById('printer_mode_cups');
+    var modeEmail = document.getElementById('printer_mode_email');
+    var sectionCups = document.getElementById('printer_cups_section');
+    var sectionEmail = document.getElementById('printer_email_section');
+    function toggleSections() {
+        var isCups = modeCups && modeCups.checked;
+        if (sectionCups) sectionCups.style.display = isCups ? 'block' : 'none';
+        if (sectionEmail) sectionEmail.style.display = isCups ? 'none' : 'block';
+    }
+    if (modeCups) modeCups.addEventListener('change', toggleSections);
+    if (modeEmail) modeEmail.addEventListener('change', toggleSections);
+    toggleSections();
+})();
+function loadCupsPrinters() {
+    var sel = document.getElementById('printer_cups_name');
+    var status = document.getElementById('cups_status');
+    if (!sel || !status) return;
+    var currentVal = sel.value;
+    sel.innerHTML = '<option value="">— Lade... —</option>';
+    status.textContent = '';
+    fetch('../api/list-cups-printers.php')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            sel.innerHTML = '<option value="">— Bitte wählen —</option>';
+            if (data.success && data.printers && data.printers.length) {
+                data.printers.forEach(function(p) {
+                    var opt = document.createElement('option');
+                    opt.value = p.name;
+                    opt.textContent = p.display || p.name;
+                    if (p.name === currentVal) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+                status.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>' + data.printers.length + ' Drucker gefunden</span>';
+            } else {
+                status.innerHTML = data.cups_available === false
+                    ? '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>CUPS nicht verfügbar (lpstat nicht gefunden)</span>'
+                    : '<span class="text-muted">Keine CUPS-Drucker gefunden</span>';
+            }
+        })
+        .catch(function() {
+            sel.innerHTML = '<option value="">— Fehler —</option>';
+            status.innerHTML = '<span class="text-danger"><i class="fas fa-times me-1"></i>Fehler beim Laden</span>';
+        });
+}
+document.getElementById('btn_refresh_cups')?.addEventListener('click', loadCupsPrinters);
+if (document.getElementById('printer_mode_cups')?.checked) {
+    loadCupsPrinters();
+}
 document.getElementById('btn_test_print')?.addEventListener('click', function() {
     var btn = this;
     var out = document.getElementById('test_print_result');
     if (!out) return;
+    var modeCups = document.getElementById('printer_mode_cups')?.checked;
+    var cupsName = document.getElementById('printer_cups_name')?.value?.trim() || '';
     var email = document.getElementById('printer_email_recipient')?.value?.trim() || '';
-    if (!email) {
-        out.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Bitte zuerst ein E-Mail-Postfach eintragen.</span>';
+    if (modeCups ? !cupsName : !email) {
+        out.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>' + (modeCups ? 'Bitte zuerst einen CUPS-Drucker auswählen.' : 'Bitte zuerst ein E-Mail-Postfach eintragen.') + '</span>';
         return;
     }
     btn.disabled = true;

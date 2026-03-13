@@ -1,6 +1,6 @@
 <?php
 /**
- * Hilfsfunktionen für Druck per E-Mail (E-Mail Druck Tool) und Cloud-Drucker.
+ * Hilfsfunktionen für Druck per E-Mail (E-Mail Druck Tool), CUPS (lp) und Cloud-Drucker.
  */
 function print_get_printer_config($db, $einheit_id = null) {
     $cloud_url = '';
@@ -37,11 +37,18 @@ function print_get_printer_config($db, $einheit_id = null) {
             $cloud_url_raw = ($settings['printer_cloud_url_raw'] ?? '') === '1';
         }
     }
+    $printer_mode = $einheit_id > 0 ? trim($settings['printer_mode'] ?? '') : '';
+    if ($printer_mode !== 'cups' && $printer_mode !== 'email') {
+        $printer_mode = !empty(trim($settings['printer_email_recipient'] ?? '')) ? 'email' : (!empty(trim($settings['printer_cups_name'] ?? '')) ? 'cups' : 'email');
+    }
+    $printer_cups_name = $einheit_id > 0 ? trim($settings['printer_cups_name'] ?? '') : '';
     $printer_email = $einheit_id > 0 ? trim($settings['printer_email_recipient'] ?? '') : '';
     $printer_email_subject = $einheit_id > 0 ? trim($settings['printer_email_subject'] ?? '') ?: 'DRUCK' : 'DRUCK';
     return [
         'cloud_url' => $cloud_url,
         'cloud_url_raw' => $cloud_url_raw,
+        'printer_mode' => $printer_mode ?: 'email',
+        'printer_cups_name' => $printer_cups_name,
         'printer_email_recipient' => $printer_email,
         'printer_email_subject' => $printer_email_subject ?: 'DRUCK',
         'einheit_id' => $einheit_id,
@@ -280,11 +287,74 @@ function print_send_pdf_via_email($pdf_content, $printer_config, $debug = false)
     return ['success' => false, 'message' => 'E-Mail-Versand fehlgeschlagen. SMTP-Einstellungen der Einheit prüfen.'];
 }
 
+/**
+ * Druckt PDF direkt über CUPS (lp).
+ */
+function print_send_pdf_via_cups($pdf_content, $printer_config, $debug = false) {
+    $printer_name = trim($printer_config['printer_cups_name'] ?? '');
+    if (empty($printer_name)) {
+        return ['success' => false, 'message' => 'Kein CUPS-Drucker ausgewählt.'];
+    }
+    if (empty($pdf_content) || strlen($pdf_content) < 100 || substr($pdf_content, 0, 5) !== '%PDF-') {
+        return ['success' => false, 'message' => 'PDF-Inhalt ungültig.'];
+    }
+    $tmp = tempnam(sys_get_temp_dir(), 'print_') . '.pdf';
+    if (file_put_contents($tmp, $pdf_content) === false) {
+        return ['success' => false, 'message' => 'Temporäre Datei konnte nicht erstellt werden.'];
+    }
+    $lp_path = '';
+    foreach (['/usr/bin/lp', '/usr/local/bin/lp', 'lp'] as $path) {
+        if (strpos($path, '/') !== false && is_executable($path)) {
+            $lp_path = $path;
+            break;
+        }
+        if (strpos($path, '/') === false) {
+            $out = @shell_exec('which ' . escapeshellarg($path) . ' 2>/dev/null');
+            if ($out && trim($out)) {
+                $lp_path = trim(explode("\n", $out)[0]);
+                break;
+            }
+        }
+    }
+    if ($lp_path === '') {
+        @unlink($tmp);
+        return ['success' => false, 'message' => 'lp-Befehl nicht gefunden. CUPS muss installiert sein.'];
+    }
+    $cmd = escapeshellcmd($lp_path) . ' -d ' . escapeshellarg($printer_name) . ' ' . escapeshellarg($tmp) . ' 2>&1';
+    $output = [];
+    exec($cmd, $output, $ret);
+    @unlink($tmp);
+    if ($ret === 0) {
+        return ['success' => true, 'message' => 'Druckauftrag an CUPS-Drucker gesendet.'];
+    }
+    $err = implode(' ', $output);
+    return ['success' => false, 'message' => 'CUPS-Druck fehlgeschlagen: ' . ($err ?: 'Unbekannter Fehler')];
+}
+
+/**
+ * Sendet mehrere PDFs an CUPS-Drucker.
+ */
+function print_send_pdfs_via_cups(array $attachments, $printer_config, $debug = false) {
+    if (empty($attachments)) {
+        return ['success' => false, 'message' => 'Keine PDFs zum Drucken.'];
+    }
+    foreach ($attachments as $att) {
+        $result = print_send_pdf_via_cups($att[0], $printer_config, $debug);
+        if (!$result['success']) return $result;
+    }
+    return ['success' => true, 'message' => count($attachments) . ' Druckauftrag(e) an CUPS-Drucker gesendet.'];
+}
+
 function print_send_pdf($pdf_content, $printer_config, $debug = false) {
+    $printer_mode = trim($printer_config['printer_mode'] ?? '');
+    $printer_cups = trim($printer_config['printer_cups_name'] ?? '');
     $cloud_url = trim($printer_config['cloud_url'] ?? '');
     $printer_email = trim($printer_config['printer_email_recipient'] ?? '');
-    if (empty($cloud_url) && empty($printer_email)) {
-        return ['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte E-Mail-Postfach oder Cloud-URL in den Einstellungen der Einheit (Drucker-Tab) eintragen.'];
+    if ($printer_mode !== 'cups' && $printer_mode !== 'email') {
+        $printer_mode = !empty($printer_email) ? 'email' : (!empty($printer_cups) ? 'cups' : (!empty($cloud_url) ? 'cloud' : ''));
+    }
+    if ($printer_mode === '') {
+        $printer_mode = !empty($printer_email) ? 'email' : (!empty($cloud_url) ? 'cloud' : '');
     }
     if (empty($pdf_content) || strlen($pdf_content) < 100) {
         return ['success' => false, 'message' => 'PDF konnte nicht erzeugt werden.'];
@@ -292,10 +362,14 @@ function print_send_pdf($pdf_content, $printer_config, $debug = false) {
     if (substr($pdf_content, 0, 5) !== '%PDF-') {
         return ['success' => false, 'message' => 'PDF-Inhalt ungültig (kein PDF-Header).'];
     }
-    // E-Mail-Druck (E-Mail Druck Tool): PDF per E-Mail an überwachtes Postfach senden
-    if (!empty($printer_email)) {
+    if ($printer_mode === 'cups' && !empty($printer_cups)) {
+        return print_send_pdf_via_cups($pdf_content, $printer_config, $debug);
+    }
+    if (($printer_mode !== 'cups' || $printer_mode === '') && !empty($printer_email)) {
         return print_send_pdf_via_email($pdf_content, $printer_config, $debug);
     }
-    // Cloud-Drucker-URL: PDF per HTTP POST senden
-    return print_send_pdf_via_url($pdf_content, $cloud_url, $debug, !empty($printer_config['cloud_url_raw']));
+    if (!empty($cloud_url)) {
+        return print_send_pdf_via_url($pdf_content, $cloud_url, $debug, !empty($printer_config['cloud_url_raw']));
+    }
+    return ['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte CUPS-Drucker oder E-Mail-Postfach in den Einstellungen (Drucker-Tab) wählen.'];
 }

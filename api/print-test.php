@@ -22,8 +22,11 @@ if ($einheit_id <= 0) {
 }
 
 $config = print_get_printer_config($db, $einheit_id);
-if (empty($config['printer_email_recipient']) && empty($config['cloud_url'])) {
-    echo json_encode(['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte E-Mail-Postfach in den Einstellungen eintragen.']);
+$has_cups = ($config['printer_mode'] ?? '') === 'cups' && !empty(trim($config['printer_cups_name'] ?? ''));
+$has_email = !empty($config['printer_email_recipient']);
+$has_cloud = !empty($config['cloud_url']);
+if (!$has_cups && !$has_email && !$has_cloud) {
+    echo json_encode(['success' => false, 'message' => 'Kein Drucker konfiguriert. Bitte CUPS-Drucker oder E-Mail-Postfach in den Einstellungen wählen.']);
     exit;
 }
 

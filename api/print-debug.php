@@ -26,10 +26,13 @@ $settings = $einheit_id > 0 ? load_settings_for_einheit($db, $einheit_id) : [];
 
 $smtp_ok = !empty(trim($settings['smtp_host'] ?? '')) && !empty(trim($settings['smtp_username'] ?? '')) && !empty(trim($settings['smtp_password'] ?? ''));
 $email_ok = !empty($config['printer_email_recipient']);
+$cups_ok = ($config['printer_mode'] ?? '') === 'cups' && !empty(trim($config['printer_cups_name'] ?? ''));
 
 $out = [
     'success' => true,
     'einheit_id' => $einheit_id,
+    'printer_mode' => $config['printer_mode'] ?? 'email',
+    'printer_cups_name' => $config['printer_cups_name'] ?: '(nicht gesetzt)',
     'printer_email_recipient' => $config['printer_email_recipient'] ?: '(nicht gesetzt)',
     'printer_email_subject' => $config['printer_email_subject'] ?? 'DRUCK',
     'cloud_url' => $config['cloud_url'] ?: '(nicht gesetzt)',
@@ -45,8 +48,8 @@ $out = [
 if ($email_ok && !$smtp_ok) {
     $out['hinweis'][] = 'E-Mail-Postfach ist hinterlegt, aber SMTP der Einheit fehlt. Bitte Einstellungen → Einheit wählen → SMTP-Tab ausfüllen (Host, Benutzer, Passwort).';
 }
-if (!$email_ok && $einheit_id > 0) {
-    $out['hinweis'][] = 'E-Mail-Postfach fehlt. Bitte Einstellungen → Einheit wählen → Drucker-Tab.';
+if (!$email_ok && !$cups_ok && empty($config['cloud_url']) && $einheit_id > 0) {
+    $out['hinweis'][] = 'Kein Drucker konfiguriert. Bitte Einstellungen → Einheit wählen → Drucker-Tab (CUPS oder E-Mail).';
 }
 if ($einheit_id <= 0) {
     $out['hinweis'][] = 'Keine Einheit ausgewählt. Im Formularcenter eine Einheit im Filter wählen (Dropdown oben) oder Einstellungen → Einheit auswählen.';

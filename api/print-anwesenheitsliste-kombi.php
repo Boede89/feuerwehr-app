@@ -60,8 +60,9 @@ if ($einheit_id <= 0 && $print_mb_ids !== '') {
 }
 
 $config = print_get_printer_config($db, $einheit_id);
-$use_email = !empty($config['printer_email_recipient']);
-$use_cloud = !empty($config['cloud_url']);
+$use_cups = ($config['printer_mode'] ?? '') === 'cups' && !empty(trim($config['printer_cups_name'] ?? ''));
+$use_email = !$use_cups && !empty($config['printer_email_recipient']);
+$use_cloud = !$use_cups && !$use_email && !empty($config['cloud_url']);
 
 // 1. Anwesenheitsliste
 if ($print_al > 0) {
@@ -128,8 +129,15 @@ if (empty($attachments)) {
 }
 
 // Kein Drucker konfiguriert: erstes PDF zum Öffnen zurückgeben
-if (!$use_email && !$use_cloud) {
+if (!$use_cups && !$use_email && !$use_cloud) {
     echo json_encode(['success' => true, 'open_pdf' => true, 'pdf_base64' => base64_encode($first_pdf)]);
+    exit;
+}
+
+// CUPS-Druck: jedes PDF direkt an lp senden
+if ($use_cups) {
+    $result = print_send_pdfs_via_cups($attachments, $config);
+    echo json_encode($result);
     exit;
 }
 
