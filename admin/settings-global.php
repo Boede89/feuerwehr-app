@@ -335,7 +335,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     $error = $logo_upload_error;
                 }
                 $printer_mode_save = trim($_POST['printer_mode'] ?? '');
-                if ($printer_mode_save !== 'cups' && $printer_mode_save !== 'email') $printer_mode_save = 'email';
+                if ($printer_mode_save !== 'cups' && $printer_mode_save !== 'email' && $printer_mode_save !== 'dialog') $printer_mode_save = 'dialog';
                 $printer = [
                     'printer_mode' => $printer_mode_save,
                     'printer_cups_name' => $printer_mode_save === 'cups' ? trim(sanitize_input($_POST['printer_cups_name'] ?? '')) : '',
@@ -697,16 +697,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                 <div class="card">
                     <div class="card-header"><i class="fas fa-print"></i> Drucker</div>
                     <div class="card-body">
-                        <p class="text-muted small mb-3">Wählen Sie <strong>entweder</strong> einen CUPS-Drucker (direkt am Server) <strong>oder</strong> Druck per E-Mail (E-Mail Druck Tool). Beides gleichzeitig ist nicht möglich.</p>
+                        <p class="text-muted small mb-3">Wählen Sie die Druckmethode. Bei <strong>Druckdialog öffnen</strong> wird der Browser-Druckdialog geöffnet (Standard für neue Einheiten).</p>
                         <div class="mb-4">
                             <label class="form-label fw-bold">Druckmethode</label>
                             <div class="d-flex flex-wrap gap-4">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="printer_mode" id="printer_mode_cups" value="cups" <?php echo (($settings['printer_mode'] ?? '') === 'cups' || (empty($settings['printer_mode']) && !empty($settings['printer_cups_name']))) ? 'checked' : ''; ?>>
+                                    <?php
+                                    $pm = trim($settings['printer_mode'] ?? '');
+                                    $def_dialog = empty($pm) || $pm === 'dialog' || (!in_array($pm, ['cups','email']) && empty($settings['printer_cups_name']) && empty($settings['printer_email_recipient']));
+                                    $def_cups = $pm === 'cups' || (empty($pm) && !empty($settings['printer_cups_name']));
+                                    $def_email = $pm === 'email' || (empty($pm) && !empty($settings['printer_email_recipient']) && empty($settings['printer_cups_name']));
+                                    ?>
+                                    <input class="form-check-input" type="radio" name="printer_mode" id="printer_mode_dialog" value="dialog" <?php echo $def_dialog ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="printer_mode_dialog"><i class="fas fa-window-maximize me-1"></i> Druckdialog öffnen</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="printer_mode" id="printer_mode_cups" value="cups" <?php echo $def_cups ? 'checked' : ''; ?>>
                                     <label class="form-check-label" for="printer_mode_cups"><i class="fas fa-print me-1"></i> CUPS-Drucker (lp)</label>
                                 </div>
                                 <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="printer_mode" id="printer_mode_email" value="email" <?php echo (($settings['printer_mode'] ?? '') !== 'cups' && (empty($settings['printer_mode']) || !empty($settings['printer_email_recipient']))) ? 'checked' : ''; ?>>
+                                    <input class="form-check-input" type="radio" name="printer_mode" id="printer_mode_email" value="email" <?php echo $def_email ? 'checked' : ''; ?>>
                                     <label class="form-check-label" for="printer_mode_email"><i class="fas fa-envelope me-1"></i> Druck per E-Mail</label>
                                 </div>
                             </div>
@@ -739,10 +749,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                             <small class="text-muted d-block">Drucker vom CUPS-Server laden.</small>
                             <div class="form-check mb-2">
                                 <input class="form-check-input" type="checkbox" name="printer_cups_use_postscript" id="printer_cups_use_postscript" value="1" <?php echo (($settings['printer_cups_use_postscript'] ?? '') === '1') ? 'checked' : ''; ?>>
-                                <label class="form-check-label" for="printer_cups_use_postscript">PDF vor Druck in PostScript konvertieren (bei „Job has no data“ testen)</label>
+                                <label class="form-check-label" for="printer_cups_use_postscript">PDF vor Druck in PostScript konvertieren (nur für Drucker, die PostScript erwarten – nicht für Workplace Pure)</label>
                             </div>
-                            <div class="alert alert-warning small mt-2 mb-0">
-                                <strong>Cloud-Drucker („Job has no data“):</strong> Option oben aktivieren oder in CUPS (localhost:631) Treiber prüfen. <strong>Alternative:</strong> Druck per E-Mail nutzen – funktioniert zuverlässig mit dem E-Mail Druck Tool.
+                            <div class="alert alert-info small mt-2 mb-0">
+                                <strong>Konica Minolta Workplace Pure:</strong> PostScript-Option <strong>deaktiviert</strong> lassen (PDF senden). Drucker in CUPS mit Generic-PDF-Treiber anlegen: <code>ipps://user:pass@ipp.workplacepure.com:443/ipp/print/...</code> (Port 443!). <strong>Alternative:</strong> Druck per E-Mail mit dem E-Mail Druck Tool.
                             </div>
                             <div id="cups_status" class="small mt-1"></div>
                             <a href="../api/list-cups-printers.php?einheit_id=<?php echo (int)$einheit_id; ?>&debug=1" target="_blank" class="small text-muted">Debug (lpstat-Ausgabe)</a>
@@ -1152,15 +1162,18 @@ document.getElementById('btn_divera_key_loeschen')?.addEventListener('click', fu
     }
 });
 (function() {
+    var modeDialog = document.getElementById('printer_mode_dialog');
     var modeCups = document.getElementById('printer_mode_cups');
     var modeEmail = document.getElementById('printer_mode_email');
     var sectionCups = document.getElementById('printer_cups_section');
     var sectionEmail = document.getElementById('printer_email_section');
     function toggleSections() {
+        var isDialog = modeDialog && modeDialog.checked;
         var isCups = modeCups && modeCups.checked;
         if (sectionCups) sectionCups.style.display = isCups ? 'block' : 'none';
-        if (sectionEmail) sectionEmail.style.display = isCups ? 'none' : 'block';
+        if (sectionEmail) sectionEmail.style.display = (!isDialog && !isCups) ? 'block' : 'none';
     }
+    if (modeDialog) modeDialog.addEventListener('change', toggleSections);
     if (modeCups) modeCups.addEventListener('change', toggleSections);
     if (modeEmail) modeEmail.addEventListener('change', toggleSections);
     toggleSections();
@@ -1242,9 +1255,14 @@ document.getElementById('btn_test_print')?.addEventListener('click', function() 
     var btn = this;
     var out = document.getElementById('test_print_result');
     if (!out) return;
+    var modeDialog = document.getElementById('printer_mode_dialog')?.checked;
     var modeCups = document.getElementById('printer_mode_cups')?.checked;
     var cupsName = document.getElementById('printer_cups_name')?.value?.trim() || '';
     var email = document.getElementById('printer_email_recipient')?.value?.trim() || '';
+    if (modeDialog) {
+        out.innerHTML = '<span class="text-muted">Bei „Druckdialog öffnen“ wird kein Testdruck gesendet – der Druckdialog öffnet sich beim Drucken im Formularcenter.</span>';
+        return;
+    }
     if (modeCups ? !cupsName : !email) {
         out.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>' + (modeCups ? 'Bitte zuerst einen CUPS-Drucker auswählen.' : 'Bitte zuerst ein E-Mail-Postfach eintragen.') + '</span>';
         return;

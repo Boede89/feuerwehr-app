@@ -61,8 +61,8 @@ if ($einheit_id <= 0 && $print_mb_ids !== '') {
 
 $config = print_get_printer_config($db, $einheit_id);
 $use_cups = ($config['printer_mode'] ?? '') === 'cups' && !empty(trim($config['printer_cups_name'] ?? ''));
-$use_email = !$use_cups && !empty($config['printer_email_recipient']);
-$use_cloud = !$use_cups && !$use_email && !empty($config['cloud_url']);
+$use_email = ($config['printer_mode'] ?? '') === 'email' && !empty(trim($config['printer_email_recipient'] ?? ''));
+$use_cloud = !$use_cups && !$use_email && !empty(trim($config['cloud_url'] ?? '')) && (($config['printer_mode'] ?? '') !== 'dialog');
 
 // 1. Anwesenheitsliste
 if ($print_al > 0) {
@@ -125,6 +125,12 @@ if ($print_gwm > 0) {
 
 if (empty($attachments)) {
     echo json_encode(['success' => false, 'message' => 'Keine PDFs konnten erzeugt werden.']);
+    exit;
+}
+
+// Druckdialog-Modus: PDF zum Öffnen zurückgeben (kein direkter Druck)
+if (($config['printer_mode'] ?? '') === 'dialog') {
+    echo json_encode(['success' => true, 'open_pdf' => true, 'pdf_base64' => base64_encode($first_pdf)]);
     exit;
 }
 

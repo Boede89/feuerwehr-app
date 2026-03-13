@@ -48,13 +48,16 @@ if ($alle) {
 }
 
 $config = print_get_printer_config($db, $einheit_id);
-if (empty($config['cloud_url']) && empty($config['printer_email_recipient'])) {
+$use_direct = (($config['printer_mode'] ?? '') === 'cups' && !empty(trim($config['printer_cups_name'] ?? '')))
+    || (($config['printer_mode'] ?? '') === 'email' && !empty(trim($config['printer_email_recipient'] ?? '')))
+    || !empty(trim($config['cloud_url'] ?? ''));
+if ($use_direct) {
+    $result = print_send_pdf($pdf_content, $config);
+    echo json_encode($result);
+} else {
     if (empty($pdf_content) || strlen($pdf_content) < 100) {
         echo json_encode(['success' => false, 'message' => 'PDF konnte nicht erzeugt werden.']);
     } else {
         echo json_encode(['success' => true, 'open_pdf' => true, 'pdf_base64' => base64_encode($pdf_content)]);
     }
-} else {
-    $result = print_send_pdf($pdf_content, $config);
-    echo json_encode($result);
 }

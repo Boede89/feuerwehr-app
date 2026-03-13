@@ -38,8 +38,8 @@ function print_get_printer_config($db, $einheit_id = null) {
         }
     }
     $printer_mode = $einheit_id > 0 ? trim($settings['printer_mode'] ?? '') : '';
-    if ($printer_mode !== 'cups' && $printer_mode !== 'email') {
-        $printer_mode = !empty(trim($settings['printer_email_recipient'] ?? '')) ? 'email' : (!empty(trim($settings['printer_cups_name'] ?? '')) ? 'cups' : 'email');
+    if ($printer_mode !== 'cups' && $printer_mode !== 'email' && $printer_mode !== 'dialog') {
+        $printer_mode = !empty(trim($settings['printer_email_recipient'] ?? '')) ? 'email' : (!empty(trim($settings['printer_cups_name'] ?? '')) ? 'cups' : 'dialog');
     }
     $printer_cups_name = $einheit_id > 0 ? trim($settings['printer_cups_name'] ?? '') : '';
     $printer_cups_server = $einheit_id > 0 ? trim($settings['printer_cups_server'] ?? '') : '';
@@ -49,7 +49,7 @@ function print_get_printer_config($db, $einheit_id = null) {
     return [
         'cloud_url' => $cloud_url,
         'cloud_url_raw' => $cloud_url_raw,
-        'printer_mode' => $printer_mode ?: 'email',
+        'printer_mode' => $printer_mode ?: 'dialog',
         'printer_cups_name' => $printer_cups_name,
         'printer_cups_server' => $printer_cups_server,
         'printer_cups_use_postscript' => $printer_cups_use_postscript,
