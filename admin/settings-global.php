@@ -340,6 +340,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     'printer_mode' => $printer_mode_save,
                     'printer_cups_name' => $printer_mode_save === 'cups' ? trim(sanitize_input($_POST['printer_cups_name'] ?? '')) : '',
                     'printer_cups_server' => $printer_mode_save === 'cups' ? trim(sanitize_input($_POST['printer_cups_server'] ?? '')) : '',
+                    'printer_cups_use_postscript' => $printer_mode_save === 'cups' && isset($_POST['printer_cups_use_postscript']) ? '1' : '0',
                     'printer_email_recipient' => $printer_mode_save === 'email' ? trim(sanitize_input($_POST['printer_email_recipient'] ?? '')) : '',
                     'printer_email_subject' => $printer_mode_save === 'email' ? (trim(sanitize_input($_POST['printer_email_subject'] ?? '')) ?: 'DRUCK') : 'DRUCK',
                 ];
@@ -736,8 +737,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                                 <small class="text-muted">Wenn die App in Docker läuft: Host-Adresse des CUPS-Servers (wo lpstat/lp Drucker findet). Leer = localhost.</small>
                             </div>
                             <small class="text-muted d-block">Drucker vom CUPS-Server laden.</small>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="printer_cups_use_postscript" id="printer_cups_use_postscript" value="1" <?php echo (($settings['printer_cups_use_postscript'] ?? '') === '1') ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="printer_cups_use_postscript">PDF vor Druck in PostScript konvertieren (bei „Job has no data“ testen)</label>
+                            </div>
                             <div class="alert alert-warning small mt-2 mb-0">
-                                <strong>Cloud-Drucker („Job has no data“):</strong> Manche Cloud-Drucker erwarten Daten in anderem Format. In CUPS (localhost:631) den Drucker prüfen: richtigen Treiber wählen, ggf. „Raw“ oder „Generic“ testen.
+                                <strong>Cloud-Drucker („Job has no data“):</strong> Option oben aktivieren oder in CUPS (localhost:631) Treiber prüfen. <strong>Alternative:</strong> Druck per E-Mail nutzen – funktioniert zuverlässig mit dem E-Mail Druck Tool.
                             </div>
                             <div id="cups_status" class="small mt-1"></div>
                             <a href="../api/list-cups-printers.php?einheit_id=<?php echo (int)$einheit_id; ?>&debug=1" target="_blank" class="small text-muted">Debug (lpstat-Ausgabe)</a>

@@ -43,6 +43,7 @@ function print_get_printer_config($db, $einheit_id = null) {
     }
     $printer_cups_name = $einheit_id > 0 ? trim($settings['printer_cups_name'] ?? '') : '';
     $printer_cups_server = $einheit_id > 0 ? trim($settings['printer_cups_server'] ?? '') : '';
+    $printer_cups_use_postscript = $einheit_id > 0 && ($settings['printer_cups_use_postscript'] ?? '') === '1';
     $printer_email = $einheit_id > 0 ? trim($settings['printer_email_recipient'] ?? '') : '';
     $printer_email_subject = $einheit_id > 0 ? trim($settings['printer_email_subject'] ?? '') ?: 'DRUCK' : 'DRUCK';
     return [
@@ -51,6 +52,7 @@ function print_get_printer_config($db, $einheit_id = null) {
         'printer_mode' => $printer_mode ?: 'email',
         'printer_cups_name' => $printer_cups_name,
         'printer_cups_server' => $printer_cups_server,
+        'printer_cups_use_postscript' => $printer_cups_use_postscript,
         'printer_email_recipient' => $printer_email,
         'printer_email_subject' => $printer_email_subject ?: 'DRUCK',
         'einheit_id' => $einheit_id,
@@ -304,6 +306,51 @@ function print_send_pdf_via_cups($pdf_content, $printer_config, $debug = false) 
     if (file_put_contents($tmp, $pdf_content) === false) {
         return ['success' => false, 'message' => 'Temporäre Datei konnte nicht erstellt werden.'];
     }
+    $file_to_print = $tmp;
+    $use_postscript = !empty($printer_config['printer_cups_use_postscript']);
+    if ($use_postscript) {
+        $tmp_ps = tempnam(sys_get_temp_dir(), 'print_') . '.ps';
+        $conv_ok = false;
+        $pdftops_path = '';
+        foreach (['/usr/bin/pdftops', '/usr/local/bin/pdftops', 'pdftops'] as $p) {
+            if (strpos($p, '/') !== false) {
+                if (is_executable($p)) { $pdftops_path = $p; break; }
+            } else {
+                $out = @shell_exec('which ' . escapeshellarg($p) . ' 2>/dev/null');
+                if ($out && trim($out)) { $pdftops_path = trim(explode("\n", $out)[0]); break; }
+            }
+        }
+        if ($pdftops_path !== '') {
+            $cmd = escapeshellcmd($pdftops_path) . ' ' . escapeshellarg($tmp) . ' ' . escapeshellarg($tmp_ps) . ' 2>&1';
+            @exec($cmd, $out, $ret);
+            if ($ret === 0 && is_file($tmp_ps) && filesize($tmp_ps) > 50) {
+                $conv_ok = true;
+            }
+        }
+        if (!$conv_ok) {
+            $gs = '';
+            foreach (['/usr/bin/gs', '/usr/local/bin/gs', 'gs'] as $p) {
+                if (strpos($p, '/') !== false && is_executable($p)) { $gs = $p; break; }
+                if (strpos($p, '/') === false) {
+                    $out = @shell_exec('which gs 2>/dev/null');
+                    if ($out && trim($out)) { $gs = trim(explode("\n", $out)[0]); break; }
+                }
+            }
+            if ($gs !== '') {
+                $cmd = escapeshellcmd($gs) . ' -sDEVICE=ps2write -dNOPAUSE -dBATCH -sOutputFile=' . escapeshellarg($tmp_ps) . ' ' . escapeshellarg($tmp) . ' 2>&1';
+                @exec($cmd, $out, $ret);
+                if ($ret === 0 && is_file($tmp_ps) && filesize($tmp_ps) > 50) {
+                    $conv_ok = true;
+                }
+            }
+        }
+        if ($conv_ok) {
+            @unlink($tmp);
+            $file_to_print = $tmp_ps;
+        } else {
+            @unlink($tmp_ps);
+        }
+    }
     $lp_path = '';
     foreach (['/usr/bin/lp', '/usr/local/bin/lp', 'lp'] as $path) {
         if (strpos($path, '/') !== false && is_executable($path)) {
@@ -319,7 +366,7 @@ function print_send_pdf_via_cups($pdf_content, $printer_config, $debug = false) 
         }
     }
     if ($lp_path === '') {
-        @unlink($tmp);
+        @unlink($file_to_print);
         return ['success' => false, 'message' => 'lp-Befehl nicht gefunden. CUPS muss installiert sein.'];
     }
     $cups_server = trim($printer_config['printer_cups_server'] ?? '');
@@ -330,10 +377,10 @@ function print_send_pdf_via_cups($pdf_content, $printer_config, $debug = false) 
     if ($cups_server !== '') {
         putenv('CUPS_SERVER=' . $cups_server);
     }
-    $cmd = escapeshellcmd($lp_path) . ' -d ' . escapeshellarg($printer_name) . ' ' . escapeshellarg($tmp) . ' 2>&1';
+    $cmd = escapeshellcmd($lp_path) . ' -d ' . escapeshellarg($printer_name) . ' ' . escapeshellarg($file_to_print) . ' 2>&1';
     $output = [];
     exec($cmd, $output, $ret);
-    @unlink($tmp);
+    @unlink($file_to_print);
     if ($ret === 0) {
         return ['success' => true, 'message' => 'Druckauftrag an CUPS-Drucker gesendet.'];
     }
