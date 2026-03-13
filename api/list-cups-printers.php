@@ -1,6 +1,6 @@
 <?php
 /**
- * Listet verfügbare CUPS-Drucker auf (lpstat -p, Fallback: lpstat -v).
+ * Listet verfügbare CUPS-Drucker auf (lpstat -t = alle Infos).
  * Unterstützt CUPS_SERVER (Umgebungsvariable oder printer_cups_server aus Einstellungen).
  */
 session_start();
@@ -43,33 +43,43 @@ foreach (['/usr/bin/lpstat', '/usr/local/bin/lpstat', 'lpstat'] as $path) {
     }
 }
 
-$raw_p = [];
-$raw_v = [];
+$raw_t = [];
 
 if ($lpstat_path !== '') {
     if ($cups_server !== '') {
         putenv('CUPS_SERVER=' . $cups_server);
     }
+    // lpstat -t = alle Drucker (entspricht -r -d -c -v -a -p -o)
     $output = [];
-    @exec(escapeshellarg($lpstat_path) . ' -p 2>/dev/null', $output);
-    $raw_p = $output;
+    @exec(escapeshellarg($lpstat_path) . ' -t 2>/dev/null', $output);
+    $raw_t = $output;
 
     $seen = [];
     foreach ($output as $line) {
-        if (preg_match('/^printer\s+(\S+)\s+/', trim($line), $m)) {
-            $printers[] = ['name' => $m[1], 'display' => $m[1]];
-            $seen[$m[1]] = true;
+        $line = trim($line);
+        // "printer NAME is idle. enabled since ..."
+        if (preg_match('/^printer\s+(.+?)\s+is\s+/', $line, $m)) {
+            $name = trim($m[1]);
+            if ($name !== '' && empty($seen[$name])) {
+                $printers[] = ['name' => $name, 'display' => $name];
+                $seen[$name] = true;
+            }
         }
-    }
-
-    // lpstat -v zeigt alle Drucker (auch deaktivierte) – immer ausführen und ergänzen
-    $output_v = [];
-    @exec(escapeshellarg($lpstat_path) . ' -v 2>/dev/null', $output_v);
-    $raw_v = $output_v;
-    foreach ($output_v as $line) {
-        if (preg_match('/^device for (\S+):\s+/', trim($line), $m) && empty($seen[$m[1]])) {
-            $printers[] = ['name' => $m[1], 'display' => $m[1]];
-            $seen[$m[1]] = true;
+        // "device for NAME: uri" (Druckername kann Leerzeichen haben)
+        elseif (preg_match('/^device for (.+?):\s+/', $line, $m)) {
+            $name = trim($m[1]);
+            if ($name !== '' && empty($seen[$name])) {
+                $printers[] = ['name' => $name, 'display' => $name];
+                $seen[$name] = true;
+            }
+        }
+        // "NAME accepting requests since ..." (lpstat -a)
+        elseif (preg_match('/^(.+)\s+accepting requests\s+/', $line, $m)) {
+            $name = trim($m[1]);
+            if ($name !== '' && empty($seen[$name])) {
+                $printers[] = ['name' => $name, 'display' => $name];
+                $seen[$name] = true;
+            }
         }
     }
 }
@@ -85,8 +95,7 @@ if ($debug && $lpstat_path !== '') {
         'lpstat_path' => $lpstat_path,
         'cups_server' => $cups_server ?: 'nicht gesetzt',
         'einheit_id' => $einheit_id,
-        'lpstat_p_raw' => $raw_p,
-        'lpstat_v_raw' => $raw_v,
+        'lpstat_t_raw' => $raw_t,
     ];
 }
 
