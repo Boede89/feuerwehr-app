@@ -54,21 +54,22 @@ if ($lpstat_path !== '') {
     @exec(escapeshellarg($lpstat_path) . ' -p 2>/dev/null', $output);
     $raw_p = $output;
 
+    $seen = [];
     foreach ($output as $line) {
         if (preg_match('/^printer\s+(\S+)\s+/', trim($line), $m)) {
             $printers[] = ['name' => $m[1], 'display' => $m[1]];
+            $seen[$m[1]] = true;
         }
     }
 
-    // Fallback: lpstat -v zeigt alle Drucker (auch deaktivierte)
-    if (empty($printers)) {
-        $output_v = [];
-        @exec(escapeshellarg($lpstat_path) . ' -v 2>/dev/null', $output_v);
-        $raw_v = $output_v;
-        foreach ($output_v as $line) {
-            if (preg_match('/^device for (\S+):\s+/', trim($line), $m)) {
-                $printers[] = ['name' => $m[1], 'display' => $m[1]];
-            }
+    // lpstat -v zeigt alle Drucker (auch deaktivierte) – immer ausführen und ergänzen
+    $output_v = [];
+    @exec(escapeshellarg($lpstat_path) . ' -v 2>/dev/null', $output_v);
+    $raw_v = $output_v;
+    foreach ($output_v as $line) {
+        if (preg_match('/^device for (\S+):\s+/', trim($line), $m) && empty($seen[$m[1]])) {
+            $printers[] = ['name' => $m[1], 'display' => $m[1]];
+            $seen[$m[1]] = true;
         }
     }
 }
