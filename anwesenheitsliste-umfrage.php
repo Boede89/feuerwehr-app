@@ -111,11 +111,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $post_step = isset($_POST['umfrage_step']) ? (int)$_POST['umfrage_step'] : 0;
     if ($post_step === 1) {
         $draft['datum'] = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($_POST['datum'] ?? '')) ? trim($_POST['datum']) : $draft['datum'];
-        $draft['uhrzeit_von'] = trim($_POST['uhrzeit_von'] ?? '');
-        $draft['uhrzeit_bis'] = trim($_POST['uhrzeit_bis'] ?? '') ?: date('H:i');
         $ts = trim($_POST['typ_sonstige'] ?? 'einsatz');
         $draft['bezeichnung_sonstige'] = $typen_map[$ts] ?? 'Einsatz';
-        $draft['alarmierung_durch'] = trim($_POST['alarmierung_durch'] ?? '');
+        if ($ts === 'einsatz') {
+            $draft['alarmierung_durch'] = trim($_POST['alarmierung_durch'] ?? '');
+        } else {
+            $draft['alarmierung_durch'] = '';
+        }
         $draft['einsatzstichwort'] = trim($_POST['einsatzstichwort'] ?? '');
         $draft['klassifizierung'] = trim($_POST['klassifizierung'] ?? '');
         $draft['einsatzstelle'] = trim($_POST['einsatzstelle'] ?? '');
@@ -256,21 +258,13 @@ $base_url = 'anwesenheitsliste-umfrage.php?datum=' . urlencode($draft['datum']) 
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Typ</label>
-                                <select class="form-select" name="typ_sonstige">
+                                <select class="form-select" name="typ_sonstige" id="typ_sonstige_step1">
                                     <?php foreach ($typen_map as $key => $label): ?>
                                     <option value="<?php echo htmlspecialchars($key); ?>" <?php echo ($draft['bezeichnung_sonstige'] ?? 'Einsatz') === $label ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Uhrzeit von</label>
-                                <input type="time" class="form-control" name="uhrzeit_von" value="<?php echo htmlspecialchars($draft['uhrzeit_von'] ?? ''); ?>">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Uhrzeit bis</label>
-                                <input type="time" class="form-control" name="uhrzeit_bis" value="<?php echo htmlspecialchars($draft['uhrzeit_bis'] ?? date('H:i')); ?>">
-                            </div>
-                            <div class="mb-3">
+                            <div class="mb-3" id="alarmierung_wrap" style="display: <?php echo ($draft['bezeichnung_sonstige'] ?? 'Einsatz') === 'Einsatz' ? 'block' : 'none'; ?>;">
                                 <label class="form-label">Alarmierung durch</label>
                                 <select class="form-select" name="alarmierung_durch">
                                     <option value="">— Bitte wählen —</option>
@@ -455,6 +449,14 @@ $base_url = 'anwesenheitsliste-umfrage.php?datum=' . urlencode($draft['datum']) 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     (function() {
+        var typSelect = document.getElementById('typ_sonstige_step1');
+        var alarmierungWrap = document.getElementById('alarmierung_wrap');
+        if (typSelect && alarmierungWrap) {
+            function toggleAlarmierung() {
+                alarmierungWrap.style.display = typSelect.value === 'einsatz' ? 'block' : 'none';
+            }
+            typSelect.addEventListener('change', toggleAlarmierung);
+        }
         var psJa = document.getElementById('ps_ja');
         var psNein = document.getElementById('ps_nein');
         var psFelder = document.getElementById('personenschaeden_felder');
