@@ -299,7 +299,7 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                 }
                                 ?>
                                 <div class="btn-group" role="group">
-                                    <a href="<?php echo htmlspecialchars($sort_base . '&sort=freq'); ?>" class="btn btn-sm <?php echo $sort_by === 'freq' ? 'btn-primary' : 'btn-outline-secondary'; ?>">Häufig anwesend</a>
+                                    <a href="<?php echo htmlspecialchars($sort_base . '&sort=freq'); ?>" class="btn btn-sm <?php echo $sort_by === 'freq' ? 'btn-primary' : 'btn-outline-secondary'; ?>">KI</a>
                                     <a href="<?php echo htmlspecialchars($sort_base . '&sort=name'); ?>" class="btn btn-sm <?php echo $sort_by === 'name' ? 'btn-primary' : 'btn-outline-secondary'; ?>">Nach Name</a>
                                 </div>
                             </div>

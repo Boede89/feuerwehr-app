@@ -44,6 +44,7 @@ $draft = &$_SESSION[$draft_key];
 
 $mode = isset($_GET['mode']) ? trim($_GET['mode']) : '';
 $selected_vehicle_id = isset($_GET['vehicle_id']) ? (int)$_GET['vehicle_id'] : 0;
+$besatzung_sort = isset($_GET['sort']) && $_GET['sort'] === 'name' ? 'name' : 'ki';
 
 // POST: Besatzung speichern (wenn von Besatzungs-Ansicht)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_besatzung'])) {
@@ -102,53 +103,64 @@ try {
         $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name ASC");
         $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    // Mitglieder: bei Besatzungsansicht nach Fahrzeug- und Gesamthäufigkeit sortieren
+    // Mitglieder: bei Besatzungsansicht nach Fahrzeug- und Gesamthäufigkeit oder nach Name sortieren
     if ($selected_vehicle_id > 0 && $einheit_id > 0) {
-        $stmt = $db->prepare("
-            SELECT m.id, m.first_name, m.last_name,
-                COALESCE(vf.cnt, 0) AS vehicle_freq,
-                COALESCE(gf.cnt, 0) AS total_freq
-            FROM members m
-            LEFT JOIN (
-                SELECT am.member_id, COUNT(*) AS cnt
-                FROM anwesenheitsliste_mitglieder am
-                INNER JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
-                WHERE am.vehicle_id = ? AND (a.einheit_id = ? OR a.einheit_id IS NULL)
-                GROUP BY am.member_id
-            ) vf ON vf.member_id = m.id
-            LEFT JOIN (
-                SELECT am.member_id, COUNT(*) AS cnt
-                FROM anwesenheitsliste_mitglieder am
-                INNER JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
-                WHERE (a.einheit_id = ? OR a.einheit_id IS NULL)
-                GROUP BY am.member_id
-            ) gf ON gf.member_id = m.id
-            WHERE (m.einheit_id = ? OR m.einheit_id IS NULL)
-            ORDER BY COALESCE(vf.cnt, 0) DESC, COALESCE(gf.cnt, 0) DESC, m.last_name, m.first_name
-        ");
-        $stmt->execute([$selected_vehicle_id, $einheit_id, $einheit_id, $einheit_id]);
-        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if ($besatzung_sort === 'name') {
+            $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE (einheit_id = ? OR einheit_id IS NULL) ORDER BY last_name, first_name");
+            $stmt->execute([$einheit_id]);
+            $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } else {
+            $stmt = $db->prepare("
+                SELECT m.id, m.first_name, m.last_name,
+                    COALESCE(vf.cnt, 0) AS vehicle_freq,
+                    COALESCE(gf.cnt, 0) AS total_freq
+                FROM members m
+                LEFT JOIN (
+                    SELECT am.member_id, COUNT(*) AS cnt
+                    FROM anwesenheitsliste_mitglieder am
+                    INNER JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
+                    WHERE am.vehicle_id = ? AND (a.einheit_id = ? OR a.einheit_id IS NULL)
+                    GROUP BY am.member_id
+                ) vf ON vf.member_id = m.id
+                LEFT JOIN (
+                    SELECT am.member_id, COUNT(*) AS cnt
+                    FROM anwesenheitsliste_mitglieder am
+                    INNER JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
+                    WHERE (a.einheit_id = ? OR a.einheit_id IS NULL)
+                    GROUP BY am.member_id
+                ) gf ON gf.member_id = m.id
+                WHERE (m.einheit_id = ? OR m.einheit_id IS NULL)
+                ORDER BY COALESCE(vf.cnt, 0) DESC, COALESCE(gf.cnt, 0) DESC, m.last_name, m.first_name
+            ");
+            $stmt->execute([$selected_vehicle_id, $einheit_id, $einheit_id, $einheit_id]);
+            $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
     } elseif ($selected_vehicle_id > 0) {
-        $stmt = $db->prepare("
-            SELECT m.id, m.first_name, m.last_name,
-                COALESCE(vf.cnt, 0) AS vehicle_freq,
-                COALESCE(gf.cnt, 0) AS total_freq
-            FROM members m
-            LEFT JOIN (
-                SELECT am.member_id, COUNT(*) AS cnt
-                FROM anwesenheitsliste_mitglieder am
-                WHERE am.vehicle_id = ?
-                GROUP BY am.member_id
-            ) vf ON vf.member_id = m.id
-            LEFT JOIN (
-                SELECT am.member_id, COUNT(*) AS cnt
-                FROM anwesenheitsliste_mitglieder am
-                GROUP BY am.member_id
-            ) gf ON gf.member_id = m.id
-            ORDER BY COALESCE(vf.cnt, 0) DESC, COALESCE(gf.cnt, 0) DESC, m.last_name, m.first_name
-        ");
-        $stmt->execute([$selected_vehicle_id]);
-        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if ($besatzung_sort === 'name') {
+            $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+            $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } else {
+            $stmt = $db->prepare("
+                SELECT m.id, m.first_name, m.last_name,
+                    COALESCE(vf.cnt, 0) AS vehicle_freq,
+                    COALESCE(gf.cnt, 0) AS total_freq
+                FROM members m
+                LEFT JOIN (
+                    SELECT am.member_id, COUNT(*) AS cnt
+                    FROM anwesenheitsliste_mitglieder am
+                    WHERE am.vehicle_id = ?
+                    GROUP BY am.member_id
+                ) vf ON vf.member_id = m.id
+                LEFT JOIN (
+                    SELECT am.member_id, COUNT(*) AS cnt
+                    FROM anwesenheitsliste_mitglieder am
+                    GROUP BY am.member_id
+                ) gf ON gf.member_id = m.id
+                ORDER BY COALESCE(vf.cnt, 0) DESC, COALESCE(gf.cnt, 0) DESC, m.last_name, m.first_name
+            ");
+            $stmt->execute([$selected_vehicle_id]);
+            $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
     } elseif ($einheit_id > 0) {
         $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
         $stmt->execute([$einheit_id]);
@@ -301,9 +313,18 @@ if ($selected_vehicle_id > 0) {
                                 <strong>Besatzung: <?php echo htmlspecialchars($selected_vehicle['name']); ?></strong>
                             </p>
                         </div>
-                        <div class="input-group mb-3" style="max-width: 300px;">
-                            <span class="input-group-text"><i class="fas fa-search"></i></span>
-                            <input type="text" class="form-control" id="besatzungSearch" placeholder="Person suchen..." autocomplete="off">
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <div class="input-group" style="min-width: 200px; max-width: 300px;">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" class="form-control" id="besatzungSearch" placeholder="Person suchen..." autocomplete="off">
+                            </div>
+                            <?php
+                            $besatzung_sort_base = $base_url . '&mode=besatzung&vehicle_id=' . (int)$selected_vehicle_id;
+                            ?>
+                            <div class="btn-group" role="group">
+                                <a href="<?php echo htmlspecialchars($besatzung_sort_base . '&sort=ki'); ?>" class="btn btn-sm <?php echo $besatzung_sort === 'ki' ? 'btn-primary' : 'btn-outline-secondary'; ?>">KI</a>
+                                <a href="<?php echo htmlspecialchars($besatzung_sort_base . '&sort=name'); ?>" class="btn btn-sm <?php echo $besatzung_sort === 'name' ? 'btn-primary' : 'btn-outline-secondary'; ?>">Nach Name</a>
+                            </div>
                         </div>
                         <form method="post">
                             <input type="hidden" name="save_besatzung" value="1">
