@@ -46,14 +46,67 @@ if (($draft['typ'] ?? '') === 'einsatz' || $is_uebungsdienst_draft) {
 
 // Mitglieder laden (einheitsspezifisch)
 $members = [];
+$member_freq = []; // member_id => Anzahl Einsätze (für Umfrage-Sortierung)
+$umfrage_mode = isset($_GET['umfrage']) && $_GET['umfrage'] === '1';
+$sort_by = isset($_GET['sort']) && $_GET['sort'] === 'name' ? 'name' : 'freq';
 try {
-    if ($einheit_id > 0) {
+    if ($umfrage_mode && $einheit_id > 0) {
+        // Häufigkeit: wie oft war Mitglied in Anwesenheitslisten dieser Einheit
+        $stmt = $db->prepare("
+            SELECT m.id, m.first_name, m.last_name, COALESCE(f.cnt, 0) AS freq
+            FROM members m
+            LEFT JOIN (
+                SELECT am.member_id, COUNT(*) AS cnt
+                FROM anwesenheitsliste_mitglieder am
+                INNER JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
+                WHERE (a.einheit_id = ? OR a.einheit_id IS NULL)
+                GROUP BY am.member_id
+            ) f ON f.member_id = m.id
+            WHERE (m.einheit_id = ? OR m.einheit_id IS NULL)
+            ORDER BY f.cnt DESC, m.last_name, m.first_name
+        ");
+        $stmt->execute([$einheit_id, $einheit_id]);
+        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($members as $m) {
+            $member_freq[(int)$m['id']] = (int)($m['freq'] ?? 0);
+        }
+        if ($sort_by === 'name') {
+            usort($members, function($a, $b) {
+                $c = strcasecmp($a['last_name'], $b['last_name']);
+                return $c !== 0 ? $c : strcasecmp($a['first_name'], $b['first_name']);
+            });
+        }
+    } elseif ($umfrage_mode) {
+        $stmt = $db->prepare("
+            SELECT m.id, m.first_name, m.last_name, COALESCE(f.cnt, 0) AS freq
+            FROM members m
+            LEFT JOIN (
+                SELECT am.member_id, COUNT(*) AS cnt
+                FROM anwesenheitsliste_mitglieder am
+                INNER JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
+                GROUP BY am.member_id
+            ) f ON f.member_id = m.id
+            ORDER BY f.cnt DESC, m.last_name, m.first_name
+        ");
+        $stmt->execute();
+        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($members as $m) {
+            $member_freq[(int)$m['id']] = (int)($m['freq'] ?? 0);
+        }
+        if ($sort_by === 'name') {
+            usort($members, function($a, $b) {
+                $c = strcasecmp($a['last_name'], $b['last_name']);
+                return $c !== 0 ? $c : strcasecmp($a['first_name'], $b['first_name']);
+            });
+        }
+    } elseif ($einheit_id > 0) {
         $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
         $stmt->execute([$einheit_id]);
+        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
         $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Tabelle members evtl. in anderem Schema
 }
@@ -153,7 +206,6 @@ $typ_key = array_search($bez_cur, $typen_map);
 if ($typ_key === false) $typ_key = 'einsatz';
 $ueb_ids = $draft['uebungsleiter_member_ids'] ?? [];
 if (!is_array($ueb_ids)) $ueb_ids = [];
-$umfrage_mode = isset($_GET['umfrage']) && $_GET['umfrage'] === '1';
 if ($umfrage_mode) {
     $back_url = 'anwesenheitsliste-umfrage.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&step=1' . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '');
 } else {
@@ -183,6 +235,8 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
     <style>
         tr.anw-row { cursor: pointer; }
         .anw-row .no-click { cursor: default; }
+        #personalCardsContainer .card.anw-row:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        #personalCardsContainer .card.anw-row .card-details .form-select { cursor: pointer; }
     </style>
 </head>
 <body>
@@ -228,6 +282,81 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                             <?php foreach ($ueb_ids as $uid): if ((int)$uid > 0): ?>
                             <input type="hidden" name="uebungsleiter[]" value="<?php echo (int)$uid; ?>">
                             <?php endif; endforeach; ?>
+                            <?php if ($umfrage_mode): ?>
+                            <p class="text-muted small mb-3">Klicken Sie auf eine Kachel, um die Person als anwesend auszuwählen (nochmal klicken zum Abwählen). Optional: Fahrzeug und Rolle zuordnen.</p>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <div class="input-group flex-grow-1" style="min-width: 200px;">
+                                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                    <input type="text" class="form-control" id="personalSearch" placeholder="Person suchen..." autocomplete="off">
+                                </div>
+                                <?php
+                                $sort_base = '?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&umfrage=1' . $url_suffix;
+                                if ($typ_key !== '') {
+                                    $sort_base .= '&typ_sonstige=' . urlencode($typ_key);
+                                    foreach ($ueb_ids as $uid) {
+                                        if ((int)$uid > 0) $sort_base .= '&uebungsleiter[]=' . (int)$uid;
+                                    }
+                                }
+                                ?>
+                                <div class="btn-group" role="group">
+                                    <a href="<?php echo htmlspecialchars($sort_base . '&sort=freq'); ?>" class="btn btn-sm <?php echo $sort_by === 'freq' ? 'btn-primary' : 'btn-outline-secondary'; ?>">Häufig anwesend</a>
+                                    <a href="<?php echo htmlspecialchars($sort_base . '&sort=name'); ?>" class="btn btn-sm <?php echo $sort_by === 'name' ? 'btn-primary' : 'btn-outline-secondary'; ?>">Nach Name</a>
+                                </div>
+                            </div>
+                            <?php if (empty($members)): ?>
+                                <p class="text-muted">Keine Mitglieder in der Datenbank. Bitte zuerst in der Mitgliederverwaltung anlegen.</p>
+                            <?php else: ?>
+                                <div class="row g-3" id="personalCardsContainer">
+                                    <?php foreach ($members as $m):
+                                        $vid_cur = isset($member_vehicle[$m['id']]) ? (int)$member_vehicle[$m['id']] : 0;
+                                        $role_cur = '';
+                                        if ($vid_cur && isset($vehicle_maschinist[$vid_cur]) && (int)$vehicle_maschinist[$vid_cur] === (int)$m['id']) {
+                                            $role_cur = 'maschinist';
+                                        } elseif ($vid_cur && isset($vehicle_einheitsfuehrer[$vid_cur]) && (int)$vehicle_einheitsfuehrer[$vid_cur] === (int)$m['id']) {
+                                            $role_cur = 'einheitsfuehrer';
+                                        }
+                                        $pa_checked = isset($member_pa[$m['id']]);
+                                        $row_selected = isset($selected_ids[$m['id']]);
+                                        $full_name = $m['last_name'] . ', ' . $m['first_name'];
+                                        $search_text = strtolower($full_name . ' ' . ($m['first_name'] ?? '') . ' ' . ($m['last_name'] ?? ''));
+                                    ?>
+                                    <div class="col-6 col-md-4 col-lg-3 personal-card-wrapper" data-search="<?php echo htmlspecialchars($search_text); ?>">
+                                        <div class="card anw-row h-100 <?php echo $row_selected ? 'selected border-primary' : ''; ?>" data-member-id="<?php echo (int)$m['id']; ?>" style="cursor: pointer; transition: all 0.2s ease; <?php echo $row_selected ? 'background-color: #b6d4fe; box-shadow: 0 0 0 2px var(--bs-primary);' : ''; ?>">
+                                            <div class="card-body p-4">
+                                                <input type="hidden" name="member_id[]" value="<?php echo (int)$m['id']; ?>" class="member-id-input" <?php echo $row_selected ? '' : 'disabled'; ?>>
+                                                <div class="name-cell text-center mb-2">
+                                                    <span class="d-block <?php echo $row_selected ? 'fw-bold' : ''; ?>"><?php echo htmlspecialchars($full_name); ?></span>
+                                                </div>
+                                                <div class="card-details no-click" style="display: <?php echo $row_selected ? 'block' : 'none'; ?>;">
+                                                    <div class="mb-2">
+                                                        <label class="form-label small mb-0">Fahrzeug</label>
+                                                        <select class="form-select form-select-sm" name="vehicle[<?php echo (int)$m['id']; ?>]">
+                                                            <option value="">— kein Fahrzeug —</option>
+                                                            <?php foreach ($vehicles as $v): ?>
+                                                            <option value="<?php echo (int)$v['id']; ?>" <?php echo $vid_cur === (int)$v['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($v['name']); ?></option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                    </div>
+                                                    <div class="mb-2">
+                                                        <label class="form-label small mb-0">Rolle</label>
+                                                        <select class="form-select form-select-sm" name="role[<?php echo (int)$m['id']; ?>]">
+                                                            <option value="">— keine —</option>
+                                                            <option value="maschinist" <?php echo $role_cur === 'maschinist' ? 'selected' : ''; ?>>Maschinist</option>
+                                                            <option value="einheitsfuehrer" <?php echo $role_cur === 'einheitsfuehrer' ? 'selected' : ''; ?>>Einheitsführer</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input type="checkbox" class="form-check-input member-pa-check" name="member_pa[<?php echo (int)$m['id']; ?>]" value="1" <?php echo $pa_checked ? 'checked' : ''; ?> <?php echo $row_selected ? '' : 'disabled'; ?> id="pa_<?php echo (int)$m['id']; ?>">
+                                                        <label class="form-check-label small" for="pa_<?php echo (int)$m['id']; ?>">PA getragen</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                            <?php else: ?>
                             <p class="text-muted small">Klicken Sie auf einen Namen, um die Person als anwesend auszuwählen (nochmal klicken zum Abwählen). Optional: Fahrzeug zuordnen und Rolle (Maschinist/Einheitsführer) – pro Fahrzeug nur je eine Person.</p>
                             <?php if (empty($members)): ?>
                                 <p class="text-muted">Keine Mitglieder in der Datenbank. Bitte zuerst in der Mitgliederverwaltung anlegen.</p>
@@ -282,6 +411,7 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                         </tbody>
                                     </table>
                                 </div>
+                            <?php endif; ?>
                             <?php endif; ?>
                             <div class="d-flex flex-wrap gap-2 mt-3">
                                 <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Übernehmen und zurück</button>
@@ -341,42 +471,76 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
     })();
     </script>
     <script>
-        document.querySelectorAll('.anw-row').forEach(function(row) {
-            var nameCell = row.querySelector('.name-cell');
-            var hiddenInput = row.querySelector('.member-id-input');
-            var vehicleSelect = row.querySelector('select[name^="vehicle"]');
-            var roleSelect = row.querySelector('select[name^="role"]');
-            var paCheck = row.querySelector('.member-pa-check');
-            if (!nameCell || !hiddenInput) return;
-            function markRowSelected(selected) {
-                var cells = row.querySelectorAll('td');
-                if (selected) {
-                    hiddenInput.disabled = false;
-                    row.classList.add('selected');
-                    cells.forEach(function(td) { td.style.backgroundColor = '#b6d4fe'; });
-                    var span = nameCell.querySelector('.d-block');
-                    if (span) span.classList.add('fw-bold');
-                    if (paCheck) paCheck.disabled = false;
-                } else {
-                    hiddenInput.disabled = true;
-                    row.classList.remove('selected');
-                    cells.forEach(function(td) { td.style.backgroundColor = ''; });
-                    var span = nameCell.querySelector('.d-block');
-                    if (span) span.classList.remove('fw-bold');
-                    if (paCheck) { paCheck.disabled = true; paCheck.checked = false; }
-                }
+        (function() {
+            var isCardMode = document.getElementById('personalCardsContainer') !== null;
+            var searchInput = document.getElementById('personalSearch');
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    var q = this.value.trim().toLowerCase();
+                    document.querySelectorAll('.personal-card-wrapper').forEach(function(wrap) {
+                        var show = q === '' || (wrap.getAttribute('data-search') || '').indexOf(q) >= 0;
+                        wrap.style.display = show ? '' : 'none';
+                    });
+                });
             }
-            nameCell.addEventListener('click', function(e) {
-                e.preventDefault();
-                markRowSelected(hiddenInput.disabled);
+            document.querySelectorAll('.anw-row').forEach(function(row) {
+                var nameCell = row.querySelector('.name-cell');
+                var hiddenInput = row.querySelector('.member-id-input');
+                var vehicleSelect = row.querySelector('select[name^="vehicle"]');
+                var roleSelect = row.querySelector('select[name^="role"]');
+                var paCheck = row.querySelector('.member-pa-check');
+                var detailsEl = row.querySelector('.card-details');
+                if (!hiddenInput) return;
+                function markRowSelected(selected) {
+                    if (selected) {
+                        hiddenInput.disabled = false;
+                        row.classList.add('selected');
+                        row.style.backgroundColor = '#b6d4fe';
+                        row.style.boxShadow = '0 0 0 2px var(--bs-primary)';
+                        row.classList.add('border-primary');
+                        if (nameCell) {
+                            var span = nameCell.querySelector('.d-block');
+                            if (span) span.classList.add('fw-bold');
+                        }
+                        if (paCheck) paCheck.disabled = false;
+                        if (detailsEl) detailsEl.style.display = 'block';
+                    } else {
+                        hiddenInput.disabled = true;
+                        row.classList.remove('selected');
+                        row.style.backgroundColor = '';
+                        row.style.boxShadow = '';
+                        row.classList.remove('border-primary');
+                        if (nameCell) {
+                            var span = nameCell.querySelector('.d-block');
+                            if (span) span.classList.remove('fw-bold');
+                        }
+                        if (paCheck) { paCheck.disabled = true; paCheck.checked = false; }
+                        if (detailsEl) detailsEl.style.display = 'none';
+                    }
+                    if (!isCardMode && row.querySelectorAll('td').length) {
+                        row.querySelectorAll('td').forEach(function(td) {
+                            td.style.backgroundColor = selected ? '#b6d4fe' : '';
+                        });
+                    }
+                }
+                var clickTarget = isCardMode ? row : (nameCell || row);
+                if (clickTarget) {
+                    clickTarget.addEventListener('click', function(e) {
+                        if (detailsEl && detailsEl.contains(e.target)) return;
+                        if (e.target.closest('.no-click')) return;
+                        e.preventDefault();
+                        markRowSelected(hiddenInput.disabled);
+                    });
+                }
+                if (detailsEl) detailsEl.addEventListener('click', function(e) { e.stopPropagation(); });
+                if (vehicleSelect) vehicleSelect.addEventListener('change', function() {
+                    if (vehicleSelect.value && vehicleSelect.value !== '') markRowSelected(true);
+                });
+                if (roleSelect) roleSelect.addEventListener('change', function() {
+                    if (roleSelect.value && roleSelect.value !== '') markRowSelected(true);
+                });
             });
-            if (vehicleSelect) vehicleSelect.addEventListener('change', function() {
-                if (vehicleSelect.value && vehicleSelect.value !== '') markRowSelected(true);
-            });
-            if (roleSelect) roleSelect.addEventListener('change', function() {
-                if (roleSelect.value && roleSelect.value !== '') markRowSelected(true);
-            });
-        });
+        })();
     </script>
 </body>
 </html>
