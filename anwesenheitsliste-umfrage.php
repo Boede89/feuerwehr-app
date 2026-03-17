@@ -100,6 +100,14 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
 }
 $draft = &$_SESSION[$draft_key];
 
+// Gerätehaus-Adresse aus einheitsspezifischen Einstellungen laden
+$geraetehaus_adresse = '';
+try {
+    require_once __DIR__ . '/includes/einheit-settings-helper.php';
+    $unit_settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+    $geraetehaus_adresse = trim((string)($unit_settings['geraetehaus_adresse'] ?? ''));
+} catch (Exception $e) {}
+
 // Klassifizierung-Optionen
 $klassifizierung_opts = ['Grossbrand', 'Mittelbrand', 'Kleinbrand', 'Gelöschtes Feuer', 'Gefahrenmeldeanlage', 'Menschen in Notlage', 'Tiere in Notlage', 'Verkehrsunfall', 'Techn. Hilfeleistung', 'Wasserrettung', 'CBRN-Einsatz', 'Unterstützung RD', 'Sonstiger Einsatz', 'Fehlalarm', 'Böswill. Alarm'];
 $alarmierung_opts = ['Telefon', 'DME Löschzug', 'DME Kleinhilfe', 'Sirene'];
@@ -288,7 +296,12 @@ $base_url = 'anwesenheitsliste-umfrage.php?datum=' . urlencode($draft['datum']) 
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Adresse / Einsatzstelle</label>
-                                <input type="text" class="form-control" name="einsatzstelle" value="<?php echo htmlspecialchars($draft['einsatzstelle'] ?? ''); ?>">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="einsatzstelle_umfrage" name="einsatzstelle" value="<?php echo htmlspecialchars($draft['einsatzstelle'] ?? ''); ?>" placeholder="Adresse eingeben">
+                                    <?php if ($geraetehaus_adresse !== ''): ?>
+                                    <button type="button" class="btn btn-outline-secondary" id="btn_geraetehaus_umfrage" title="Adresse des Gerätehauses eintragen" data-address="<?php echo htmlspecialchars($geraetehaus_adresse); ?>">Gerätehaus</button>
+                                    <?php endif; ?>
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Objekt</label>
@@ -456,6 +469,14 @@ $base_url = 'anwesenheitsliste-umfrage.php?datum=' . urlencode($draft['datum']) 
                 alarmierungWrap.style.display = typSelect.value === 'einsatz' ? 'block' : 'none';
             }
             typSelect.addEventListener('change', toggleAlarmierung);
+        }
+        var btnGeraetehaus = document.getElementById('btn_geraetehaus_umfrage');
+        var inputEinsatzstelle = document.getElementById('einsatzstelle_umfrage');
+        if (btnGeraetehaus && inputEinsatzstelle) {
+            btnGeraetehaus.addEventListener('click', function() {
+                var addr = this.getAttribute('data-address') || '';
+                if (addr) inputEinsatzstelle.value = addr;
+            });
         }
         var psJa = document.getElementById('ps_ja');
         var psNein = document.getElementById('ps_nein');
