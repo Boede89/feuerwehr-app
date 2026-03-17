@@ -95,17 +95,67 @@ $members = [];
 $vehicles = [];
 try {
     if ($einheit_id > 0) {
-        $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
-        $stmt->execute([$einheit_id]);
-        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $stmt = $db->prepare("SELECT id, name FROM vehicles WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY name ASC");
         $stmt->execute([$einheit_id]);
         $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
-        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $stmt = $db->query("SELECT id, name FROM vehicles ORDER BY name ASC");
         $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    // Mitglieder: bei Besatzungsansicht nach Fahrzeug- und Gesamthäufigkeit sortieren
+    if ($selected_vehicle_id > 0 && $einheit_id > 0) {
+        $stmt = $db->prepare("
+            SELECT m.id, m.first_name, m.last_name,
+                COALESCE(vf.cnt, 0) AS vehicle_freq,
+                COALESCE(gf.cnt, 0) AS total_freq
+            FROM members m
+            LEFT JOIN (
+                SELECT am.member_id, COUNT(*) AS cnt
+                FROM anwesenheitsliste_mitglieder am
+                INNER JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
+                WHERE am.vehicle_id = ? AND (a.einheit_id = ? OR a.einheit_id IS NULL)
+                GROUP BY am.member_id
+            ) vf ON vf.member_id = m.id
+            LEFT JOIN (
+                SELECT am.member_id, COUNT(*) AS cnt
+                FROM anwesenheitsliste_mitglieder am
+                INNER JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id
+                WHERE (a.einheit_id = ? OR a.einheit_id IS NULL)
+                GROUP BY am.member_id
+            ) gf ON gf.member_id = m.id
+            WHERE (m.einheit_id = ? OR m.einheit_id IS NULL)
+            ORDER BY COALESCE(vf.cnt, 0) DESC, COALESCE(gf.cnt, 0) DESC, m.last_name, m.first_name
+        ");
+        $stmt->execute([$selected_vehicle_id, $einheit_id, $einheit_id, $einheit_id]);
+        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } elseif ($selected_vehicle_id > 0) {
+        $stmt = $db->prepare("
+            SELECT m.id, m.first_name, m.last_name,
+                COALESCE(vf.cnt, 0) AS vehicle_freq,
+                COALESCE(gf.cnt, 0) AS total_freq
+            FROM members m
+            LEFT JOIN (
+                SELECT am.member_id, COUNT(*) AS cnt
+                FROM anwesenheitsliste_mitglieder am
+                WHERE am.vehicle_id = ?
+                GROUP BY am.member_id
+            ) vf ON vf.member_id = m.id
+            LEFT JOIN (
+                SELECT am.member_id, COUNT(*) AS cnt
+                FROM anwesenheitsliste_mitglieder am
+                GROUP BY am.member_id
+            ) gf ON gf.member_id = m.id
+            ORDER BY COALESCE(vf.cnt, 0) DESC, COALESCE(gf.cnt, 0) DESC, m.last_name, m.first_name
+        ");
+        $stmt->execute([$selected_vehicle_id]);
+        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } elseif ($einheit_id > 0) {
+        $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
+        $stmt->execute([$einheit_id]);
+        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+        $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 } catch (Exception $e) {}
 
