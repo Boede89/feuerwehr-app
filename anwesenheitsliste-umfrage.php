@@ -132,8 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $draft['objekt'] = trim($_POST['objekt'] ?? '');
         $draft['eigentuemer'] = trim($_POST['eigentuemer'] ?? '');
         $datum = $draft['datum'];
-        $ts = trim($_POST['typ_sonstige'] ?? 'einsatz');
-        $redirect = 'anwesenheitsliste-personal.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&umfrage=1&typ_sonstige=' . urlencode($ts) . $einheit_param;
+        $redirect = 'anwesenheitsliste-umfrage-schritt2.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $einheit_param;
         header('Location: ' . $redirect);
         exit;
     }

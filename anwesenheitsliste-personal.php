@@ -207,7 +207,7 @@ if ($typ_key === false) $typ_key = 'einsatz';
 $ueb_ids = $draft['uebungsleiter_member_ids'] ?? [];
 if (!is_array($ueb_ids)) $ueb_ids = [];
 if ($umfrage_mode) {
-    $back_url = 'anwesenheitsliste-umfrage.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&step=1' . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '');
+    $back_url = 'anwesenheitsliste-umfrage-schritt2.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '');
 } else {
     $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
     if ($typ_key === 'uebungsdienst' || trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst') {
