@@ -600,6 +600,17 @@ if (isset($_SESSION['user_id'])) {
                                         <h5 class="card-title mb-0">Dienst auswählen</h5>
                                     </button>
                                 </div>
+                                <div class="col-12 col-md-4">
+                                    <?php if (!empty($alle_entwuerfe)): ?>
+                                    <button type="button" class="btn btn-outline-success w-100 h-100 anwesenheits-btn text-decoration-none" data-bs-toggle="modal" data-bs-target="#draftHinweisModal">
+                                    <?php else: ?>
+                                    <a href="anwesenheitsliste-umfrage.php?datum=<?php echo urlencode($datum); ?>&auswahl=einsatz&neu=1<?php echo $einheit_param ? '&einheit_id=' . (int)$einheit_id : ''; ?>" class="btn btn-outline-success w-100 h-100 anwesenheits-btn text-decoration-none">
+                                    <?php endif; ?>
+                                        <div class="feature-icon mb-2"><i class="fas fa-poll"></i></div>
+                                        <h5 class="card-title mb-0">Umfrage</h5>
+                                        <small class="d-block mt-1 opacity-75">Schrittweise Erfassung</small>
+                                    <?php echo !empty($alle_entwuerfe) ? '</button>' : '</a>'; ?>
+                                </div>
                             </div>
                             <p class="text-muted small mt-2 mb-0">Wählen Sie eine Option – Sie werden zur Eingabe weitergeleitet.</p>
                         </div>

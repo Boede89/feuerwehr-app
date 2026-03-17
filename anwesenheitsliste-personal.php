@@ -129,7 +129,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
         $draft['uebungsleiter_member_ids'] = array_values(array_map('intval', array_filter($_POST['uebungsleiter'], function($x){return $x!==''&&ctype_digit((string)$x);})));
     }
-    $redirect = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
+    $umfrage = isset($_GET['umfrage']) && $_GET['umfrage'] === '1';
+    if ($umfrage) {
+        $redirect = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&umfrage=1' . $url_suffix;
+    } else {
+        $redirect = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
+    }
     $ts = trim((string)($_POST['typ_sonstige'] ?? ''));
     if ($ts !== '' && (($draft['typ'] ?? '') === 'einsatz' || trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst')) {
         $redirect .= '&typ_sonstige=' . urlencode($ts);
@@ -148,11 +153,16 @@ $typ_key = array_search($bez_cur, $typen_map);
 if ($typ_key === false) $typ_key = 'einsatz';
 $ueb_ids = $draft['uebungsleiter_member_ids'] ?? [];
 if (!is_array($ueb_ids)) $ueb_ids = [];
-$back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
-if ($typ_key === 'uebungsdienst' || trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst') {
-    $back_url .= '&typ_sonstige=uebungsdienst';
-    foreach ($ueb_ids as $uid) {
-        if ((int)$uid > 0) $back_url .= '&uebungsleiter[]=' . (int)$uid;
+$umfrage_mode = isset($_GET['umfrage']) && $_GET['umfrage'] === '1';
+if ($umfrage_mode) {
+    $back_url = 'anwesenheitsliste-umfrage.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&step=1' . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '');
+} else {
+    $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
+    if ($typ_key === 'uebungsdienst' || trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst') {
+        $back_url .= '&typ_sonstige=uebungsdienst';
+        foreach ($ueb_ids as $uid) {
+            if ((int)$uid > 0) $back_url .= '&uebungsleiter[]=' . (int)$uid;
+        }
     }
 }
 $selected_ids = array_flip($draft['members']);

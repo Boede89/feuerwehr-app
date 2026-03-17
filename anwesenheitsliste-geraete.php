@@ -168,8 +168,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $draft['maengel'] = $maengel;
     anwesenheitsliste_draft_persist($db, $draft, (int)$_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null);
-    $redirect = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
-    if (($draft['typ'] ?? '') === 'einsatz') {
+    $umfrage = isset($_GET['umfrage']) && $_GET['umfrage'] === '1';
+    if ($umfrage) {
+        $redirect = 'anwesenheitsliste-umfrage.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&step=3' . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '');
+    } else {
+        $redirect = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
+    }
+    if (($draft['typ'] ?? '') === 'einsatz' && !$umfrage) {
         $typen_map = get_dienstplan_typen_auswahl();
         $ts = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
         $typ_key = array_search($ts, $typen_map);
@@ -264,15 +269,26 @@ if ($berichtersteller !== '' && $berichtersteller !== null) {
     if ($berichtersteller_display === '') $berichtersteller_display = (string)$berichtersteller;
 }
 
-$back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
-if (($draft['typ'] ?? '') === 'einsatz') {
-    $typen_map = get_dienstplan_typen_auswahl();
+$umfrage_mode = isset($_GET['umfrage']) && $_GET['umfrage'] === '1';
+if ($umfrage_mode) {
+    $back_url = 'anwesenheitsliste-fahrzeuge.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&umfrage=1' . $url_suffix;
     $ts = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
-    $typ_key = array_search($ts, $typen_map);
-    if ($typ_key === false) $typ_key = '__custom__';
-    $back_url .= '&typ_sonstige=' . urlencode($typ_key);
+    $typ_key = array_search($ts, get_dienstplan_typen_auswahl());
+    if ($typ_key !== false) $back_url .= '&typ_sonstige=' . urlencode($typ_key);
     foreach ($draft['uebungsleiter_member_ids'] ?? [] as $uid) {
         if ((int)$uid > 0) $back_url .= '&uebungsleiter[]=' . (int)$uid;
+    }
+} else {
+    $back_url = 'anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix;
+    if (($draft['typ'] ?? '') === 'einsatz') {
+        $typen_map = get_dienstplan_typen_auswahl();
+        $ts = trim($draft['bezeichnung_sonstige'] ?? 'Einsatz');
+        $typ_key = array_search($ts, $typen_map);
+        if ($typ_key === false) $typ_key = '__custom__';
+        $back_url .= '&typ_sonstige=' . urlencode($typ_key);
+        foreach ($draft['uebungsleiter_member_ids'] ?? [] as $uid) {
+            if ((int)$uid > 0) $back_url .= '&uebungsleiter[]=' . (int)$uid;
+        }
     }
 }
 ?>
