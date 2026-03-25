@@ -121,7 +121,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
     $datum = trim($_POST['datum'] ?? '');
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum)) $datum = date('Y-m-d');
     $einsatzbereitschaft = in_array(trim($_POST['einsatzbereitschaft'] ?? ''), ['hergestellt', 'nicht_hergestellt']) ? trim($_POST['einsatzbereitschaft']) : 'hergestellt';
-    $mangel_beschreibung = trim($_POST['mangel_beschreibung'] ?? '') ?: null;
     $einsatzleiter = trim($_POST['einsatzleiter'] ?? '');
     $einsatzleiter_member_id = null;
     $einsatzleiter_freitext = null;
@@ -136,8 +135,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
         $error = 'Bitte wählen Sie mindestens ein Fahrzeug aus.';
     } else {
         try {
-            $stmt = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id, einheit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$typ, $art, $datum, $einsatzbereitschaft, $mangel_beschreibung, $einsatzleiter_member_id, $einsatzleiter_freitext, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
+            $stmt = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id, einheit_id) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?)");
+            $stmt->execute([$typ, $art, $datum, $einsatzbereitschaft, $einsatzleiter_member_id, $einsatzleiter_freitext, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
             $gwm_id = $db->lastInsertId();
 
             $stmt_f = $db->prepare("INSERT INTO geraetewartmitteilung_fahrzeuge (geraetewartmitteilung_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id, equipment_used, defective_equipment, defective_freitext, defective_mangel) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
@@ -382,10 +381,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
                                         </div>
                                         <?php endforeach; ?>
                                     </div>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="mangel_beschreibung" class="form-label">Mangel beschreiben</label>
-                                    <textarea class="form-control" name="mangel_beschreibung" id="mangel_beschreibung" rows="3" placeholder="Beschreibung von Mängeln oder Auffälligkeiten"><?php echo htmlspecialchars($_POST['mangel_beschreibung'] ?? ''); ?></textarea>
                                 </div>
                                 <div class="mb-3">
                                     <label for="einsatzleiter" class="form-label">Einsatzleiter</label>

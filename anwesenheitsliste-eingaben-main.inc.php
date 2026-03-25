@@ -725,9 +725,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 $gwm_art = substr($gwm_art, 0, 50);
                 $gwm_el_mid = $draft['einsatzleiter_member_id'] ?? null;
                 $gwm_el_txt = !empty(trim((string)($draft['einsatzleiter_freitext'] ?? ''))) ? trim($draft['einsatzleiter_freitext']) : null;
-                $gwm_mangel = !empty(trim((string)($draft['bemerkung'] ?? ''))) ? trim($draft['bemerkung']) : null;
-                $stmt_gwm = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id, einheit_id) VALUES (?, ?, ?, 'hergestellt', ?, ?, ?, ?, ?)");
-                $stmt_gwm->execute([$gwm_typ, $gwm_art, $draft['datum'], $gwm_mangel, $gwm_el_mid, $gwm_el_txt, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
+                $stmt_gwm = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id, einheit_id) VALUES (?, ?, ?, 'hergestellt', NULL, ?, ?, ?, ?)");
+                $stmt_gwm->execute([$gwm_typ, $gwm_art, $draft['datum'], $gwm_el_mid, $gwm_el_txt, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
                 $gwm_id = (int)$db->lastInsertId();
                 $maengel_list = $draft['maengel'] ?? [];
                 $stmt_gwm_f = $db->prepare("INSERT INTO geraetewartmitteilung_fahrzeuge (geraetewartmitteilung_id, vehicle_id, maschinist_member_id, einheitsfuehrer_member_id, equipment_used, defective_equipment, defective_freitext, defective_mangel) VALUES (?, ?, ?, ?, ?, '[]', ?, ?)");

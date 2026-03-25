@@ -147,7 +147,6 @@ foreach ($mitteilungen as $idx => $gwm) {
                 <tr><td class="label-cell">Datum</td><td class="value-cell">' . date('d.m.Y', strtotime($gwm['datum'])) . '</td></tr>
                 <tr><td class="label-cell">Einsatzbereitschaft</td><td class="value-cell">' . htmlspecialchars($eb_label) . '</td></tr>
                 <tr><td class="label-cell">Einsatzleiter</td><td class="value-cell">' . htmlspecialchars($einsatzleiter ?: '-') . '</td></tr>
-                ' . (!empty($gwm['mangel_beschreibung']) ? '<tr><td class="label-cell">Mangel</td><td class="value-cell">' . nl2br(htmlspecialchars($gwm['mangel_beschreibung'])) . '</td></tr>' : '') . '
             </table>
         </div>
         <div class="section">
