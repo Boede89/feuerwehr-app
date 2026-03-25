@@ -168,8 +168,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && (!isset($_POST['action']) || $_POST[
 
                 // Aktivität loggen
                 log_activity($user['id'], 'login', 'Benutzer angemeldet');
-                
-                redirect('index.php');
+
+                $target = 'admin/dashboard.php';
+                if (!empty($_GET['redirect'])) {
+                    $r = trim(urldecode((string)$_GET['redirect']));
+                    if ($r !== '' && !preg_match('#^https?://#i', $r) && strncmp($r, '//', 2) !== 0
+                        && strpos($r, '..') === false && strpos($r, "\0") === false) {
+                        $r = ltrim($r, '/');
+                        if ($r !== '') {
+                            $target = $r;
+                        }
+                    }
+                }
+                redirect($target);
             } else {
                 $error = "Ungültige Anmeldedaten oder Benutzer ist deaktiviert.";
             }
