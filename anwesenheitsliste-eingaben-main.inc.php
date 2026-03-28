@@ -24,6 +24,7 @@ $einheit_param = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : '';
 require_once __DIR__ . '/config/divera.php';
 require_once __DIR__ . '/includes/dienstplan-typen.php';
 require_once __DIR__ . '/includes/anwesenheitsliste-helper.php';
+require_once __DIR__ . '/includes/bericht-anhaenge-helper.php';
 
 if (!$db) {
     @header('Content-Type: text/html; charset=utf-8');
@@ -84,6 +85,10 @@ if ($is_einsatz) {
 $draft_key = 'anwesenheit_draft';
 $neu = isset($_GET['neu']) && $_GET['neu'] === '1';
 if ($neu && $edit_id <= 0) {
+    if (!empty($_SESSION[$draft_key]) && is_array($_SESSION[$draft_key])) {
+        require_once __DIR__ . '/includes/bericht-anhaenge-helper.php';
+        bericht_anhaenge_draft_cleanup_files($_SESSION[$draft_key]);
+    }
     unset($_SESSION[$draft_key]);
 }
 $draft_loaded = false;
@@ -178,6 +183,7 @@ if ($edit_id > 0 && $_SERVER['REQUEST_METHOD'] !== 'POST') {
                 'berichtersteller' => $cd['berichtersteller'] ?? null,
                 'custom_data' => $cd,
                 'maengel' => [],
+                'anhaenge_temp' => [],
                 'beschreibung' => $beschreibung_edit,
                 'edit_id' => $edit_id,
             ];
@@ -264,6 +270,7 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'berichtersteller' => null,
         'custom_data' => [],
         'maengel' => [],
+        'anhaenge_temp' => [],
         'beschreibung' => $beschreibung_init,
     ];
     }
@@ -271,6 +278,9 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
 $draft = &$_SESSION[$draft_key];
 if (!isset($draft['maengel']) || !is_array($draft['maengel'])) {
     $draft['maengel'] = [];
+}
+if (!isset($draft['anhaenge_temp']) || !is_array($draft['anhaenge_temp'])) {
+    $draft['anhaenge_temp'] = [];
 }
 // typ_sonstige und uebungsleiter aus URL übernehmen (z.B. beim Zurückkehren von Personal/Fahrzeuge/etc.)
 if ($is_einsatz) {
@@ -449,7 +459,6 @@ function _anwesenheitsliste_draft_value($id, $draft) {
 
 // Speichern (nur auf dieser Seite): Liste anlegen + Personal/Fahrzeuge aus Session
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
-    require_once __DIR__ . '/includes/bericht-anhaenge-helper.php';
     $edit_id_save = isset($_POST['edit_id']) ? (int)$_POST['edit_id'] : (int)($draft['edit_id'] ?? 0);
     if (isset($_POST['datum']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($_POST['datum']))) {
         $draft['datum'] = trim($_POST['datum']);
@@ -794,6 +803,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 error_log('Anwesenheitsliste Mängelberichte: ' . $e->getMessage());
             }
         }
+        $al_temps = $draft['anhaenge_temp'] ?? [];
+        if (!empty($al_temps) && is_array($al_temps)) {
+            bericht_anhaenge_commit_draft_files($db, 'anwesenheitsliste', (int)$list_id, $al_temps);
+        }
         bericht_anhaenge_save_for_anwesenheitsliste($db, (int)$list_id, $_FILES);
         // PA-Checkbox: Automatische Atemschutzeinträge für PA-Träger erstellen (Status pending, Genehmigung erforderlich)
         $member_pa = $draft['member_pa'] ?? [];
@@ -979,7 +992,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
 
         unset($_SESSION[$draft_key]);
         try {
-            $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ?")->execute([$draft['datum'], $draft['auswahl']]);
+            $eidDraftDel = $einheit_id > 0 ? $einheit_id : 1;
+            $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ? AND einheit_id = ?")->execute([$draft['datum'], $draft['auswahl'], $eidDraftDel]);
         } catch (Exception $e) { /* ignore */ }
         $return_fc = !empty($_POST['return']) && $_POST['return'] === 'formularcenter';
         $redirect = $return_fc ? 'admin/formularcenter.php?tab=submissions&message=' . urlencode('Anwesenheitsliste wurde gespeichert.') : 'anwesenheitsliste.php?message=erfolg&datum=' . urlencode($draft['datum'] ?? date('Y-m-d')) . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '');
@@ -1412,10 +1426,25 @@ if ($is_einsatz) {
                             <?php endforeach; ?>
                             <div class="mb-4 p-3 border rounded bg-light">
                                 <label class="form-label fw-semibold"><i class="fas fa-paperclip"></i> Anhänge zur Anwesenheitsliste (optional)</label>
-                                <p class="text-muted small mb-2">Fotos und Dokumente (PDF) erscheinen im erzeugten PDF hinter dem Bericht: zuerst Bilder, anschließend weitere PDF-Dateien. Erlaubt: JPG, PNG, WebP, GIF, PDF (max. ca. 12&nbsp;MB pro Datei).</p>
+                                <p class="text-muted small mb-2">Fotos und Dokumente (PDF) werden direkt nach Auswahl oder Aufnahme gespeichert und bleiben beim Wechsel zu Personal, Fahrzeugen usw. erhalten. Sie erscheinen im erzeugten PDF hinter dem Bericht. Erlaubt: JPG, PNG, WebP, GIF, PDF (max. ca. 12&nbsp;MB pro Datei, insgesamt bis <?php echo (int)BERICHT_ANHAENGE_MAX_FILES; ?> Dateien).</p>
+                                <?php $al_anhaenge_temp = $draft['anhaenge_temp'] ?? []; if (!is_array($al_anhaenge_temp)) { $al_anhaenge_temp = []; } ?>
+                                <ul class="list-unstyled mb-2 border rounded p-2 bg-white" id="al_anhaenge_temp_list" style="min-height:0">
+                                    <?php foreach ($al_anhaenge_temp as $al_att):
+                                        $al_p = isset($al_att['path']) ? (string)$al_att['path'] : '';
+                                        $al_o = isset($al_att['orig']) ? (string)$al_att['orig'] : 'Anhang';
+                                        if ($al_p === '') { continue; }
+                                        $al_href = 'uploads/' . htmlspecialchars(str_replace(['..', '\\'], '', $al_p), ENT_QUOTES, 'UTF-8');
+                                    ?>
+                                    <li class="d-flex flex-wrap align-items-center gap-2 mb-1 al-anhaenge-temp-row" data-path="<?php echo htmlspecialchars($al_p, ENT_QUOTES, 'UTF-8'); ?>">
+                                        <a href="<?php echo $al_href; ?>" target="_blank" rel="noopener"><?php echo htmlspecialchars($al_o, ENT_QUOTES, 'UTF-8'); ?></a>
+                                        <button type="button" class="btn btn-sm btn-outline-danger al-anhaenge-temp-remove" data-path="<?php echo htmlspecialchars($al_p, ENT_QUOTES, 'UTF-8'); ?>">Entfernen</button>
+                                    </li>
+                                    <?php endforeach; ?>
+                                </ul>
                                 <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
                                     <input type="file" class="form-control form-control-sm" style="max-width:280px" name="anwesenheitsliste_anhaenge[]" id="anwesenheitsliste_anhaenge_files" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">
                                     <button type="button" class="btn btn-sm btn-outline-secondary" id="btnKameraAnhangAl" title="Kamera (mobil)"><i class="fas fa-camera"></i> Foto aufnehmen</button>
+                                    <span class="small text-muted d-none" id="al_anhaenge_upload_status" aria-live="polite"></span>
                                 </div>
                                 <input type="file" class="d-none" id="anwesenheitsliste_anhaenge_camera" accept="image/*" capture="environment">
                                 <small class="text-muted">Unterwegs: „Foto aufnehmen“ nutzen oder „Dateien auswählen“ – bei manchen Geräten bietet die Dateiauswahl ebenfalls die Kamera.</small>
@@ -1490,22 +1519,90 @@ if ($is_einsatz) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     (function(){
+        function appendAlRows(added) {
+            var ul = document.getElementById('al_anhaenge_temp_list');
+            if (!ul || !added || !added.length) return;
+            added.forEach(function(it) {
+                var path = it.path || '';
+                var orig = it.orig || 'Anhang';
+                if (!path) return;
+                var li = document.createElement('li');
+                li.className = 'd-flex flex-wrap align-items-center gap-2 mb-1 al-anhaenge-temp-row';
+                li.setAttribute('data-path', path);
+                var a = document.createElement('a');
+                a.href = 'uploads/' + path.replace(/\.\./g, '').replace(/\\/g, '');
+                a.target = '_blank';
+                a.rel = 'noopener';
+                a.textContent = orig;
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-sm btn-outline-danger al-anhaenge-temp-remove';
+                btn.setAttribute('data-path', path);
+                btn.textContent = 'Entfernen';
+                li.appendChild(a);
+                li.appendChild(btn);
+                ul.appendChild(li);
+            });
+        }
+        function uploadAlFiles(input) {
+            if (!input || !input.files || !input.files.length) return;
+            var st = document.getElementById('al_anhaenge_upload_status');
+            if (st) { st.classList.remove('d-none'); st.textContent = 'Wird hochgeladen…'; }
+            var fd = new FormData();
+            var i;
+            for (i = 0; i < input.files.length; i++) {
+                fd.append('anwesenheitsliste_anhaenge[]', input.files[i]);
+            }
+            fetch('api/upload-anwesenheit-anhang.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (st) { st.textContent = ''; st.classList.add('d-none'); }
+                    if (!data.success) {
+                        window.alert(data.message || 'Upload fehlgeschlagen');
+                        return;
+                    }
+                    appendAlRows(data.added || []);
+                    input.value = '';
+                })
+                .catch(function() {
+                    if (st) { st.textContent = ''; st.classList.add('d-none'); }
+                    window.alert('Netzwerkfehler beim Upload');
+                    input.value = '';
+                });
+        }
         var btnCamAl = document.getElementById('btnKameraAnhangAl');
         var inpCamAl = document.getElementById('anwesenheitsliste_anhaenge_camera');
         var inpFilesAl = document.getElementById('anwesenheitsliste_anhaenge_files');
-        if (btnCamAl && inpCamAl && inpFilesAl) {
-            btnCamAl.addEventListener('click', function() { inpCamAl.click(); });
-            inpCamAl.addEventListener('change', function() {
-                if (!this.files || !this.files.length) return;
-                try {
-                    var dt = new DataTransfer();
-                    var i;
-                    for (i = 0; i < inpFilesAl.files.length; i++) dt.items.add(inpFilesAl.files[i]);
-                    for (i = 0; i < this.files.length; i++) dt.items.add(this.files[i]);
-                    inpFilesAl.files = dt.files;
-                } catch (e) {}
-                this.value = '';
+        var ulAl = document.getElementById('al_anhaenge_temp_list');
+        if (ulAl) {
+            ulAl.addEventListener('click', function(e) {
+                var btn = e.target.closest('.al-anhaenge-temp-remove');
+                if (!btn) return;
+                var path = btn.getAttribute('data-path') || '';
+                if (!path) return;
+                var fd = new FormData();
+                fd.append('path', path);
+                fetch('api/delete-anwesenheit-anhang.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (!data.success) {
+                            window.alert(data.message || 'Entfernen fehlgeschlagen');
+                            return;
+                        }
+                        var row = btn.closest('.al-anhaenge-temp-row');
+                        if (row) row.remove();
+                    })
+                    .catch(function() { window.alert('Netzwerkfehler'); });
             });
+        }
+        if (btnCamAl && inpCamAl) {
+            btnCamAl.addEventListener('click', function() { inpCamAl.click(); });
+        }
+        if (inpCamAl) {
+            inpCamAl.addEventListener('change', function() { uploadAlFiles(this); });
+        }
+        if (inpFilesAl) {
+            inpFilesAl.addEventListener('change', function() { uploadAlFiles(this); });
         }
     })();
     </script>

@@ -109,8 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
                 }
             }
         }
-        $maengel = [];
-        if (!empty($_POST['maengel']) && is_array($_POST['maengel'])) {
+        if (isset($_POST['maengel']) && is_array($_POST['maengel'])) {
+            $maengel = [];
             $standort_opts = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
             $mangel_an_opts = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
             foreach ($_POST['maengel'] as $m) {
@@ -126,8 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
                     $maengel[] = ['standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung ?: null, 'mangel_beschreibung' => $mangel_beschreibung ?: null, 'ursache' => $ursache ?: null, 'verbleib' => $verbleib ?: null, 'aufgenommen_durch' => $aufgenommen_durch ?: null, 'vehicle_id' => $vehicle_id];
                 }
             }
+            $draft['maengel'] = $maengel;
         }
-        $draft['maengel'] = $maengel;
     } elseif ($form_type === 'fahrzeuge') {
         $draft['vehicles'] = [];
         $draft['vehicle_maschinist'] = $draft['vehicle_maschinist'] ?? [];
@@ -152,8 +152,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
                 }
             }
         }
-        $maengel = [];
-        if (!empty($_POST['maengel']) && is_array($_POST['maengel'])) {
+        if (isset($_POST['maengel']) && is_array($_POST['maengel'])) {
+            $maengel = [];
             $standort_opts = ['GH Amern', 'GH Hehler', 'GH Waldniel'];
             $mangel_an_opts = ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'];
             foreach ($_POST['maengel'] as $m) {
@@ -169,8 +169,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
                     $maengel[] = ['standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung ?: null, 'mangel_beschreibung' => $mangel_beschreibung ?: null, 'ursache' => $ursache ?: null, 'verbleib' => $verbleib ?: null, 'aufgenommen_durch' => $aufgenommen_durch ?: null, 'vehicle_id' => $vehicle_id];
                 }
             }
+            $draft['maengel'] = $maengel;
         }
-        $draft['maengel'] = $maengel;
     } else {
     $builtin = ['datum', 'uhrzeit_von', 'uhrzeit_bis', 'alarmierung_durch', 'einsatzstelle', 'objekt', 'eigentuemer', 'geschaedigter', 'klassifizierung', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache', 'bemerkung', 'einsatzstichwort', 'thema', 'beschreibung'];
     foreach ($builtin as $k) {
@@ -214,10 +214,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST)) {
     // Custom-Felder
     if (!isset($draft['custom_data'])) $draft['custom_data'] = [];
     foreach ($_POST as $k => $v) {
-        if (!in_array($k, array_merge($builtin, ['einsatzleiter', 'einsatzleiter_freitext', 'uebungsleiter', 'typ_sonstige', 'typ_sonstige_freitext', 'thema_neu', 'save_final', 'form_type', 'equipment', 'equipment_sonstiges', 'berichtersteller', 'berichtersteller_display']), true) && !preg_match('/^(member_id|vehicle|role|vehicle_id|maschinist|einheitsfuehrer)\b/', $k)) {
+        if (!in_array($k, array_merge($builtin, ['einsatzleiter', 'einsatzleiter_freitext', 'uebungsleiter', 'typ_sonstige', 'typ_sonstige_freitext', 'thema_neu', 'save_final', 'form_type', 'equipment', 'equipment_sonstiges', 'berichtersteller', 'berichtersteller_display', 'maengel']), true) && !preg_match('/^(member_id|vehicle|role|vehicle_id|maschinist|einheitsfuehrer)\b/', $k)) {
             $draft['custom_data'][$k] = trim((string)$v);
         }
     }
+    }
+    if (!empty($_FILES['anwesenheitsliste_anhaenge']['name'])) {
+        require_once __DIR__ . '/../includes/bericht-anhaenge-helper.php';
+        $uidMerge = (int)$_SESSION['user_id'];
+        if (!isset($draft['anhaenge_temp']) || !is_array($draft['anhaenge_temp'])) {
+            $draft['anhaenge_temp'] = [];
+        }
+        $existingAl = $draft['anhaenge_temp'];
+        $remainingSlots = max(0, BERICHT_ANHAENGE_MAX_FILES - count($existingAl));
+        if ($remainingSlots > 0) {
+            $batchAl = bericht_anhaenge_normalize_files_array($_FILES['anwesenheitsliste_anhaenge']);
+            $batchAl = array_slice($batchAl, 0, $remainingSlots);
+            $savedAl = bericht_anhaenge_list_draft_save_uploads_normalized($batchAl, $uidMerge, 'al');
+            if (!empty($savedAl)) {
+                $draft['anhaenge_temp'] = array_merge($existingAl, $savedAl);
+            }
+        }
     }
     $_SESSION[$draft_key] = $draft;
 }
@@ -269,7 +286,8 @@ if (!empty($draft['custom_data']) && is_array($draft['custom_data'])) {
 }
 $has_vehicle_equipment = (!empty($draft['vehicle_equipment']) && is_array($draft['vehicle_equipment'])) || (!empty($draft['vehicle_equipment_sonstiges']) && is_array($draft['vehicle_equipment_sonstiges']));
 $has_maengel = !empty($draft['maengel']) && is_array($draft['maengel']);
-$draft_has_content = $has_members || $has_vehicles || $has_text || $has_einsatzleiter || $has_custom || $has_vehicle_equipment || $has_maengel;
+$has_anhaenge_temp = !empty($draft['anhaenge_temp']) && is_array($draft['anhaenge_temp']);
+$draft_has_content = $has_members || $has_vehicles || $has_text || $has_einsatzleiter || $has_custom || $has_vehicle_equipment || $has_maengel || $has_anhaenge_temp;
 
 $draft_data = json_encode($draft);
 $datum = $draft['datum'] ?? date('Y-m-d');

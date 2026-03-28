@@ -259,6 +259,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_draft' && isset($_SESS
     $del_auswahl = isset($_GET['auswahl']) ? trim($_GET['auswahl']) : '';
     if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $del_datum) && $del_auswahl !== '') {
         try {
+            require_once __DIR__ . '/includes/bericht-anhaenge-helper.php';
+            $del_eid = $einheit_id > 0 ? $einheit_id : 1;
+            $stmtLoad = $db->prepare("SELECT draft_data FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ? AND einheit_id = ?");
+            $stmtLoad->execute([$del_datum, $del_auswahl, $del_eid]);
+            $rowDel = $stmtLoad->fetch(PDO::FETCH_ASSOC);
+            if ($rowDel && !empty($rowDel['draft_data'])) {
+                $draftDel = json_decode($rowDel['draft_data'], true);
+                if (is_array($draftDel)) {
+                    bericht_anhaenge_draft_cleanup_files($draftDel);
+                }
+            }
             if ($einheit_id > 0) {
                 $stmt = $db->prepare("DELETE FROM anwesenheitsliste_drafts WHERE datum = ? AND auswahl = ? AND einheit_id = ?");
                 $stmt->execute([$del_datum, $del_auswahl, $einheit_id]);
@@ -267,6 +278,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_draft' && isset($_SESS
                 $stmt->execute([$del_datum, $del_auswahl]);
             }
             if ($del_datum === ($_SESSION['anwesenheit_draft']['datum'] ?? '') && $del_auswahl === ($_SESSION['anwesenheit_draft']['auswahl'] ?? '')) {
+                if (!empty($_SESSION['anwesenheit_draft']) && is_array($_SESSION['anwesenheit_draft'])) {
+                    bericht_anhaenge_draft_cleanup_files($_SESSION['anwesenheit_draft']);
+                }
                 unset($_SESSION['anwesenheit_draft']);
             }
         } catch (Exception $e) {
