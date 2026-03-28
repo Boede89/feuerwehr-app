@@ -14,6 +14,47 @@ function bericht_anhaenge_draft_dir(int $user_id): string {
     return dirname(__DIR__) . '/uploads/bericht_anhaenge_draft/' . $user_id;
 }
 
+/** Projektroot/uploads – Basis für alle Anhänge. */
+function bericht_anhaenge_uploads_root(): string {
+    return dirname(__DIR__) . '/uploads';
+}
+
+/**
+ * Verzeichnis rekursiv anlegen und schreibbar machen.
+ * is_writable() ist auf Windows/manchen Hostern unzuverlässig – daher Probeschreiben.
+ */
+function bericht_anhaenge_ensure_directory_writable(string $absDir): bool {
+    $absDir = rtrim($absDir, '/\\');
+    if ($absDir === '') {
+        return false;
+    }
+    if (!is_dir($absDir)) {
+        if (!@mkdir($absDir, 0775, true)) {
+            @mkdir($absDir, 0777, true);
+        }
+    }
+    if (!is_dir($absDir)) {
+        return false;
+    }
+    if (@is_writable($absDir)) {
+        return true;
+    }
+    @chmod($absDir, 0775);
+    if (@is_writable($absDir)) {
+        return true;
+    }
+    @chmod($absDir, 0777);
+    if (@is_writable($absDir)) {
+        return true;
+    }
+    $probe = $absDir . DIRECTORY_SEPARATOR . '.wrprobe_' . bin2hex(random_bytes(3));
+    if (@file_put_contents($probe, '1') !== false) {
+        @unlink($probe);
+        return true;
+    }
+    return false;
+}
+
 /**
  * Erkennt erlaubten Bild-/PDF-Typ anhand Dateiinhalt (falls finfo/Browser unzuverlässig sind).
  */
@@ -158,7 +199,7 @@ function bericht_anhaenge_upload_reject_message(?string $code): string {
         case 'move_failed':
         case 'mkdir_failed':
         case 'uploads_not_writable':
-            return 'Der Ordner „uploads“ konnte nicht beschrieben werden (Rechte auf dem Webserver prüfen).';
+            return 'Der Ordner „uploads“ neben der App (Webroot) ist nicht beschreibbar oder ließ sich nicht anlegen. Auf dem Server: Ordner „uploads“ manuell erstellen und für den PHP/Webserver-Benutzer schreibbar machen (z. B. chmod 775 oder 777, Besitzer www-data/apache). Bei Shared Hosting den Support bitten, Schreibrechte für „uploads“ zu setzen.';
         case 'bad_user':
             return 'Ungültige Benutzer-Session.';
         case 'unknown':
@@ -475,12 +516,12 @@ function bericht_anhaenge_list_draft_save_uploads_normalized(array $batch, int $
         $failReason = 'empty_batch';
         return [];
     }
-    $dir = bericht_anhaenge_draft_dir($user_id);
-    if (!is_dir($dir) && !@mkdir($dir, 0755, true)) {
-        $failReason = 'mkdir_failed';
+    if (!bericht_anhaenge_ensure_directory_writable(bericht_anhaenge_uploads_root())) {
+        $failReason = 'uploads_not_writable';
         return [];
     }
-    if (!is_writable($dir)) {
+    $dir = bericht_anhaenge_draft_dir($user_id);
+    if (!bericht_anhaenge_ensure_directory_writable($dir)) {
         $failReason = 'uploads_not_writable';
         return [];
     }
@@ -509,7 +550,7 @@ function bericht_anhaenge_list_draft_save_uploads_normalized(array $batch, int $
         $storedRel = 'bericht_anhaenge_draft/' . $user_id . '/' . bin2hex(random_bytes(12)) . '_' . preg_replace('/[^a-z0-9_]/i', '', $prefix) . '.' . $ext;
         $abs = dirname(__DIR__) . '/uploads/' . $storedRel;
         $par = dirname($abs);
-        if (!is_dir($par) && !@mkdir($par, 0755, true)) {
+        if (!bericht_anhaenge_ensure_directory_writable($par)) {
             $lastReject = 'mkdir_failed';
             continue;
         }
