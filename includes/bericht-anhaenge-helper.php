@@ -37,6 +37,16 @@ function bericht_anhaenge_sniff_allowed_mime(string $tmpPath): ?string {
     if (strncmp($h, '%PDF', 4) === 0) {
         return 'application/pdf';
     }
+    // ISO-BMFF (u. a. Apple HEIC/HEIF)
+    if (strlen($h) >= 12 && substr($h, 4, 4) === 'ftyp') {
+        $brand = substr($h, 8, 4);
+        if (in_array($brand, ['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1'], true)) {
+            return 'image/heic';
+        }
+        if ($brand === 'heif') {
+            return 'image/heif';
+        }
+    }
     return null;
 }
 
@@ -49,6 +59,8 @@ function bericht_anhaenge_normalize_detected_mime(string $mime): string {
         'image/x-png' => 'image/png',
         'image/x-webp' => 'image/webp',
         'application/x-pdf' => 'application/pdf',
+        'image/heif-sequence' => 'image/heif',
+        'image/heic-sequence' => 'image/heic',
     ];
     return $aliases[$m] ?? $m;
 }
@@ -57,7 +69,7 @@ function bericht_anhaenge_allowed_mime_from_file(string $tmpPath, string $fallba
     if (!is_file($tmpPath) || !is_readable($tmpPath)) {
         return null;
     }
-    $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+    $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'image/heic', 'image/heif'];
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $detected = $finfo->file($tmpPath);
     if (is_string($detected)) {
@@ -80,6 +92,78 @@ function bericht_anhaenge_allowed_mime_from_file(string $tmpPath, string $fallba
 function bericht_anhaenge_safe_orig_name(string $name): string {
     $name = basename(str_replace(["\0", '/'], '', $name));
     return substr($name, 0, 220);
+}
+
+function bericht_anhaenge_file_extension_for_mime(string $mime): string {
+    static $map = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        'image/gif' => 'gif',
+        'application/pdf' => 'pdf',
+        'image/heic' => 'heic',
+        'image/heif' => 'heif',
+    ];
+    return $map[$mime] ?? 'bin';
+}
+
+/**
+ * Pfad so auflösen, dass is_uploaded_file() unter Windows/Hypervisor zuverlässiger greift.
+ */
+function bericht_anhaenge_resolve_upload_tmp_path(string $tmpFromPost): string {
+    if ($tmpFromPost === '') {
+        return '';
+    }
+    if (@is_uploaded_file($tmpFromPost)) {
+        return $tmpFromPost;
+    }
+    $rp = @realpath($tmpFromPost);
+    if ($rp !== false && @is_uploaded_file($rp)) {
+        return $rp;
+    }
+    $norm = str_replace('/', DIRECTORY_SEPARATOR, $tmpFromPost);
+    if ($norm !== $tmpFromPost && @is_uploaded_file($norm)) {
+        return $norm;
+    }
+    return $tmpFromPost;
+}
+
+/**
+ * move_uploaded_file mit copy-Fallback (z. B. Temp- und Zielordner auf verschiedenen Laufwerken).
+ */
+function bericht_anhaenge_move_uploaded_to(string $tmpPath, string $destinationAbs): bool {
+    if (@move_uploaded_file($tmpPath, $destinationAbs)) {
+        return true;
+    }
+    if (@is_uploaded_file($tmpPath) && @is_readable($tmpPath) && @copy($tmpPath, $destinationAbs)) {
+        @unlink($tmpPath);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Kurzer deutscher Hinweis nach internem Ablehnungs-Code (für API-Antworten).
+ */
+function bericht_anhaenge_upload_reject_message(?string $code): string {
+    switch ($code) {
+        case 'empty_batch':
+            return 'Keine verwertbare Datei nach dem Upload (evt. Größe 0 oder Übertragungsfehler).';
+        case 'not_uploaded_file':
+            return 'Die temporäre Upload-Datei wurde vom Server nicht akzeptiert. Bitte Hoster prüfen: upload_tmp_dir, open_basedir, genug Speicher. Auf einem anderen Browser/Endgerät testen.';
+        case 'size':
+            return 'Datei ist leer oder größer als das erlaubte Limit.';
+        case 'mime':
+            return 'Dateityp wird nicht unterstützt (erlaubt: JPG, PNG, WebP, GIF, PDF, ggf. HEIC/HEIF vom iPhone).';
+        case 'move_failed':
+        case 'mkdir_failed':
+        case 'uploads_not_writable':
+            return 'Der Ordner „uploads“ konnte nicht beschrieben werden (Rechte auf dem Webserver prüfen).';
+        case 'bad_user':
+            return 'Ungültige Benutzer-Session.';
+        default:
+            return '';
+    }
 }
 
 function bericht_anhaenge_ensure_table(PDO $db): void {
@@ -142,27 +226,22 @@ function bericht_anhaenge_store_files(PDO $db, string $entity_type, int $entity_
         }
         $tmp = $item['tmp'] ?? '';
         $name = bericht_anhaenge_safe_orig_name($item['name'] ?? 'datei');
-        if ($tmp === '' || !is_uploaded_file($tmp)) {
+        $tmpResolved = bericht_anhaenge_resolve_upload_tmp_path($tmp);
+        if ($tmpResolved === '' || !is_uploaded_file($tmpResolved)) {
             continue;
         }
-        $size = (int)($item['size'] ?? filesize($tmp));
+        $size = (int)($item['size'] ?? filesize($tmpResolved));
         if ($size <= 0 || $size > BERICHT_ANHAENGE_MAX_BYTES) {
             continue;
         }
-        $mime = bericht_anhaenge_allowed_mime_from_file($tmp, (string)($item['type'] ?? ''));
+        $mime = bericht_anhaenge_allowed_mime_from_file($tmpResolved, (string)($item['type'] ?? ''));
         if ($mime === null) {
             continue;
         }
-        $ext = [
-            'image/jpeg' => 'jpg',
-            'image/png' => 'png',
-            'image/webp' => 'webp',
-            'image/gif' => 'gif',
-            'application/pdf' => 'pdf',
-        ][$mime] ?? 'bin';
+        $ext = bericht_anhaenge_file_extension_for_mime($mime);
         $stored = $subdir . '/' . bin2hex(random_bytes(16)) . '.' . $ext;
         $abs = bericht_anhaenge_base_upload_dir() . '/' . $stored;
-        if (!move_uploaded_file($tmp, $abs)) {
+        if (!bericht_anhaenge_move_uploaded_to($tmpResolved, $abs)) {
             continue;
         }
         $sort++;
@@ -261,9 +340,7 @@ function bericht_anhaenge_commit_draft_files(PDO $db, string $entity_type, int $
         if (!is_file($absSrc) || !is_readable($absSrc)) {
             continue;
         }
-        $ext = [
-            'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif', 'application/pdf' => 'pdf',
-        ][$mime] ?? 'bin';
+        $ext = bericht_anhaenge_file_extension_for_mime($mime);
         $stored = $subdir . '/' . bin2hex(random_bytes(16)) . '.' . $ext;
         $absDest = bericht_anhaenge_base_upload_dir() . '/' . $stored;
         if (!@copy($absSrc, $absDest)) {
@@ -307,7 +384,7 @@ function bericht_anhaenge_maengel_draft_save_uploads(array $filesPost, int $bloc
         if (($errs[$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
             continue;
         }
-        $tmp = $tmps[$i] ?? '';
+        $tmp = bericht_anhaenge_resolve_upload_tmp_path((string)($tmps[$i] ?? ''));
         if ($tmp === '' || !is_uploaded_file($tmp)) {
             continue;
         }
@@ -319,16 +396,14 @@ function bericht_anhaenge_maengel_draft_save_uploads(array $filesPost, int $bloc
         if ($mime === null) {
             continue;
         }
-        $ext = [
-            'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif', 'application/pdf' => 'pdf',
-        ][$mime] ?? 'bin';
+        $ext = bericht_anhaenge_file_extension_for_mime($mime);
         $storedRel = 'bericht_anhaenge_draft/' . $user_id . '/' . bin2hex(random_bytes(12)) . '_' . $blockIndex . '.' . $ext;
         $abs = dirname(__DIR__) . '/uploads/' . $storedRel;
         $par = dirname($abs);
         if (!is_dir($par)) {
             mkdir($par, 0755, true);
         }
-        if (!move_uploaded_file($tmp, $abs)) {
+        if (!bericht_anhaenge_move_uploaded_to($tmp, $abs)) {
             continue;
         }
         $out[] = ['path' => $storedRel, 'orig' => bericht_anhaenge_safe_orig_name((string)$name), 'mime' => $mime];
@@ -388,44 +463,62 @@ function bericht_anhaenge_list_draft_save_uploads(array $filesPost, int $user_id
 /**
  * @param array<int, array{tmp:string,name:string,size?:int,type?:string}> $batch
  */
-function bericht_anhaenge_list_draft_save_uploads_normalized(array $batch, int $user_id, string $prefix = 'al'): array {
-    if ($user_id <= 0 || empty($batch)) {
+function bericht_anhaenge_list_draft_save_uploads_normalized(array $batch, int $user_id, string $prefix = 'al', &$failReason = null): array {
+    $failReason = null;
+    if ($user_id <= 0) {
+        $failReason = 'bad_user';
+        return [];
+    }
+    if (empty($batch)) {
+        $failReason = 'empty_batch';
         return [];
     }
     $dir = bericht_anhaenge_draft_dir($user_id);
-    if (!is_dir($dir)) {
-        mkdir($dir, 0755, true);
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true)) {
+        $failReason = 'mkdir_failed';
+        return [];
+    }
+    if (!is_writable($dir)) {
+        $failReason = 'uploads_not_writable';
+        return [];
     }
     $out = [];
+    $lastReject = null;
     foreach ($batch as $item) {
         if (count($out) >= BERICHT_ANHAENGE_MAX_FILES) {
             break;
         }
-        $tmp = $item['tmp'] ?? '';
+        $tmp = bericht_anhaenge_resolve_upload_tmp_path((string)($item['tmp'] ?? ''));
         if ($tmp === '' || !is_uploaded_file($tmp)) {
+            $lastReject = 'not_uploaded_file';
             continue;
         }
         $size = (int)($item['size'] ?? (is_file($tmp) ? filesize($tmp) : 0));
         if ($size <= 0 || $size > BERICHT_ANHAENGE_MAX_BYTES) {
+            $lastReject = 'size';
             continue;
         }
         $mime = bericht_anhaenge_allowed_mime_from_file($tmp, (string)($item['type'] ?? ''));
         if ($mime === null) {
+            $lastReject = 'mime';
             continue;
         }
-        $ext = [
-            'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif', 'application/pdf' => 'pdf',
-        ][$mime] ?? 'bin';
+        $ext = bericht_anhaenge_file_extension_for_mime($mime);
         $storedRel = 'bericht_anhaenge_draft/' . $user_id . '/' . bin2hex(random_bytes(12)) . '_' . preg_replace('/[^a-z0-9_]/i', '', $prefix) . '.' . $ext;
         $abs = dirname(__DIR__) . '/uploads/' . $storedRel;
         $par = dirname($abs);
-        if (!is_dir($par)) {
-            mkdir($par, 0755, true);
+        if (!is_dir($par) && !@mkdir($par, 0755, true)) {
+            $lastReject = 'mkdir_failed';
+            continue;
         }
-        if (!move_uploaded_file($tmp, $abs)) {
+        if (!bericht_anhaenge_move_uploaded_to($tmp, $abs)) {
+            $lastReject = 'move_failed';
             continue;
         }
         $out[] = ['path' => $storedRel, 'orig' => bericht_anhaenge_safe_orig_name($item['name'] ?? 'datei'), 'mime' => $mime];
+    }
+    if (empty($out)) {
+        $failReason = $lastReject ?? 'unknown';
     }
     return $out;
 }

@@ -43,11 +43,11 @@ if ($remaining <= 0) {
 
 $batch = bericht_anhaenge_normalize_files_array($fileField);
 $batch = array_slice($batch, 0, $remaining);
-$saved = bericht_anhaenge_list_draft_save_uploads_normalized($batch, $user_id, 'al');
+$failReason = null;
+$saved = bericht_anhaenge_list_draft_save_uploads_normalized($batch, $user_id, 'al', $failReason);
 if (empty($saved)) {
     $errs = $fileField['error'] ?? null;
-    $firstErr = is_array($errs) ? reset($errs) : $errs;
-    $firstErr = (int)$firstErr;
+    $firstErr = is_array($errs) ? (int)reset($errs) : (int)$errs;
     $hint = '';
     if ($firstErr === UPLOAD_ERR_INI_SIZE || $firstErr === UPLOAD_ERR_FORM_SIZE) {
         $hint = ' Die Datei übersteigt das Server-Limit (upload_max_filesize / post_max_size).';
@@ -56,7 +56,9 @@ if (empty($saved)) {
     } elseif ($firstErr === UPLOAD_ERR_NO_TMP_DIR || $firstErr === UPLOAD_ERR_CANT_WRITE) {
         $hint = ' Server konnte die temporäre Datei nicht speichern – Administrator informieren.';
     }
-    echo json_encode(['success' => false, 'message' => 'Upload fehlgeschlagen (Dateityp JPG/PNG/WebP/GIF/PDF und max. ca. 12 MB; bei Fotos ggf. erneut versuchen).' . $hint]);
+    $detail = bericht_anhaenge_upload_reject_message($failReason);
+    $msg = $detail !== '' ? $detail : 'Upload fehlgeschlagen (Dateityp JPG/PNG/WebP/GIF/PDF/HEIC und max. ca. 12 MB).';
+    echo json_encode(['success' => false, 'message' => $msg . $hint, 'code' => $failReason]);
     exit;
 }
 
