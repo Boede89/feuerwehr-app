@@ -289,3 +289,97 @@ function bericht_anhaenge_maengel_draft_save_uploads(array $filesPost, int $bloc
     }
     return $out;
 }
+
+/**
+ * Löscht temporäre Anhang-Dateien eines Entwurfs (Anwesenheitsliste auf oberster Ebene + Mängelblöcke).
+ */
+function bericht_anhaenge_draft_cleanup_files(array $draft): void {
+    $paths = [];
+    if (!empty($draft['anhaenge_temp']) && is_array($draft['anhaenge_temp'])) {
+        foreach ($draft['anhaenge_temp'] as $it) {
+            if (!empty($it['path']) && is_string($it['path'])) {
+                $paths[] = $it['path'];
+            }
+        }
+    }
+    if (!empty($draft['maengel']) && is_array($draft['maengel'])) {
+        foreach ($draft['maengel'] as $m) {
+            if (!empty($m['anhaenge_temp']) && is_array($m['anhaenge_temp'])) {
+                foreach ($m['anhaenge_temp'] as $it) {
+                    if (!empty($it['path']) && is_string($it['path'])) {
+                        $paths[] = $it['path'];
+                    }
+                }
+            }
+        }
+    }
+    $base = dirname(__DIR__) . '/uploads/';
+    foreach ($paths as $rel) {
+        $rel = str_replace('..', '', $rel);
+        $abs = $base . str_replace('\\', '/', ltrim($rel, '/'));
+        if (is_file($abs)) {
+            @unlink($abs);
+        }
+    }
+}
+
+/**
+ * Speichert Hochladungen für die Anwesenheitsliste (Entwurf) unter uploads/bericht_anhaenge_draft/{user_id}/.
+ *
+ * @return array<int, array{path:string,orig:string,mime:string}>
+ */
+function bericht_anhaenge_list_draft_save_uploads(array $filesPost, int $user_id): array {
+    if ($user_id <= 0 || empty($filesPost['anwesenheitsliste_anhaenge']['name'])) {
+        return [];
+    }
+    return bericht_anhaenge_list_draft_save_uploads_normalized(
+        bericht_anhaenge_normalize_files_array($filesPost['anwesenheitsliste_anhaenge']),
+        $user_id,
+        'al'
+    );
+}
+
+/**
+ * @param array<int, array{tmp:string,name:string,size?:int,type?:string}> $batch
+ */
+function bericht_anhaenge_list_draft_save_uploads_normalized(array $batch, int $user_id, string $prefix = 'al'): array {
+    if ($user_id <= 0 || empty($batch)) {
+        return [];
+    }
+    $dir = bericht_anhaenge_draft_dir($user_id);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    $out = [];
+    foreach ($batch as $item) {
+        if (count($out) >= BERICHT_ANHAENGE_MAX_FILES) {
+            break;
+        }
+        $tmp = $item['tmp'] ?? '';
+        if ($tmp === '' || !is_uploaded_file($tmp)) {
+            continue;
+        }
+        $size = (int)($item['size'] ?? (is_file($tmp) ? filesize($tmp) : 0));
+        if ($size <= 0 || $size > BERICHT_ANHAENGE_MAX_BYTES) {
+            continue;
+        }
+        $mime = bericht_anhaenge_allowed_mime_from_file($tmp, (string)($item['type'] ?? ''));
+        if ($mime === null) {
+            continue;
+        }
+        $ext = [
+            'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif', 'application/pdf' => 'pdf',
+        ][$mime] ?? 'bin';
+        $storedRel = 'bericht_anhaenge_draft/' . $user_id . '/' . bin2hex(random_bytes(12)) . '_' . preg_replace('/[^a-z0-9_]/i', '', $prefix) . '.' . $ext;
+        $abs = dirname(__DIR__) . '/uploads/' . $storedRel;
+        $par = dirname($abs);
+        if (!is_dir($par)) {
+            mkdir($par, 0755, true);
+        }
+        if (!move_uploaded_file($tmp, $abs)) {
+            continue;
+        }
+        $out[] = ['path' => $storedRel, 'orig' => bericht_anhaenge_safe_orig_name($item['name'] ?? 'datei'), 'mime' => $mime];
+    }
+    return $out;
+}
