@@ -14,6 +14,45 @@ function bericht_anhaenge_draft_dir(int $user_id): string {
     return dirname(__DIR__) . '/uploads/bericht_anhaenge_draft/' . $user_id;
 }
 
+/**
+ * Erkennt erlaubten Bild-/PDF-Typ anhand Dateiinhalt (falls finfo/Browser unzuverlässig sind).
+ */
+function bericht_anhaenge_sniff_allowed_mime(string $tmpPath): ?string {
+    $h = @file_get_contents($tmpPath, false, null, 0, 32);
+    if ($h === false || $h === '') {
+        return null;
+    }
+    if (strncmp($h, "\xff\xd8\xff", 3) === 0) {
+        return 'image/jpeg';
+    }
+    if (strlen($h) >= 8 && strncmp($h, "\x89PNG\r\n\x1a\n", 8) === 0) {
+        return 'image/png';
+    }
+    if (strlen($h) >= 12 && substr($h, 0, 4) === 'RIFF' && substr($h, 8, 4) === 'WEBP') {
+        return 'image/webp';
+    }
+    if (strlen($h) >= 6 && (strncmp($h, 'GIF87a', 6) === 0 || strncmp($h, 'GIF89a', 6) === 0)) {
+        return 'image/gif';
+    }
+    if (strncmp($h, '%PDF', 4) === 0) {
+        return 'application/pdf';
+    }
+    return null;
+}
+
+function bericht_anhaenge_normalize_detected_mime(string $mime): string {
+    $m = strtolower(trim($mime));
+    $aliases = [
+        'image/jpg' => 'image/jpeg',
+        'image/pjpeg' => 'image/jpeg',
+        'image/x-jpeg' => 'image/jpeg',
+        'image/x-png' => 'image/png',
+        'image/x-webp' => 'image/webp',
+        'application/x-pdf' => 'application/pdf',
+    ];
+    return $aliases[$m] ?? $m;
+}
+
 function bericht_anhaenge_allowed_mime_from_file(string $tmpPath, string $fallbackMime = ''): ?string {
     if (!is_file($tmpPath) || !is_readable($tmpPath)) {
         return null;
@@ -21,12 +60,19 @@ function bericht_anhaenge_allowed_mime_from_file(string $tmpPath, string $fallba
     $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $detected = $finfo->file($tmpPath);
-    if (in_array($detected, $allowed, true)) {
-        return $detected;
+    if (is_string($detected)) {
+        $detected = bericht_anhaenge_normalize_detected_mime($detected);
+        if (in_array($detected, $allowed, true)) {
+            return $detected;
+        }
     }
-    $fb = strtolower(trim($fallbackMime));
+    $fb = bericht_anhaenge_normalize_detected_mime($fallbackMime);
     if ($fb !== '' && in_array($fb, $allowed, true)) {
         return $fb;
+    }
+    $sniff = bericht_anhaenge_sniff_allowed_mime($tmpPath);
+    if ($sniff !== null && in_array($sniff, $allowed, true)) {
+        return $sniff;
     }
     return null;
 }

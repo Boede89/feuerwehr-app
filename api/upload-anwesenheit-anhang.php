@@ -25,7 +25,11 @@ if (!isset($draft['anhaenge_temp']) || !is_array($draft['anhaenge_temp'])) {
     $draft['anhaenge_temp'] = [];
 }
 
-if (empty($_FILES['anwesenheitsliste_anhaenge']['name'])) {
+$fileField = $_FILES['anwesenheitsliste_anhaenge'] ?? null;
+if ($fileField === null && isset($_FILES['anwesenheitsliste_anhaenge[]'])) {
+    $fileField = $_FILES['anwesenheitsliste_anhaenge[]'];
+}
+if (empty($fileField['name'])) {
     echo json_encode(['success' => false, 'message' => 'Keine Datei']);
     exit;
 }
@@ -37,11 +41,22 @@ if ($remaining <= 0) {
     exit;
 }
 
-$batch = bericht_anhaenge_normalize_files_array($_FILES['anwesenheitsliste_anhaenge']);
+$batch = bericht_anhaenge_normalize_files_array($fileField);
 $batch = array_slice($batch, 0, $remaining);
 $saved = bericht_anhaenge_list_draft_save_uploads_normalized($batch, $user_id, 'al');
 if (empty($saved)) {
-    echo json_encode(['success' => false, 'message' => 'Upload fehlgeschlagen (Dateityp oder Größe prüfen, max. ca. 12 MB)']);
+    $errs = $fileField['error'] ?? null;
+    $firstErr = is_array($errs) ? reset($errs) : $errs;
+    $firstErr = (int)$firstErr;
+    $hint = '';
+    if ($firstErr === UPLOAD_ERR_INI_SIZE || $firstErr === UPLOAD_ERR_FORM_SIZE) {
+        $hint = ' Die Datei übersteigt das Server-Limit (upload_max_filesize / post_max_size).';
+    } elseif ($firstErr === UPLOAD_ERR_PARTIAL) {
+        $hint = ' Die Übertragung war unvollständig – bitte erneut versuchen.';
+    } elseif ($firstErr === UPLOAD_ERR_NO_TMP_DIR || $firstErr === UPLOAD_ERR_CANT_WRITE) {
+        $hint = ' Server konnte die temporäre Datei nicht speichern – Administrator informieren.';
+    }
+    echo json_encode(['success' => false, 'message' => 'Upload fehlgeschlagen (Dateityp JPG/PNG/WebP/GIF/PDF und max. ca. 12 MB; bei Fotos ggf. erneut versuchen).' . $hint]);
     exit;
 }
 
