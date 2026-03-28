@@ -101,9 +101,11 @@ $error = '';
 
 // POST: Mängel in Draft speichern und zurück
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengel_draft'])) {
+    require_once __DIR__ . '/includes/bericht-anhaenge-helper.php';
     $maengel = [];
     if (!empty($_POST['maengel']) && is_array($_POST['maengel'])) {
         foreach ($_POST['maengel'] as $idx => $m) {
+            $idx = (int)$idx;
             $standort = trim($m['standort'] ?? '');
             $mangel_an = trim($m['mangel_an'] ?? '');
             $bezeichnung = trim($m['bezeichnung'] ?? '');
@@ -114,7 +116,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengel_draft'])
             $vehicle_id = isset($m['vehicle_id']) && preg_match('/^\d+$/', (string)$m['vehicle_id']) ? (int)$m['vehicle_id'] : null;
             if (!in_array($standort, $standort_options)) $standort = $standort_options[0];
             if (!in_array($mangel_an, $mangel_an_options)) $mangel_an = $mangel_an_options[0];
-            if ($bezeichnung !== '' || $mangel_beschreibung !== '' || $ursache !== '' || $verbleib !== '' || $aufgenommen_durch !== '') {
+            $prevTemp = [];
+            if (!empty($draft['maengel']) && is_array($draft['maengel'])
+                && isset($draft['maengel'][$idx]['anhaenge_temp']) && is_array($draft['maengel'][$idx]['anhaenge_temp'])) {
+                $prevTemp = $draft['maengel'][$idx]['anhaenge_temp'];
+            }
+            $newFiles = [];
+            if (!empty($_FILES['maengel']['name'][$idx]['anhaenge'])) {
+                $newFiles = bericht_anhaenge_maengel_draft_save_uploads($_FILES, $idx, (int)($_SESSION['user_id'] ?? 0));
+            }
+            $anhaenge_temp = array_merge($prevTemp, $newFiles);
+            if ($bezeichnung !== '' || $mangel_beschreibung !== '' || $ursache !== '' || $verbleib !== '' || $aufgenommen_durch !== '' || !empty($anhaenge_temp)) {
                 $maengel[] = [
                     'standort' => $standort,
                     'mangel_an' => $mangel_an,
@@ -124,6 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengel_draft'])
                     'verbleib' => $verbleib ?: null,
                     'aufgenommen_durch' => $aufgenommen_durch ?: null,
                     'vehicle_id' => $vehicle_id,
+                    'anhaenge_temp' => $anhaenge_temp,
                 ];
             }
         }
@@ -140,7 +153,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengel_draft'])
 
 $maengel_draft = $draft['maengel'];
 if (empty($maengel_draft)) {
-    $maengel_draft = [['standort' => $standort_default, 'mangel_an' => $mangel_an_default, 'bezeichnung' => '', 'mangel_beschreibung' => '', 'ursache' => '', 'verbleib' => '', 'aufgenommen_durch' => '', 'vehicle_id' => '']];
+    $maengel_draft = [['standort' => $standort_default, 'mangel_an' => $mangel_an_default, 'bezeichnung' => '', 'mangel_beschreibung' => '', 'ursache' => '', 'verbleib' => '', 'aufgenommen_durch' => '', 'vehicle_id' => '', 'anhaenge_temp' => []]];
+} else {
+    foreach ($maengel_draft as &$md) {
+        if (!isset($md['anhaenge_temp']) || !is_array($md['anhaenge_temp'])) {
+            $md['anhaenge_temp'] = [];
+        }
+    }
+    unset($md);
 }
 
 $members_json = json_encode(array_map(function($m) {
@@ -198,7 +218,7 @@ $members_json = json_encode(array_map(function($m) {
                     <?php if ($message): ?><div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
                     <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
-                    <form method="post" id="maengelForm">
+                    <form method="post" id="maengelForm" enctype="multipart/form-data">
                         <input type="hidden" name="save_maengel_draft" value="1">
                         <div id="maengelContainer">
                             <?php foreach ($maengel_draft as $idx => $m): ?>
@@ -259,6 +279,19 @@ $members_json = json_encode(array_map(function($m) {
                                                 <input type="hidden" class="aufgenommen-durch-hidden" name="maengel[<?php echo (int)$idx; ?>][aufgenommen_durch]" value="<?php echo htmlspecialchars($m['aufgenommen_durch'] ?? ''); ?>">
                                                 <div class="list-group position-absolute w-100 mt-1 shadow aufgenommen-suggestions" style="z-index: 1050; max-height: 180px; overflow-y: auto; display: none;"></div>
                                             </div>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Anhänge (Foto / PDF, optional)</label>
+                                            <div class="d-flex flex-wrap gap-2 align-items-center">
+                                                <input type="file" class="form-control form-control-sm maengel-anhaenge-input" style="max-width:260px" name="maengel[<?php echo (int)$idx; ?>][anhaenge][]" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary btn-maengel-kamera" title="Kamera"><i class="fas fa-camera"></i></button>
+                                            </div>
+                                            <input type="file" class="d-none maengel-anhaenge-camera" accept="image/*" capture="environment">
+                                            <?php if (!empty($m['anhaenge_temp']) && is_array($m['anhaenge_temp'])): ?>
+                                            <ul class="small text-muted mb-0 mt-1"><?php foreach ($m['anhaenge_temp'] as $at): ?>
+                                                <li><?php echo htmlspecialchars($at['orig'] ?? ($at['path'] ?? '')); ?></li>
+                                            <?php endforeach; ?></ul>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </div>
@@ -329,7 +362,26 @@ $members_json = json_encode(array_map(function($m) {
         });
     }
 
-    document.querySelectorAll('.maengel-block').forEach(function(b) { initAufgenommenDurch(b); });
+    function bindMaengelKamera(block) {
+        var btn = block.querySelector('.btn-maengel-kamera');
+        var main = block.querySelector('.maengel-anhaenge-input');
+        var cam = block.querySelector('.maengel-anhaenge-camera');
+        if (!btn || !main || !cam) return;
+        btn.addEventListener('click', function() { cam.click(); });
+        cam.addEventListener('change', function() {
+            if (!this.files || !this.files.length) return;
+            try {
+                var dt = new DataTransfer();
+                var i;
+                for (i = 0; i < main.files.length; i++) { dt.items.add(main.files[i]); }
+                for (i = 0; i < this.files.length; i++) { dt.items.add(this.files[i]); }
+                main.files = dt.files;
+            } catch (e) {}
+            this.value = '';
+        });
+    }
+
+    document.querySelectorAll('.maengel-block').forEach(function(b) { initAufgenommenDurch(b); bindMaengelKamera(b); });
 
     document.getElementById('btnAddMaengel').addEventListener('click', function() {
         var idx = nextIndex++;
@@ -355,12 +407,17 @@ $members_json = json_encode(array_map(function($m) {
             '<input type="text" class="form-control aufgenommen-durch-display" placeholder="Buchstaben eingeben zum Filtern" autocomplete="off">' +
             '<input type="hidden" class="aufgenommen-durch-hidden" name="maengel[' + idx + '][aufgenommen_durch]">' +
             '<div class="list-group position-absolute w-100 mt-1 shadow aufgenommen-suggestions" style="z-index:1050;max-height:180px;overflow-y:auto;display:none;"></div></div></div>' +
-            '</div></div></div>';
+            '<div class="col-12"><label class="form-label">Anhänge (Foto / PDF, optional)</label><div class="d-flex flex-wrap gap-2 align-items-center">' +
+            '<input type="file" class="form-control form-control-sm maengel-anhaenge-input" style="max-width:260px" name="maengel[' + idx + '][anhaenge][]" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">' +
+            '<button type="button" class="btn btn-sm btn-outline-secondary btn-maengel-kamera" title="Kamera"><i class="fas fa-camera"></i></button></div>' +
+            '<input type="file" class="d-none maengel-anhaenge-camera" accept="image/*" capture="environment">' +
+            '</div></div></div></div>';
         var div = document.createElement('div');
         div.innerHTML = html;
         var block = div.firstElementChild;
         document.getElementById('maengelContainer').appendChild(block);
         initAufgenommenDurch(block);
+        bindMaengelKamera(block);
     });
 
     document.getElementById('maengelContainer').addEventListener('click', function(e) {

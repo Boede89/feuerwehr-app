@@ -114,7 +114,8 @@ table { width: 100%; border-collapse: collapse; font-size: 9pt; }
             $pdf_content = file_get_contents($pdfPath);
             @unlink($pdfPath);
             @unlink($htmlPath);
-            return $pdf_content;
+            require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
+            return bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'maengelbericht', $id);
         }
         @unlink($pdfPath);
         @unlink($htmlPath);
@@ -127,7 +128,8 @@ table { width: 100%; border-collapse: collapse; font-size: 9pt; }
                 $dompdf->loadHtml($html, 'UTF-8');
                 $dompdf->setPaper('A4', 'portrait');
                 $dompdf->render();
-                return $dompdf->output();
+                require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
+                return bericht_anhaenge_merge_attachments_into_pdf($dompdf->output(), $db, 'maengelbericht', $id);
             } catch (Exception $e) {
                 error_log('Dompdf Mängelbericht Fehler: ' . $e->getMessage());
             }
@@ -148,7 +150,8 @@ table { width: 100%; border-collapse: collapse; font-size: 9pt; }
                 $pdf->AddPage();
                 $pdf->SetFont('helvetica', '', 10);
                 $pdf->writeHTML($html, true, false, true, false, '');
-                return $pdf->Output('', 'S');
+                require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
+                return bericht_anhaenge_merge_attachments_into_pdf($pdf->Output('', 'S'), $db, 'maengelbericht', $id);
             } catch (Exception $e) {
                 error_log('TCPDF Mängelbericht Fehler: ' . $e->getMessage());
             }

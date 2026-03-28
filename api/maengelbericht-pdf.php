@@ -179,6 +179,8 @@ if ($wkhtmltopdfPath) {
         $pdf_content = file_get_contents($pdfPath);
         @unlink($pdfPath);
         @unlink($htmlPath);
+        require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
+        $pdf_content = bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'maengelbericht', $id);
         if ($return_mode) { $GLOBALS['_mb_pdf_content'] = $pdf_content; return; }
         header('Content-Type: application/pdf');
         header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
@@ -199,6 +201,8 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
             $dompdf->setPaper('A4', 'portrait');
             $dompdf->render();
             $pdf_content = $dompdf->output();
+            require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
+            $pdf_content = bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'maengelbericht', $id);
             if ($return_mode) { $GLOBALS['_mb_pdf_content'] = $pdf_content; return; }
             header('Content-Type: application/pdf');
             header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
@@ -228,6 +232,8 @@ if (file_exists($tcpdfPath)) {
             $pdf->SetFont('helvetica', '', 10);
             $pdf->writeHTML($html, true, false, true, false, '');
             $pdf_content = $pdf->Output('', 'S');
+            require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
+            $pdf_content = bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'maengelbericht', $id);
             if ($return_mode) { $GLOBALS['_mb_pdf_content'] = $pdf_content; return; }
             header('Content-Type: application/pdf');
             header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');

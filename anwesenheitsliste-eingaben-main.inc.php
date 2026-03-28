@@ -449,6 +449,7 @@ function _anwesenheitsliste_draft_value($id, $draft) {
 
 // Speichern (nur auf dieser Seite): Liste anlegen + Personal/Fahrzeuge aus Session
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
+    require_once __DIR__ . '/includes/bericht-anhaenge-helper.php';
     $edit_id_save = isset($_POST['edit_id']) ? (int)$_POST['edit_id'] : (int)($draft['edit_id'] ?? 0);
     if (isset($_POST['datum']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($_POST['datum']))) {
         $draft['datum'] = trim($_POST['datum']);
@@ -782,12 +783,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                     $vehicle_id = isset($m['vehicle_id']) && preg_match('/^\d+$/', (string)$m['vehicle_id']) ? (int)$m['vehicle_id'] : null;
                     $auf_am = date('Y-m-d');
                     $stmt_mb->execute([$standort, $mangel_an, $bezeichnung, $mangel_beschreibung, $ursache, $verbleib, $auf_text, $auf_member_id, $auf_am, $vehicle_id, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
-                    $maengelbericht_ids[] = $db->lastInsertId();
+                    $new_mb_id = (int)$db->lastInsertId();
+                    $maengelbericht_ids[] = $new_mb_id;
+                    $temps = $m['anhaenge_temp'] ?? [];
+                    if (!empty($temps) && is_array($temps)) {
+                        bericht_anhaenge_commit_draft_files($db, 'maengelbericht', $new_mb_id, $temps);
+                    }
                 }
             } catch (Exception $e) {
                 error_log('Anwesenheitsliste Mängelberichte: ' . $e->getMessage());
             }
         }
+        bericht_anhaenge_save_for_anwesenheitsliste($db, (int)$list_id, $_FILES);
         // PA-Checkbox: Automatische Atemschutzeinträge für PA-Träger erstellen (Status pending, Genehmigung erforderlich)
         $member_pa = $draft['member_pa'] ?? [];
         if (!empty($member_pa) && is_array($member_pa)) {
@@ -1115,7 +1122,7 @@ if ($is_einsatz) {
                             </div>
                             <span class="d-block mt-1 text-muted"><?php echo htmlspecialchars($titel_anzeige); ?></span>
                         </div>
-                        <form method="post" id="mainForm">
+                        <form method="post" id="mainForm" enctype="multipart/form-data">
                             <input type="hidden" name="save_final" value="1">
                             <input type="hidden" name="datum" id="datum_for_main" value="<?php echo htmlspecialchars($draft['datum'] ?? $datum); ?>">
                             <input type="hidden" name="print_after_save" id="print_after_save" value="0">
@@ -1403,6 +1410,16 @@ if ($is_einsatz) {
                                 <?php endif; ?>
                             </div>
                             <?php endforeach; ?>
+                            <div class="mb-4 p-3 border rounded bg-light">
+                                <label class="form-label fw-semibold"><i class="fas fa-paperclip"></i> Anhänge zur Anwesenheitsliste (optional)</label>
+                                <p class="text-muted small mb-2">Fotos und Dokumente (PDF) erscheinen im erzeugten PDF hinter dem Bericht: zuerst Bilder, anschließend weitere PDF-Dateien. Erlaubt: JPG, PNG, WebP, GIF, PDF (max. ca. 12&nbsp;MB pro Datei).</p>
+                                <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                                    <input type="file" class="form-control form-control-sm" style="max-width:280px" name="anwesenheitsliste_anhaenge[]" id="anwesenheitsliste_anhaenge_files" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnKameraAnhangAl" title="Kamera (mobil)"><i class="fas fa-camera"></i> Foto aufnehmen</button>
+                                </div>
+                                <input type="file" class="d-none" id="anwesenheitsliste_anhaenge_camera" accept="image/*" capture="environment">
+                                <small class="text-muted">Unterwegs: „Foto aufnehmen“ nutzen oder „Dateien auswählen“ – bei manchen Geräten bietet die Dateiauswahl ebenfalls die Kamera.</small>
+                            </div>
                             <div class="d-flex flex-wrap gap-2">
                                 <button type="button" class="btn btn-success" id="btnSaveAnwesenheit"><i class="fas fa-save"></i> Anwesenheitsliste speichern</button>
                                 <a href="<?php echo $return_formularcenter ? 'admin/formularcenter.php?tab=submissions' : 'anwesenheitsliste.php' . ($einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''); ?>" class="btn btn-secondary"><?php echo $return_formularcenter ? 'Zurück zum Formularcenter' : 'Zurück zur Auswahl'; ?></a>
@@ -1471,6 +1488,27 @@ if ($is_einsatz) {
     </main>
     <footer class="bg-light mt-5 py-4"><div class="container text-center"><p class="text-muted mb-0">&copy; 2025 Boedes Feuerwehr App</p></div></footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (function(){
+        var btnCamAl = document.getElementById('btnKameraAnhangAl');
+        var inpCamAl = document.getElementById('anwesenheitsliste_anhaenge_camera');
+        var inpFilesAl = document.getElementById('anwesenheitsliste_anhaenge_files');
+        if (btnCamAl && inpCamAl && inpFilesAl) {
+            btnCamAl.addEventListener('click', function() { inpCamAl.click(); });
+            inpCamAl.addEventListener('change', function() {
+                if (!this.files || !this.files.length) return;
+                try {
+                    var dt = new DataTransfer();
+                    var i;
+                    for (i = 0; i < inpFilesAl.files.length; i++) dt.items.add(inpFilesAl.files[i]);
+                    for (i = 0; i < this.files.length; i++) dt.items.add(this.files[i]);
+                    inpFilesAl.files = dt.files;
+                } catch (e) {}
+                this.value = '';
+            });
+        }
+    })();
+    </script>
     <script>
     (function(){
         var btnSave = document.getElementById('btnSaveAnwesenheit');

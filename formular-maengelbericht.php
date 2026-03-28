@@ -133,6 +133,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
         $stmt->execute([$standort, $mangel_an, $bezeichnung ?: null, $mangel_beschreibung ?: null, $ursache ?: null, $verbleib ?: null, $aufgenommen_durch_text, $aufgenommen_durch_member_id, $aufgenommen_am, $vehicle_id, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
         $id = $db->lastInsertId();
 
+        require_once __DIR__ . '/includes/bericht-anhaenge-helper.php';
+        bericht_anhaenge_save_for_maengelbericht($db, (int)$id, $_FILES);
+
         // Automatischer E-Mail-Versand (wenn in Einstellungen aktiviert)
         $email_auto = false;
         $email_recipients = [];
@@ -243,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                 </div>
                 <div class="card-body p-4">
                     <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
-                    <form method="post" id="maengelberichtForm">
+                    <form method="post" id="maengelberichtForm" enctype="multipart/form-data">
                         <input type="hidden" name="save_maengelbericht" value="1">
                         <input type="hidden" name="print_after_save" id="print_after_save" value="1">
                         <div class="mb-3">
@@ -301,6 +304,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                             <label for="aufgenommen_am" class="form-label">Aufgenommen am</label>
                             <input type="date" class="form-control" id="aufgenommen_am" name="aufgenommen_am" value="<?php echo date('Y-m-d'); ?>" required>
                         </div>
+                        <div class="mb-3 p-3 border rounded bg-light">
+                            <label class="form-label fw-semibold"><i class="fas fa-paperclip"></i> Anhänge (optional)</label>
+                            <p class="text-muted small mb-2">Fotos und PDF werden dem erzeugten Mängelbericht-PDF hinten angefügt (Bilder zuerst, dann weitere PDFs).</p>
+                            <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <input type="file" class="form-control form-control-sm" style="max-width:280px" name="maengelbericht_anhaenge[]" id="maengelbericht_anhaenge_files" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnKameraMbForm"><i class="fas fa-camera"></i> Foto</button>
+                            </div>
+                            <input type="file" class="d-none" id="maengelbericht_anhaenge_cam" accept="image/*" capture="environment">
+                        </div>
                         <div class="d-flex flex-wrap gap-2">
                             <button type="button" class="btn btn-success" id="btnSaveMaengelbericht"><i class="fas fa-save"></i> Mängelbericht speichern</button>
                             <a href="formulare.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Zurück zu Formulare</a>
@@ -334,6 +346,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function() {
+    var b = document.getElementById('btnKameraMbForm');
+    var c = document.getElementById('maengelbericht_anhaenge_cam');
+    var f = document.getElementById('maengelbericht_anhaenge_files');
+    if (b && c && f) {
+        b.addEventListener('click', function() { c.click(); });
+        c.addEventListener('change', function() {
+            if (!this.files || !this.files.length) return;
+            try {
+                var dt = new DataTransfer();
+                var i;
+                for (i = 0; i < f.files.length; i++) dt.items.add(f.files[i]);
+                for (i = 0; i < this.files.length; i++) dt.items.add(this.files[i]);
+                f.files = dt.files;
+            } catch (e) {}
+            this.value = '';
+        });
+    }
+})();
+</script>
 <script>
 (function() {
     var membersData = <?php echo json_encode(array_map(function($m) {

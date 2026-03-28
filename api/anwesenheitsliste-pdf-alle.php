@@ -69,6 +69,7 @@ $sql .= " ORDER BY a.created_at DESC";
 $stmt = $params ? $db->prepare($sql) : $db->query($sql);
 if ($params) $stmt->execute($params);
 $listen = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$al_merge_ids = array_map('intval', array_column($listen, 'id'));
 
 if (empty($listen)) {
     header('Content-Type: text/plain; charset=UTF-8');
@@ -344,6 +345,8 @@ if ($wkhtmltopdfPath) {
         $pdf_content = file_get_contents($pdfPath);
         @unlink($pdfPath);
         @unlink($htmlPath);
+        require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
+        $pdf_content = bericht_anhaenge_merge_attachments_multi_into_pdf($pdf_content, $db, 'anwesenheitsliste', $al_merge_ids);
         if ($return_mode) { $GLOBALS['_al_pdf_content'] = $pdf_content; return; }
         header('Content-Type: application/pdf');
         header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
@@ -364,6 +367,8 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
             $dompdf->setPaper('A4', 'portrait');
             $dompdf->render();
             $pdf_content = $dompdf->output();
+            require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
+            $pdf_content = bericht_anhaenge_merge_attachments_multi_into_pdf($pdf_content, $db, 'anwesenheitsliste', $al_merge_ids);
             if ($return_mode) { $GLOBALS['_al_pdf_content'] = $pdf_content; return; }
             header('Content-Type: application/pdf');
             header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
@@ -390,6 +395,8 @@ if (file_exists($tcpdfPath)) {
             $pdf->SetFont('helvetica', '', 10);
             $pdf->writeHTML($html, true, false, true, false, '');
             $pdf_content = $pdf->Output('', 'S');
+            require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
+            $pdf_content = bericht_anhaenge_merge_attachments_multi_into_pdf($pdf_content, $db, 'anwesenheitsliste', $al_merge_ids);
             if ($return_mode) { $GLOBALS['_al_pdf_content'] = $pdf_content; return; }
             header('Content-Type: application/pdf');
             header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
