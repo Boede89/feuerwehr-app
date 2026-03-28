@@ -361,7 +361,7 @@ Mit freundlichen Grüßen
 
     <footer class="bg-light mt-5 py-4">
         <div class="container text-center">
-            <p class="text-muted mb-0">&copy; 2025 Boedes Feuerwehr App&nbsp;&nbsp;Version: 3.1&nbsp;&nbsp;Alle Rechte vorbehalten</p>
+            <p class="text-muted mb-0">&copy; 2025 Boedes Feuerwehr App&nbsp;&nbsp;Version: <?php echo htmlspecialchars(APP_VERSION); ?>&nbsp;&nbsp;Alle Rechte vorbehalten</p>
         </div>
     </footer>
 
@@ -724,7 +724,7 @@ Mit freundlichen Grüßen
     </table>
     
     <div class="footer">
-        <p>Erstellt am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')} | Feuerwehr App v3.1</p>
+        <p>Erstellt am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')} | Feuerwehr App v<?php echo htmlspecialchars(APP_VERSION); ?></p>
     </div>
 </body>
 </html>`;

@@ -148,7 +148,7 @@ function generatePDFForDownload($results, $params) {
     </table>
     
     <div class="footer">
-        <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v2.1</p>
+        <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v' . (defined('APP_VERSION') ? APP_VERSION : '3.2') . '</p>
     </div>
 </body>
 </html>';

@@ -216,7 +216,7 @@ function generatePDFHTML($results, $params) {
     </table>
     
     <div class="footer">
-        <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v2.1</p>
+        <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v' . APP_VERSION . '</p>
     </div>
 </body>
 </html>';

@@ -3,6 +3,10 @@
  * Allgemeine Funktionen für die Feuerwehr App
  */
 
+if (!defined('APP_VERSION')) {
+    define('APP_VERSION', '3.2');
+}
+
 // Google Calendar Klassen laden (pfadsicher relativ zu diesem Verzeichnis)
 $gc_sa_path = __DIR__ . '/google_calendar_service_account.php';
 $gc_api_path = __DIR__ . '/google_calendar.php';

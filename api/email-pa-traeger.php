@@ -213,7 +213,7 @@ function generatePDFForEmail($results, $params) {
     </table>
     
     <div class="footer">
-        <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v2.1</p>
+        <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v' . APP_VERSION . '</p>
     </div>
 </body>
 </html>';
@@ -261,7 +261,7 @@ function generateEmailText($results, $params, $message) {
     
     $text .= "\n\n---\n";
     $text .= "Diese E-Mail wurde automatisch von der Feuerwehr App generiert.\n";
-    $text .= "Erstellt am " . date('d.m.Y H:i') . " | Feuerwehr App v2.1";
+    $text .= "Erstellt am " . date('d.m.Y H:i') . " | Feuerwehr App v" . APP_VERSION;
     
     return $text;
 }
@@ -541,7 +541,7 @@ function generateBeautifulEmailHTML($results, $htmlContent, $message) {
         
         <div class="footer">
             <p><strong>📧 Diese E-Mail wurde automatisch von der Feuerwehr App generiert</strong></p>
-            <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v2.1</p>
+            <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v' . APP_VERSION . '</p>
         </div>
     </div>
 </body>
@@ -634,7 +634,7 @@ function generateEmailHTML($results, $params, $message) {
         
         <div class="footer">
             <p>📧 Diese E-Mail wurde automatisch von der Feuerwehr App generiert</p>
-            <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v2.1</p>
+            <p>Erstellt am ' . date('d.m.Y H:i') . ' | Feuerwehr App v' . APP_VERSION . '</p>
         </div>
     </div>
 </body>
