@@ -464,7 +464,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         $id = $f['id'] ?? '';
         if ($id === '') continue;
         if ($id === 'einsatzleiter') {
-            $is_ueb = ($draft['typ'] === 'einsatz' && trim($_POST['typ_sonstige'] ?? '') === 'uebungsdienst') || ($draft['typ'] === 'dienst' && isset($dienst) && ($dienst['typ'] ?? '') === 'uebungsdienst');
+            $is_ueb = ($draft['typ'] === 'einsatz' && in_array(trim($_POST['typ_sonstige'] ?? ''), ['uebungsdienst', 'sonstiges'], true)) || ($draft['typ'] === 'dienst' && isset($dienst) && ($dienst['typ'] ?? '') === 'uebungsdienst');
             if ($is_ueb && !empty($_POST['uebungsleiter']) && is_array($_POST['uebungsleiter'])) {
                 $draft['uebungsleiter_member_ids'] = array_map('intval', array_filter($_POST['uebungsleiter'], 'ctype_digit'));
                 $draft['einsatzleiter_member_id'] = null;
@@ -1348,7 +1348,7 @@ if ($is_einsatz) {
                                 </div>
                                 <?php endif; ?>
                                 <?php if ($is_uebungsdienst_display || $is_einsatz): ?>
-                                <div id="uebungsleiter_wrap" class="feld-uebungsdienst-toggle" data-einsatzleiter="1" style="<?php echo ($is_einsatz && !$is_uebungsdienst_display) ? 'display:none' : ''; ?>">
+                                <div id="uebungsleiter_wrap" class="feld-uebungsdienst-toggle" data-einsatzleiter="1" style="<?php echo ($is_einsatz && !$is_uebungsdienst_display && !$is_jhv_sonstiges_display) ? 'display:none' : ''; ?>">
                                 <label class="form-label">Übungsleiter <span id="uebungsleiter_count" class="badge bg-secondary ms-1">0 ausgewählt</span></label>
                                 <div class="uebungsleiter-list border rounded p-2" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem;">
                                     <?php $uebungs_ids = $draft['uebungsleiter_member_ids'] ?? []; if (!is_array($uebungs_ids)) $uebungs_ids = []; ?>
@@ -1657,9 +1657,10 @@ if ($is_einsatz) {
             var params=new URLSearchParams(window.location.search);
             var ts=params.get('typ_sonstige');
             var ueb=params.getAll('uebungsleiter[]');
-            if(ts!=='uebungsdienst')return;
+            if(ts!=='uebungsdienst'&&ts!=='sonstiges')return;
             var sel=document.getElementById('typ_sonstige');
-            if(sel&&sel.value!=='uebungsdienst'){sel.value='uebungsdienst';}
+            if(sel&&ts==='uebungsdienst'&&sel.value!=='uebungsdienst'){sel.value='uebungsdienst';}
+            if(sel&&ts==='sonstiges'&&sel.value!=='sonstiges'){sel.value='sonstiges';}
             if(ueb.length>0){
                 document.querySelectorAll('.uebungsleiter-item').forEach(function(el){
                     var cb=el.querySelector('input[name="uebungsleiter[]"]');
@@ -1676,9 +1677,8 @@ if ($is_einsatz) {
         if(!sel)return;
         var params=new URLSearchParams(window.location.search);
         var tsUrl=params.get('typ_sonstige');
-        if(tsUrl==='uebungsdienst'){
-            sel.value='uebungsdienst';
-        }
+        if(tsUrl==='uebungsdienst'){sel.value='uebungsdienst';}
+        if(tsUrl==='sonstiges'){sel.value='sonstiges';}
         var v=sel.value;
         var w=document.getElementById('typ_sonstige_freitext_wrap');if(w)w.style.display=v==='__custom__'?'block':'none';
         var showEinsatzstichwort=v==='einsatz';
@@ -1691,12 +1691,11 @@ if ($is_einsatz) {
         if(elThema)elThema.style.display=showThema?'block':'none';
         if(elBeschr)elBeschr.style.display=showBeschreibung?'block':'none';
         var isUeb= v==='uebungsdienst'||v==='sonstiges';
-        var isUebungsdienstOnly= v==='uebungsdienst'||tsUrl==='uebungsdienst';
         document.querySelectorAll('.feld-uebungsdienst-toggle[data-hide-uebungsdienst="1"]').forEach(function(el){el.style.display=isUeb?'none':'block';});
         var elWrap=document.getElementById('einsatzleiter_wrap');
         var uebWrap=document.getElementById('uebungsleiter_wrap');
         if(elWrap)elWrap.style.display=isUeb?'none':'block';
-        if(uebWrap)uebWrap.style.display=isUebungsdienstOnly?'block':'none';
+        if(uebWrap)uebWrap.style.display=isUeb?'block':'none';
     }
     var selTs=document.getElementById('typ_sonstige');
     if(selTs)selTs.addEventListener('change',syncTypSonstigeVisibility);
