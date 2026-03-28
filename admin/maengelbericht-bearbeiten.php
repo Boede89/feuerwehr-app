@@ -255,7 +255,7 @@ try {
                     <div class="col-12">
                         <div class="p-3 border rounded bg-light">
                             <label class="form-label fw-semibold"><i class="fas fa-paperclip"></i> Anhänge (Fotos, PDF)</label>
-                            <p class="text-muted small mb-2">Bis zu <?php echo (int)BERICHT_ANHAENGE_MAX_FILES; ?> Dateien. Fotos erscheinen im PDF auf der ersten Seite.</p>
+                            <p class="text-muted small mb-2">Bis zu <?php echo (int)BERICHT_ANHAENGE_MAX_FILES; ?> Dateien. Fotos erscheinen im PDF auf einer eigenen Seite nach dem Bericht (in der Regel Seite 2).</p>
                             <?php if (empty($anhang_liste)): ?>
                             <p class="text-muted small">Keine gespeicherten Anhänge.</p>
                             <?php else: ?>

@@ -104,12 +104,12 @@ $html = '<!DOCTYPE html>
         .signature-section { margin-top: 10px; padding-top: 8px; border-top: 1px solid #333; }
         .signature-line { border-bottom: 1px solid #333; width: 160px; min-height: 22px; margin-top: 10px; }
         .signature-label { font-size: 8pt; color: #666; margin-top: 2px; }
-        @media print { .section { page-break-inside: avoid; } }
+        .mb-anhaenge-seite { page-break-before: always; break-before: page; }
+        @media print { .section { page-break-inside: avoid; } .mb-anhaenge-seite { page-break-before: always; } }
     </style>
 </head>
 <body>
-    <div class="header">' . get_pdf_logo_html() . '</div>' .
-    ($mb_foto_embed !== '' ? '<div class="section" style="margin-bottom:10px">' . $mb_foto_embed . '</div>' : '') . '
+    <div class="header">' . get_pdf_logo_html() . '</div>
     <div class="section">
         <div class="section-title">Mängelbericht</div>
         <table>
@@ -163,7 +163,12 @@ $html = '<!DOCTYPE html>
             <div class="signature-line"></div>
             <div class="signature-label">Unterschrift Gerätewart</div>
         </div>
-    </div>
+    </div>' .
+    ($mb_foto_embed !== '' ? '
+    <div class="section mb-anhaenge-seite">
+        <div class="section-title">Anhänge (Fotos)</div>
+        ' . $mb_foto_embed . '
+    </div>' : '') . '
 </body>
 </html>';
 
