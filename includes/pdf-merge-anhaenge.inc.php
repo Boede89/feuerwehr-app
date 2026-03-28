@@ -57,10 +57,14 @@ function bericht_anhaenge_merge_with_rows(string $mainPdfBinary, array $rows): s
             $pdf->useTemplate($tplId, 0, 0, $size['width'], $size['height']);
         }
         foreach ($images as $imgPath) {
-            $pdf->AddPage('P', 'A4');
-            $pdf->SetMargins(10, 10, 10);
-            $pdf->SetAutoPageBreak(false);
-            $pdf->Image($imgPath, 10, 10, 190, 0, '', '', '', false, 300, '', false, false, 0, false, false, true);
+            try {
+                $pdf->AddPage('P', 'A4');
+                $pdf->SetMargins(10, 10, 10);
+                $pdf->SetAutoPageBreak(false);
+                $pdf->Image($imgPath, 10, 10, 190, 0, '', '', '', false, 300, '', false, false, 0, false, false, true);
+            } catch (Throwable $imgEx) {
+                error_log('bericht_anhaenge_merge: Bild übersprungen ' . $imgPath . ' — ' . $imgEx->getMessage());
+            }
         }
         foreach ($pdfs as $pdfPath) {
             $c = $pdf->setSourceFile($pdfPath);
