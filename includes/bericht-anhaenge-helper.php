@@ -161,6 +161,8 @@ function bericht_anhaenge_upload_reject_message(?string $code): string {
             return 'Der Ordner „uploads“ konnte nicht beschrieben werden (Rechte auf dem Webserver prüfen).';
         case 'bad_user':
             return 'Ungültige Benutzer-Session.';
+        case 'unknown':
+            return 'Upload wurde aus unbekanntem Grund abgelehnt.';
         default:
             return '';
     }
