@@ -5,6 +5,7 @@
         "php": ">=7.4",
         "dompdf/dompdf": "^2.0",
         "setasign/fpdi": "^2.6",
+        "setasign/fpdi-tcpdf": "^2.6",
         "tecnickcom/tcpdf": "^6.7"
     }
 }

@@ -1,7 +1,7 @@
 <?php
 /**
  * Hängt gespeicherte Anhänge an ein Haupt-PDF an (ab nächster Seite: Bilder, danach importierte PDFs).
- * Benötigt auf dem Server: composer install (setasign/fpdi, tecnickcom/tcpdf)
+ * Benötigt auf dem Server: composer install inkl. setasign/fpdi-tcpdf (verknüpft FPDI mit TCPDF), setasign/fpdi, tecnickcom/tcpdf
  */
 
 use setasign\Fpdi\PdfParser\StreamReader;
@@ -39,7 +39,7 @@ function bericht_anhaenge_merge_with_rows(string $mainPdfBinary, array $rows): s
     }
     require_once $autoload;
     if (!class_exists(\setasign\Fpdi\Tcpdf\Fpdi::class)) {
-        error_log('bericht_anhaenge_merge: Klasse setasign\\Fpdi\\Tcpdf\\Fpdi nicht gefunden');
+        error_log('bericht_anhaenge_merge: Klasse setasign\\Fpdi\\Tcpdf\\Fpdi nicht gefunden — bitte „composer require setasign/fpdi-tcpdf“ im Projekt ausführen (Docker: im Web-Container).');
         return $mainPdfBinary;
     }
     try {
