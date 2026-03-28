@@ -212,7 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
                     $can_atemschutz = isset($_POST['can_atemschutz']) ? 1 : 0;
                     $can_forms_fill = isset($_POST['can_forms_fill']) ? 1 : 0;
-                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires, einheit_id) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, ?, ?, 0, 0, 0, 0, 0, ?, 0, 0, 0, 0, ?, ?, ?)");
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, is_active, is_admin, is_system_user, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_users, can_settings, can_vehicles, email_notifications, autologin_token, autologin_expires, einheit_id) VALUES (?, NULL, NULL, ?, ?, 'user', 1, 0, 1, ?, ?, 0, 0, 0, 0, ?, 0, 0, 0, 0, ?, ?, ?)");
                     $stmt->execute([$username, $first_name ?: $username, $last_name, $can_reservations, $can_atemschutz, $can_forms_fill, $autologin_token, $autologin_expires, $einheit_id]);
                     log_activity($_SESSION['user_id'], 'user_added', "Systembenutzer '$username' für Einheit {$einheit['name']} angelegt");
                     header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=system_added");
