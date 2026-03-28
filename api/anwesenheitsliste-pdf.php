@@ -262,6 +262,17 @@ if ($uhrzeit_von !== '' && strlen($uhrzeit_von) >= 5) $uhrzeit_von = substr($uhr
 if ($uhrzeit_bis !== '' && strlen($uhrzeit_bis) >= 5) $uhrzeit_bis = substr($uhrzeit_bis, 0, 5);
 
 $datum_formatiert = $liste['datum'] ? date('d.m.Y', strtotime($liste['datum'])) : '-';
+$stichwort_for_anhang = trim((string)$stichwort_thema_val);
+if ($stichwort_for_anhang === '' || $stichwort_for_anhang === '-') {
+    $stichwort_for_anhang = trim((string)$titel);
+}
+if ($typ_label === 'Einsatz') {
+    $anhaenge_pdf_heading = 'Anhänge zum Einsatz: ' . $stichwort_for_anhang . "\nDatum: " . $datum_formatiert;
+} elseif ($typ_label === 'Übungsdienst') {
+    $anhaenge_pdf_heading = 'Anhänge zum Übungsdienst: ' . $stichwort_for_anhang . "\nDatum: " . $datum_formatiert;
+} else {
+    $anhaenge_pdf_heading = 'Anhänge: ' . $stichwort_for_anhang . "\nDatum: " . $datum_formatiert;
+}
 $einsatzstelle = _al_val($liste, 'einsatzstelle', $custom_data);
 $uebungsdienst_hide_pdf = ['alarmierung_durch', 'eigentuemer', 'geschaedigter', 'kostenpflichtiger_einsatz', 'personenschaeden', 'brandwache'];
 $html .= '<div class="section"><div class="section-title">Stammdaten</div><table class="stamm-inline">';
@@ -376,7 +387,7 @@ if ($wkhtmltopdfPath) {
         @unlink($pdfPath);
         @unlink($htmlPath);
         require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
-        $pdf_content = bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'anwesenheitsliste', $id);
+        $pdf_content = bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'anwesenheitsliste', $id, $anhaenge_pdf_heading);
         if ($return_mode) { $GLOBALS['_al_pdf_content'] = $pdf_content; return; }
         header('Content-Type: application/pdf');
         header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
@@ -398,7 +409,7 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
             $dompdf->render();
             $pdf_content = $dompdf->output();
             require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
-            $pdf_content = bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'anwesenheitsliste', $id);
+            $pdf_content = bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'anwesenheitsliste', $id, $anhaenge_pdf_heading);
             if ($return_mode) { $GLOBALS['_al_pdf_content'] = $pdf_content; return; }
             header('Content-Type: application/pdf');
             header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
@@ -426,7 +437,7 @@ if (file_exists($tcpdfPath)) {
             $pdf->writeHTML($html, true, false, true, false, '');
             $pdf_content = $pdf->Output('', 'S');
             require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
-            $pdf_content = bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'anwesenheitsliste', $id);
+            $pdf_content = bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'anwesenheitsliste', $id, $anhaenge_pdf_heading);
             if ($return_mode) { $GLOBALS['_al_pdf_content'] = $pdf_content; return; }
             header('Content-Type: application/pdf');
             header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');

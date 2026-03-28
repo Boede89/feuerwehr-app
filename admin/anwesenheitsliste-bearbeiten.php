@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/dienstplan-typen.php';
 require_once __DIR__ . '/../includes/anwesenheitsliste-helper.php';
+require_once __DIR__ . '/../includes/bericht-anhaenge-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -133,6 +134,21 @@ if ($berichtersteller_val !== '' && $berichtersteller_val !== null) {
 
 $message = '';
 $error = isset($_GET['error']) ? trim((string)$_GET['error']) : '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_anhang_anwesenheitsliste') {
+    if (!has_permission_write('forms')) {
+        $error = 'Sie haben keine Schreibrechte für das Formularcenter.';
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        $del_aid = (int)($_POST['anhang_id'] ?? 0);
+        if ($del_aid > 0 && bericht_anhaenge_delete_by_id($db, $del_aid, 'anwesenheitsliste', $id)) {
+            header('Location: anwesenheitsliste-bearbeiten.php?id=' . (int)$id . '&message=anhang_deleted');
+            exit;
+        }
+        $error = 'Anhang konnte nicht gelöscht werden.';
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_anwesenheitsliste') {
     if (!has_permission_write('forms')) {
@@ -423,6 +439,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
                 }
             }
 
+            bericht_anhaenge_save_for_anwesenheitsliste($db, (int)$id, $_FILES);
+
             $message = 'Anwesenheitsliste wurde gespeichert.';
             header('Location: anwesenheitsliste-bearbeiten.php?id=' . $id . '&message=saved');
             exit;
@@ -434,6 +452,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_anwesenheitslist
 
 if (isset($_GET['message']) && $_GET['message'] === 'saved') {
     $message = 'Anwesenheitsliste wurde gespeichert.';
+}
+if (isset($_GET['message']) && $_GET['message'] === 'anhang_deleted') {
+    $message = 'Anhang wurde gelöscht.';
+}
+
+$anhang_liste = [];
+try {
+    $anhang_liste = bericht_anhaenge_fetch_for_entity($db, 'anwesenheitsliste', $id);
+} catch (Exception $e) {
+    $anhang_liste = [];
 }
 
 function _al_val($liste, $key, $custom_data = []) {
@@ -479,7 +507,7 @@ function _al_val($liste, $key, $custom_data = []) {
     <?php if ($message): ?><div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
     <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
-    <form method="POST">
+    <form method="POST" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
         <input type="hidden" name="save_anwesenheitsliste" value="1">
         <input type="hidden" name="anwesenheitsliste_id" value="<?php echo (int)$id; ?>">
@@ -607,6 +635,40 @@ function _al_val($liste, $key, $custom_data = []) {
                         <input type="text" class="form-control mt-2" name="berichtersteller_freitext" id="berichtersteller_freitext" placeholder="Name (wenn Freitext)" value="<?php echo $berichtersteller_val !== '' && !preg_match('/^\d+$/', (string)$berichtersteller_val) ? htmlspecialchars($berichtersteller_val) : ''; ?>" style="<?php echo $berichtersteller_val !== '' && !preg_match('/^\d+$/', (string)$berichtersteller_val) ? '' : 'display:none'; ?>">
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="fas fa-paperclip"></i> Anhänge (Fotos, PDF)</div>
+            <div class="card-body">
+                <p class="text-muted small mb-2">Bis zu <?php echo (int)BERICHT_ANHAENGE_MAX_FILES; ?> Dateien (je max. <?php echo round(BERICHT_ANHAENGE_MAX_BYTES / 1048576, 1); ?> MB). Werden dem PDF-Bericht hinten angefügt.</p>
+                <?php if (empty($anhang_liste)): ?>
+                <p class="text-muted small">Keine gespeicherten Anhänge.</p>
+                <?php else: ?>
+                <ul class="list-group list-group-flush mb-3">
+                    <?php foreach ($anhang_liste as $anh): ?>
+                    <li class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        <span><?php echo htmlspecialchars($anh['filename_original'] ?? 'Datei'); ?> <small class="text-muted">(<?php echo htmlspecialchars($anh['mime_type'] ?? ''); ?>)</small></span>
+                        <span class="d-flex gap-2">
+                            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" href="../api/anwesenheitsliste-anhang-download.php?list_id=<?php echo (int)$id; ?>&amp;id=<?php echo (int)($anh['id'] ?? 0); ?>"><i class="fas fa-eye"></i> Anzeigen</a>
+                            <?php if (has_permission_write('forms')): ?>
+                            <form method="post" class="d-inline" onsubmit="return confirm('Anhang wirklich löschen?');">
+                                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                <input type="hidden" name="action" value="delete_anhang_anwesenheitsliste">
+                                <input type="hidden" name="anhang_id" value="<?php echo (int)($anh['id'] ?? 0); ?>">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i> Löschen</button>
+                            </form>
+                            <?php endif; ?>
+                        </span>
+                    </li>
+                    <?php endforeach; ?>
+                </ul>
+                <?php endif; ?>
+                <?php if (has_permission_write('forms')): ?>
+                <label class="form-label">Weitere Dateien hinzufügen</label>
+                <input type="file" class="form-control" name="anwesenheitsliste_anhaenge[]" id="anwesenheitsliste_anhaenge_edit" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">
+                <small class="text-muted">Wird beim Speichern der Liste übernommen (oder unten „Speichern“).</small>
+                <?php endif; ?>
             </div>
         </div>
 

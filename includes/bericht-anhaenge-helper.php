@@ -226,7 +226,7 @@ function bericht_anhaenge_ensure_table(PDO $db): void {
 }
 
 /**
- * @return array<int, array{filename_original:string,storage_path:string,mime_type:string}>
+ * @return array<int, array{id:int,filename_original:string,storage_path:string,mime_type:string}>
  */
 function bericht_anhaenge_fetch_for_entity(PDO $db, string $entity_type, int $entity_id): array {
     if ($entity_id <= 0) {
@@ -234,11 +234,35 @@ function bericht_anhaenge_fetch_for_entity(PDO $db, string $entity_type, int $en
     }
     try {
         bericht_anhaenge_ensure_table($db);
-        $stmt = $db->prepare('SELECT filename_original, storage_path, mime_type FROM bericht_anhaenge WHERE entity_type = ? AND entity_id = ? ORDER BY sort_order ASC, id ASC');
+        $stmt = $db->prepare('SELECT id, filename_original, storage_path, mime_type FROM bericht_anhaenge WHERE entity_type = ? AND entity_id = ? ORDER BY sort_order ASC, id ASC');
         $stmt->execute([$entity_type, $entity_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Exception $e) {
         return [];
+    }
+}
+
+function bericht_anhaenge_delete_by_id(PDO $db, int $attachment_id, string $entity_type, int $entity_id
+): bool {
+    if ($attachment_id <= 0 || $entity_id <= 0 || $entity_type === '') {
+        return false;
+    }
+    try {
+        bericht_anhaenge_ensure_table($db);
+        $stmt = $db->prepare('SELECT storage_path FROM bericht_anhaenge WHERE id = ? AND entity_type = ? AND entity_id = ?');
+        $stmt->execute([$attachment_id, $entity_type, $entity_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return false;
+        }
+        $db->prepare('DELETE FROM bericht_anhaenge WHERE id = ?')->execute([$attachment_id]);
+        $abs = bericht_anhaenge_abs_path($row['storage_path']);
+        if (is_file($abs)) {
+            @unlink($abs);
+        }
+        return true;
+    } catch (Exception $e) {
+        return false;
     }
 }
 
@@ -255,16 +279,21 @@ function bericht_anhaenge_store_files(PDO $db, string $entity_type, int $entity_
         return [];
     }
     bericht_anhaenge_ensure_table($db);
+    $stmtMax = $db->prepare('SELECT COALESCE(MAX(sort_order), 0) FROM bericht_anhaenge WHERE entity_type = ? AND entity_id = ?');
+    $stmtMax->execute([$entity_type, $entity_id]);
+    $sort = (int)$stmtMax->fetchColumn();
+    $stmtCount = $db->prepare('SELECT COUNT(*) FROM bericht_anhaenge WHERE entity_type = ? AND entity_id = ?');
+    $stmtCount->execute([$entity_type, $entity_id]);
+    $existingCount = (int)$stmtCount->fetchColumn();
     $stmt = $db->prepare('INSERT INTO bericht_anhaenge (entity_type, entity_id, filename_original, storage_path, mime_type, sort_order) VALUES (?, ?, ?, ?, ?, ?)');
     $saved = [];
-    $sort = 0;
     $subdir = preg_replace('/[^a-z0-9_\-]/i', '_', $entity_type) . '/' . $entity_id;
     $destDir = bericht_anhaenge_base_upload_dir() . '/' . $subdir;
     if (!is_dir($destDir)) {
         mkdir($destDir, 0755, true);
     }
     foreach ($uploaded as $item) {
-        if (count($saved) >= BERICHT_ANHAENGE_MAX_FILES) {
+        if ($existingCount + count($saved) >= BERICHT_ANHAENGE_MAX_FILES) {
             break;
         }
         $tmp = $item['tmp'] ?? '';
