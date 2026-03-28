@@ -1,12 +1,10 @@
 #!/bin/bash
 set -e
 
-# uploads-Ordner für Logo-Upload anlegen und beschreibbar machen
+# uploads (Bind-Mount vom Host): bei Container-Start sicher beschreibbar für www-data
 UPLOADS_DIR="/var/www/html/uploads"
-if [ ! -d "$UPLOADS_DIR" ]; then
-    mkdir -p "$UPLOADS_DIR"
-fi
+mkdir -p "$UPLOADS_DIR/bericht_anhaenge_draft" "$UPLOADS_DIR/bericht_anhaenge"
 chown -R www-data:www-data "$UPLOADS_DIR"
-chmod 755 "$UPLOADS_DIR"
+chmod -R 775 "$UPLOADS_DIR"
 
 exec "$@"
