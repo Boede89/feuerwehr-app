@@ -5,6 +5,7 @@
 session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/bericht-anhaenge-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header('Location: ../login.php');
@@ -74,6 +75,21 @@ if ($aufgenommen_durch_display === '' && !empty($bericht['aufgenommen_durch_text
 $message = '';
 $error = '';
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_anhang_maengelbericht') {
+    if (!has_permission_write('forms')) {
+        $error = 'Sie haben keine Schreibrechte für das Formularcenter.';
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        $del_aid = (int)($_POST['anhang_id'] ?? 0);
+        if ($del_aid > 0 && bericht_anhaenge_delete_by_id($db, $del_aid, 'maengelbericht', $id)) {
+            header('Location: maengelbericht-bearbeiten.php?id=' . (int)$id . '&message=anhang_deleted');
+            exit;
+        }
+        $error = 'Anhang konnte nicht gelöscht werden.';
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if (!has_permission_write('forms')) {
         $error = 'Sie haben keine Schreibrechte für das Formularcenter.';
@@ -114,6 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 WHERE id=?
             ");
             $stmt->execute([$standort, $mangel_an, $bezeichnung ?: null, $mangel_beschreibung ?: null, $ursache ?: null, $verbleib ?: null, $aufgenommen_durch_text, $aufgenommen_durch_member_id, $aufgenommen_am, $vehicle_id, $id]);
+            bericht_anhaenge_save_for_maengelbericht($db, (int)$id, $_FILES);
             $bericht = array_merge($bericht, [
                 'standort' => $standort, 'mangel_an' => $mangel_an, 'bezeichnung' => $bezeichnung,
                 'mangel_beschreibung' => $mangel_beschreibung, 'ursache' => $ursache, 'verbleib' => $verbleib,
@@ -133,6 +150,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $error = 'Speichern fehlgeschlagen: ' . $e->getMessage();
         }
     }
+}
+
+if (isset($_GET['message']) && $_GET['message'] === 'anhang_deleted') {
+    $message = 'Anhang wurde gelöscht.';
+}
+$anhang_liste = [];
+try {
+    $anhang_liste = bericht_anhaenge_fetch_for_entity($db, 'maengelbericht', $id);
+} catch (Exception $e) {
+    $anhang_liste = [];
 }
 ?>
 <!DOCTYPE html>
@@ -167,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     <div class="card shadow">
         <div class="card-body p-4">
-            <form method="post">
+            <form method="post" enctype="multipart/form-data">
                 <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                 <input type="hidden" name="action" value="save_maengelbericht">
                 <div class="row g-3">
@@ -224,6 +251,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     <div class="col-md-6">
                         <label class="form-label">Aufgenommen am</label>
                         <input type="date" class="form-control" name="aufgenommen_am" value="<?php echo htmlspecialchars($bericht['aufgenommen_am'] ?? date('Y-m-d')); ?>">
+                    </div>
+                    <div class="col-12">
+                        <div class="p-3 border rounded bg-light">
+                            <label class="form-label fw-semibold"><i class="fas fa-paperclip"></i> Anhänge (Fotos, PDF)</label>
+                            <p class="text-muted small mb-2">Bis zu <?php echo (int)BERICHT_ANHAENGE_MAX_FILES; ?> Dateien. Fotos erscheinen im PDF auf der ersten Seite.</p>
+                            <?php if (empty($anhang_liste)): ?>
+                            <p class="text-muted small">Keine gespeicherten Anhänge.</p>
+                            <?php else: ?>
+                            <ul class="list-group list-group-flush mb-3">
+                                <?php foreach ($anhang_liste as $anh): ?>
+                                <li class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                    <span><?php echo htmlspecialchars($anh['filename_original'] ?? 'Datei'); ?> <small class="text-muted">(<?php echo htmlspecialchars($anh['mime_type'] ?? ''); ?>)</small></span>
+                                    <span class="d-flex gap-2">
+                                        <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" href="../api/maengelbericht-anhang-download.php?maengel_id=<?php echo (int)$id; ?>&amp;id=<?php echo (int)($anh['id'] ?? 0); ?>"><i class="fas fa-eye"></i> Anzeigen</a>
+                                        <?php if (has_permission_write('forms')): ?>
+                                        <form method="post" class="d-inline" onsubmit="return confirm('Anhang wirklich löschen?');">
+                                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                            <input type="hidden" name="action" value="delete_anhang_maengelbericht">
+                                            <input type="hidden" name="anhang_id" value="<?php echo (int)($anh['id'] ?? 0); ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i> Löschen</button>
+                                        </form>
+                                        <?php endif; ?>
+                                    </span>
+                                </li>
+                                <?php endforeach; ?>
+                            </ul>
+                            <?php endif; ?>
+                            <?php if (has_permission_write('forms')): ?>
+                            <label class="form-label">Weitere Dateien hinzufügen</label>
+                            <input type="file" class="form-control" name="maengelbericht_anhaenge[]" id="maengelbericht_anhaenge_edit" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
                 <div class="mt-4 d-flex gap-2">

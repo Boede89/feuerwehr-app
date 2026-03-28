@@ -242,6 +242,40 @@ function bericht_anhaenge_fetch_for_entity(PDO $db, string $entity_type, int $en
     }
 }
 
+/**
+ * Bild-Anhänge als HTML (data-URI) für die erste PDF-Seite; übrige Zeilen (z. B. PDFs) zum Anhängen.
+ *
+ * @return array{0: string, 1: array<int, array<string, mixed>>}
+ */
+function bericht_anhaenge_embed_images_as_html_fragment(PDO $db, string $entity_type, int $entity_id, int $maxBytesPerImage = 6291456): array {
+    $html = '';
+    $mergeRows = [];
+    foreach (bericht_anhaenge_fetch_for_entity($db, $entity_type, $entity_id) as $r) {
+        $mime = $r['mime_type'] ?? '';
+        if (strpos($mime, 'image/') !== 0) {
+            $mergeRows[] = $r;
+            continue;
+        }
+        $abs = bericht_anhaenge_abs_path($r['storage_path'] ?? '');
+        if (!is_file($abs) || !is_readable($abs)) {
+            continue;
+        }
+        $size = @filesize($abs);
+        if ($size === false || $size > $maxBytesPerImage) {
+            $mergeRows[] = $r;
+            continue;
+        }
+        $raw = @file_get_contents($abs);
+        if ($raw === false || $raw === '') {
+            $mergeRows[] = $r;
+            continue;
+        }
+        $b64 = base64_encode($raw);
+        $html .= '<div class="bericht-anhang-foto" style="margin:8px 0;text-align:center"><img src="data:' . htmlspecialchars($mime, ENT_QUOTES, 'UTF-8') . ';base64,' . $b64 . '" style="max-width:100%;max-height:280px;width:auto;height:auto;" alt="Foto Anhang" /></div>';
+    }
+    return [$html, $mergeRows];
+}
+
 function bericht_anhaenge_delete_by_id(PDO $db, int $attachment_id, string $entity_type, int $entity_id
 ): bool {
     if ($attachment_id <= 0 || $entity_id <= 0 || $entity_type === '') {
@@ -371,10 +405,13 @@ function bericht_anhaenge_save_for_anwesenheitsliste(PDO $db, int $list_id, ?arr
 }
 
 function bericht_anhaenge_save_for_maengelbericht(PDO $db, int $maengel_id, ?array $filesGlobal): void {
-    if ($maengel_id <= 0 || empty($filesGlobal['maengelbericht_anhaenge']['name'])) {
+    if ($maengel_id <= 0 || empty($filesGlobal) || !isset($filesGlobal['maengelbericht_anhaenge'])) {
         return;
     }
     $batch = bericht_anhaenge_normalize_files_array($filesGlobal['maengelbericht_anhaenge']);
+    if (empty($batch)) {
+        return;
+    }
     bericht_anhaenge_store_files($db, 'maengelbericht', $maengel_id, $batch);
 }
 

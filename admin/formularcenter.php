@@ -408,11 +408,15 @@ try {
         if ($filter_typ === 'einsatz') {
             $sql .= " AND a.typ = 'einsatz'";
         } elseif ($filter_typ === 'uebungsdienst') {
-            $sql .= " AND (
-                (a.typ = 'dienst' AND d.typ IN ('uebungsdienst','dienst','uebung'))
-                OR (a.typ = 'manuell' AND (a.bezeichnung IS NULL OR a.bezeichnung NOT IN ('Sonstiges', 'Jahreshauptversammlung'))
-                    AND NOT (a.custom_data IS NOT NULL AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')), '') IN ('sonstiges', 'jahreshauptversammlung')))
-            )";
+            // Entspricht get_anwesenheitsliste_typ_label() === 'Übungsdienst' (nicht Einsatz, nicht Sonstiges)
+            $sql .= " AND NOT (a.typ = 'einsatz')
+                AND NOT (a.typ = 'dienst' AND COALESCE(d.typ, '') = 'einsatz')
+                AND (
+                    (a.typ = 'dienst' AND COALESCE(d.typ, '') != 'sonstiges')
+                    OR (a.typ = 'manuell' AND (a.bezeichnung IS NULL OR TRIM(a.bezeichnung) != 'Sonstiges')
+                        AND NOT (a.custom_data IS NOT NULL AND TRIM(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')), '')) = 'sonstiges'))
+                    OR (a.typ NOT IN ('einsatz', 'dienst', 'manuell'))
+                )";
         } elseif ($filter_typ === 'sonstiges') {
             $sql .= " AND ((a.typ = 'dienst' AND d.typ IN ('sonstiges', 'jahreshauptversammlung')) OR (a.typ = 'manuell' AND (a.bezeichnung IN ('Sonstiges', 'Jahreshauptversammlung') OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) IN ('sonstiges', 'jahreshauptversammlung')))))";
             if ($filter_beschreibung !== '') {

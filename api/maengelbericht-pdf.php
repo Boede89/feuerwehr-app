@@ -70,6 +70,13 @@ if (!empty($bericht['vehicle_id'])) {
     } catch (Exception $e) {}
 }
 
+require_once __DIR__ . '/../includes/bericht-anhaenge-helper.php';
+$mb_foto_embed = '';
+$mb_merge_rows = [];
+if (function_exists('bericht_anhaenge_embed_images_as_html_fragment')) {
+    [$mb_foto_embed, $mb_merge_rows] = bericht_anhaenge_embed_images_as_html_fragment($db, 'maengelbericht', $id);
+}
+
 $html = '<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -101,7 +108,8 @@ $html = '<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <div class="header">' . get_pdf_logo_html() . '</div>
+    <div class="header">' . get_pdf_logo_html() . '</div>' .
+    ($mb_foto_embed !== '' ? '<div class="section" style="margin-bottom:10px">' . $mb_foto_embed . '</div>' : '') . '
     <div class="section">
         <div class="section-title">Mängelbericht</div>
         <table>
@@ -180,7 +188,7 @@ if ($wkhtmltopdfPath) {
         @unlink($pdfPath);
         @unlink($htmlPath);
         require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
-        $pdf_content = bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'maengelbericht', $id);
+        $pdf_content = bericht_anhaenge_merge_with_rows($pdf_content, $mb_merge_rows);
         if ($return_mode) { $GLOBALS['_mb_pdf_content'] = $pdf_content; return; }
         header('Content-Type: application/pdf');
         header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
@@ -196,13 +204,13 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
     if (class_exists('Dompdf\Dompdf')) {
         try {
-            $dompdf = new \Dompdf\Dompdf(['isRemoteEnabled' => false]);
+            $dompdf = new \Dompdf\Dompdf(['isRemoteEnabled' => true]);
             $dompdf->loadHtml($html, 'UTF-8');
             $dompdf->setPaper('A4', 'portrait');
             $dompdf->render();
             $pdf_content = $dompdf->output();
             require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
-            $pdf_content = bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'maengelbericht', $id);
+            $pdf_content = bericht_anhaenge_merge_with_rows($pdf_content, $mb_merge_rows);
             if ($return_mode) { $GLOBALS['_mb_pdf_content'] = $pdf_content; return; }
             header('Content-Type: application/pdf');
             header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');
@@ -233,7 +241,7 @@ if (file_exists($tcpdfPath)) {
             $pdf->writeHTML($html, true, false, true, false, '');
             $pdf_content = $pdf->Output('', 'S');
             require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
-            $pdf_content = bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'maengelbericht', $id);
+            $pdf_content = bericht_anhaenge_merge_with_rows($pdf_content, $mb_merge_rows);
             if ($return_mode) { $GLOBALS['_mb_pdf_content'] = $pdf_content; return; }
             header('Content-Type: application/pdf');
             header('Content-Disposition: ' . ($for_print ? 'inline' : 'attachment') . '; filename="' . $filename . '"');

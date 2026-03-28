@@ -38,6 +38,13 @@ function maengelbericht_generate_pdf_content($db, $id) {
         } catch (Exception $e) {}
     }
 
+    require_once __DIR__ . '/../includes/bericht-anhaenge-helper.php';
+    $mb_foto_embed = '';
+    $mb_merge_rows = [];
+    if (function_exists('bericht_anhaenge_embed_images_as_html_fragment')) {
+        [$mb_foto_embed, $mb_merge_rows] = bericht_anhaenge_embed_images_as_html_fragment($db, 'maengelbericht', $id);
+    }
+
     $html = '<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -68,7 +75,8 @@ table { width: 100%; border-collapse: collapse; font-size: 9pt; }
 </style>
 </head>
 <body>
-<div class="header">' . (function_exists('get_pdf_logo_html') ? get_pdf_logo_html() : '') . '</div>
+<div class="header">' . (function_exists('get_pdf_logo_html') ? get_pdf_logo_html() : '') . '</div>' .
+($mb_foto_embed !== '' ? '<div class="section" style="margin-bottom:10px">' . $mb_foto_embed . '</div>' : '') . '
 <div class="section">
 <div class="section-title">Mängelbericht</div>
 <table>
@@ -115,7 +123,7 @@ table { width: 100%; border-collapse: collapse; font-size: 9pt; }
             @unlink($pdfPath);
             @unlink($htmlPath);
             require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
-            return bericht_anhaenge_merge_attachments_into_pdf($pdf_content, $db, 'maengelbericht', $id);
+            return bericht_anhaenge_merge_with_rows($pdf_content, $mb_merge_rows);
         }
         @unlink($pdfPath);
         @unlink($htmlPath);
@@ -124,12 +132,12 @@ table { width: 100%; border-collapse: collapse; font-size: 9pt; }
         require_once __DIR__ . '/../vendor/autoload.php';
         if (class_exists('Dompdf\Dompdf')) {
             try {
-                $dompdf = new \Dompdf\Dompdf(['isRemoteEnabled' => false]);
+                $dompdf = new \Dompdf\Dompdf(['isRemoteEnabled' => true]);
                 $dompdf->loadHtml($html, 'UTF-8');
                 $dompdf->setPaper('A4', 'portrait');
                 $dompdf->render();
                 require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
-                return bericht_anhaenge_merge_attachments_into_pdf($dompdf->output(), $db, 'maengelbericht', $id);
+                return bericht_anhaenge_merge_with_rows($dompdf->output(), $mb_merge_rows);
             } catch (Exception $e) {
                 error_log('Dompdf Mängelbericht Fehler: ' . $e->getMessage());
             }
@@ -151,7 +159,7 @@ table { width: 100%; border-collapse: collapse; font-size: 9pt; }
                 $pdf->SetFont('helvetica', '', 10);
                 $pdf->writeHTML($html, true, false, true, false, '');
                 require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
-                return bericht_anhaenge_merge_attachments_into_pdf($pdf->Output('', 'S'), $db, 'maengelbericht', $id);
+                return bericht_anhaenge_merge_with_rows($pdf->Output('', 'S'), $mb_merge_rows);
             } catch (Exception $e) {
                 error_log('TCPDF Mängelbericht Fehler: ' . $e->getMessage());
             }
