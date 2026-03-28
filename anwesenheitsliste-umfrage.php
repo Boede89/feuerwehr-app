@@ -29,6 +29,11 @@ if ($einheit_id <= 0 && isset($_SESSION['user_id'])) {
 if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
 $einheit_param = $einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '';
 
+if (!function_exists('is_admin') || !is_admin()) {
+    header('Location: anwesenheitsliste.php' . ($einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''));
+    exit;
+}
+
 $datum = isset($_GET['datum']) ? trim($_GET['datum']) : (isset($_POST['datum']) ? trim($_POST['datum']) : date('Y-m-d'));
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum)) {
     $datum = date('Y-m-d');

@@ -25,6 +25,13 @@ if ($datum === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum) || $auswahl ==
     exit;
 }
 
+if (isset($_GET['umfrage']) && $_GET['umfrage'] === '1' && (!function_exists('is_admin') || !is_admin())) {
+    $q = $_GET;
+    unset($q['umfrage']);
+    header('Location: anwesenheitsliste-personal.php?' . http_build_query($q));
+    exit;
+}
+
 $draft_key = 'anwesenheit_draft';
 if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum || $_SESSION[$draft_key]['auswahl'] !== $auswahl) {
     header('Location: anwesenheitsliste-eingaben.php?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . $url_suffix);

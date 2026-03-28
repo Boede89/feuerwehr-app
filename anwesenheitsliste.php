@@ -600,6 +600,7 @@ if (isset($_SESSION['user_id'])) {
                                         <h5 class="card-title mb-0">Dienst auswählen</h5>
                                     </button>
                                 </div>
+                                <?php if (function_exists('is_admin') && is_admin()): ?>
                                 <div class="col-12 col-md-4">
                                     <?php if (!empty($alle_entwuerfe)): ?>
                                     <button type="button" class="btn btn-outline-success w-100 h-100 anwesenheits-btn text-decoration-none" data-bs-toggle="modal" data-bs-target="#draftHinweisModal">
@@ -611,6 +612,7 @@ if (isset($_SESSION['user_id'])) {
                                         <small class="d-block mt-1 opacity-75">Schrittweise Erfassung</small>
                                     <?php echo !empty($alle_entwuerfe) ? '</button>' : '</a>'; ?>
                                 </div>
+                                <?php endif; ?>
                             </div>
                             <p class="text-muted small mt-2 mb-0">Wählen Sie eine Option – Sie werden zur Eingabe weitergeleitet.</p>
                         </div>
