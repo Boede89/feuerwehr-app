@@ -2735,20 +2735,63 @@ function divera_reach_confirmed_ucr_ids($reach_data, $status_id_filter = 0) {
 }
 
 /**
- * UCR-IDs aus GET /api/v2/alarms/{id} – Feld ucr_answered (laut OpenAPI: Rückmeldungen).
- * Nur sinnvoll ohne Status-Filter oder als Ergänzung, wenn Reach keine IDs liefert.
+ * UCR-IDs aus GET /api/v2/alarms/{id} – Feld ucr_answered.
+ * Divera liefert je nach Version:
+ * - Liste von Ganzzahlen: [ 123, 456 ]
+ * - Karte UCR → (Status-ID → { ts, note, … }): { "44986": { "251321": { "ts": … } } }
  *
+ * @param int $status_id_filter >0: nur UCRs, die mindestens eine Rückmeldung mit dieser Status-ID haben
  * @return int[]
  */
-function divera_alarm_ucr_answered_ids(array $alarm_detail) {
+function divera_alarm_ucr_answered_ids(array $alarm_detail, $status_id_filter = 0) {
     $answered = $alarm_detail['ucr_answered'] ?? null;
     if (!is_array($answered)) {
         return [];
     }
+    $status_id_filter = (int) $status_id_filter;
     $out = [];
-    foreach ($answered as $v) {
-        if (is_numeric($v)) {
-            $out[] = (int) $v;
+    $n = count($answered);
+    $keys = array_keys($answered);
+    $isSequentialIntList = $n > 0 && $keys === range(0, $n - 1);
+    if ($isSequentialIntList) {
+        foreach ($answered as $v) {
+            if (is_numeric($v)) {
+                $out[] = (int) $v;
+            }
+        }
+        return array_values(array_unique(array_filter($out)));
+    }
+    foreach ($answered as $ucrKey => $payload) {
+        if (!is_numeric($ucrKey)) {
+            continue;
+        }
+        $ucr = (int) $ucrKey;
+        if ($ucr <= 0) {
+            continue;
+        }
+        if (!is_array($payload)) {
+            if (is_numeric($payload)) {
+                $out[] = (int) $payload;
+            }
+            continue;
+        }
+        $include = ($status_id_filter <= 0);
+        foreach ($payload as $innerKey => $innerVal) {
+            if (!is_numeric($innerKey)) {
+                continue;
+            }
+            $sid = (int) $innerKey;
+            if ($status_id_filter <= 0) {
+                $include = true;
+                break;
+            }
+            if ($sid === $status_id_filter) {
+                $include = true;
+                break;
+            }
+        }
+        if ($include) {
+            $out[] = $ucr;
         }
     }
     return array_values(array_unique(array_filter($out)));

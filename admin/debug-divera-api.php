@@ -76,7 +76,7 @@ $pretty = static function ($data) {
 $reach_inner = is_array($reach_decoded['data'] ?? null) ? $reach_decoded['data'] : null;
 $alarm_inner = is_array($alarm_decoded['data'] ?? null) ? $alarm_decoded['data'] : null;
 
-$hint_ucr_answered = is_array($alarm_inner) ? divera_alarm_ucr_answered_ids($alarm_inner) : [];
+$hint_ucr_answered = is_array($alarm_inner) ? divera_alarm_ucr_answered_ids($alarm_inner, 0) : [];
 $hint_reach_ucr = ($reach_inner !== null) ? divera_reach_confirmed_ucr_ids($reach_inner, 0) : [];
 
 $alarm_items_for_links = [];
@@ -159,11 +159,11 @@ usort($alarm_items_for_links, static fn ($a, $b) => $b['id'] <=> $a['id']);
     <div class="card mb-3 border-info">
         <div class="card-header bg-info text-white">Auswertung (wie die App)</div>
         <div class="card-body small">
-            <p class="mb-1"><strong>ucr_answered</strong> (aus Alarm-Detail, Fallback ohne Status-Filter):</p>
+            <p class="mb-1"><strong>ucr_answered → UCR-IDs</strong> (Parser der App; verschachtelt: äußere Keys = UCR, innere Keys = Status-IDs mit <code>ts</code>/<code>note</code>):</p>
             <pre class="bg-white border rounded p-2 mb-3"><?php echo htmlspecialchars($pretty($hint_ucr_answered)); ?></pre>
-            <p class="mb-1"><strong>confirmed → UCR-IDs</strong> (Reach, Parser der App, ohne Status-Filter):</p>
+            <p class="mb-1"><strong>confirmed → UCR-IDs</strong> (Reach, ohne Status-Filter):</p>
             <pre class="bg-white border rounded p-2 mb-0"><?php echo htmlspecialchars($pretty($hint_reach_ucr)); ?></pre>
-            <p class="text-muted mt-2 mb-0">Für die Filterung nach „nur bestimmter Rückmelde-Status“: In der Reach-JSON unter <code>data.confirmed</code> pro Eintrag nach <code>status_id</code> / <code>Status.id</code> suchen und die passende Zahl in den Einheitseinstellungen eintragen.</p>
+            <p class="text-muted mt-2 mb-0"><strong>Status-ID für die App-Einstellung:</strong> Bei <code>ucr_answered</code> sind das die <strong>inneren</strong> Schlüssel (z. B. <code>251321</code>, <code>251319</code>) pro UCR – welcher genau zu welchem Rückmeldetext gehört, siehst du in Divera unter dem Status-Namen bzw. in der Status-Verwaltung. Alternativ <code>data.confirmed</code> in Reach auswerten.</p>
         </div>
     </div>
 

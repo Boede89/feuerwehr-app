@@ -351,9 +351,9 @@ if ($divera_id > 0 && $is_einsatz) {
             if ($reach_data !== null) {
                 $ucr_ids = divera_reach_confirmed_ucr_ids($reach_data, $status_filter);
             }
-            // Fallback: Alarm-Detail liefert oft ucr_answered, wenn Reach confirmed anders aufgebaut ist
-            if ($ucr_ids === [] && $status_filter <= 0 && is_array($alarm_detail_for_divera)) {
-                $ucr_ids = divera_alarm_ucr_answered_ids($alarm_detail_for_divera);
+            // Fallback: ucr_answered (oft verschachtelt: UCR → Status-ID → ts/note), wenn Reach wenig liefert
+            if ($ucr_ids === [] && is_array($alarm_detail_for_divera)) {
+                $ucr_ids = divera_alarm_ucr_answered_ids($alarm_detail_for_divera, $status_filter);
             }
             if ($ucr_ids !== []) {
                 try {
