@@ -2631,7 +2631,62 @@ function fetch_divera_alarm_reach($access_key, $alarm_id, $api_base_url = 'https
 }
 
 /**
+ * Liest Status-ID aus einem Reach-Eintrag (verschiedene JSON-Formate).
+ */
+function divera_reach_entry_status_id($entry) {
+    if (is_array($entry)) {
+        if (isset($entry['status_id'])) {
+            return (int) $entry['status_id'];
+        }
+        if (!empty($entry['Status']) && is_array($entry['Status']) && isset($entry['Status']['id'])) {
+            return (int) $entry['Status']['id'];
+        }
+        if (isset($entry['status'])) {
+            if (is_array($entry['status']) && isset($entry['status']['id'])) {
+                return (int) $entry['status']['id'];
+            }
+            if (is_numeric($entry['status'])) {
+                return (int) $entry['status'];
+            }
+        }
+    } elseif (is_object($entry)) {
+        $e = (array) $entry;
+        if (isset($e['status_id'])) {
+            return (int) $e['status_id'];
+        }
+    } elseif (is_numeric($entry)) {
+        return (int) $entry;
+    }
+    return null;
+}
+
+/**
+ * UCR-ID aus einem Reach-Eintrag, wenn dieser ein Objekt/Listenelement ist (nicht Map-Key).
+ */
+function divera_reach_entry_ucr_id($entry) {
+    if (!is_array($entry) && !is_object($entry)) {
+        return 0;
+    }
+    $e = is_array($entry) ? $entry : (array) $entry;
+    $keys = ['user_cluster_relation_id', 'user_cluster_relation', 'ucr', 'ucr_id', 'UserClusterRelation', 'userClusterRelationId'];
+    foreach ($keys as $k) {
+        if (!isset($e[$k])) {
+            continue;
+        }
+        $v = $e[$k];
+        if (is_numeric($v)) {
+            return (int) $v;
+        }
+        if (is_array($v) && isset($v['id']) && is_numeric($v['id'])) {
+            return (int) $v['id'];
+        }
+    }
+    return 0;
+}
+
+/**
  * Extrahiert UserClusterRelation-IDs aus dem confirmed-Block der Reach-Antwort.
+ * Unterstützt: Map ucrId => details, numerische Liste mit Objekten, verschachtelte „items“.
  *
  * @param int $status_id_filter >0: nur diese Divera-Status-ID (Rückmeldung); 0: alle Einträge unter confirmed
  * @return int[]
@@ -2650,43 +2705,51 @@ function divera_reach_confirmed_ucr_ids($reach_data, $status_id_filter = 0) {
     if (!is_array($confirmed)) {
         return [];
     }
+    // Manche API-Versionen: confirmed.items
+    if (isset($confirmed['items']) && is_array($confirmed['items'])) {
+        $confirmed = $confirmed['items'];
+    }
     $status_id_filter = (int) $status_id_filter;
     $out = [];
+    $list_like = array_keys($confirmed) === range(0, count($confirmed) - 1);
     foreach ($confirmed as $ucrKey => $entry) {
         $ucr = 0;
-        if (is_int($ucrKey) || (is_string($ucrKey) && ctype_digit((string) $ucrKey))) {
+        if (!$list_like && (is_int($ucrKey) || (is_string($ucrKey) && ctype_digit((string) $ucrKey)))) {
             $ucr = (int) $ucrKey;
+        }
+        if ($ucr <= 0) {
+            $ucr = divera_reach_entry_ucr_id($entry);
         }
         if ($ucr <= 0) {
             continue;
         }
-        $statusId = null;
-        if (is_array($entry)) {
-            if (isset($entry['status_id'])) {
-                $statusId = (int) $entry['status_id'];
-            } elseif (!empty($entry['Status']) && is_array($entry['Status']) && isset($entry['Status']['id'])) {
-                $statusId = (int) $entry['Status']['id'];
-            } elseif (isset($entry['status'])) {
-                if (is_array($entry['status']) && isset($entry['status']['id'])) {
-                    $statusId = (int) $entry['status']['id'];
-                } elseif (is_numeric($entry['status'])) {
-                    $statusId = (int) $entry['status'];
-                }
-            }
-        } elseif (is_object($entry)) {
-            $e = (array) $entry;
-            if (isset($e['status_id'])) {
-                $statusId = (int) $e['status_id'];
-            }
-        } elseif (is_numeric($entry)) {
-            $statusId = (int) $entry;
-        }
+        $statusId = divera_reach_entry_status_id($entry);
         if ($status_id_filter > 0) {
             if ($statusId === null || $statusId !== $status_id_filter) {
                 continue;
             }
         }
         $out[] = $ucr;
+    }
+    return array_values(array_unique(array_filter($out)));
+}
+
+/**
+ * UCR-IDs aus GET /api/v2/alarms/{id} – Feld ucr_answered (laut OpenAPI: Rückmeldungen).
+ * Nur sinnvoll ohne Status-Filter oder als Ergänzung, wenn Reach keine IDs liefert.
+ *
+ * @return int[]
+ */
+function divera_alarm_ucr_answered_ids(array $alarm_detail) {
+    $answered = $alarm_detail['ucr_answered'] ?? null;
+    if (!is_array($answered)) {
+        return [];
+    }
+    $out = [];
+    foreach ($answered as $v) {
+        if (is_numeric($v)) {
+            $out[] = (int) $v;
+        }
     }
     return array_values(array_unique(array_filter($out)));
 }

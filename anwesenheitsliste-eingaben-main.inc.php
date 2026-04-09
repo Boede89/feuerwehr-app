@@ -311,8 +311,10 @@ if ($divera_id > 0 && $is_einsatz) {
         $ctx = stream_context_create(['http' => ['timeout' => 10]]);
         $raw = @file_get_contents($url, false, $ctx);
         $data = is_string($raw) ? json_decode($raw, true) : null;
+        $alarm_detail_for_divera = null;
         if (is_array($data) && !empty($data['data'])) {
-            $a = $data['data'];
+            $alarm_detail_for_divera = $data['data'];
+            $a = $alarm_detail_for_divera;
             $date_ts = (int)($a['date'] ?? $a['ts_create'] ?? 0);
             if ($date_ts > 10000000000) $date_ts = (int)($date_ts / 1000);
             $draft['datum'] = date('Y-m-d', $date_ts);
@@ -345,19 +347,24 @@ if ($divera_id > 0 && $is_einsatz) {
         if ($auto_personal) {
             $reach_err = '';
             $reach_data = fetch_divera_alarm_reach($divera_key, $divera_id, $api_base, $reach_err);
+            $ucr_ids = [];
             if ($reach_data !== null) {
                 $ucr_ids = divera_reach_confirmed_ucr_ids($reach_data, $status_filter);
-                if (!empty($ucr_ids)) {
-                    try {
-                        $db->exec('ALTER TABLE members ADD COLUMN divera_ucr_id INT NULL DEFAULT NULL');
-                    } catch (Throwable $e) {
-                        // Spalte existiert evtl. schon
-                    }
-                    $from_divera = members_ids_by_divera_ucr_ids($db, $ucr_ids, $einheit_id);
-                    if (!empty($from_divera)) {
-                        $have = isset($draft['members']) && is_array($draft['members']) ? $draft['members'] : [];
-                        $draft['members'] = array_values(array_unique(array_merge(array_map('intval', $have), $from_divera)));
-                    }
+            }
+            // Fallback: Alarm-Detail liefert oft ucr_answered, wenn Reach confirmed anders aufgebaut ist
+            if ($ucr_ids === [] && $status_filter <= 0 && is_array($alarm_detail_for_divera)) {
+                $ucr_ids = divera_alarm_ucr_answered_ids($alarm_detail_for_divera);
+            }
+            if ($ucr_ids !== []) {
+                try {
+                    $db->exec('ALTER TABLE members ADD COLUMN divera_ucr_id INT NULL DEFAULT NULL');
+                } catch (Throwable $e) {
+                    // Spalte existiert evtl. schon
+                }
+                $from_divera = members_ids_by_divera_ucr_ids($db, $ucr_ids, $einheit_id);
+                if ($from_divera !== []) {
+                    $have = isset($draft['members']) && is_array($draft['members']) ? $draft['members'] : [];
+                    $draft['members'] = array_values(array_unique(array_merge(array_map('intval', $have), $from_divera)));
                 }
             }
         }
