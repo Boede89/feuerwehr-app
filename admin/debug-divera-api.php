@@ -76,8 +76,8 @@ $pretty = static function ($data) {
 $reach_inner = is_array($reach_decoded['data'] ?? null) ? $reach_decoded['data'] : null;
 $alarm_inner = is_array($alarm_decoded['data'] ?? null) ? $alarm_decoded['data'] : null;
 
-$hint_ucr_answered = is_array($alarm_inner) ? divera_alarm_ucr_answered_ids($alarm_inner, 0) : [];
-$hint_reach_ucr = ($reach_inner !== null) ? divera_reach_confirmed_ucr_ids($reach_inner, 0) : [];
+$hint_ucr_answered = is_array($alarm_inner) ? divera_alarm_ucr_answered_ids($alarm_inner, []) : [];
+$hint_reach_ucr = ($reach_inner !== null) ? divera_reach_confirmed_ucr_ids($reach_inner, []) : [];
 
 $alarm_items_for_links = [];
 if (is_array($alarms_decoded)) {

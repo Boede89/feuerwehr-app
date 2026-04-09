@@ -366,7 +366,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     }
                 }
                 $anw_divera_rueck_personal = isset($_POST['anwesenheitsliste_divera_personal_from_rueckmeldung']) ? '1' : '0';
-                $anw_divera_status_id = preg_replace('/[^\d]/', '', (string) ($_POST['anwesenheitsliste_divera_rueckmeldung_status_id'] ?? ''));
+                $anw_divera_status_raw = trim((string) ($_POST['anwesenheitsliste_divera_rueckmeldung_status_id'] ?? ''));
+                $anw_divera_status_id = preg_replace('/[^\d,\s;]/', '', $anw_divera_status_raw);
+                $anw_divera_status_id = preg_replace('/\s+/', ' ', trim($anw_divera_status_id));
                 $divera = [
                     'divera_access_key' => $divera_access_key,
                     'divera_api_base_url' => $divera_api_base_url,
@@ -837,9 +839,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                                     <label class="form-check-label" for="anw_divera_rueck_personal">Personal automatisch aus Divera-Rückmeldungen übernehmen</label>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label" for="anw_divera_rueck_status">Nur Divera-Status-ID (optional)</label>
-                                    <input class="form-control" type="text" name="anwesenheitsliste_divera_rueckmeldung_status_id" id="anw_divera_rueck_status" inputmode="numeric" pattern="[0-9]*" placeholder="leer = alle aktiven Rückmeldungen" value="<?php echo htmlspecialchars((string)($settings['anwesenheitsliste_divera_rueckmeldung_status_id'] ?? '')); ?>" style="max-width: 280px;">
-                                    <div class="form-text">Die Status-ID entnehmen Sie der Divera-Verwaltung (Rückmelde-Status). Leer lassen, wenn alle Personen mit gesetzter Rückmeldung übernommen werden sollen. Pro Mitglied muss in der Mitgliederverwaltung die passende „Divera UCR-ID“ hinterlegt sein.</div>
+                                    <label class="form-label" for="anw_divera_rueck_status">Nur Divera-Status-ID(s) (optional)</label>
+                                    <input class="form-control" type="text" name="anwesenheitsliste_divera_rueckmeldung_status_id" id="anw_divera_rueck_status" placeholder="z. B. 44986 oder 44986, 45100" value="<?php echo htmlspecialchars((string)($settings['anwesenheitsliste_divera_rueckmeldung_status_id'] ?? '')); ?>" style="max-width: 420px;">
+                                    <div class="form-text">Mehrere IDs <strong>kommagetrennt</strong> oder mit Semikolon/Leerzeichen – Personen werden übernommen, die unter <strong>einer dieser</strong> Rückmelde-Status-IDs gemeldet haben (äußere Schlüssel unter <code>ucr_answered</code>). Leer = alle Status. Pro Mitglied die passende User-ID (innerer Schlüssel) in der Mitgliederverwaltung hinterlegen.</div>
                                 </div>
                     </div>
                 </div>

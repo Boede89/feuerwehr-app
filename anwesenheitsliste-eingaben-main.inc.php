@@ -328,7 +328,7 @@ if ($divera_id > 0 && $is_einsatz) {
         }
         // Personal: Mitglieder mit passender Divera-Rückmeldung (Reach API) vormerken
         $auto_personal = true;
-        $status_filter = 0;
+        $status_ids_allow = [];
         if ($einheit_id > 0) {
             try {
                 $stmt_es = $db->prepare("SELECT setting_key, setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key IN ('anwesenheitsliste_divera_personal_from_rueckmeldung', 'anwesenheitsliste_divera_rueckmeldung_status_id')");
@@ -338,10 +338,10 @@ if ($divera_id > 0 && $is_einsatz) {
                     $es_row[$r['setting_key']] = $r['setting_value'];
                 }
                 $auto_personal = (($es_row['anwesenheitsliste_divera_personal_from_rueckmeldung'] ?? '1') === '1');
-                $status_filter = (int) trim((string) ($es_row['anwesenheitsliste_divera_rueckmeldung_status_id'] ?? ''));
+                $status_ids_allow = divera_parse_status_id_list((string) ($es_row['anwesenheitsliste_divera_rueckmeldung_status_id'] ?? ''));
             } catch (Exception $e) {
                 $auto_personal = true;
-                $status_filter = 0;
+                $status_ids_allow = [];
             }
         }
         if ($auto_personal) {
@@ -349,11 +349,11 @@ if ($divera_id > 0 && $is_einsatz) {
             $reach_data = fetch_divera_alarm_reach($divera_key, $divera_id, $api_base, $reach_err);
             $ucr_ids = [];
             if ($reach_data !== null) {
-                $ucr_ids = divera_reach_confirmed_ucr_ids($reach_data, $status_filter);
+                $ucr_ids = divera_reach_confirmed_ucr_ids($reach_data, $status_ids_allow);
             }
-            // Fallback: ucr_answered (oft verschachtelt: UCR → Status-ID → ts/note), wenn Reach wenig liefert
+            // Fallback: ucr_answered (Status-ID → User-IDs), wenn Reach wenig liefert
             if ($ucr_ids === [] && is_array($alarm_detail_for_divera)) {
-                $ucr_ids = divera_alarm_ucr_answered_ids($alarm_detail_for_divera, $status_filter);
+                $ucr_ids = divera_alarm_ucr_answered_ids($alarm_detail_for_divera, $status_ids_allow);
             }
             if ($ucr_ids !== []) {
                 try {

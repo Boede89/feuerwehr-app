@@ -2685,13 +2685,34 @@ function divera_reach_entry_ucr_id($entry) {
 }
 
 /**
+ * Divera-Status-IDs aus Einstellungstext (kommagetrennt, Semikolon oder Leerzeichen).
+ * Leer oder ungültig → leeres Array (= kein Filter, alle Status).
+ *
+ * @return int[]
+ */
+function divera_parse_status_id_list($raw) {
+    $raw = trim((string) $raw);
+    if ($raw === '') {
+        return [];
+    }
+    $parts = preg_split('/[\s,;]+/', $raw, -1, PREG_SPLIT_NO_EMPTY);
+    $out = [];
+    foreach ($parts as $p) {
+        if (ctype_digit((string) $p)) {
+            $out[] = (int) $p;
+        }
+    }
+    return array_values(array_unique(array_filter($out)));
+}
+
+/**
  * Extrahiert UserClusterRelation-IDs aus dem confirmed-Block der Reach-Antwort.
  * Unterstützt: Map ucrId => details, numerische Liste mit Objekten, verschachtelte „items“.
  *
- * @param int $status_id_filter >0: nur diese Divera-Status-ID (Rückmeldung); 0: alle Einträge unter confirmed
+ * @param array $status_ids_allow leer = kein Filter; sonst nur Einträge deren Status-ID in dieser Liste
  * @return int[]
  */
-function divera_reach_confirmed_ucr_ids($reach_data, $status_id_filter = 0) {
+function divera_reach_confirmed_ucr_ids($reach_data, array $status_ids_allow = []) {
     if (!is_array($reach_data)) {
         return [];
     }
@@ -2709,7 +2730,7 @@ function divera_reach_confirmed_ucr_ids($reach_data, $status_id_filter = 0) {
     if (isset($confirmed['items']) && is_array($confirmed['items'])) {
         $confirmed = $confirmed['items'];
     }
-    $status_id_filter = (int) $status_id_filter;
+    $filter_active = $status_ids_allow !== [];
     $out = [];
     $list_like = array_keys($confirmed) === range(0, count($confirmed) - 1);
     foreach ($confirmed as $ucrKey => $entry) {
@@ -2724,8 +2745,8 @@ function divera_reach_confirmed_ucr_ids($reach_data, $status_id_filter = 0) {
             continue;
         }
         $statusId = divera_reach_entry_status_id($entry);
-        if ($status_id_filter > 0) {
-            if ($statusId === null || $statusId !== $status_id_filter) {
+        if ($filter_active) {
+            if ($statusId === null || !in_array($statusId, $status_ids_allow, true)) {
                 continue;
             }
         }
@@ -2741,15 +2762,15 @@ function divera_reach_confirmed_ucr_ids($reach_data, $status_id_filter = 0) {
  * - Karte Status-ID → (User-ID/UCR-ID → { ts, note, … }): { "44986": { "251321": { "ts": … } } }
  *   Dabei ist der äußere Schlüssel die Rückmelde-Status-ID, der innere die Nutzer-/UCR-ID.
  *
- * @param int $status_id_filter >0: nur IDs unter diesem Status-Schlüssel; 0 = alle Status
+ * @param array $status_ids_allow leer = alle äußeren Status-Blöcke; sonst nur diese Status-IDs (Oder-Verknüpfung)
  * @return int[]
  */
-function divera_alarm_ucr_answered_ids(array $alarm_detail, $status_id_filter = 0) {
+function divera_alarm_ucr_answered_ids(array $alarm_detail, array $status_ids_allow = []) {
     $answered = $alarm_detail['ucr_answered'] ?? null;
     if (!is_array($answered)) {
         return [];
     }
-    $status_id_filter = (int) $status_id_filter;
+    $filter_active = $status_ids_allow !== [];
     $out = [];
     $n = count($answered);
     $keys = array_keys($answered);
@@ -2767,7 +2788,7 @@ function divera_alarm_ucr_answered_ids(array $alarm_detail, $status_id_filter = 
             continue;
         }
         $statusId = (int) $statusKey;
-        if ($status_id_filter > 0 && $statusId !== $status_id_filter) {
+        if ($filter_active && !in_array($statusId, $status_ids_allow, true)) {
             continue;
         }
         foreach ($innerMap as $userKey => $_meta) {
