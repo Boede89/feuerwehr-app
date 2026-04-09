@@ -25,7 +25,7 @@ if ($datum === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum) || $auswahl ==
     exit;
 }
 
-if (isset($_GET['umfrage']) && $_GET['umfrage'] === '1' && (!function_exists('is_admin') || !is_admin())) {
+if (isset($_GET['umfrage']) && $_GET['umfrage'] === '1' && (!function_exists('is_superadmin') || !is_superadmin())) {
     $q = $_GET;
     unset($q['umfrage']);
     header('Location: anwesenheitsliste-personal.php?' . http_build_query($q));

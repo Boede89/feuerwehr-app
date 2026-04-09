@@ -29,7 +29,7 @@ if ($einheit_id <= 0 && isset($_SESSION['user_id'])) {
 if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
 $einheit_param = $einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '';
 
-if (!function_exists('is_admin') || !is_admin()) {
+if (!function_exists('is_superadmin') || !is_superadmin()) {
     header('Location: anwesenheitsliste.php' . ($einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : ''));
     exit;
 }

@@ -614,7 +614,7 @@ if (isset($_SESSION['user_id'])) {
                                         <h5 class="card-title mb-0">Dienst auswählen</h5>
                                     </button>
                                 </div>
-                                <?php if (function_exists('is_admin') && is_admin()): ?>
+                                <?php if (function_exists('is_superadmin') && is_superadmin()): ?>
                                 <div class="col-12 col-md-4">
                                     <?php if (!empty($alle_entwuerfe)): ?>
                                     <button type="button" class="btn btn-outline-success w-100 h-100 anwesenheits-btn text-decoration-none" data-bs-toggle="modal" data-bs-target="#draftHinweisModal">
