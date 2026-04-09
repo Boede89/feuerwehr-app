@@ -35,6 +35,7 @@ $labels = [
     'debug-logs.php' => 'Logs prüfen',
     'debug-db.php' => 'Datenbank (Docker/MySQL)',
     'debug-divera.php' => 'Divera-Konfiguration',
+    'debug-divera-api.php' => 'Divera API (JSON / Reach)',
     'debug-room-reservations.php' => 'Raumreservierungen',
     'test-atemschutz-workflow.php' => 'Atemschutz-Workflow',
     'test-email-export.php' => 'E-Mail-Export (PA-Träger)',

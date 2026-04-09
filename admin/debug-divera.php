@@ -72,6 +72,7 @@ $has_key = !empty(trim((string)($divera_config['access_key'] ?? '')));
     </div>
     <?php endif; ?>
     <p><a href="?einheit_id=1">Einheit 1</a> | <a href="?einheit_id=2">Einheit 2</a></p>
+    <p><a href="debug-divera-api.php?einheit_id=<?php echo (int)$einheit_id; ?>" class="btn btn-outline-primary btn-sm"><i class="fas fa-code me-1"></i> API-Antworten (Alarmliste, Reach, Status)</a></p>
     <p><a href="settings-global.php">← Zurück zu Einstellungen</a></p>
 </div>
 </body>
