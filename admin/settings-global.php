@@ -215,6 +215,7 @@ if (isset($_GET['global_smtp_applied']) && $_GET['global_smtp_applied'] === '1')
 // Laden
 $settings = [];
 $divera_reservation_groups = [];
+$anw_divera_status_presets = [];
 try {
     $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
     if ($einheit_id > 0) {
@@ -228,6 +229,23 @@ try {
             foreach ($ids as $id) {
                 if ($id > 0) $divera_reservation_groups[] = ['id' => $id, 'name' => 'Gruppe ' . $id];
             }
+        }
+        if (!empty($settings['anwesenheitsliste_divera_rueckmeldung_status_presets'])) {
+            $decsp = json_decode($settings['anwesenheitsliste_divera_rueckmeldung_status_presets'], true);
+            if (is_array($decsp)) {
+                foreach ($decsp as $row) {
+                    if (!is_array($row)) {
+                        continue;
+                    }
+                    $anw_divera_status_presets[] = [
+                        'id' => (int) ($row['id'] ?? 0),
+                        'label' => trim((string) ($row['label'] ?? '')),
+                    ];
+                }
+            }
+        }
+        while (count($anw_divera_status_presets) < 2) {
+            $anw_divera_status_presets[] = ['id' => 0, 'label' => ''];
         }
     }
 } catch (Exception $e) {
@@ -369,12 +387,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                 $anw_divera_status_raw = trim((string) ($_POST['anwesenheitsliste_divera_rueckmeldung_status_id'] ?? ''));
                 $anw_divera_status_id = preg_replace('/[^\d,\s;]/', '', $anw_divera_status_raw);
                 $anw_divera_status_id = preg_replace('/\s+/', ' ', trim($anw_divera_status_id));
+                $preset_ids_post = $_POST['anw_divera_status_preset_id'] ?? [];
+                $preset_labels_post = $_POST['anw_divera_status_preset_label'] ?? [];
+                $anw_status_presets_save = [];
+                foreach ($preset_ids_post as $pi => $pval) {
+                    $pid = (int) trim((string) $pval);
+                    $plbl = trim((string) ($preset_labels_post[$pi] ?? ''));
+                    if ($pid > 0 || $plbl !== '') {
+                        $anw_status_presets_save[] = ['id' => $pid, 'label' => $plbl];
+                    }
+                }
                 $divera = [
                     'divera_access_key' => $divera_access_key,
                     'divera_api_base_url' => $divera_api_base_url,
                     'divera_reservation_groups' => json_encode($groups),
                     'anwesenheitsliste_divera_personal_from_rueckmeldung' => $anw_divera_rueck_personal,
                     'anwesenheitsliste_divera_rueckmeldung_status_id' => $anw_divera_status_id,
+                    'anwesenheitsliste_divera_rueckmeldung_status_presets' => json_encode($anw_status_presets_save, JSON_UNESCAPED_UNICODE),
                 ];
                 $all = array_merge($smtp, $google, $app, $printer, $divera);
                 save_settings_bulk_for_einheit($db, $save_einheit_id, $all);
@@ -839,9 +868,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                                     <label class="form-check-label" for="anw_divera_rueck_personal">Personal automatisch aus Divera-Rückmeldungen übernehmen</label>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label" for="anw_divera_rueck_status">Nur Divera-Status-ID(s) (optional)</label>
-                                    <input class="form-control" type="text" name="anwesenheitsliste_divera_rueckmeldung_status_id" id="anw_divera_rueck_status" placeholder="z. B. 44986 oder 44986, 45100" value="<?php echo htmlspecialchars((string)($settings['anwesenheitsliste_divera_rueckmeldung_status_id'] ?? '')); ?>" style="max-width: 420px;">
-                                    <div class="form-text">Mehrere IDs <strong>kommagetrennt</strong> oder mit Semikolon/Leerzeichen – Personen werden übernommen, die unter <strong>einer dieser</strong> Rückmelde-Status-IDs gemeldet haben (äußere Schlüssel unter <code>ucr_answered</code>). Leer = alle Status. Pro Mitglied die passende User-ID (innerer Schlüssel) in der Mitgliederverwaltung hinterlegen.</div>
+                                    <label class="form-label">Merkliste: Status-ID &amp; Beschreibung (optional)</label>
+                                    <p class="text-muted small mb-2">Damit Sie Rückmelde-Status aus Divera zuordnen können. Die Beschreibung erscheint in der Schnellauswahl neben dem Filterfeld (IDs bitte aus der API-Debug-Seite oder Divera übernehmen).</p>
+                                    <div id="diveraStatusPresetsContainer">
+                                        <?php foreach ($anw_divera_status_presets as $sp): ?>
+                                        <div class="input-group mb-2 divera-status-preset-row">
+                                            <input type="number" class="form-control anw-status-preset-id" name="anw_divera_status_preset_id[]" placeholder="Status-ID" value="<?php echo (int)($sp['id'] ?? 0) > 0 ? (int)$sp['id'] : ''; ?>" min="0" title="Äußerer Schlüssel unter ucr_answered">
+                                            <input type="text" class="form-control anw-status-preset-label" name="anw_divera_status_preset_label[]" placeholder="Beschreibung (z. B. Komme, Nicht verfügbar)" value="<?php echo htmlspecialchars($sp['label'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                                            <button type="button" class="btn btn-outline-danger btn-remove-status-preset" title="Zeile entfernen"><i class="fas fa-trash"></i></button>
+                                        </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAddStatusPreset"><i class="fas fa-plus me-1"></i>Weitere Zeile</button>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label" for="anw_divera_rueck_status">Nur Divera-Status-ID(s) (optional) – Filter für die Personalübernahme</label>
+                                    <div class="row g-2 align-items-start">
+                                        <div class="col-12 col-md-7">
+                                            <input class="form-control" type="text" name="anwesenheitsliste_divera_rueckmeldung_status_id" id="anw_divera_rueck_status" placeholder="z. B. 44986 oder 44986, 45100" value="<?php echo htmlspecialchars((string)($settings['anwesenheitsliste_divera_rueckmeldung_status_id'] ?? '')); ?>">
+                                        </div>
+                                        <div class="col-12 col-md-5">
+                                            <select class="form-select" id="anw_divera_status_pick" aria-label="Status aus Merkliste anhängen">
+                                                <option value="">— Aus Merkliste anhängen… —</option>
+                                                <?php foreach ($anw_divera_status_presets as $sp):
+                                                    $sid = (int)($sp['id'] ?? 0);
+                                                    if ($sid <= 0) {
+                                                        continue;
+                                                    }
+                                                    $slbl = trim((string)($sp['label'] ?? ''));
+                                                    $stext = $slbl !== '' ? ($slbl . ' (' . $sid . ')') : ('Status-ID ' . $sid);
+                                                ?>
+                                                <option value="<?php echo (int)$sid; ?>"><?php echo htmlspecialchars($stext, ENT_QUOTES, 'UTF-8'); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-text">Mehrere IDs <strong>kommagetrennt</strong> – Personen mit <strong>einer dieser</strong> Rückmelde-Status-IDs (äußere Schlüssel unter <code>ucr_answered</code>). Leer = alle Status. Über die Auswahl rechts wird die ID ans Ende des Feldes ergänzt (ohne Duplikate). Pro Mitglied die passende User-ID in der Mitgliederverwaltung hinterlegen.</div>
                                 </div>
                     </div>
                 </div>
@@ -1122,6 +1184,72 @@ document.addEventListener('DOMContentLoaded', function() {
             if (e.target.closest('.btn-remove-group')) e.target.closest('.divera-group-row').remove();
         });
     }
+    function refreshAnwDiveraStatusPick() {
+        var sel = document.getElementById('anw_divera_status_pick');
+        if (!sel) return;
+        sel.innerHTML = '';
+        var opt0 = document.createElement('option');
+        opt0.value = '';
+        opt0.textContent = '— Aus Merkliste anhängen… —';
+        sel.appendChild(opt0);
+        document.querySelectorAll('.divera-status-preset-row').forEach(function(row) {
+            var idInp = row.querySelector('.anw-status-preset-id');
+            var lblInp = row.querySelector('.anw-status-preset-label');
+            if (!idInp || !lblInp) return;
+            var id = parseInt(String(idInp.value).trim(), 10);
+            if (!id || id <= 0) return;
+            var lbl = (lblInp.value || '').trim();
+            var txt = lbl ? (lbl + ' (' + id + ')') : ('Status-ID ' + id);
+            var opt = document.createElement('option');
+            opt.value = String(id);
+            opt.textContent = txt;
+            sel.appendChild(opt);
+        });
+    }
+    var spContainer = document.getElementById('diveraStatusPresetsContainer');
+    var btnAddSp = document.getElementById('btnAddStatusPreset');
+    if (spContainer && btnAddSp) {
+        var spRowTpl = function() {
+            var div = document.createElement('div');
+            div.className = 'input-group mb-2 divera-status-preset-row';
+            div.innerHTML = '<input type="number" class="form-control anw-status-preset-id" name="anw_divera_status_preset_id[]" placeholder="Status-ID" min="0" title="Äußerer Schlüssel unter ucr_answered">' +
+                '<input type="text" class="form-control anw-status-preset-label" name="anw_divera_status_preset_label[]" placeholder="Beschreibung (z. B. Komme, Nicht verfügbar)">' +
+                '<button type="button" class="btn btn-outline-danger btn-remove-status-preset" title="Zeile entfernen"><i class="fas fa-trash"></i></button>';
+            return div;
+        };
+        btnAddSp.addEventListener('click', function() {
+            spContainer.appendChild(spRowTpl());
+            refreshAnwDiveraStatusPick();
+        });
+        spContainer.addEventListener('click', function(e) {
+            if (e.target.closest('.btn-remove-status-preset')) {
+                e.target.closest('.divera-status-preset-row').remove();
+                refreshAnwDiveraStatusPick();
+            }
+        });
+        spContainer.addEventListener('input', function(e) {
+            if (e.target.classList.contains('anw-status-preset-id') || e.target.classList.contains('anw-status-preset-label')) {
+                refreshAnwDiveraStatusPick();
+            }
+        });
+    }
+    var selPick = document.getElementById('anw_divera_status_pick');
+    if (selPick) {
+        selPick.addEventListener('change', function() {
+            var v = this.value;
+            if (!v) return;
+            var id = parseInt(v, 10);
+            if (!id) { this.selectedIndex = 0; return; }
+            var inp = document.getElementById('anw_divera_rueck_status');
+            if (!inp) return;
+            var raw = (inp.value || '').trim();
+            var parts = raw.length ? raw.split(/[\s,;]+/).map(function(x) { return parseInt(x.trim(), 10); }).filter(function(x) { return x > 0; }) : [];
+            if (parts.indexOf(id) === -1) parts.push(id);
+            inp.value = parts.join(', ');
+            this.selectedIndex = 0;
+        });
+    }
+    refreshAnwDiveraStatusPick();
 });
 <?php if ($einheit_id > 0): ?>
 function openVehicleModal() {
