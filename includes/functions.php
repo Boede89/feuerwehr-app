@@ -2735,12 +2735,13 @@ function divera_reach_confirmed_ucr_ids($reach_data, $status_id_filter = 0) {
 }
 
 /**
- * UCR-IDs aus GET /api/v2/alarms/{id} – Feld ucr_answered.
+ * User-/UCR-IDs aus GET /api/v2/alarms/{id} – Feld ucr_answered (für Abgleich mit members.divera_ucr_id).
  * Divera liefert je nach Version:
  * - Liste von Ganzzahlen: [ 123, 456 ]
- * - Karte UCR → (Status-ID → { ts, note, … }): { "44986": { "251321": { "ts": … } } }
+ * - Karte Status-ID → (User-ID/UCR-ID → { ts, note, … }): { "44986": { "251321": { "ts": … } } }
+ *   Dabei ist der äußere Schlüssel die Rückmelde-Status-ID, der innere die Nutzer-/UCR-ID.
  *
- * @param int $status_id_filter >0: nur UCRs, die mindestens eine Rückmeldung mit dieser Status-ID haben
+ * @param int $status_id_filter >0: nur IDs unter diesem Status-Schlüssel; 0 = alle Status
  * @return int[]
  */
 function divera_alarm_ucr_answered_ids(array $alarm_detail, $status_id_filter = 0) {
@@ -2761,37 +2762,22 @@ function divera_alarm_ucr_answered_ids(array $alarm_detail, $status_id_filter = 
         }
         return array_values(array_unique(array_filter($out)));
     }
-    foreach ($answered as $ucrKey => $payload) {
-        if (!is_numeric($ucrKey)) {
+    foreach ($answered as $statusKey => $innerMap) {
+        if (!is_numeric($statusKey) || !is_array($innerMap)) {
             continue;
         }
-        $ucr = (int) $ucrKey;
-        if ($ucr <= 0) {
+        $statusId = (int) $statusKey;
+        if ($status_id_filter > 0 && $statusId !== $status_id_filter) {
             continue;
         }
-        if (!is_array($payload)) {
-            if (is_numeric($payload)) {
-                $out[] = (int) $payload;
-            }
-            continue;
-        }
-        $include = ($status_id_filter <= 0);
-        foreach ($payload as $innerKey => $innerVal) {
-            if (!is_numeric($innerKey)) {
+        foreach ($innerMap as $userKey => $_meta) {
+            if (!is_numeric($userKey)) {
                 continue;
             }
-            $sid = (int) $innerKey;
-            if ($status_id_filter <= 0) {
-                $include = true;
-                break;
+            $uid = (int) $userKey;
+            if ($uid > 0) {
+                $out[] = $uid;
             }
-            if ($sid === $status_id_filter) {
-                $include = true;
-                break;
-            }
-        }
-        if ($include) {
-            $out[] = $ucr;
         }
     }
     return array_values(array_unique(array_filter($out)));

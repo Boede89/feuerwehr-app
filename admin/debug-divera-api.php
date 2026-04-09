@@ -159,11 +159,11 @@ usort($alarm_items_for_links, static fn ($a, $b) => $b['id'] <=> $a['id']);
     <div class="card mb-3 border-info">
         <div class="card-header bg-info text-white">Auswertung (wie die App)</div>
         <div class="card-body small">
-            <p class="mb-1"><strong>ucr_answered → UCR-IDs</strong> (Parser der App; verschachtelt: äußere Keys = UCR, innere Keys = Status-IDs mit <code>ts</code>/<code>note</code>):</p>
+            <p class="mb-1"><strong>ucr_answered → User-/UCR-IDs</strong> (für <code>members.divera_ucr_id</code>; verschachtelt: <strong>äußere Keys = Status-ID</strong>, <strong>innere Keys = User-ID/UCR-ID</strong> mit <code>ts</code>/<code>note</code>):</p>
             <pre class="bg-white border rounded p-2 mb-3"><?php echo htmlspecialchars($pretty($hint_ucr_answered)); ?></pre>
             <p class="mb-1"><strong>confirmed → UCR-IDs</strong> (Reach, ohne Status-Filter):</p>
             <pre class="bg-white border rounded p-2 mb-0"><?php echo htmlspecialchars($pretty($hint_reach_ucr)); ?></pre>
-            <p class="text-muted mt-2 mb-0"><strong>Status-ID für die App-Einstellung:</strong> Bei <code>ucr_answered</code> sind das die <strong>inneren</strong> Schlüssel (z. B. <code>251321</code>, <code>251319</code>) pro UCR – welcher genau zu welchem Rückmeldetext gehört, siehst du in Divera unter dem Status-Namen bzw. in der Status-Verwaltung. Alternativ <code>data.confirmed</code> in Reach auswerten.</p>
+            <p class="text-muted mt-2 mb-0"><strong>Status-ID für die App-Einstellung:</strong> Bei <code>ucr_answered</code> die <strong>äußeren</strong> Schlüssel (z. B. <code>44986</code>). In die Mitgliederverwaltung gehört die <strong>innere</strong> Nummer (z. B. <code>251321</code>) ins Feld Divera UCR-ID, sofern das bei euch der Abgleich mit Divera ist.</p>
         </div>
     </div>
 
