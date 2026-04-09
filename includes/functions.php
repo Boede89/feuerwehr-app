@@ -2601,6 +2601,124 @@ function fetch_divera_alarms($access_key, $api_base_url = 'https://app.divera247
 }
 
 /**
+ * Divera Reach-Daten zu einem Einsatz (GET /api/v2/alarms/reach/{id}).
+ *
+ * @param string|null $error gesetzte Fehlermeldung bei Misserfolg
+ * @return array|null Innere Datenstruktur (received/viewed/confirmed …) oder null
+ */
+function fetch_divera_alarm_reach($access_key, $alarm_id, $api_base_url = 'https://app.divera247.com', &$error = null) {
+    $access_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string) $access_key));
+    $alarm_id = (int) $alarm_id;
+    if ($access_key === '' || $alarm_id <= 0) {
+        $error = 'Divera Reach: Access Key oder Einsatz-ID fehlt';
+        return null;
+    }
+    $base = rtrim(trim((string) $api_base_url), '/') ?: 'https://app.divera247.com';
+    $url = $base . '/api/v2/alarms/reach/' . $alarm_id . '?accesskey=' . urlencode($access_key);
+    $ctx = stream_context_create(['http' => ['timeout' => 12]]);
+    $raw = @file_get_contents($url, false, $ctx);
+    $data = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($data)) {
+        $error = 'Divera Reach: Keine gültige JSON-Antwort';
+        return null;
+    }
+    if (isset($data['success']) && $data['success'] === false) {
+        $error = $data['message'] ?? $data['error'] ?? 'Divera Reach: Zugriff verweigert';
+        return null;
+    }
+    $inner = $data['data'] ?? null;
+    return is_array($inner) ? $inner : null;
+}
+
+/**
+ * Extrahiert UserClusterRelation-IDs aus dem confirmed-Block der Reach-Antwort.
+ *
+ * @param int $status_id_filter >0: nur diese Divera-Status-ID (Rückmeldung); 0: alle Einträge unter confirmed
+ * @return int[]
+ */
+function divera_reach_confirmed_ucr_ids($reach_data, $status_id_filter = 0) {
+    if (!is_array($reach_data)) {
+        return [];
+    }
+    $confirmed = $reach_data['confirmed'] ?? null;
+    if ($confirmed === null || $confirmed === [] || $confirmed === '') {
+        return [];
+    }
+    if (is_object($confirmed)) {
+        $confirmed = (array) $confirmed;
+    }
+    if (!is_array($confirmed)) {
+        return [];
+    }
+    $status_id_filter = (int) $status_id_filter;
+    $out = [];
+    foreach ($confirmed as $ucrKey => $entry) {
+        $ucr = 0;
+        if (is_int($ucrKey) || (is_string($ucrKey) && ctype_digit((string) $ucrKey))) {
+            $ucr = (int) $ucrKey;
+        }
+        if ($ucr <= 0) {
+            continue;
+        }
+        $statusId = null;
+        if (is_array($entry)) {
+            if (isset($entry['status_id'])) {
+                $statusId = (int) $entry['status_id'];
+            } elseif (!empty($entry['Status']) && is_array($entry['Status']) && isset($entry['Status']['id'])) {
+                $statusId = (int) $entry['Status']['id'];
+            } elseif (isset($entry['status'])) {
+                if (is_array($entry['status']) && isset($entry['status']['id'])) {
+                    $statusId = (int) $entry['status']['id'];
+                } elseif (is_numeric($entry['status'])) {
+                    $statusId = (int) $entry['status'];
+                }
+            }
+        } elseif (is_object($entry)) {
+            $e = (array) $entry;
+            if (isset($e['status_id'])) {
+                $statusId = (int) $e['status_id'];
+            }
+        } elseif (is_numeric($entry)) {
+            $statusId = (int) $entry;
+        }
+        if ($status_id_filter > 0) {
+            if ($statusId === null || $statusId !== $status_id_filter) {
+                continue;
+            }
+        }
+        $out[] = $ucr;
+    }
+    return array_values(array_unique(array_filter($out)));
+}
+
+/**
+ * Mitglieder-IDs zu gegebenen Divera-UCR-IDs (Spalte members.divera_ucr_id).
+ *
+ * @return int[]
+ */
+function members_ids_by_divera_ucr_ids(PDO $db, array $ucr_ids, $einheit_id = 0) {
+    $ucr_ids = array_values(array_unique(array_filter(array_map('intval', $ucr_ids))));
+    if ($ucr_ids === []) {
+        return [];
+    }
+    try {
+        $placeholders = implode(',', array_fill(0, count($ucr_ids), '?'));
+        if ((int) $einheit_id > 0) {
+            $eid = (int) $einheit_id;
+            $sql = "SELECT id FROM members WHERE divera_ucr_id IN ($placeholders) AND (einheit_id = ? OR einheit_id IS NULL)";
+            $stmt = $db->prepare($sql);
+            $stmt->execute(array_merge($ucr_ids, [$eid]));
+        } else {
+            $stmt = $db->prepare("SELECT id FROM members WHERE divera_ucr_id IN ($placeholders)");
+            $stmt->execute($ucr_ids);
+        }
+        return array_values(array_unique(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN))));
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/**
  * Sendet einen Dienstplan-Eintrag als Termin an Divera 24/7.
  * @param array $entry ['datum'=>Y-m-d, 'bezeichnung'=>string, 'typ'=>string, 'uhrzeit_dienstbeginn'=>H:i:s|null, 'uhrzeit_dienstende'=>H:i:s|null]
  * @param string $access_key Divera-Accesskey

@@ -365,10 +365,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                         $groups[] = ['id' => $gidInt, 'name' => 'Gruppe ' . $gidInt];
                     }
                 }
+                $anw_divera_rueck_personal = isset($_POST['anwesenheitsliste_divera_personal_from_rueckmeldung']) ? '1' : '0';
+                $anw_divera_status_id = preg_replace('/[^\d]/', '', (string) ($_POST['anwesenheitsliste_divera_rueckmeldung_status_id'] ?? ''));
                 $divera = [
                     'divera_access_key' => $divera_access_key,
                     'divera_api_base_url' => $divera_api_base_url,
                     'divera_reservation_groups' => json_encode($groups),
+                    'anwesenheitsliste_divera_personal_from_rueckmeldung' => $anw_divera_rueck_personal,
+                    'anwesenheitsliste_divera_rueckmeldung_status_id' => $anw_divera_status_id,
                 ];
                 $all = array_merge($smtp, $google, $app, $printer, $divera);
                 save_settings_bulk_for_einheit($db, $save_einheit_id, $all);
@@ -825,6 +829,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                                         <?php endforeach; ?>
                                     </div>
                                     <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAddGroup"><i class="fas fa-plus me-1"></i>Gruppe hinzufügen</button>
+                                </div>
+                                <hr class="my-4">
+                                <h6 class="text-muted">Anwesenheitsliste (Einsatz aus Divera)</h6>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" name="anwesenheitsliste_divera_personal_from_rueckmeldung" id="anw_divera_rueck_personal" value="1" <?php echo (($settings['anwesenheitsliste_divera_personal_from_rueckmeldung'] ?? '1') === '1') ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="anw_divera_rueck_personal">Personal automatisch aus Divera-Rückmeldungen übernehmen</label>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label" for="anw_divera_rueck_status">Nur Divera-Status-ID (optional)</label>
+                                    <input class="form-control" type="text" name="anwesenheitsliste_divera_rueckmeldung_status_id" id="anw_divera_rueck_status" inputmode="numeric" pattern="[0-9]*" placeholder="leer = alle aktiven Rückmeldungen" value="<?php echo htmlspecialchars((string)($settings['anwesenheitsliste_divera_rueckmeldung_status_id'] ?? '')); ?>" style="max-width: 280px;">
+                                    <div class="form-text">Die Status-ID entnehmen Sie der Divera-Verwaltung (Rückmelde-Status). Leer lassen, wenn alle Personen mit gesetzter Rückmeldung übernommen werden sollen. Pro Mitglied muss in der Mitgliederverwaltung die passende „Divera UCR-ID“ hinterlegt sein.</div>
                                 </div>
                     </div>
                 </div>

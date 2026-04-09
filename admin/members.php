@@ -212,6 +212,11 @@ try {
     } catch (Exception $e) {
         // Spalte existiert bereits, ignoriere Fehler
     }
+    try {
+        $db->exec("ALTER TABLE members ADD COLUMN divera_ucr_id INT NULL DEFAULT NULL");
+    } catch (Exception $e) {
+        // Spalte existiert bereits, ignoriere Fehler
+    }
     
     // user_id Spalte hinzufügen falls nicht vorhanden
     try {
@@ -417,6 +422,7 @@ try {
                 m.phone,
                 m.qualification_id,
                 m.einheit_id,
+                m.divera_ucr_id,
                 q.name as qualification_name,
                 CASE 
                     WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
@@ -448,6 +454,7 @@ try {
                     m.phone,
                     m.qualification_id,
                     m.einheit_id,
+                    m.divera_ucr_id,
                     q.name as qualification_name,
                     CASE 
                         WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
@@ -483,6 +490,7 @@ try {
             m.phone,
             m.qualification_id,
             m.einheit_id,
+            m.divera_ucr_id,
             q.name as qualification_name,
             CASE 
                 WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
@@ -859,6 +867,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $strecke_am = trim($_POST['strecke_am'] ?? '');
         $g263_am = trim($_POST['g263_am'] ?? '');
         $uebung_am = trim($_POST['uebung_am'] ?? '');
+        $divera_ucr_id_new = (int) preg_replace('/[^\d-]/', '', (string) ($_POST['divera_ucr_id'] ?? ''));
+        if ($divera_ucr_id_new <= 0) {
+            $divera_ucr_id_new = null;
+        }
         
         if (empty($first_name) || empty($last_name)) {
             $error = 'Bitte geben Sie Vorname und Nachname ein.';
@@ -870,6 +882,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $db->exec("ALTER TABLE members ADD COLUMN is_pa_traeger TINYINT(1) DEFAULT 0");
             } catch (Exception $e) {
                 // Spalte existiert bereits, ignoriere Fehler
+            }
+            try {
+                $db->exec("ALTER TABLE members ADD COLUMN divera_ucr_id INT NULL DEFAULT NULL");
+            } catch (Exception $e) {
+                // Spalte existiert bereits
             }
             
             try {
@@ -990,7 +1007,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $is_pa_traeger = isset($_POST['is_pa_traeger']) ? 1 : 0;
                     $einheit_id = get_admin_einheit_filter() ?? get_current_einheit_id();
                     
-                    $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, qualification_id, is_pa_traeger, einheit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, birthdate, phone, qualification_id, is_pa_traeger, einheit_id, divera_ucr_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                     $stmt->execute([
                         $user_id,
                         $first_name,
@@ -1000,7 +1017,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         !empty($phone) ? $phone : null,
                         $qualification_id,
                         $is_pa_traeger,
-                        $einheit_id
+                        $einheit_id,
+                        $divera_ucr_id_new
                     ]);
                     
                     $new_member_id = $db->lastInsertId();
@@ -1227,6 +1245,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $strecke_am = trim($_POST['strecke_am'] ?? '');
         $g263_am = trim($_POST['g263_am'] ?? '');
         $uebung_am = trim($_POST['uebung_am'] ?? '');
+        $divera_ucr_id_edit = (int) preg_replace('/[^\d-]/', '', (string) ($_POST['divera_ucr_id'] ?? ''));
+        if ($divera_ucr_id_edit <= 0) {
+            $divera_ucr_id_edit = null;
+        }
         
         if (empty($first_name) || empty($last_name)) {
             $error = 'Bitte geben Sie Vorname und Nachname ein.';
@@ -1387,8 +1409,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     }
                     
                     if (empty($error)) {
+                        try {
+                            $db->exec("ALTER TABLE members ADD COLUMN divera_ucr_id INT NULL DEFAULT NULL");
+                        } catch (Exception $e) {
+                            // Spalte existiert bereits
+                        }
                         // Aktualisiere Mitglied
-                        $stmt = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ?, birthdate = ?, phone = ?, qualification_id = ?, is_pa_traeger = ? WHERE id = ?");
+                        $stmt = $db->prepare("UPDATE members SET first_name = ?, last_name = ?, email = ?, birthdate = ?, phone = ?, qualification_id = ?, is_pa_traeger = ?, divera_ucr_id = ? WHERE id = ?");
                         $stmt->execute([
                             $first_name,
                             $last_name,
@@ -1397,6 +1424,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             !empty($phone) ? $phone : null,
                             $qualification_id,
                             $is_pa_traeger,
+                            $divera_ucr_id_edit,
                             $member_id
                         ]);
                         
@@ -2303,6 +2331,13 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                     <i class="fas fa-phone me-1"></i>Telefon (optional)
                                 </label>
                                 <input type="tel" class="form-control" name="phone" id="memberPhone" autocomplete="tel">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="memberDiveraUcr">
+                                    <i class="fas fa-id-badge me-1"></i>Divera UCR-ID (optional)
+                                </label>
+                                <input type="text" class="form-control" name="divera_ucr_id" id="memberDiveraUcr" inputmode="numeric" pattern="[0-9]*" placeholder="UserClusterRelation in Divera" autocomplete="off">
+                                <small class="form-text text-muted">Für die automatische Personalübernahme aus Einsatz-Rückmeldungen (Anwesenheitsliste). ID der Einsatzkraft / Mitgliedschaft in Divera 24/7.</small>
                             </div>
                             <div class="col-12">
                                 <label class="form-label" for="memberQualification">
@@ -3493,6 +3528,10 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             document.getElementById('memberEmail').value = member.email || '';
             document.getElementById('memberBirthdate').value = member.birthdate || '';
             document.getElementById('memberPhone').value = member.phone || '';
+            const diveraUcrEl = document.getElementById('memberDiveraUcr');
+            if (diveraUcrEl) {
+                diveraUcrEl.value = (member.divera_ucr_id !== undefined && member.divera_ucr_id !== null) ? String(member.divera_ucr_id) : '';
+            }
             const qualEl = document.getElementById('memberQualification');
             if (qualEl) qualEl.value = member.qualification_id || '';
             const isPaTraeger = member.is_pa_traeger == 1;
