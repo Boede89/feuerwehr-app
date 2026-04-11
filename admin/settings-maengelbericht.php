@@ -45,6 +45,7 @@ if (!in_array($standort_default, $standort_options)) $standort_default = $stando
 $mangel_an_default = trim($settings[$form_key . '_mangel_an_default'] ?? '');
 if (!in_array($mangel_an_default, $mangel_an_options)) $mangel_an_default = $mangel_an_options[0];
 $print_after_save_default = ($settings[$form_key . '_print_after_save_default'] ?? '1') === '1';
+$create_from_anwesenheit_default = ($settings[$form_key . '_create_from_anwesenheit_default'] ?? '1') === '1';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -72,12 +73,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($mangelAnDef, ['Gebäude', 'Fahrzeug', 'Gerät', 'PSA'])) $mangelAnDef = 'Gebäude';
             $save_fn($form_key . '_mangel_an_default', $mangelAnDef);
             $save_fn($form_key . '_print_after_save_default', isset($_POST['print_after_save_default']) ? '1' : '0');
+            $save_fn($form_key . '_create_from_anwesenheit_default', isset($_POST['create_from_anwesenheit_default']) ? '1' : '0');
             $email_auto = isset($_POST['email_auto']);
             $email_recipients = $recipients;
             $email_manual = $manual;
             $standort_default = $standortDef;
             $mangel_an_default = $mangelAnDef;
             $print_after_save_default = isset($_POST['print_after_save_default']);
+            $create_from_anwesenheit_default = isset($_POST['create_from_anwesenheit_default']);
             $message = 'Einstellungen gespeichert.';
         } catch (Exception $e) {
             $error = 'Fehler: ' . $e->getMessage();
@@ -120,7 +123,7 @@ $back_target = $return_formularcenter ? ' target="_parent"' : '';
     <form method="POST" class="card mb-4" id="settingsForm">
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
         <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
-        <div class="card-header"><i class="fas fa-cog"></i> Mängelbericht – Standardwerte</div>
+        <div class="card-header"><i class="fas fa-cog"></i> Mängelbericht – Standardwerte und Anwesenheitsliste</div>
         <div class="card-body">
             <div class="mb-3">
                 <label class="form-label" for="standort_default">Standard-Standort</label>
@@ -140,9 +143,13 @@ $back_target = $return_formularcenter ? ' target="_parent"' : '';
                 </select>
                 <small class="text-muted">Wird beim Ausfüllen des Mängelberichts vorausgewählt.</small>
             </div>
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" name="create_from_anwesenheit_default" id="create_from_anwesenheit_default" value="1" <?php echo $create_from_anwesenheit_default ? 'checked' : ''; ?>>
+                <label class="form-check-label" for="create_from_anwesenheit_default">Bei Anwesenheitsliste: „Mängelbericht(e) erstellen“ standardmäßig aktiv</label>
+            </div>
             <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" name="print_after_save_default" id="print_after_save_default" value="1" <?php echo $print_after_save_default ? 'checked' : ''; ?>>
-                <label class="form-check-label" for="print_after_save_default">„Nach Speichern drucken“ standardmäßig aktiv – beim Speichern ist der Haken bei Drucken vorausgewählt</label>
+                <label class="form-check-label" for="print_after_save_default">„Drucken“ standardmäßig aktiv – gilt beim direkten Speichern eines Mängelberichts sowie für die untergeordnete Option „… drucken“, wenn Sie bei der Anwesenheitsliste „Erstellen“ wählen</label>
             </div>
         </div>
         <div class="card-header"><i class="fas fa-envelope"></i> E-Mail-Versand nach Absenden</div>

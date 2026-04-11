@@ -39,6 +39,7 @@ $email_auto = ($settings[$form_key . '_email_auto'] ?? '0') === '1';
 $email_recipients = json_decode($settings[$form_key . '_email_recipients'] ?? '[]', true) ?: [];
 $email_manual = trim($settings[$form_key . '_email_manual'] ?? '');
 $print_after_save_default = ($settings[$form_key . '_print_after_save_default'] ?? '1') === '1';
+$create_from_anwesenheit_default = ($settings[$form_key . '_create_from_anwesenheit_default'] ?? '1') === '1';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -60,10 +61,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $manual = trim($_POST['email_manual'] ?? '');
             $save_fn($form_key . '_email_manual', $manual);
             $save_fn($form_key . '_print_after_save_default', isset($_POST['print_after_save_default']) ? '1' : '0');
+            $save_fn($form_key . '_create_from_anwesenheit_default', isset($_POST['create_from_anwesenheit_default']) ? '1' : '0');
             $email_auto = isset($_POST['email_auto']);
             $email_recipients = $recipients;
             $email_manual = $manual;
             $print_after_save_default = isset($_POST['print_after_save_default']);
+            $create_from_anwesenheit_default = isset($_POST['create_from_anwesenheit_default']);
             $message = 'Einstellungen gespeichert.';
         } catch (Exception $e) {
             $error = 'Fehler: ' . $e->getMessage();
@@ -106,13 +109,17 @@ $back_target = $return_formularcenter ? ' target="_parent"' : '';
     <form method="POST" class="card mb-4">
         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
         <?php if ($einheit_id > 0): ?><input type="hidden" name="einheit_id" value="<?php echo (int)$einheit_id; ?>"><?php endif; ?>
-        <div class="card-header"><i class="fas fa-envelope"></i> E-Mail-Versand und Drucken nach Absenden</div>
+        <div class="card-header"><i class="fas fa-envelope"></i> Standardwerte, E-Mail-Versand und Drucken</div>
         <div class="card-body">
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" name="create_from_anwesenheit_default" id="create_from_anwesenheit_default" value="1" <?php echo $create_from_anwesenheit_default ? 'checked' : ''; ?>>
+                <label class="form-check-label" for="create_from_anwesenheit_default">Bei Anwesenheitsliste: „Gerätewartmitteilung erstellen“ standardmäßig aktiv</label>
+            </div>
             <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" name="print_after_save_default" id="print_after_save_default" value="1" <?php echo $print_after_save_default ? 'checked' : ''; ?>>
-                <label class="form-check-label" for="print_after_save_default">„Nach Speichern drucken“ standardmäßig aktiv – beim Speichern ist der Haken bei Drucken vorausgewählt</label>
+                <label class="form-check-label" for="print_after_save_default">„Drucken“ standardmäßig aktiv – gilt beim direkten Speichern einer Gerätewartmitteilung sowie für die untergeordnete Option „… drucken“, wenn Sie bei der Anwesenheitsliste „Erstellen“ wählen</label>
             </div>
-            <p class="text-muted small">Hinweis: Die Gerätewartmitteilung kann auch als Teil der Anwesenheitsliste gespeichert werden. Dort wird diese Einstellung für den „Gerätewartmitteilung“-Haken verwendet.</p>
+            <p class="text-muted small">Hinweis: Wenn Fahrzeuge erfasst sind, können Sie beim Absenden der Anwesenheitsliste wählen, ob eine Gerätewartmitteilung angelegt und ob sie gedruckt werden soll.</p>
             <hr>
             <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" name="email_auto" id="email_auto" value="1" <?php echo $email_auto ? 'checked' : ''; ?>>

@@ -455,7 +455,13 @@ try {
     $geraetehaus_adresse = trim((string)($unit_settings['geraetehaus_adresse'] ?? ''));
 } catch (Exception $e) {
     $anwesenheitsliste_settings = [];
+    $unit_settings = [];
 }
+$al_print_default_modal = (($unit_settings['anwesenheitsliste_print_after_save_default'] ?? '1') === '1');
+$create_mb_from_al_default = (($unit_settings['maengelbericht_create_from_anwesenheit_default'] ?? '1') === '1');
+$print_mb_from_al_default = (($unit_settings['maengelbericht_print_after_save_default'] ?? '1') === '1');
+$create_gwm_from_al_default = (($unit_settings['geraetewartmitteilung_create_from_anwesenheit_default'] ?? '1') === '1');
+$print_gwm_from_al_default = (($unit_settings['geraetewartmitteilung_print_after_save_default'] ?? '1') === '1');
 $anwesenheitsliste_felder = _anwesenheitsliste_felder_laden($anwesenheitsliste_settings);
 function _anwesenheitsliste_felder_laden($s) {
     $raw = $s['anwesenheitsliste_felder'] ?? '';
@@ -614,6 +620,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
     }
 
     if (empty($error)) {
+        $create_mb_save = !empty($_POST['create_maengelbericht_after_save']) && $_POST['create_maengelbericht_after_save'] === '1';
+        $create_gwm_save = !empty($_POST['create_geraetewartmitteilung_after_save']) && $_POST['create_geraetewartmitteilung_after_save'] === '1';
         try {
             $db->exec("ALTER TABLE anwesenheitslisten ADD COLUMN einsatzstichwort VARCHAR(100) NULL");
         } catch (Exception $e) { /* ignore */ }
@@ -664,6 +672,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 } catch (Exception $e) {}
             }
             $custom_data_for_save['berichtersteller_text'] = $berichtersteller_text;
+        }
+        if (!$create_mb_save && !empty($draft['maengel']) && is_array($draft['maengel'])) {
+            $custom_data_for_save['maengel_entwurf'] = $draft['maengel'];
         }
         $custom_data_json = !empty($custom_data_for_save) ? json_encode($custom_data_for_save) : null;
         $einsatzstichwort_save = ($typ_save === 'einsatz' && !empty($draft['einsatzstichwort'])) ? $draft['einsatzstichwort'] : null;
@@ -766,7 +777,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         }
 
         // Automatisch Gerätewartmitteilung erstellen (nur bei neuer Liste, nicht beim Bearbeiten)
-        if ($edit_id_save <= 0 && !empty($all_vehicle_ids)) {
+        if ($edit_id_save <= 0 && !empty($all_vehicle_ids) && $create_gwm_save) {
             try {
                 $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilungen (id INT AUTO_INCREMENT PRIMARY KEY, typ VARCHAR(20) NOT NULL, einsatz_uebungsart VARCHAR(50) NOT NULL, datum DATE NOT NULL, einsatzbereitschaft VARCHAR(30) NOT NULL, mangel_beschreibung TEXT NULL, einsatzleiter_member_id INT NULL, einsatzleiter_freitext VARCHAR(255) NULL, user_id INT NOT NULL, einheit_id INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, KEY idx_datum (datum), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
                 $db->exec("CREATE TABLE IF NOT EXISTS geraetewartmitteilung_fahrzeuge (id INT AUTO_INCREMENT PRIMARY KEY, geraetewartmitteilung_id INT NOT NULL, vehicle_id INT NOT NULL, maschinist_member_id INT NULL, einheitsfuehrer_member_id INT NULL, equipment_used JSON NULL, defective_equipment JSON NULL, defective_freitext TEXT NULL, defective_mangel TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (geraetewartmitteilung_id) REFERENCES geraetewartmitteilungen(id) ON DELETE CASCADE, FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE, UNIQUE KEY unique_gwm_vehicle (geraetewartmitteilung_id, vehicle_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
@@ -811,7 +822,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
         // Mängel aus Draft: Mängelberichte automatisch erstellen
         $maengelbericht_ids = [];
         $maengel_list = $draft['maengel'] ?? [];
-        if (!empty($maengel_list) && is_array($maengel_list)) {
+        if ($create_mb_save && !empty($maengel_list) && is_array($maengel_list)) {
             try {
                 $db->exec("CREATE TABLE IF NOT EXISTS maengelberichte (id INT AUTO_INCREMENT PRIMARY KEY, standort VARCHAR(100) NOT NULL, mangel_an VARCHAR(50) NOT NULL, bezeichnung VARCHAR(255) NULL, mangel_beschreibung TEXT NULL, ursache TEXT NULL, verbleib TEXT NULL, aufgenommen_durch_text VARCHAR(255) NULL, aufgenommen_durch_member_id INT NULL, aufgenommen_am DATE NOT NULL, vehicle_id INT NULL, user_id INT NOT NULL, einheit_id INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, email_sent_at DATETIME NULL, KEY idx_aufgenommen_am (aufgenommen_am), KEY idx_created_at (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
                 try { $db->exec("ALTER TABLE maengelberichte ADD COLUMN email_sent_at DATETIME NULL"); } catch (Exception $e) { /* Spalte existiert ggf. bereits */ }
@@ -1184,6 +1195,8 @@ if ($is_einsatz) {
                             <input type="hidden" name="save_final" value="1">
                             <input type="hidden" name="datum" id="datum_for_main" value="<?php echo htmlspecialchars($draft['datum'] ?? $datum); ?>">
                             <input type="hidden" name="print_after_save" id="print_after_save" value="0">
+                            <input type="hidden" name="create_maengelbericht_after_save" id="create_maengelbericht_after_save" value="0">
+                            <input type="hidden" name="create_geraetewartmitteilung_after_save" id="create_geraetewartmitteilung_after_save" value="0">
                             <input type="hidden" name="print_maengelbericht_after_save" id="print_maengelbericht_after_save" value="0">
                             <input type="hidden" name="print_geraetewartmitteilung_after_save" id="print_geraetewartmitteilung_after_save" value="0">
                             <?php if ($edit_id > 0): ?><input type="hidden" name="edit_id" value="<?php echo (int)$edit_id; ?>"><?php endif; ?>
@@ -1522,26 +1535,29 @@ if ($is_einsatz) {
                             </div>
                         </div>
                         <div class="mt-3 pt-2 border-top">
-                            <label class="form-label small mb-2">Nach Speichern drucken:</label>
-                            <?php
-                            $print_al_default = (($unit_settings['anwesenheitsliste_print_after_save_default'] ?? '1') === '1');
-                            $print_mb_default = (($unit_settings['maengelbericht_print_after_save_default'] ?? '1') === '1');
-                            $print_gwm_default = (($unit_settings['geraetewartmitteilung_print_after_save_default'] ?? '1') === '1');
-                            ?>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" <?php echo $print_al_default ? 'checked' : ''; ?>>
-                                <label class="form-check-label" for="cbPrintAfterSave">Anwesenheitsliste</label>
+                            <label class="form-label small mb-2">Nach dem Speichern</label>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="cbPrintAfterSave" <?php echo $al_print_default_modal ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="cbPrintAfterSave">Anwesenheitsliste drucken</label>
                             </div>
                             <?php if (!empty($draft['maengel']) && is_array($draft['maengel'])): ?>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="cbPrintMaengelberichtAfterSave" <?php echo $print_mb_default ? 'checked' : ''; ?>>
-                                <label class="form-check-label" for="cbPrintMaengelberichtAfterSave">Mängelbericht(e)</label>
+                                <input class="form-check-input" type="checkbox" id="cbCreateMaengelberichtAfterSave" <?php echo $create_mb_from_al_default ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="cbCreateMaengelberichtAfterSave">Mängelbericht(e) erstellen</label>
+                            </div>
+                            <div class="form-check ms-4 mb-2" id="wrapPrintMaengelberichtAfterSave" style="display: <?php echo $create_mb_from_al_default ? 'block' : 'none'; ?>;">
+                                <input class="form-check-input" type="checkbox" id="cbPrintMaengelberichtAfterSave" <?php echo $print_mb_from_al_default ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="cbPrintMaengelberichtAfterSave">Mängelbericht(e) drucken</label>
                             </div>
                             <?php endif; ?>
                             <?php $has_vehicles_for_gwm = !empty($draft['vehicles']) || !empty(array_filter($draft['member_vehicle'] ?? [])); if ($has_vehicles_for_gwm): ?>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="cbPrintGeraetewartmitteilungAfterSave" <?php echo $print_gwm_default ? 'checked' : ''; ?>>
-                                <label class="form-check-label" for="cbPrintGeraetewartmitteilungAfterSave">Gerätewartmitteilung</label>
+                                <input class="form-check-input" type="checkbox" id="cbCreateGeraetewartmitteilungAfterSave" <?php echo $create_gwm_from_al_default ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="cbCreateGeraetewartmitteilungAfterSave">Gerätewartmitteilung erstellen</label>
+                            </div>
+                            <div class="form-check ms-4 mb-2" id="wrapPrintGeraetewartmitteilungAfterSave" style="display: <?php echo $create_gwm_from_al_default ? 'block' : 'none'; ?>;">
+                                <input class="form-check-input" type="checkbox" id="cbPrintGeraetewartmitteilungAfterSave" <?php echo $print_gwm_from_al_default ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="cbPrintGeraetewartmitteilungAfterSave">Gerätewartmitteilung drucken</label>
                             </div>
                             <?php endif; ?>
                         </div>
@@ -1723,16 +1739,42 @@ if ($is_einsatz) {
                 if (modalVon && formVon) formVon.value = modalVon.value || '';
                 if (modalBis && formBis) formBis.value = modalBis.value || '';
                 var cbPrint = document.getElementById('cbPrintAfterSave');
-                var cbMaengel = document.getElementById('cbPrintMaengelberichtAfterSave');
-                var cbGwm = document.getElementById('cbPrintGeraetewartmitteilungAfterSave');
+                var cbCreateMb = document.getElementById('cbCreateMaengelberichtAfterSave');
+                var cbPrintMb = document.getElementById('cbPrintMaengelberichtAfterSave');
+                var cbCreateGwm = document.getElementById('cbCreateGeraetewartmitteilungAfterSave');
+                var cbPrintGwm = document.getElementById('cbPrintGeraetewartmitteilungAfterSave');
                 var inpPrint = document.getElementById('print_after_save');
+                var inpCreateMb = document.getElementById('create_maengelbericht_after_save');
+                var inpCreateGwm = document.getElementById('create_geraetewartmitteilung_after_save');
                 var inpMaengel = document.getElementById('print_maengelbericht_after_save');
                 var inpGwm = document.getElementById('print_geraetewartmitteilung_after_save');
                 if (inpPrint) inpPrint.value = (cbPrint && cbPrint.checked) ? '1' : '0';
-                if (inpMaengel) inpMaengel.value = (cbMaengel && cbMaengel.checked) ? '1' : '0';
-                if (inpGwm) inpGwm.value = (cbGwm && cbGwm.checked) ? '1' : '0';
+                if (inpCreateMb) inpCreateMb.value = (cbCreateMb && cbCreateMb.checked) ? '1' : '0';
+                if (inpCreateGwm) inpCreateGwm.value = (cbCreateGwm && cbCreateGwm.checked) ? '1' : '0';
+                if (inpMaengel) inpMaengel.value = (cbCreateMb && cbCreateMb.checked && cbPrintMb && cbPrintMb.checked) ? '1' : '0';
+                if (inpGwm) inpGwm.value = (cbCreateGwm && cbCreateGwm.checked && cbPrintGwm && cbPrintGwm.checked) ? '1' : '0';
                 form.submit();
             });
+            function syncAnwesenheitModalPrintOptions() {
+                var cmb = document.getElementById('cbCreateMaengelberichtAfterSave');
+                var wmb = document.getElementById('wrapPrintMaengelberichtAfterSave');
+                var pmb = document.getElementById('cbPrintMaengelberichtAfterSave');
+                if (wmb && cmb) {
+                    wmb.style.display = cmb.checked ? 'block' : 'none';
+                    if (!cmb.checked && pmb) pmb.checked = false;
+                }
+                var cgwm = document.getElementById('cbCreateGeraetewartmitteilungAfterSave');
+                var wgwm = document.getElementById('wrapPrintGeraetewartmitteilungAfterSave');
+                var pgwm = document.getElementById('cbPrintGeraetewartmitteilungAfterSave');
+                if (wgwm && cgwm) {
+                    wgwm.style.display = cgwm.checked ? 'block' : 'none';
+                    if (!cgwm.checked && pgwm) pgwm.checked = false;
+                }
+            }
+            var cmbEl = document.getElementById('cbCreateMaengelberichtAfterSave');
+            if (cmbEl) cmbEl.addEventListener('change', syncAnwesenheitModalPrintOptions);
+            var cgwmEl = document.getElementById('cbCreateGeraetewartmitteilungAfterSave');
+            if (cgwmEl) cgwmEl.addEventListener('change', syncAnwesenheitModalPrintOptions);
         }
     })();
     window.addEventListener('beforeunload', function() {
