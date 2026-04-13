@@ -744,7 +744,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     $fahrzeuge_str = [];
                     arsort($s['fahrzeuge']);
                     foreach (array_slice($s['fahrzeuge'], 0, 5) as $vid => $cnt) {
-                        $fahrzeuge_str[] = ($vehicle_map[$vid] ?? '-') . ' (' . $cnt . ')';
+                        if (!isset($vehicle_map[$vid]) || trim((string)$vehicle_map[$vid]) === '') continue;
+                        $fahrzeuge_str[] = $vehicle_map[$vid] . ' (' . $cnt . ')';
                     }
                 ?>
                 <tr>
@@ -1072,17 +1073,37 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 }
             }
             // 3. Top Besatzung pro Fahrzeug (anwesenheitsliste_mitglieder, gleiche Logik wie Debug-Tabelle)
-            $stmt_am = $db->prepare("SELECT am.member_id, am.vehicle_id FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0 AND am.member_id > 0" . $einheit_where_a);
-            $stmt_am->execute([$von, $bis]);
+            $params_top = [$von, $bis];
+            $sql_top = "SELECT am.member_id, am.vehicle_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_mitglieder am JOIN anwesenheitslisten a ON a.id = am.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND am.vehicle_id IS NOT NULL AND am.vehicle_id > 0 AND am.member_id > 0" . $einheit_where_a;
+            $sql_top .= get_zeit_filter_sql($params_top) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_top) . get_thema_filter_sql($params_top);
+            if ($vehicle_id > 0) { $sql_top .= " AND am.vehicle_id = ?"; $params_top[] = $vehicle_id; }
+            $stmt_am = $db->prepare($sql_top);
+            $stmt_am->execute($params_top);
             while ($r = $stmt_am->fetch(PDO::FETCH_ASSOC)) {
+                $einsatz = ist_einsatz($r);
+                $jhv = ist_jhv_sonstiges($r);
+                if ($typ_filter === 'einsaetze' && !$einsatz) continue;
+                if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
+                if ($typ_filter === 'beides' && $jhv) continue;
+                if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
                 $mid = (int)$r['member_id'];
                 $vid = (int)$r['vehicle_id'];
                 if ($mid > 0 && $vid > 0) $fahrzeug_besatzung_top[$vid][$mid] = ($fahrzeug_besatzung_top[$vid][$mid] ?? 0) + 1;
             }
             // 4. Maschinist + Einheitsführer pro Fahrzeug (gleiche Logik wie Debug-Tabelle)
-            $stmt_af = $db->prepare("SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0" . $einheit_where_a);
-            $stmt_af->execute([$von, $bis]);
+            $params_roles = [$von, $bis];
+            $sql_roles = "SELECT af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND af.vehicle_id > 0" . $einheit_where_a;
+            $sql_roles .= get_zeit_filter_sql($params_roles) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_roles) . get_thema_filter_sql($params_roles);
+            if ($vehicle_id > 0) { $sql_roles .= " AND af.vehicle_id = ?"; $params_roles[] = $vehicle_id; }
+            $stmt_af = $db->prepare($sql_roles);
+            $stmt_af->execute($params_roles);
             while ($r = $stmt_af->fetch(PDO::FETCH_ASSOC)) {
+                $einsatz = ist_einsatz($r);
+                $jhv = ist_jhv_sonstiges($r);
+                if ($typ_filter === 'einsaetze' && !$einsatz) continue;
+                if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
+                if ($typ_filter === 'beides' && $jhv) continue;
+                if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
                 $vid = (int)$r['vehicle_id'];
                 if ($vid <= 0) continue;
                 if (!empty($r['maschinist_member_id'])) {
