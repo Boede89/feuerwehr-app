@@ -103,8 +103,12 @@ $thema_optionen = [];
 $is_uebungen_filter = ($typ_filter === 'uebungen');
 if ($bereich !== '') {
     try {
-        $ueb_cond = "((a.typ = 'dienst' AND d.typ IN ('uebungsdienst', 'dienst', 'uebung')) OR (a.typ = 'manuell' AND a.bezeichnung = 'Übungsdienst'))";
-        $stmt = $db->prepare("SELECT DISTINCT COALESCE(NULLIF(TRIM(a.bezeichnung), ''), d.bezeichnung) AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $ueb_cond . $einheit_where_a . " AND (a.bezeichnung IS NOT NULL AND TRIM(a.bezeichnung) != '' OR d.bezeichnung IS NOT NULL AND TRIM(d.bezeichnung) != '') ORDER BY b");
+        // Übungen wie in der Auswertung (ist_einsatz / ist_jhv_sonstiges): Dienstplan-Übungen + manuelle Listen,
+        // bei denen das Thema in a.bezeichnung steht (nicht mehr nur der Literal „Übungsdienst“).
+        $ueb_manuell = "(a.typ = 'manuell' AND NOT (TRIM(COALESCE(a.bezeichnung, '')) IN ('Sonstiges', 'Jahreshauptversammlung') OR TRIM(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')), '')) IN ('sonstiges', 'jahreshauptversammlung')))";
+        $ueb_cond = "((a.typ = 'dienst' AND d.typ IN ('uebungsdienst', 'dienst', 'uebung')) OR " . $ueb_manuell . ")";
+        $thema_expr = "COALESCE(NULLIF(TRIM(a.bezeichnung), ''), NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.thema'))), ''), NULLIF(TRIM(d.bezeichnung), ''))";
+        $stmt = $db->prepare("SELECT DISTINCT " . $thema_expr . " AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $ueb_cond . $einheit_where_a . " AND (" . $thema_expr . ") IS NOT NULL AND TRIM(" . $thema_expr . ") != '' ORDER BY b");
         $stmt->execute([$von, $bis]);
         while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $b = trim($r['b'] ?? '');
@@ -197,7 +201,7 @@ function get_thema_filter_sql(&$params) {
     global $typ_filter, $thema_filter;
     if ($typ_filter !== 'uebungen' || $thema_filter === '') return '';
     $params[] = $thema_filter;
-    return ' AND (COALESCE(NULLIF(TRIM(a.bezeichnung), \'\'), d.bezeichnung) = ?)';
+    return ' AND (COALESCE(NULLIF(TRIM(a.bezeichnung), \'\'), NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, \'$.thema\'))), \'\'), d.bezeichnung) = ?)';
 }
 
 $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $zeit_von, 'zeit_bis' => $zeit_bis, 'member_id' => $member_id, 'vehicle_id' => $vehicle_id, 'ansicht' => $ansicht, 'typ' => $typ_filter, 'beschreibung' => $beschreibung_filter, 'thema' => $thema_filter];
