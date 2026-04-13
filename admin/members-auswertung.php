@@ -425,6 +425,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
         $personen_maschinist = [];
         $personen_einheitsfuehrer = [];
         $personen_letzte = [];
+        $liste_member_vehicle = [];
+        $liste_role_vehicle = [];
         $anzahl_einsaetze = 0;
         $anzahl_uebungen = 0;
         $anzahl_jhv_sonstiges = 0;
@@ -460,9 +462,13 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     if (ist_jhv($r)) $personen_stats[$mid]['jhv']++;
                     else $personen_stats[$mid]['sonstiges']++;
                 } else $personen_stats[$mid]['uebungen']++;
+                $lid = (int)$r['liste_id'];
                 if (!empty($r['vehicle_id'])) {
                     $vid = (int)$r['vehicle_id'];
-                    $personen_stats[$mid]['fahrzeuge'][$vid] = ($personen_stats[$mid]['fahrzeuge'][$vid] ?? 0) + 1;
+                    if ($vid > 0 && $lid > 0 && $mid > 0) {
+                        // Normale Fahrzeugzuordnung pro Liste/Person merken.
+                        $liste_member_vehicle[$lid][$mid] = $vid;
+                    }
                 }
                 $von_t = $r['uhrzeit_von'] ?? null;
                 $bis_t = $r['uhrzeit_bis'] ?? null;
@@ -473,7 +479,7 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 $personen_letzte[$mid] = max($personen_letzte[$mid] ?? '', $r['datum']);
             }
             $params_af = [$von, $bis];
-            $sql_af = "SELECT af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?" . $einheit_where_a . get_zeit_filter_sql($params_af) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_af) . get_thema_filter_sql($params_af);
+            $sql_af = "SELECT af.anwesenheitsliste_id, af.vehicle_id, af.maschinist_member_id, af.einheitsfuehrer_member_id, a.typ AS liste_typ, a.bezeichnung, a.custom_data, d.typ AS dienst_typ FROM anwesenheitsliste_fahrzeuge af JOIN anwesenheitslisten a ON a.id = af.anwesenheitsliste_id LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ?" . $einheit_where_a . get_zeit_filter_sql($params_af) . get_typ_filter_sql() . get_beschreibung_filter_sql($params_af) . get_thema_filter_sql($params_af);
             $stmt = $db->prepare($sql_af);
             $stmt->execute($params_af);
             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -483,13 +489,35 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 if ($typ_filter === 'uebungen' && ($einsatz || $jhv)) continue;
                 if ($typ_filter === 'beides' && $jhv) continue;
                 if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
+                $lid = (int)$r['anwesenheitsliste_id'];
+                $vid = (int)($r['vehicle_id'] ?? 0);
                 if (!empty($r['maschinist_member_id'])) {
                     $mid = (int)$r['maschinist_member_id'];
                     $personen_maschinist[$mid] = ($personen_maschinist[$mid] ?? 0) + 1;
+                    if ($lid > 0 && $vid > 0 && $mid > 0) {
+                        $liste_role_vehicle[$lid][$mid] = $vid;
+                    }
                 }
                 if (!empty($r['einheitsfuehrer_member_id'])) {
                     $mid = (int)$r['einheitsfuehrer_member_id'];
                     $personen_einheitsfuehrer[$mid] = ($personen_einheitsfuehrer[$mid] ?? 0) + 1;
+                    if ($lid > 0 && $vid > 0 && $mid > 0) {
+                        $liste_role_vehicle[$lid][$mid] = $vid;
+                    }
+                }
+            }
+            // Fahrzeugzählung pro Person:
+            // Rollen (Maschinist/EF) haben Vorrang, sonst normale Fahrzeugzuordnung.
+            $alle_listen_ids = array_unique(array_merge(array_keys($liste_member_vehicle), array_keys($liste_role_vehicle)));
+            foreach ($alle_listen_ids as $lid) {
+                $members_in_list = [];
+                foreach (array_keys($liste_member_vehicle[$lid] ?? []) as $mid) $members_in_list[(int)$mid] = true;
+                foreach (array_keys($liste_role_vehicle[$lid] ?? []) as $mid) $members_in_list[(int)$mid] = true;
+                foreach (array_keys($members_in_list) as $mid) {
+                    $vid = (int)($liste_role_vehicle[$lid][$mid] ?? $liste_member_vehicle[$lid][$mid] ?? 0);
+                    if ($vid <= 0) continue;
+                    $personen_stats[$mid] = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0, 'jhv' => 0, 'sonstiges' => 0, 'fahrzeuge' => [], 'stunden' => 0];
+                    $personen_stats[$mid]['fahrzeuge'][$vid] = ($personen_stats[$mid]['fahrzeuge'][$vid] ?? 0) + 1;
                 }
             }
         } catch (Exception $e) {}
