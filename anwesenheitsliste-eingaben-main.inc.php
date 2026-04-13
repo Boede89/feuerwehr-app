@@ -1658,7 +1658,11 @@ if ($is_einsatz) {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <div class="me-auto text-muted small d-none" id="saveProcessingHint" aria-live="polite">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Wird verarbeitet, bitte warten...
+                    </div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelSave">Abbrechen</button>
                     <button type="button" class="btn btn-success" id="btnConfirmSave"><i class="fas fa-check"></i> Ja, absenden</button>
                 </div>
             </div>
@@ -1765,9 +1769,30 @@ if ($is_einsatz) {
         var btnSave = document.getElementById('btnSaveAnwesenheit');
         var modal = document.getElementById('saveConfirmModal');
         var form = document.getElementById('mainForm');
+        var btnConfirmSave = document.getElementById('btnConfirmSave');
+        var btnCancelSave = document.getElementById('btnCancelSave');
+        var processingHint = document.getElementById('saveProcessingHint');
         var validationEl = document.getElementById('validationError');
         var isEinsatz = <?php echo $is_einsatz ? 'true' : 'false'; ?>;
         var dienstTyp = <?php echo isset($dienst) ? json_encode($dienst['typ'] ?? '') : '""'; ?>;
+        var isSubmitting = false;
+        function setSubmittingState(active) {
+            isSubmitting = !!active;
+            if (btnConfirmSave) {
+                btnConfirmSave.disabled = isSubmitting;
+                if (isSubmitting) {
+                    btnConfirmSave.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Wird gespeichert...';
+                } else {
+                    btnConfirmSave.innerHTML = '<i class="fas fa-check"></i> Ja, absenden';
+                }
+            }
+            if (btnCancelSave) {
+                btnCancelSave.disabled = isSubmitting;
+            }
+            if (processingHint) {
+                processingHint.classList.toggle('d-none', !isSubmitting);
+            }
+        }
         function validateForm() {
             var fehler = [];
             var uhrzeitVon = (document.querySelector('[name="uhrzeit_von"]') || form.querySelector('[name="uhrzeit_von"]') || {}).value || '';
@@ -1825,7 +1850,8 @@ if ($is_einsatz) {
                 if (modalBis && formBis) modalBis.value = formBis.value || (modalBis.value || '');
                 new bootstrap.Modal(modal).show();
             });
-            document.getElementById('btnConfirmSave').addEventListener('click', function() {
+            btnConfirmSave.addEventListener('click', function() {
+                if (isSubmitting) return;
                 var modalVon = document.getElementById('modal_uhrzeit_von');
                 var modalBis = document.getElementById('modal_uhrzeit_bis');
                 var formVon = document.querySelector('[name="uhrzeit_von"]') || form.querySelector('[name="uhrzeit_von"]');
@@ -1847,7 +1873,11 @@ if ($is_einsatz) {
                 if (inpCreateGwm) inpCreateGwm.value = (cbCreateGwm && cbCreateGwm.checked) ? '1' : '0';
                 if (inpMaengel) inpMaengel.value = (cbCreateMb && cbCreateMb.checked && cbPrintMb && cbPrintMb.checked) ? '1' : '0';
                 if (inpGwm) inpGwm.value = (cbCreateGwm && cbCreateGwm.checked && cbPrintGwm && cbPrintGwm.checked) ? '1' : '0';
+                setSubmittingState(true);
                 form.submit();
+            });
+            modal.addEventListener('hidden.bs.modal', function() {
+                if (!isSubmitting) setSubmittingState(false);
             });
             function syncAnwesenheitModalPrintOptions() {
                 var cmb = document.getElementById('cbCreateMaengelberichtAfterSave');
