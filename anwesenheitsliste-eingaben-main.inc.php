@@ -1198,6 +1198,27 @@ if ($is_einsatz) {
     <style>
         .anwesenheits-option-btn { min-height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .anwesenheits-option-btn:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
+        .save-processing-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(1px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            pointer-events: all;
+        }
+        .save-processing-overlay.active {
+            display: flex;
+        }
+        .save-processing-box {
+            background: #fff;
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
     </style>
     <?php if ($is_einsatz): ?>
     <script>
@@ -1674,6 +1695,12 @@ if ($is_einsatz) {
         </div>
     </main>
     <footer class="bg-light mt-5 py-4"><div class="container text-center"><p class="text-muted mb-0">&copy; 2025 Boedes Feuerwehr App</p></div></footer>
+    <div id="saveProcessingOverlay" class="save-processing-overlay" aria-live="polite" aria-hidden="true">
+        <div class="save-processing-box text-center">
+            <div class="spinner-border text-primary mb-2" role="status" aria-hidden="true"></div>
+            <div class="small text-muted">Bericht wird gespeichert und verarbeitet...</div>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     (function(){
@@ -1772,6 +1799,7 @@ if ($is_einsatz) {
         var btnConfirmSave = document.getElementById('btnConfirmSave');
         var btnCancelSave = document.getElementById('btnCancelSave');
         var processingHint = document.getElementById('saveProcessingHint');
+        var processingOverlay = document.getElementById('saveProcessingOverlay');
         var validationEl = document.getElementById('validationError');
         var isEinsatz = <?php echo $is_einsatz ? 'true' : 'false'; ?>;
         var dienstTyp = <?php echo isset($dienst) ? json_encode($dienst['typ'] ?? '') : '""'; ?>;
@@ -1791,6 +1819,10 @@ if ($is_einsatz) {
             }
             if (processingHint) {
                 processingHint.classList.toggle('d-none', !isSubmitting);
+            }
+            if (processingOverlay) {
+                processingOverlay.classList.toggle('active', isSubmitting);
+                processingOverlay.setAttribute('aria-hidden', isSubmitting ? 'false' : 'true');
             }
         }
         function validateForm() {
