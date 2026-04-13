@@ -1068,6 +1068,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                 }
             }
         }
+        
+        // Automatischer E-Mail-Versand für Gerätewartmitteilung (wenn aktiviert und erstellt)
+        if (!empty($gwm_id)) {
+            $gwm_email_auto = false;
+            $gwm_email_recipients = [];
+            $gwm_email_manual = '';
+            try {
+                if (!function_exists('load_settings_for_einheit')) {
+                    require_once __DIR__ . '/includes/einheit-settings-helper.php';
+                }
+                $mail_settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+                $gwm_email_auto = ($mail_settings['geraetewartmitteilung_email_auto'] ?? '0') === '1';
+                $gwm_email_recipients = json_decode($mail_settings['geraetewartmitteilung_email_recipients'] ?? '[]', true) ?: [];
+                $gwm_email_manual = trim($mail_settings['geraetewartmitteilung_email_manual'] ?? '');
+            } catch (Exception $e) {}
+            $gwm_all_emails = [];
+            if ($gwm_email_auto && (is_array($gwm_email_recipients) && !empty($gwm_email_recipients) || $gwm_email_manual !== '')) {
+                if (!empty($gwm_email_recipients)) {
+                    $ph = implode(',', array_fill(0, count($gwm_email_recipients), '?'));
+                    $stmt_u = $db->prepare("SELECT email FROM users WHERE id IN ($ph) AND email IS NOT NULL AND email != ''");
+                    $stmt_u->execute(array_map('intval', $gwm_email_recipients));
+                    foreach ($stmt_u->fetchAll(PDO::FETCH_COLUMN) as $em) { $gwm_all_emails[] = trim($em); }
+                }
+                if ($gwm_email_manual !== '') {
+                    foreach (preg_split('/[\r\n,;]+/', $gwm_email_manual, -1, PREG_SPLIT_NO_EMPTY) as $em) {
+                        $em = trim($em);
+                        if (filter_var($em, FILTER_VALIDATE_EMAIL)) $gwm_all_emails[] = $em;
+                    }
+                }
+                $gwm_all_emails = array_unique(array_filter($gwm_all_emails));
+                if (!empty($gwm_all_emails) && function_exists('send_email_with_pdf_attachment')) {
+                    $gwm_pdf_content = null;
+                    $_GET['id'] = (int)$gwm_id;
+                    $_GET['_return'] = '1';
+                    $GLOBALS['_gwm_pdf_content'] = null;
+                    try {
+                        ob_start();
+                        require __DIR__ . '/api/geraetewartmitteilung-pdf.php';
+                        ob_end_clean();
+                        $gwm_pdf_content = $GLOBALS['_gwm_pdf_content'] ?? null;
+                    } catch (Exception $e) { ob_end_clean(); }
+                    if ($gwm_pdf_content !== null && strlen($gwm_pdf_content) > 100) {
+                        $titel = $bezeichnung_save ?? $draft['bezeichnung_sonstige'] ?? $draft['thema'] ?? 'Anwesenheit';
+                        $filename = 'Geraetewartmitteilung_' . $draft['datum'] . '_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $titel) . '.pdf';
+                        $subject = 'Neue Gerätewartmitteilung aus Anwesenheitsliste: ' . $titel . ' (' . date('d.m.Y', strtotime($draft['datum'])) . ')';
+                        $user_name = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '')) ?: 'Unbekannt';
+                        $html = '<p>Es wurde eine Gerätewartmitteilung aus der Anwesenheitsliste erstellt.</p><p><strong>Datum:</strong> ' . htmlspecialchars(date('d.m.Y', strtotime($draft['datum']))) . '<br><strong>Bezeichnung:</strong> ' . htmlspecialchars($titel) . '<br><strong>Eingereicht von:</strong> ' . htmlspecialchars($user_name) . '</p><p>Die Gerätewartmitteilung ist dieser E-Mail als PDF angehängt.</p>';
+                        foreach ($gwm_all_emails as $em) {
+                            $em = trim($em);
+                            if ($em === '') {
+                                continue;
+                            }
+                            if ($einheit_id > 0 && function_exists('send_email_with_pdf_for_einheit')) {
+                                if (!send_email_with_pdf_for_einheit($em, $subject, $html, $gwm_pdf_content, $filename, $einheit_id)) {
+                                    error_log("Gerätewartmitteilung-aus-Anwesenheit E-Mail fehlgeschlagen für {$em} (Einheit {$einheit_id})");
+                                }
+                            } else {
+                                if (!send_email_with_pdf_attachment($em, $subject, $html, $gwm_pdf_content, $filename)) {
+                                    error_log("Gerätewartmitteilung-aus-Anwesenheit E-Mail fehlgeschlagen für {$em} (global)");
+                                }
+                            }
+                        }
+                    } else {
+                        error_log("Gerätewartmitteilung-aus-Anwesenheit: PDF konnte nicht erzeugt werden (ID {$gwm_id})");
+                    }
+                } else {
+                    error_log('Gerätewartmitteilung-aus-Anwesenheit: Keine gültigen E-Mail-Empfänger konfiguriert.');
+                }
+            }
+        }
 
         unset($_SESSION[$draft_key]);
         try {
