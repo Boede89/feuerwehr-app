@@ -39,6 +39,7 @@ try {
             aufgenommen_durch_text VARCHAR(255) NULL,
             aufgenommen_durch_member_id INT NULL,
             aufgenommen_am DATE NOT NULL,
+            unterschrift_data LONGTEXT NULL,
             user_id INT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -53,6 +54,11 @@ try {
 }
 try {
     $db->exec("ALTER TABLE maengelberichte ADD COLUMN email_sent_at DATETIME NULL");
+} catch (Exception $e) {
+    /* Spalte existiert ggf. bereits */
+}
+try {
+    $db->exec("ALTER TABLE maengelberichte ADD COLUMN unterschrift_data LONGTEXT NULL");
 } catch (Exception $e) {
     /* Spalte existiert ggf. bereits */
 }
@@ -125,12 +131,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
     if (!in_array($standort, $standort_options)) $standort = $standort_options[0];
     if (!in_array($mangel_an, $mangel_an_options)) $mangel_an = $mangel_an_options[0];
     $vehicle_id = isset($_POST['vehicle_id']) && preg_match('/^\d+$/', (string)$_POST['vehicle_id']) ? (int)$_POST['vehicle_id'] : null;
+    $unterschrift_data = trim((string)($_POST['unterschrift_data'] ?? ''));
     try {
         $stmt = $db->prepare("
-            INSERT INTO maengelberichte (standort, mangel_an, bezeichnung, mangel_beschreibung, ursache, verbleib, aufgenommen_durch_text, aufgenommen_durch_member_id, aufgenommen_am, vehicle_id, user_id, einheit_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO maengelberichte (standort, mangel_an, bezeichnung, mangel_beschreibung, ursache, verbleib, aufgenommen_durch_text, aufgenommen_durch_member_id, aufgenommen_am, vehicle_id, unterschrift_data, user_id, einheit_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$standort, $mangel_an, $bezeichnung ?: null, $mangel_beschreibung ?: null, $ursache ?: null, $verbleib ?: null, $aufgenommen_durch_text, $aufgenommen_durch_member_id, $aufgenommen_am, $vehicle_id, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
+        $stmt->execute([$standort, $mangel_an, $bezeichnung ?: null, $mangel_beschreibung ?: null, $ursache ?: null, $verbleib ?: null, $aufgenommen_durch_text, $aufgenommen_durch_member_id, $aufgenommen_am, $vehicle_id, $unterschrift_data !== '' ? $unterschrift_data : null, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
         $id = $db->lastInsertId();
 
         require_once __DIR__ . '/includes/bericht-anhaenge-helper.php';
@@ -323,6 +330,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                             </div>
                             <input type="file" class="d-none" id="maengelbericht_anhaenge_cam" accept="image/*" capture="environment">
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label">Unterschrift (optional)</label>
+                            <input type="hidden" name="unterschrift_data" id="unterschrift_data" value="">
+                            <div class="border rounded bg-white p-2">
+                                <canvas id="mb_signature_pad" style="width:100%;height:170px;touch-action:none;cursor:crosshair;"></canvas>
+                            </div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_clear_mb_signature">Unterschrift löschen</button>
+                            </div>
+                            <small class="text-muted">Auf Tablet/Smartphone mit Finger oder Stift unterschreiben. Wenn leer, kann später manuell unterschrieben werden.</small>
+                        </div>
                         <div class="d-flex flex-wrap gap-2">
                             <button type="button" class="btn btn-success" id="btnSaveMaengelbericht"><i class="fas fa-save"></i> Mängelbericht speichern</button>
                             <a href="formulare.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Zurück zu Formulare</a>
@@ -375,6 +393,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
             this.value = '';
         });
     }
+})();
+</script>
+<script>
+(function() {
+    var canvas = document.getElementById('mb_signature_pad');
+    var hidden = document.getElementById('unterschrift_data');
+    var clearBtn = document.getElementById('btn_clear_mb_signature');
+    if (!canvas || !hidden) return;
+    var ctx = canvas.getContext('2d');
+    var drawing = false;
+    var hasStroke = false;
+    var lastX = 0, lastY = 0;
+
+    function resizeCanvas() {
+        var ratio = window.devicePixelRatio || 1;
+        var w = Math.max(300, Math.floor(canvas.clientWidth));
+        var h = Math.max(120, Math.floor(canvas.clientHeight));
+        var oldData = null;
+        if (hasStroke) oldData = canvas.toDataURL('image/png');
+        canvas.width = Math.floor(w * ratio);
+        canvas.height = Math.floor(h * ratio);
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#111';
+        ctx.lineWidth = 2;
+        if (oldData) {
+            var img = new Image();
+            img.onload = function() { ctx.drawImage(img, 0, 0, w, h); };
+            img.src = oldData;
+        }
+    }
+
+    function pointFromEvent(e) {
+        var rect = canvas.getBoundingClientRect();
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+    function beginStroke(e) {
+        e.preventDefault();
+        var p = pointFromEvent(e);
+        drawing = true;
+        lastX = p.x;
+        lastY = p.y;
+    }
+    function moveStroke(e) {
+        if (!drawing) return;
+        e.preventDefault();
+        var p = pointFromEvent(e);
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        lastX = p.x;
+        lastY = p.y;
+        hasStroke = true;
+        hidden.value = canvas.toDataURL('image/png');
+    }
+    function endStroke() {
+        if (!drawing) return;
+        drawing = false;
+        if (hasStroke) hidden.value = canvas.toDataURL('image/png');
+    }
+
+    canvas.addEventListener('pointerdown', beginStroke);
+    canvas.addEventListener('pointermove', moveStroke);
+    canvas.addEventListener('pointerup', endStroke);
+    canvas.addEventListener('pointerleave', endStroke);
+    canvas.addEventListener('pointercancel', endStroke);
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            hasStroke = false;
+            hidden.value = '';
+            resizeCanvas();
+        });
+    }
+    resizeCanvas();
+    window.addEventListener('resize', function() { resizeCanvas(); });
 })();
 </script>
 <script>

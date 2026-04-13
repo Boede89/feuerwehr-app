@@ -76,6 +76,11 @@ $mb_merge_rows = [];
 if (function_exists('bericht_anhaenge_embed_images_as_html_fragment')) {
     [$mb_foto_embed, $mb_merge_rows] = bericht_anhaenge_embed_images_as_html_fragment($db, 'maengelbericht', $id);
 }
+$signature_data = trim((string)($bericht['unterschrift_data'] ?? ''));
+$has_signature = (bool)preg_match('/^data:image\/(png|jpeg|jpg);base64,[A-Za-z0-9+\/=\s]+$/', $signature_data);
+$signature_html = $has_signature
+    ? '<div class="signature-image-wrap"><img class="signature-image" src="' . htmlspecialchars($signature_data) . '" alt="Unterschrift"></div>'
+    : '<div class="signature-line"></div>';
 
 $html = '<!DOCTYPE html>
 <html lang="de">
@@ -103,6 +108,8 @@ $html = '<!DOCTYPE html>
         .veranlassung-line { border-bottom: 1px solid #333; min-height: 18px; margin: 5px 0; padding-top: 4px; }
         .signature-section { margin-top: 10px; padding-top: 8px; border-top: 1px solid #333; }
         .signature-line { border-bottom: 1px solid #333; width: 160px; min-height: 22px; margin-top: 10px; }
+        .signature-image-wrap { width: 160px; height: 50px; margin-top: 6px; display: flex; align-items: flex-end; justify-content: center; }
+        .signature-image { max-width: 160px; max-height: 50px; display: block; }
         .signature-label { font-size: 8pt; color: #666; margin-top: 2px; }
         .mb-anhaenge-seite { page-break-before: always; break-before: page; }
         @media print { .section { page-break-inside: avoid; } .mb-anhaenge-seite { page-break-before: always; } }
@@ -124,7 +131,7 @@ $html = '<!DOCTYPE html>
             <tr><td class="label-cell">Aufgenommen am</td><td class="value-cell">' . htmlspecialchars($aufgenommen_am_display) . '</td></tr>
         </table>
         <div class="signature-section">
-            <div class="signature-line"></div>
+            ' . $signature_html . '
             <div class="signature-label">Unterschrift</div>
         </div>
     </div>
