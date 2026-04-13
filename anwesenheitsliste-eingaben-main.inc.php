@@ -934,18 +934,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             }
         }
 
-        // Automatischer E-Mail-Versand (wenn aktiviert)
+        // Automatischer E-Mail-Versand (einheitsspezifisch, wenn aktiviert)
         $email_auto = false;
         $email_recipients = [];
         $email_manual = '';
         try {
-            $stmt_s = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('anwesenheitsliste_email_auto', 'anwesenheitsliste_email_recipients', 'anwesenheitsliste_email_manual')");
-            $stmt_s->execute();
-            foreach ($stmt_s->fetchAll(PDO::FETCH_ASSOC) as $r) {
-                if ($r['setting_key'] === 'anwesenheitsliste_email_auto') $email_auto = ($r['setting_value'] ?? '0') === '1';
-                elseif ($r['setting_key'] === 'anwesenheitsliste_email_recipients') $email_recipients = json_decode($r['setting_value'] ?? '[]', true) ?: [];
-                elseif ($r['setting_key'] === 'anwesenheitsliste_email_manual') $email_manual = trim($r['setting_value'] ?? '');
+            if (!function_exists('load_settings_for_einheit')) {
+                require_once __DIR__ . '/includes/einheit-settings-helper.php';
             }
+            $mail_settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+            $email_auto = ($mail_settings['anwesenheitsliste_email_auto'] ?? '0') === '1';
+            $email_recipients = json_decode($mail_settings['anwesenheitsliste_email_recipients'] ?? '[]', true) ?: [];
+            $email_manual = trim($mail_settings['anwesenheitsliste_email_manual'] ?? '');
         } catch (Exception $e) {}
         $all_emails = [];
         if ($email_auto && (is_array($email_recipients) && !empty($email_recipients) || $email_manual !== '')) {
@@ -980,7 +980,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                     $user_name = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '')) ?: 'Unbekannt';
                     $html = '<p>Eine neue Anwesenheitsliste wurde eingereicht.</p><p><strong>Datum:</strong> ' . htmlspecialchars(date('d.m.Y', strtotime($draft['datum']))) . '<br><strong>Bezeichnung:</strong> ' . htmlspecialchars($titel) . '<br><strong>Eingereicht von:</strong> ' . htmlspecialchars($user_name) . '</p><p>Die Anwesenheitsliste ist dieser E-Mail als PDF angehängt.</p>';
                     foreach ($all_emails as $em) {
-                        if (trim($em) !== '') send_email_with_pdf_attachment(trim($em), $subject, $html, $pdf_content, $filename);
+                        $em = trim($em);
+                        if ($em === '') {
+                            continue;
+                        }
+                        if ($einheit_id > 0 && function_exists('send_email_with_pdf_for_einheit')) {
+                            if (!send_email_with_pdf_for_einheit($em, $subject, $html, $pdf_content, $filename, $einheit_id)) {
+                                error_log("Anwesenheitsliste E-Mail fehlgeschlagen für {$em} (Einheit {$einheit_id})");
+                            }
+                        } else {
+                            if (!send_email_with_pdf_attachment($em, $subject, $html, $pdf_content, $filename)) {
+                                error_log("Anwesenheitsliste E-Mail fehlgeschlagen für {$em} (global)");
+                            }
+                        }
                     }
                 }
             }
@@ -992,13 +1004,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             $mb_email_recipients = [];
             $mb_email_manual = '';
             try {
-                $stmt_s = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('maengelbericht_email_auto', 'maengelbericht_email_recipients', 'maengelbericht_email_manual')");
-                $stmt_s->execute();
-                foreach ($stmt_s->fetchAll(PDO::FETCH_ASSOC) as $r) {
-                    if ($r['setting_key'] === 'maengelbericht_email_auto') $mb_email_auto = ($r['setting_value'] ?? '0') === '1';
-                    elseif ($r['setting_key'] === 'maengelbericht_email_recipients') $mb_email_recipients = json_decode($r['setting_value'] ?? '[]', true) ?: [];
-                    elseif ($r['setting_key'] === 'maengelbericht_email_manual') $mb_email_manual = trim($r['setting_value'] ?? '');
+                if (!function_exists('load_settings_for_einheit')) {
+                    require_once __DIR__ . '/includes/einheit-settings-helper.php';
                 }
+                $mail_settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+                $mb_email_auto = ($mail_settings['maengelbericht_email_auto'] ?? '0') === '1';
+                $mb_email_recipients = json_decode($mail_settings['maengelbericht_email_recipients'] ?? '[]', true) ?: [];
+                $mb_email_manual = trim($mail_settings['maengelbericht_email_manual'] ?? '');
             } catch (Exception $e) {}
             $mb_all_emails = [];
             if ($mb_email_auto && (is_array($mb_email_recipients) && !empty($mb_email_recipients) || $mb_email_manual !== '')) {
@@ -1033,7 +1045,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
                         $user_name = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '')) ?: 'Unbekannt';
                         $html = '<p>Es wurden ' . count($maengelbericht_ids) . ' Mängelbericht(e) aus der Anwesenheitsliste eingereicht.</p><p><strong>Datum:</strong> ' . htmlspecialchars(date('d.m.Y', strtotime($draft['datum']))) . '<br><strong>Bezeichnung:</strong> ' . htmlspecialchars($titel) . '<br><strong>Eingereicht von:</strong> ' . htmlspecialchars($user_name) . '</p><p>Die Mängelberichte sind dieser E-Mail als PDF angehängt.</p>';
                         foreach ($mb_all_emails as $em) {
-                            if (trim($em) !== '') send_email_with_pdf_attachment(trim($em), $subject, $html, $mb_pdf_content, $filename);
+                            $em = trim($em);
+                            if ($em === '') {
+                                continue;
+                            }
+                            if ($einheit_id > 0 && function_exists('send_email_with_pdf_for_einheit')) {
+                                if (!send_email_with_pdf_for_einheit($em, $subject, $html, $mb_pdf_content, $filename, $einheit_id)) {
+                                    error_log("Mängelberichte-aus-Anwesenheit E-Mail fehlgeschlagen für {$em} (Einheit {$einheit_id})");
+                                }
+                            } else {
+                                if (!send_email_with_pdf_attachment($em, $subject, $html, $mb_pdf_content, $filename)) {
+                                    error_log("Mängelberichte-aus-Anwesenheit E-Mail fehlgeschlagen für {$em} (global)");
+                                }
+                            }
                         }
                         try {
                             $ph = implode(',', array_fill(0, count($maengelbericht_ids), '?'));
