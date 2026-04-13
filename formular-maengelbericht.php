@@ -137,18 +137,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
         bericht_anhaenge_save_for_maengelbericht($db, (int)$id, $_FILES);
 
         // Automatischer E-Mail-Versand (wenn in Einstellungen aktiviert)
-        $email_auto = false;
-        $email_recipients = [];
-        $email_manual = '';
-        try {
-            $stmt_s = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('maengelbericht_email_auto', 'maengelbericht_email_recipients', 'maengelbericht_email_manual')");
-            $stmt_s->execute();
-            foreach ($stmt_s->fetchAll(PDO::FETCH_ASSOC) as $r) {
-                if ($r['setting_key'] === 'maengelbericht_email_auto') $email_auto = ($r['setting_value'] ?? '0') === '1';
-                elseif ($r['setting_key'] === 'maengelbericht_email_recipients') $email_recipients = json_decode($r['setting_value'] ?? '[]', true) ?: [];
-                elseif ($r['setting_key'] === 'maengelbericht_email_manual') $email_manual = trim($r['setting_value'] ?? '');
-            }
-        } catch (Exception $e) {}
+        $email_auto = ($settings['maengelbericht_email_auto'] ?? '0') === '1';
+        $email_recipients = json_decode($settings['maengelbericht_email_recipients'] ?? '[]', true) ?: [];
+        $email_manual = trim($settings['maengelbericht_email_manual'] ?? '');
         $all_emails = [];
         if ($email_auto && (is_array($email_recipients) && !empty($email_recipients) || $email_manual !== '')) {
             if (!empty($email_recipients)) {
@@ -182,7 +173,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                     $user_name = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '')) ?: 'Unbekannt';
                     $html = '<p>Ein neuer Mängelbericht wurde eingereicht.</p><p><strong>Standort:</strong> ' . htmlspecialchars($standort) . '<br><strong>Mangel an:</strong> ' . htmlspecialchars($mangel_an) . '<br><strong>Bezeichnung:</strong> ' . htmlspecialchars($bezeichnung ?: '-') . '<br><strong>Eingereicht von:</strong> ' . htmlspecialchars($user_name) . '</p><p>Der Mängelbericht ist dieser E-Mail als PDF angehängt.</p>';
                     foreach ($all_emails as $em) {
-                        if (trim($em) !== '') send_email_with_pdf_attachment(trim($em), $subject, $html, $pdf_content, $filename);
+                        $em = trim($em);
+                        if ($em === '') {
+                            continue;
+                        }
+                        if ($einheit_id > 0 && function_exists('send_email_with_pdf_for_einheit')) {
+                            send_email_with_pdf_for_einheit($em, $subject, $html, $pdf_content, $filename, $einheit_id);
+                        } else {
+                            send_email_with_pdf_attachment($em, $subject, $html, $pdf_content, $filename);
+                        }
                     }
                     try {
                         $db->prepare("UPDATE maengelberichte SET email_sent_at = NOW() WHERE id = ?")->execute([$id]);

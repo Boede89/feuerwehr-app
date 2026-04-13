@@ -6,6 +6,7 @@ session_start();
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/anwesenheitsliste-helper.php';
+require_once __DIR__ . '/includes/einheit-settings-helper.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -25,6 +26,10 @@ if ($einheit_id <= 0 && isset($_SESSION['user_id'])) {
 }
 if ($einheit_id > 0) $_SESSION['current_einheit_id'] = $einheit_id;
 $einheit_param = $einheit_id > 0 ? '?einheit_id=' . (int)$einheit_id : '';
+$settings = [];
+try {
+    $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
+} catch (Exception $e) {}
 
 // Tabellen anlegen
 try {
@@ -151,18 +156,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
             }
 
             // Automatischer E-Mail-Versand (wenn in Einstellungen aktiviert)
-            $email_auto = false;
-            $email_recipients = [];
-            $email_manual = '';
-            try {
-                $stmt_s = $db->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('geraetewartmitteilung_email_auto', 'geraetewartmitteilung_email_recipients', 'geraetewartmitteilung_email_manual')");
-                $stmt_s->execute();
-                foreach ($stmt_s->fetchAll(PDO::FETCH_ASSOC) as $r) {
-                    if ($r['setting_key'] === 'geraetewartmitteilung_email_auto') $email_auto = ($r['setting_value'] ?? '0') === '1';
-                    elseif ($r['setting_key'] === 'geraetewartmitteilung_email_recipients') $email_recipients = json_decode($r['setting_value'] ?? '[]', true) ?: [];
-                    elseif ($r['setting_key'] === 'geraetewartmitteilung_email_manual') $email_manual = trim($r['setting_value'] ?? '');
-                }
-            } catch (Exception $e) {}
+            $email_auto = ($settings['geraetewartmitteilung_email_auto'] ?? '0') === '1';
+            $email_recipients = json_decode($settings['geraetewartmitteilung_email_recipients'] ?? '[]', true) ?: [];
+            $email_manual = trim($settings['geraetewartmitteilung_email_manual'] ?? '');
             $all_emails = [];
             if ($email_auto && (is_array($email_recipients) && !empty($email_recipients) || $email_manual !== '')) {
                 if (!empty($email_recipients)) {
@@ -196,7 +192,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
                         $user_name = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '')) ?: 'Unbekannt';
                         $html = '<p>Eine neue Gerätewartmitteilung wurde eingereicht.</p><p><strong>Typ:</strong> ' . htmlspecialchars($typ === 'einsatz' ? 'Einsatz' : 'Übung') . '<br><strong>Art:</strong> ' . htmlspecialchars($art) . '<br><strong>Datum:</strong> ' . date('d.m.Y', strtotime($datum)) . '<br><strong>Eingereicht von:</strong> ' . htmlspecialchars($user_name) . '</p><p>Die Gerätewartmitteilung ist dieser E-Mail als PDF angehängt.</p>';
                         foreach ($all_emails as $em) {
-                            if (trim($em) !== '') send_email_with_pdf_attachment(trim($em), $subject, $html, $pdf_content, $filename);
+                            $em = trim($em);
+                            if ($em === '') {
+                                continue;
+                            }
+                            if ($einheit_id > 0 && function_exists('send_email_with_pdf_for_einheit')) {
+                                send_email_with_pdf_for_einheit($em, $subject, $html, $pdf_content, $filename, $einheit_id);
+                            } else {
+                                send_email_with_pdf_attachment($em, $subject, $html, $pdf_content, $filename);
+                            }
                         }
                     }
                 }
