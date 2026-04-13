@@ -229,6 +229,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
     <link href="assets/css/style.css" rel="stylesheet">
     <style>
         .gwm-vehicle-card .vehicle-select { min-width: 220px; }
+        .save-processing-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(1px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            pointer-events: all;
+        }
+        .save-processing-overlay.active { display: flex; }
+        .save-processing-box {
+            background: #fff;
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
     </style>
 </head>
 <body>
@@ -407,7 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
                         </div>
 
                         <div class="d-flex flex-wrap gap-2">
-                            <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Gerätewartmitteilung speichern</button>
+                            <button type="submit" class="btn btn-success" id="btnSaveGwm"><i class="fas fa-save"></i> Gerätewartmitteilung speichern</button>
                             <a href="formulare.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Zurück zu Formulare</a>
                         </div>
                     </form>
@@ -416,6 +435,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
         </div>
     </div>
 </main>
+<div id="gwmSaveProcessingOverlay" class="save-processing-overlay" aria-live="polite" aria-hidden="true">
+    <div class="save-processing-box text-center">
+        <div class="spinner-border text-primary mb-2" role="status" aria-hidden="true"></div>
+        <div class="small text-muted">Gerätewartmitteilung wird gespeichert und verarbeitet...</div>
+    </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 (function() {
@@ -522,9 +547,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
         document.getElementById('einsatzleiter_freitext_wrap').style.display = 'block';
     }
 
-    document.getElementById('gwmForm').addEventListener('submit', function() {
+    var form = document.getElementById('gwmForm');
+    var saveBtn = document.getElementById('btnSaveGwm');
+    var overlay = document.getElementById('gwmSaveProcessingOverlay');
+    var submitting = false;
+    function lockUi() {
+        submitting = true;
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Wird gespeichert...';
+        }
+        if (overlay) {
+            overlay.classList.add('active');
+            overlay.setAttribute('aria-hidden', 'false');
+        }
+    }
+    form.addEventListener('submit', function(e) {
+        if (submitting) {
+            e.preventDefault();
+            return false;
+        }
         var checked = document.querySelectorAll('.vehicle-check:checked');
         if (checked.length === 0) {
+            if (overlay) {
+                overlay.classList.remove('active');
+                overlay.setAttribute('aria-hidden', 'true');
+            }
             alert('Bitte wählen Sie mindestens ein Fahrzeug aus.');
             return false;
         }
@@ -532,6 +580,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
             var hid = cb.closest('.vehicle-row').querySelector('.vehicle-id-input');
             if (hid) hid.disabled = false;
         });
+        lockUi();
         return true;
     });
 })();

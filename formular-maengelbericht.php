@@ -225,6 +225,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
+    <style>
+        .save-processing-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(1px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            pointer-events: all;
+        }
+        .save-processing-overlay.active { display: flex; }
+        .save-processing-box {
+            background: #fff;
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -367,10 +388,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <div class="me-auto text-muted small d-none" id="mbProcessingHint" aria-live="polite">
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Wird verarbeitet, bitte warten...
+                </div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelSave">Abbrechen</button>
                 <button type="button" class="btn btn-success" id="btnConfirmSave"><i class="fas fa-check"></i> Ja, speichern</button>
             </div>
         </div>
+    </div>
+</div>
+<div id="mbSaveProcessingOverlay" class="save-processing-overlay" aria-live="polite" aria-hidden="true">
+    <div class="save-processing-box text-center">
+        <div class="spinner-border text-primary mb-2" role="status" aria-hidden="true"></div>
+        <div class="small text-muted">Mängelbericht wird gespeichert und verarbeitet...</div>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -545,21 +576,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
     var btn = document.getElementById('btnSaveMaengelbericht');
     var form = document.getElementById('maengelberichtForm');
     var modal = document.getElementById('saveConfirmModal');
+    var btnConfirm = document.getElementById('btnConfirmSave');
+    var btnCancel = document.getElementById('btnCancelSave');
+    var processingHint = document.getElementById('mbProcessingHint');
+    var processingOverlay = document.getElementById('mbSaveProcessingOverlay');
+    var isSubmitting = false;
+    function setSubmittingState(active) {
+        isSubmitting = !!active;
+        if (btnConfirm) {
+            btnConfirm.disabled = isSubmitting;
+            btnConfirm.innerHTML = isSubmitting
+                ? '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Wird gespeichert...'
+                : '<i class="fas fa-check"></i> Ja, speichern';
+        }
+        if (btnCancel) btnCancel.disabled = isSubmitting;
+        if (processingHint) processingHint.classList.toggle('d-none', !isSubmitting);
+        if (processingOverlay) {
+            processingOverlay.classList.toggle('active', isSubmitting);
+            processingOverlay.setAttribute('aria-hidden', isSubmitting ? 'false' : 'true');
+        }
+    }
     if (btn && form) {
         btn.addEventListener('click', function() {
             if (modal) {
                 new bootstrap.Modal(modal).show();
             } else {
+                setSubmittingState(true);
                 form.submit();
             }
         });
-        var btnConfirm = document.getElementById('btnConfirmSave');
         var cbPrint = document.getElementById('cbPrintAfterSave');
         var inputPrint = document.getElementById('print_after_save');
         if (btnConfirm) {
             btnConfirm.addEventListener('click', function() {
+                if (isSubmitting) return;
                 if (inputPrint) inputPrint.value = (cbPrint && cbPrint.checked) ? '1' : '0';
+                setSubmittingState(true);
                 form.submit();
+            });
+        }
+        if (modal) {
+            modal.addEventListener('hidden.bs.modal', function() {
+                if (!isSubmitting) setSubmittingState(false);
             });
         }
     }
