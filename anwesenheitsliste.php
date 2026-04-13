@@ -97,6 +97,11 @@ try {
         /* Spalte existiert bereits */
     }
     try {
+        $db->exec("ALTER TABLE dienstplan ADD COLUMN preselected_member_group_id INT NULL");
+    } catch (Exception $e2) {
+        /* Spalte existiert bereits */
+    }
+    try {
         $db->exec("
             CREATE TABLE IF NOT EXISTS dienstplan_ausbilder (
                 dienstplan_id INT NOT NULL,

@@ -211,6 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
         $uhrzeit = trim($_POST['dienstplan_uhrzeit'] ?? '');
         $uhrzeit_ende = trim($_POST['dienstplan_uhrzeit_ende'] ?? '');
         $ausbilder_ids = isset($_POST['dienstplan_ausbilder']) && is_array($_POST['dienstplan_ausbilder']) ? array_filter(array_map('intval', $_POST['dienstplan_ausbilder'])) : [];
+        $preselected_member_group_id_post = isset($_POST['dienstplan_preselected_member_group_id']) ? (int)$_POST['dienstplan_preselected_member_group_id'] : 0;
         $typen = get_dienstplan_typen_auswahl();
         $typ = array_key_exists($typ_raw, $typen) ? $typ_raw : 'uebungsdienst';
         $thema_value = ($typ === 'uebungsdienst') ? ($thema === '__neu__' ? $thema_neu : $thema) : $beschreibung;
@@ -227,9 +228,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                 $res_einheit = get_admin_einheit_filter();
                 try { $db->exec("ALTER TABLE dienstplan ADD COLUMN einheit_id INT NULL"); } catch (Exception $e2) {}
                 try { $db->exec("ALTER TABLE dienstplan MODIFY COLUMN einheit_id INT NULL DEFAULT NULL"); } catch (Exception $e2) {}
+                try { $db->exec("ALTER TABLE dienstplan ADD COLUMN preselected_member_group_id INT NULL"); } catch (Exception $e2) {}
+                $preselected_gid_save = null;
+                if ($typ === 'sonstiges' && $preselected_member_group_id_post > 0 && $res_einheit > 0) {
+                    $chk_g = $db->prepare("SELECT id FROM member_groups WHERE id = ? AND einheit_id = ?");
+                    $chk_g->execute([$preselected_member_group_id_post, $res_einheit]);
+                    if ($chk_g->fetch()) {
+                        $preselected_gid_save = $preselected_member_group_id_post;
+                    }
+                }
                 if ($id) {
-                    $stmt = $db->prepare("UPDATE dienstplan SET datum = ?, bezeichnung = ?, typ = ?, uhrzeit_dienstbeginn = ?, uhrzeit_dienstende = ?, einheit_id = ? WHERE id = ?");
-                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $uhrzeit_ende_val, $res_einheit > 0 ? $res_einheit : null, $id]);
+                    $stmt = $db->prepare("UPDATE dienstplan SET datum = ?, bezeichnung = ?, typ = ?, uhrzeit_dienstbeginn = ?, uhrzeit_dienstende = ?, einheit_id = ?, preselected_member_group_id = ? WHERE id = ?");
+                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $uhrzeit_ende_val, $res_einheit > 0 ? $res_einheit : null, $preselected_gid_save, $id]);
                     $db->prepare("DELETE FROM dienstplan_ausbilder WHERE dienstplan_id = ?")->execute([$id]);
                     foreach ($ausbilder_ids as $mid) {
                         if ($mid > 0) {
@@ -238,8 +248,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['form_center_csrf']) &
                     }
                     $message = 'Dienstplan-Eintrag wurde aktualisiert.';
                 } else {
-                    $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ, uhrzeit_dienstbeginn, uhrzeit_dienstende, einheit_id) VALUES (?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $uhrzeit_ende_val, $res_einheit > 0 ? $res_einheit : null]);
+                    $stmt = $db->prepare("INSERT INTO dienstplan (datum, bezeichnung, typ, uhrzeit_dienstbeginn, uhrzeit_dienstende, einheit_id, preselected_member_group_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$datum, $thema_value, $typ, $uhrzeit_val, $uhrzeit_ende_val, $res_einheit > 0 ? $res_einheit : null, $preselected_gid_save]);
                     $new_id = (int)$db->lastInsertId();
                     foreach ($ausbilder_ids as $mid) {
                         if ($mid > 0) {
@@ -518,6 +528,8 @@ $submissions_total = count($submissions) + count($anwesenheitslisten) + count($m
 // Quellen: a.bezeichnung, d.bezeichnung, custom_data->beschreibung
 // Typen: dienst (sonstiges, jahreshauptversammlung) + manuell Sonstiges/JHV
 $beschreibung_optionen_sonstiges = [];
+$dienstplan_beschreibung_vorlagen = [];
+$member_groups_dienstplan = [];
 $typ_cond_sonst = "((a.typ = 'dienst' AND d.typ IN ('sonstiges', 'jahreshauptversammlung')) OR (a.typ = 'manuell' AND (a.bezeichnung IN ('Sonstiges', 'Jahreshauptversammlung') OR (a.custom_data IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')) IN ('sonstiges', 'jahreshauptversammlung')))))";
 try {
     $seen = [];
@@ -534,6 +546,65 @@ try {
         if ($b !== '' && !in_array($b, $seen)) { $seen[] = $b; $beschreibung_optionen_sonstiges[] = $b; }
     }
     sort($beschreibung_optionen_sonstiges);
+    // Zusätzlich: Bezeichnungen aus dem Dienstplan (Sonstiges / JHV) für Modal-Dropdown
+    $dienstplan_beschreibung_extra = [];
+    try {
+        $sql_bez = "SELECT DISTINCT TRIM(bezeichnung) AS b FROM dienstplan WHERE typ IN ('sonstiges', 'jahreshauptversammlung') AND TRIM(COALESCE(bezeichnung, '')) != ''";
+        $params_bez = [];
+        if ($einheit_filter) {
+            $sql_bez .= " AND (einheit_id = ? OR einheit_id IS NULL)";
+            $params_bez[] = $einheit_filter;
+        }
+        $sql_bez .= " ORDER BY b";
+        if ($params_bez) {
+            $stmt_bez = $db->prepare($sql_bez);
+            $stmt_bez->execute($params_bez);
+        } else {
+            $stmt_bez = $db->query($sql_bez);
+        }
+        while ($row_b = $stmt_bez->fetch(PDO::FETCH_ASSOC)) {
+            $b = trim((string)($row_b['b'] ?? ''));
+            if ($b !== '') {
+                $dienstplan_beschreibung_extra[] = $b;
+            }
+        }
+    } catch (Exception $e) {
+        // ignore
+    }
+    $seen_vorlagen = [];
+    $dienstplan_beschreibung_vorlagen = [];
+    foreach (array_merge($beschreibung_optionen_sonstiges, $dienstplan_beschreibung_extra) as $v) {
+        $v = trim((string)$v);
+        if ($v === '' || isset($seen_vorlagen[$v])) {
+            continue;
+        }
+        $seen_vorlagen[$v] = true;
+        $dienstplan_beschreibung_vorlagen[] = $v;
+    }
+    sort($dienstplan_beschreibung_vorlagen, SORT_NATURAL | SORT_FLAG_CASE);
+
+    $member_groups_dienstplan = [];
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS member_groups (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                einheit_id INT NOT NULL,
+                group_name VARCHAR(120) NOT NULL,
+                description TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_group_per_einheit (einheit_id, group_name),
+                INDEX idx_member_groups_einheit (einheit_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+        if ($einheit_filter > 0) {
+            $stmt_mg = $db->prepare("SELECT id, group_name FROM member_groups WHERE einheit_id = ? ORDER BY group_name");
+            $stmt_mg->execute([$einheit_filter]);
+            $member_groups_dienstplan = $stmt_mg->fetchAll(PDO::FETCH_ASSOC);
+        }
+    } catch (Exception $e) {
+        $member_groups_dienstplan = [];
+    }
 } catch (Exception $e) {
     // Tabellen können fehlen
 }
@@ -1055,8 +1126,28 @@ try {
                             </div>
                         </div>
                         <div class="mb-3" id="dienstplan_beschreibung_wrap" style="display: none;">
+                            <div class="mb-2" id="dienstplan_sonstiges_vorlagen_row" style="display: none;">
+                                <label for="dienstplan_beschreibung_vorlage" class="form-label">Bekannte Beschreibung übernehmen</label>
+                                <select class="form-select" id="dienstplan_beschreibung_vorlage">
+                                    <option value="">— Freie Eingabe oder unten wählen —</option>
+                                    <?php foreach ($dienstplan_beschreibung_vorlagen ?? [] as $vz): ?>
+                                    <option value="<?php echo htmlspecialchars($vz); ?>"><?php echo htmlspecialchars($vz); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="form-text">Füllt das Feld „Beschreibung“; Sie können den Text danach noch anpassen.</div>
+                            </div>
                             <label for="dienstplan_beschreibung" class="form-label">Beschreibung *</label>
-                            <input type="text" class="form-control" id="dienstplan_beschreibung" name="dienstplan_beschreibung" placeholder="z.B. Jahreshauptversammlung, Geräteprüfung, ...">
+                            <input type="text" class="form-control" id="dienstplan_beschreibung" name="dienstplan_beschreibung" placeholder="z.B. Jahreshauptversammlung, Geräteprüfung, ..." autocomplete="off">
+                            <div class="mt-3" id="dienstplan_gruppe_wrap" style="display: none;">
+                                <label for="dienstplan_preselected_member_group_id" class="form-label">Personengruppe (Anwesenheit vorausgewählt)</label>
+                                <select class="form-select" id="dienstplan_preselected_member_group_id" name="dienstplan_preselected_member_group_id">
+                                    <option value="">— Keine Vorauswahl —</option>
+                                    <?php foreach ($member_groups_dienstplan ?? [] as $mg): ?>
+                                    <option value="<?php echo (int)$mg['id']; ?>"><?php echo htmlspecialchars($mg['group_name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="form-text">Beim Ausfüllen der Anwesenheitsliste sind diese Personen zunächst als anwesend markiert; die Auswahl bleibt jederzeit änderbar.</div>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label for="dienstplan_uhrzeit" class="form-label">Uhrzeit Dienstbeginn</label>
@@ -1334,20 +1425,45 @@ try {
                 themaNeuWrap.style.display = 'none';
                 if (beschreibungEl) beschreibungEl.value = '';
             }
+            var vorlageSel = document.getElementById('dienstplan_beschreibung_vorlage');
+            if (vorlageSel) {
+                vorlageSel.value = '';
+                if (typ === 'sonstiges' && entry && entry.bezeichnung && beschreibungEl && beschreibungEl.value) {
+                    var opts = Array.from(vorlageSel.options);
+                    var hit = opts.some(function(o) { return o.value === beschreibungEl.value; });
+                    if (hit) vorlageSel.value = beschreibungEl.value;
+                }
+            }
+            var gruppeSel = document.getElementById('dienstplan_preselected_member_group_id');
+            if (gruppeSel) {
+                var pg = entry && entry.preselected_member_group_id != null && entry.preselected_member_group_id !== '' ? parseInt(entry.preselected_member_group_id, 10) : '';
+                gruppeSel.value = pg === '' || isNaN(pg) ? '' : String(pg);
+            }
             if (themaSel) themaSel.dispatchEvent(new Event('change'));
         }
         function updateDienstplanTypFields() {
             var typ = (document.getElementById('dienstplan_typ') || {}).value || 'uebungsdienst';
             var themaWrap = document.getElementById('dienstplan_thema_wrap');
             var beschreibungWrap = document.getElementById('dienstplan_beschreibung_wrap');
+            var vorlagenRow = document.getElementById('dienstplan_sonstiges_vorlagen_row');
+            var gruppeWrap = document.getElementById('dienstplan_gruppe_wrap');
             if (themaWrap) themaWrap.style.display = (typ === 'uebungsdienst') ? 'block' : 'none';
             if (beschreibungWrap) beschreibungWrap.style.display = (typ === 'sonstiges' || typ === 'einsatz') ? 'block' : 'none';
+            if (vorlagenRow) vorlagenRow.style.display = (typ === 'sonstiges') ? 'block' : 'none';
+            if (gruppeWrap) gruppeWrap.style.display = (typ === 'sonstiges') ? 'block' : 'none';
             var thema = document.getElementById('dienstplan_thema');
             var beschreibung = document.getElementById('dienstplan_beschreibung');
             if (thema) thema.required = (typ === 'uebungsdienst');
             if (beschreibung) beschreibung.required = (typ === 'sonstiges' || typ === 'einsatz');
         }
         document.getElementById('dienstplan_typ').addEventListener('change', updateDienstplanTypFields);
+        (function() {
+            var vs = document.getElementById('dienstplan_beschreibung_vorlage');
+            if (vs) vs.addEventListener('change', function() {
+                var b = document.getElementById('dienstplan_beschreibung');
+                if (b && this.value) b.value = this.value;
+            });
+        })();
         document.getElementById('dienstplan_thema').addEventListener('change', function() {
             var wrap = document.getElementById('dienstplan_thema_neu_wrap');
             wrap.style.display = this.value === '__neu__' ? 'block' : 'none';
