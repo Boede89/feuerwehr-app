@@ -60,8 +60,19 @@ try {
     if ($umfrage_mode && $einheit_id > 0) {
         // Häufigkeit: wie oft war Mitglied in Anwesenheitslisten dieser Einheit
         $stmt = $db->prepare("
-            SELECT m.id, m.first_name, m.last_name, COALESCE(f.cnt, 0) AS freq
+            SELECT m.id, m.first_name, m.last_name, COALESCE(f.cnt, 0) AS freq,
+                   COALESCE(mgdata.group_ids, '') AS group_ids,
+                   COALESCE(mgdata.group_names, '') AS group_names
             FROM members m
+            LEFT JOIN (
+                SELECT 
+                    mgm.member_id,
+                    GROUP_CONCAT(mg.id ORDER BY mg.group_name SEPARATOR ',') AS group_ids,
+                    GROUP_CONCAT(mg.group_name ORDER BY mg.group_name SEPARATOR ', ') AS group_names
+                FROM member_group_members mgm
+                INNER JOIN member_groups mg ON mg.id = mgm.group_id
+                GROUP BY mgm.member_id
+            ) mgdata ON mgdata.member_id = m.id
             LEFT JOIN (
                 SELECT am.member_id, COUNT(*) AS cnt
                 FROM anwesenheitsliste_mitglieder am
@@ -85,8 +96,19 @@ try {
         }
     } elseif ($umfrage_mode) {
         $stmt = $db->prepare("
-            SELECT m.id, m.first_name, m.last_name, COALESCE(f.cnt, 0) AS freq
+            SELECT m.id, m.first_name, m.last_name, COALESCE(f.cnt, 0) AS freq,
+                   COALESCE(mgdata.group_ids, '') AS group_ids,
+                   COALESCE(mgdata.group_names, '') AS group_names
             FROM members m
+            LEFT JOIN (
+                SELECT 
+                    mgm.member_id,
+                    GROUP_CONCAT(mg.id ORDER BY mg.group_name SEPARATOR ',') AS group_ids,
+                    GROUP_CONCAT(mg.group_name ORDER BY mg.group_name SEPARATOR ', ') AS group_names
+                FROM member_group_members mgm
+                INNER JOIN member_groups mg ON mg.id = mgm.group_id
+                GROUP BY mgm.member_id
+            ) mgdata ON mgdata.member_id = m.id
             LEFT JOIN (
                 SELECT am.member_id, COUNT(*) AS cnt
                 FROM anwesenheitsliste_mitglieder am
@@ -107,16 +129,61 @@ try {
             });
         }
     } elseif ($einheit_id > 0) {
-        $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? OR einheit_id IS NULL ORDER BY last_name, first_name");
+        $stmt = $db->prepare("
+            SELECT m.id, m.first_name, m.last_name,
+                   COALESCE(mgdata.group_ids, '') AS group_ids,
+                   COALESCE(mgdata.group_names, '') AS group_names
+            FROM members m
+            LEFT JOIN (
+                SELECT 
+                    mgm.member_id,
+                    GROUP_CONCAT(mg.id ORDER BY mg.group_name SEPARATOR ',') AS group_ids,
+                    GROUP_CONCAT(mg.group_name ORDER BY mg.group_name SEPARATOR ', ') AS group_names
+                FROM member_group_members mgm
+                INNER JOIN member_groups mg ON mg.id = mgm.group_id
+                GROUP BY mgm.member_id
+            ) mgdata ON mgdata.member_id = m.id
+            WHERE m.einheit_id = ? OR m.einheit_id IS NULL
+            ORDER BY m.last_name, m.first_name
+        ");
         $stmt->execute([$einheit_id]);
         $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        $stmt = $db->query("SELECT id, first_name, last_name FROM members ORDER BY last_name, first_name");
+        $stmt = $db->query("
+            SELECT m.id, m.first_name, m.last_name,
+                   COALESCE(mgdata.group_ids, '') AS group_ids,
+                   COALESCE(mgdata.group_names, '') AS group_names
+            FROM members m
+            LEFT JOIN (
+                SELECT 
+                    mgm.member_id,
+                    GROUP_CONCAT(mg.id ORDER BY mg.group_name SEPARATOR ',') AS group_ids,
+                    GROUP_CONCAT(mg.group_name ORDER BY mg.group_name SEPARATOR ', ') AS group_names
+                FROM member_group_members mgm
+                INNER JOIN member_groups mg ON mg.id = mgm.group_id
+                GROUP BY mgm.member_id
+            ) mgdata ON mgdata.member_id = m.id
+            ORDER BY m.last_name, m.first_name
+        ");
         $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 } catch (Exception $e) {
     // Tabelle members evtl. in anderem Schema
 }
+// Verfügbare Gruppen für Filter aufbauen
+$available_groups = [];
+foreach ($members as $m) {
+    $ids = array_filter(array_map('trim', explode(',', (string)($m['group_ids'] ?? ''))));
+    $names = array_filter(array_map('trim', explode(',', (string)($m['group_names'] ?? ''))));
+    foreach ($ids as $idx => $gid) {
+        $gid_int = (int)$gid;
+        if ($gid_int <= 0) {
+            continue;
+        }
+        $available_groups[$gid_int] = $names[$idx] ?? ('Gruppe ' . $gid_int);
+    }
+}
+asort($available_groups, SORT_NATURAL | SORT_FLAG_CASE);
 // Fahrzeuge laden (einheitsspezifisch)
 $vehicles = [];
 try {
@@ -296,6 +363,12 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                     <span class="input-group-text"><i class="fas fa-search"></i></span>
                                     <input type="text" class="form-control" id="personalSearch" placeholder="Person suchen..." autocomplete="off">
                                 </div>
+                                <select class="form-select" id="personalGroupFilter" style="min-width: 220px; max-width: 280px;">
+                                    <option value="">Alle Gruppen</option>
+                                    <?php foreach ($available_groups as $gid => $gname): ?>
+                                    <option value="<?php echo (int)$gid; ?>"><?php echo htmlspecialchars($gname); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                                 <?php
                                 $sort_base = '?datum=' . urlencode($datum) . '&auswahl=' . urlencode($auswahl) . '&umfrage=1' . $url_suffix;
                                 if ($typ_key !== '') {
@@ -325,9 +398,9 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                         $pa_checked = isset($member_pa[$m['id']]);
                                         $row_selected = isset($selected_ids[$m['id']]);
                                         $full_name = $m['last_name'] . ', ' . $m['first_name'];
-                                        $search_text = strtolower($full_name . ' ' . ($m['first_name'] ?? '') . ' ' . ($m['last_name'] ?? ''));
+                                        $search_text = strtolower($full_name . ' ' . ($m['first_name'] ?? '') . ' ' . ($m['last_name'] ?? '') . ' ' . ($m['group_names'] ?? ''));
                                     ?>
-                                    <div class="col-6 col-md-4 col-lg-3 personal-card-wrapper" data-search="<?php echo htmlspecialchars($search_text); ?>">
+                                    <div class="col-6 col-md-4 col-lg-3 personal-card-wrapper" data-search="<?php echo htmlspecialchars($search_text); ?>" data-group-ids="<?php echo htmlspecialchars((string)($m['group_ids'] ?? '')); ?>">
                                         <div class="card anw-row h-100 <?php echo $row_selected ? 'selected border-primary' : ''; ?>" data-member-id="<?php echo (int)$m['id']; ?>" style="cursor: pointer; transition: all 0.2s ease; <?php echo $row_selected ? 'background-color: #b6d4fe; box-shadow: 0 0 0 2px var(--bs-primary);' : ''; ?>">
                                             <div class="card-body p-4">
                                                 <input type="hidden" name="member_id[]" value="<?php echo (int)$m['id']; ?>" class="member-id-input" <?php echo $row_selected ? '' : 'disabled'; ?>>
@@ -368,6 +441,14 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                             <?php if (empty($members)): ?>
                                 <p class="text-muted">Keine Mitglieder in der Datenbank. Bitte zuerst in der Mitgliederverwaltung anlegen.</p>
                             <?php else: ?>
+                                <div class="d-flex flex-wrap gap-2 mb-3">
+                                    <select class="form-select" id="personalGroupFilter" style="min-width: 220px; max-width: 280px;">
+                                        <option value="">Alle Gruppen</option>
+                                        <?php foreach ($available_groups as $gid => $gname): ?>
+                                        <option value="<?php echo (int)$gid; ?>"><?php echo htmlspecialchars($gname); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
                                 <div class="table-responsive">
                                     <table class="table table-hover anwesenheit-tabelle">
                                         <thead>
@@ -390,7 +471,7 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                                 $pa_checked = isset($member_pa[$m['id']]);
                                             ?>
                                             <?php $row_selected = isset($selected_ids[$m['id']]); $row_bg = $row_selected ? ' style="background-color: #b6d4fe;"' : ''; ?>
-                                            <tr class="anw-row <?php echo $row_selected ? 'selected' : ''; ?>" data-member-id="<?php echo (int)$m['id']; ?>">
+                                            <tr class="anw-row <?php echo $row_selected ? 'selected' : ''; ?>" data-member-id="<?php echo (int)$m['id']; ?>" data-group-ids="<?php echo htmlspecialchars((string)($m['group_ids'] ?? '')); ?>">
                                                 <td class="name-cell"<?php echo $row_bg; ?>>
                                                     <input type="hidden" name="member_id[]" value="<?php echo (int)$m['id']; ?>" class="member-id-input" <?php echo $row_selected ? '' : 'disabled'; ?>>
                                                     <span class="d-block py-1 <?php echo $row_selected ? 'fw-bold' : ''; ?>"><?php echo htmlspecialchars($m['last_name'] . ', ' . $m['first_name']); ?></span>
@@ -481,15 +562,40 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
         (function() {
             var isCardMode = document.getElementById('personalCardsContainer') !== null;
             var searchInput = document.getElementById('personalSearch');
+            var groupFilter = document.getElementById('personalGroupFilter');
+
+            function groupMatch(groupIdsCsv, selectedGroupId) {
+                if (!selectedGroupId) return true;
+                var ids = String(groupIdsCsv || '').split(',').map(function(v) { return v.trim(); }).filter(Boolean);
+                return ids.indexOf(String(selectedGroupId)) !== -1;
+            }
+
+            function applyPersonalFilters() {
+                var q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+                var selectedGroupId = groupFilter ? groupFilter.value : '';
+                if (isCardMode) {
+                    document.querySelectorAll('.personal-card-wrapper').forEach(function(wrap) {
+                        var searchOk = q === '' || (wrap.getAttribute('data-search') || '').indexOf(q) >= 0;
+                        var groupOk = groupMatch(wrap.getAttribute('data-group-ids') || '', selectedGroupId);
+                        wrap.style.display = (searchOk && groupOk) ? '' : 'none';
+                    });
+                } else {
+                    document.querySelectorAll('.anwesenheit-tabelle tbody .anw-row').forEach(function(row) {
+                        var groupOk = groupMatch(row.getAttribute('data-group-ids') || '', selectedGroupId);
+                        row.style.display = groupOk ? '' : 'none';
+                    });
+                }
+            }
+
             if (searchInput) {
                 searchInput.addEventListener('input', function() {
-                    var q = this.value.trim().toLowerCase();
-                    document.querySelectorAll('.personal-card-wrapper').forEach(function(wrap) {
-                        var show = q === '' || (wrap.getAttribute('data-search') || '').indexOf(q) >= 0;
-                        wrap.style.display = show ? '' : 'none';
-                    });
+                    applyPersonalFilters();
                 });
             }
+            if (groupFilter) {
+                groupFilter.addEventListener('change', applyPersonalFilters);
+            }
+            applyPersonalFilters();
             document.querySelectorAll('.anw-row').forEach(function(row) {
                 var nameCell = row.querySelector('.name-cell');
                 var hiddenInput = row.querySelector('.member-id-input');

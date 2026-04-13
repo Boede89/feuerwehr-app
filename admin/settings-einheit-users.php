@@ -39,6 +39,35 @@ if (!$einheit) {
     exit;
 }
 
+// Gruppen-Tabellen sicherstellen
+try {
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS member_groups (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            einheit_id INT NOT NULL,
+            group_name VARCHAR(120) NOT NULL,
+            description TEXT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_group_per_einheit (einheit_id, group_name),
+            INDEX idx_member_groups_einheit (einheit_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS member_group_members (
+            group_id INT NOT NULL,
+            member_id INT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (group_id, member_id),
+            INDEX idx_mgm_member (member_id),
+            CONSTRAINT fk_mgm_group FOREIGN KEY (group_id) REFERENCES member_groups(id) ON DELETE CASCADE,
+            CONSTRAINT fk_mgm_member FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+} catch (Exception $e) {
+    // ignore
+}
+
 // Neuer Benutzer
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_user') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -92,6 +121,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             } catch (Exception $e) {
                 $error = "Fehler: " . $e->getMessage();
             }
+        }
+    }
+}
+
+// Gruppe anlegen/bearbeiten/löschen
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array($_POST['action'], ['add_group', 'edit_group', 'delete_group'], true)) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = "Ungültiger Sicherheitstoken.";
+    } else {
+        $action = $_POST['action'];
+        $group_name = trim((string)($_POST['group_name'] ?? ''));
+        $description = trim((string)($_POST['description'] ?? ''));
+        $member_ids = $_POST['member_ids'] ?? [];
+        if (!is_array($member_ids)) {
+            $member_ids = [];
+        }
+        $member_ids = array_values(array_unique(array_filter(array_map('intval', $member_ids), function($id) {
+            return $id > 0;
+        })));
+
+        try {
+            if ($action === 'delete_group') {
+                $group_id = (int)($_POST['group_id'] ?? 0);
+                if ($group_id <= 0) {
+                    $error = "Ungültige Gruppe.";
+                } else {
+                    $stmt = $db->prepare("DELETE FROM member_groups WHERE id = ? AND einheit_id = ?");
+                    $stmt->execute([$group_id, $einheit_id]);
+                    header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=group_deleted");
+                    exit;
+                }
+            } else {
+                if ($group_name === '') {
+                    $error = "Bitte einen Gruppennamen angeben.";
+                } else {
+                    $db->beginTransaction();
+                    $group_id = (int)($_POST['group_id'] ?? 0);
+                    if ($action === 'add_group') {
+                        $stmt = $db->prepare("INSERT INTO member_groups (einheit_id, group_name, description) VALUES (?, ?, ?)");
+                        $stmt->execute([$einheit_id, $group_name, $description !== '' ? $description : null]);
+                        $group_id = (int)$db->lastInsertId();
+                    } else {
+                        $stmt = $db->prepare("UPDATE member_groups SET group_name = ?, description = ? WHERE id = ? AND einheit_id = ?");
+                        $stmt->execute([$group_name, $description !== '' ? $description : null, $group_id, $einheit_id]);
+                    }
+
+                    $stmt_del = $db->prepare("DELETE FROM member_group_members WHERE group_id = ?");
+                    $stmt_del->execute([$group_id]);
+
+                    if (!empty($member_ids)) {
+                        $placeholders = implode(',', array_fill(0, count($member_ids), '?'));
+                        $params = array_merge([$einheit_id], $member_ids);
+                        $stmt_valid = $db->prepare("SELECT id FROM members WHERE einheit_id = ? AND id IN ($placeholders)");
+                        $stmt_valid->execute($params);
+                        $valid_member_ids = array_map('intval', $stmt_valid->fetchAll(PDO::FETCH_COLUMN));
+                        $stmt_ins = $db->prepare("INSERT INTO member_group_members (group_id, member_id) VALUES (?, ?)");
+                        foreach ($valid_member_ids as $member_id) {
+                            $stmt_ins->execute([$group_id, $member_id]);
+                        }
+                    }
+
+                    $db->commit();
+                    header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=" . ($action === 'add_group' ? 'group_added' : 'group_updated'));
+                    exit;
+                }
+            }
+        } catch (Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            $error = "Fehler: " . $e->getMessage();
         }
     }
 }
@@ -353,6 +453,9 @@ if (isset($_GET['success'])) {
     if ($_GET['success'] === 'system_updated') $message = "Systembenutzer wurde aktualisiert.";
     if ($_GET['success'] === 'user_deleted') $message = "Benutzer wurde gelöscht.";
     if ($_GET['success'] === 'system_deleted') $message = "Systembenutzer wurde gelöscht.";
+    if ($_GET['success'] === 'group_added') $message = "Gruppe wurde angelegt.";
+    if ($_GET['success'] === 'group_updated') $message = "Gruppe wurde aktualisiert.";
+    if ($_GET['success'] === 'group_deleted') $message = "Gruppe wurde gelöscht.";
 }
 
 // Sicherstellen, dass alle Berechtigungsspalten existieren
@@ -384,6 +487,35 @@ try {
     $stmt = $db->prepare("SELECT id, username, first_name, last_name, is_active, autologin_token, autologin_expires, created_at, can_reservations, can_atemschutz, can_forms_fill FROM users WHERE einheit_id = ? AND is_system_user = 1 ORDER BY username");
     $stmt->execute([$einheit_id]);
     $system_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
+$einheit_members_for_groups = [];
+try {
+    $stmt = $db->prepare("SELECT id, first_name, last_name FROM members WHERE einheit_id = ? ORDER BY last_name, first_name");
+    $stmt->execute([$einheit_id]);
+    $einheit_members_for_groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
+$member_groups = [];
+try {
+    $stmt = $db->prepare("
+        SELECT 
+            g.id,
+            g.group_name,
+            g.description,
+            g.created_at,
+            COUNT(gm.member_id) AS member_count,
+            GROUP_CONCAT(gm.member_id ORDER BY gm.member_id SEPARATOR ',') AS member_ids,
+            GROUP_CONCAT(CONCAT(m.last_name, ', ', m.first_name) ORDER BY m.last_name, m.first_name SEPARATOR ' | ') AS member_names
+        FROM member_groups g
+        LEFT JOIN member_group_members gm ON gm.group_id = g.id
+        LEFT JOIN members m ON m.id = gm.member_id
+        WHERE g.einheit_id = ?
+        GROUP BY g.id, g.group_name, g.description, g.created_at
+        ORDER BY g.group_name
+    ");
+    $stmt->execute([$einheit_id]);
+    $member_groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 ?>
 <!DOCTYPE html>
@@ -620,6 +752,145 @@ try {
                 <?php if (empty($system_users)): ?>
                 <p class="text-muted mb-0">Noch keine Systembenutzer. Klicken Sie auf „Neuer Systembenutzer“ um einen Autologin-Link für Tablets o.ä. anzulegen.</p>
                 <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-layer-group text-primary"></i> Gruppen für Mitglieder</h5>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addGroupModal">
+                    <i class="fas fa-plus"></i> Gruppe anlegen
+                </button>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">Hier legen Sie Gruppen für die Mitgliederverwaltung an und können Mitglieder direkt zuordnen.</p>
+                <?php if (empty($member_groups)): ?>
+                    <p class="text-muted mb-0">Noch keine Gruppen vorhanden.</p>
+                <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Gruppe</th>
+                                <th>Beschreibung</th>
+                                <th>Mitglieder</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($member_groups as $group): ?>
+                            <tr>
+                                <td><strong><?php echo htmlspecialchars($group['group_name']); ?></strong></td>
+                                <td><?php echo htmlspecialchars($group['description'] ?? '-'); ?></td>
+                                <td>
+                                    <span class="badge bg-secondary"><?php echo (int)$group['member_count']; ?></span>
+                                    <?php if (!empty($group['member_names'])): ?>
+                                        <div class="small text-muted mt-1"><?php echo htmlspecialchars(str_replace(' | ', ', ', $group['member_names'])); ?></div>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="d-flex gap-2">
+                                    <button type="button"
+                                            class="btn btn-outline-primary btn-sm"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#editGroupModal"
+                                            data-group-id="<?php echo (int)$group['id']; ?>"
+                                            data-group-name="<?php echo htmlspecialchars($group['group_name'], ENT_QUOTES); ?>"
+                                            data-group-description="<?php echo htmlspecialchars($group['description'] ?? '', ENT_QUOTES); ?>"
+                                            data-member-ids="<?php echo htmlspecialchars($group['member_ids'] ?? '', ENT_QUOTES); ?>">
+                                        <i class="fas fa-edit"></i> Bearbeiten
+                                    </button>
+                                    <form method="POST" onsubmit="return confirm('Gruppe wirklich löschen?');">
+                                        <input type="hidden" name="action" value="delete_group">
+                                        <input type="hidden" name="group_id" value="<?php echo (int)$group['id']; ?>">
+                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            <i class="fas fa-trash"></i> Löschen
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addGroupModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="action" value="add_group">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-layer-group"></i> Gruppe anlegen</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label" for="group_name_add">Gruppenname *</label>
+                            <input type="text" class="form-control" name="group_name" id="group_name_add" required maxlength="120">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="group_description_add">Beschreibung</label>
+                            <textarea class="form-control" name="description" id="group_description_add" rows="2"></textarea>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label" for="group_members_add">Mitglieder zuordnen</label>
+                            <select class="form-select" name="member_ids[]" id="group_members_add" multiple size="8">
+                                <?php foreach ($einheit_members_for_groups as $member): ?>
+                                <option value="<?php echo (int)$member['id']; ?>"><?php echo htmlspecialchars(trim(($member['last_name'] ?? '') . ', ' . ($member['first_name'] ?? ''))); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="text-muted">Mehrfachauswahl mit Strg bzw. Umschalt-Taste.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editGroupModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="action" value="edit_group">
+                    <input type="hidden" name="group_id" id="edit_group_id">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-edit"></i> Gruppe bearbeiten</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label" for="edit_group_name">Gruppenname *</label>
+                            <input type="text" class="form-control" name="group_name" id="edit_group_name" required maxlength="120">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="edit_group_description">Beschreibung</label>
+                            <textarea class="form-control" name="description" id="edit_group_description" rows="2"></textarea>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label" for="edit_group_members">Mitglieder zuordnen</label>
+                            <select class="form-select" name="member_ids[]" id="edit_group_members" multiple size="8">
+                                <?php foreach ($einheit_members_for_groups as $member): ?>
+                                <option value="<?php echo (int)$member['id']; ?>"><?php echo htmlspecialchars(trim(($member['last_name'] ?? '') . ', ' . ($member['first_name'] ?? ''))); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="text-muted">Mehrfachauswahl mit Strg bzw. Umschalt-Taste.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -1075,6 +1346,23 @@ try {
             document.getElementById('edit_sys_can_atemschutz').checked = btn.dataset.canAtemschutz == '1';
             document.getElementById('edit_sys_can_forms_fill').checked = btn.dataset.canFormsFill == '1';
         });
+        var editGroupModalEl = document.getElementById('editGroupModal');
+        if (editGroupModalEl) {
+            editGroupModalEl.addEventListener('show.bs.modal', function(e) {
+                var btn = e.relatedTarget;
+                if (!btn) return;
+                document.getElementById('edit_group_id').value = btn.dataset.groupId || '';
+                document.getElementById('edit_group_name').value = btn.dataset.groupName || '';
+                document.getElementById('edit_group_description').value = btn.dataset.groupDescription || '';
+                var selectedIds = (btn.dataset.memberIds || '').split(',').map(function(v) { return v.trim(); }).filter(function(v) { return v !== ''; });
+                var select = document.getElementById('edit_group_members');
+                if (select) {
+                    Array.prototype.forEach.call(select.options, function(opt) {
+                        opt.selected = selectedIds.indexOf(opt.value) !== -1;
+                    });
+                }
+            });
+        }
         document.querySelectorAll('.btn-show-autologin').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 var userId = this.dataset.userId;

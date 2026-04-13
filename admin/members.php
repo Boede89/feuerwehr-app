@@ -276,9 +276,45 @@ try {
         // Spalte existiert bereits
     }
     try {
+        $db->exec("ALTER TABLE members ADD COLUMN einheit_id INT NULL");
+    } catch (Exception $e) {
+        // Spalte existiert bereits
+    }
+    try {
         $db->exec("ALTER TABLE members ADD CONSTRAINT fk_members_qualification FOREIGN KEY (qualification_id) REFERENCES member_qualifications(id) ON DELETE SET NULL");
     } catch (Exception $e) {
         // FK existiert bereits oder Tabelle noch ohne Spalte
+    }
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS member_groups (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                einheit_id INT NOT NULL,
+                group_name VARCHAR(120) NOT NULL,
+                description TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_group_per_einheit (einheit_id, group_name),
+                INDEX idx_member_groups_einheit (einheit_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+    } catch (Exception $e) {
+        // ignore
+    }
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS member_group_members (
+                group_id INT NOT NULL,
+                member_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (group_id, member_id),
+                INDEX idx_mgm_member (member_id),
+                CONSTRAINT fk_mgm_group FOREIGN KEY (group_id) REFERENCES member_groups(id) ON DELETE CASCADE,
+                CONSTRAINT fk_mgm_member FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+    } catch (Exception $e) {
+        // ignore
     }
     
     // member_courses Tabelle erstellen (Lehrgangszuweisungen)
@@ -425,6 +461,8 @@ try {
                 m.einheit_id,
                 m.divera_ucr_id,
                 q.name as qualification_name,
+                COALESCE(mgdata.group_names, '') as group_names,
+                COALESCE(mgdata.group_ids, '') as group_ids,
                 CASE 
                     WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
                     ELSE COALESCE(m.is_pa_traeger, 0)
@@ -438,6 +476,15 @@ try {
             FROM users u
             INNER JOIN members m ON m.user_id = u.id
             LEFT JOIN member_qualifications q ON q.id = m.qualification_id
+            LEFT JOIN (
+                SELECT 
+                    mgm.member_id,
+                    GROUP_CONCAT(mg.group_name ORDER BY mg.group_name SEPARATOR ', ') as group_names,
+                    GROUP_CONCAT(mg.id ORDER BY mg.group_name SEPARATOR ',') as group_ids
+                FROM member_group_members mgm
+                INNER JOIN member_groups mg ON mg.id = mgm.group_id
+                GROUP BY mgm.member_id
+            ) mgdata ON mgdata.member_id = m.id
             LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
             WHERE u.is_active = 1 $einheit_where_full $exclude_other_full
             ORDER BY u.last_name, u.first_name
@@ -457,6 +504,8 @@ try {
                     m.einheit_id,
                     m.divera_ucr_id,
                     q.name as qualification_name,
+                    COALESCE(mgdata.group_names, '') as group_names,
+                    COALESCE(mgdata.group_ids, '') as group_ids,
                     CASE 
                         WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
                         ELSE COALESCE(m.is_pa_traeger, 0)
@@ -470,6 +519,15 @@ try {
                 FROM users u
                 INNER JOIN members m ON m.user_id = u.id
                 LEFT JOIN member_qualifications q ON q.id = m.qualification_id
+                LEFT JOIN (
+                    SELECT 
+                        mgm.member_id,
+                        GROUP_CONCAT(mg.group_name ORDER BY mg.group_name SEPARATOR ', ') as group_names,
+                        GROUP_CONCAT(mg.id ORDER BY mg.group_name SEPARATOR ',') as group_ids
+                    FROM member_group_members mgm
+                    INNER JOIN member_groups mg ON mg.id = mgm.group_id
+                    GROUP BY mgm.member_id
+                ) mgdata ON mgdata.member_id = m.id
                 LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
                 WHERE u.is_active = 1 $einheit_where_simple
                 ORDER BY u.last_name, u.first_name
@@ -493,6 +551,8 @@ try {
             m.einheit_id,
             m.divera_ucr_id,
             q.name as qualification_name,
+            COALESCE(mgdata.group_names, '') as group_names,
+            COALESCE(mgdata.group_ids, '') as group_ids,
             CASE 
                 WHEN EXISTS (SELECT 1 FROM atemschutz_traeger at2 WHERE at2.member_id = m.id) THEN 1
                 ELSE COALESCE(m.is_pa_traeger, 0)
@@ -505,6 +565,15 @@ try {
             'member' as source
         FROM members m
         LEFT JOIN member_qualifications q ON q.id = m.qualification_id
+        LEFT JOIN (
+            SELECT 
+                mgm.member_id,
+                GROUP_CONCAT(mg.group_name ORDER BY mg.group_name SEPARATOR ', ') as group_names,
+                GROUP_CONCAT(mg.id ORDER BY mg.group_name SEPARATOR ',') as group_ids
+            FROM member_group_members mgm
+            INNER JOIN member_groups mg ON mg.id = mgm.group_id
+            GROUP BY mgm.member_id
+        ) mgdata ON mgdata.member_id = m.id
         LEFT JOIN atemschutz_traeger at ON at.member_id = m.id
         WHERE m.user_id IS NULL $einheit_where_simple
         ORDER BY m.last_name, m.first_name
@@ -547,6 +616,19 @@ try {
     
 } catch (Exception $e) {
     $error = 'Fehler beim Laden der Mitglieder: ' . $e->getMessage();
+}
+
+$member_groups = [];
+try {
+    $groups_einheit = $ef > 0 ? $ef : (function_exists('get_current_einheit_id') ? ((int)get_current_einheit_id() ?: 1) : 1);
+    if ($groups_einheit <= 0) {
+        $groups_einheit = 1;
+    }
+    $stmt_groups = $db->prepare("SELECT id, group_name FROM member_groups WHERE einheit_id = ? ORDER BY group_name");
+    $stmt_groups->execute([$groups_einheit]);
+    $member_groups = $stmt_groups->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // ignore
 }
 
 // Standardqualifikation aus Einstellungen laden (einheitsspezifisch)
@@ -858,6 +940,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_ric_assignments'
     }
 }
 
+$save_member_groups = function($member_id, $group_ids, $einheit_id) use ($db) {
+    $member_id = (int)$member_id;
+    $einheit_id = (int)$einheit_id;
+    if ($member_id <= 0 || $einheit_id <= 0) {
+        return;
+    }
+
+    $stmt_delete = $db->prepare("
+        DELETE mgm
+        FROM member_group_members mgm
+        INNER JOIN member_groups mg ON mg.id = mgm.group_id
+        WHERE mgm.member_id = ? AND mg.einheit_id = ?
+    ");
+    $stmt_delete->execute([$member_id, $einheit_id]);
+
+    if (empty($group_ids) || !is_array($group_ids)) {
+        return;
+    }
+
+    $group_ids = array_values(array_unique(array_filter(array_map('intval', $group_ids), function($id) {
+        return $id > 0;
+    })));
+    if (empty($group_ids)) {
+        return;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($group_ids), '?'));
+    $params = array_merge([$einheit_id], $group_ids);
+    $stmt_valid = $db->prepare("SELECT id FROM member_groups WHERE einheit_id = ? AND id IN ($placeholders)");
+    $stmt_valid->execute($params);
+    $valid_group_ids = array_map('intval', $stmt_valid->fetchAll(PDO::FETCH_COLUMN));
+    if (empty($valid_group_ids)) {
+        return;
+    }
+
+    $stmt_insert = $db->prepare("INSERT IGNORE INTO member_group_members (group_id, member_id) VALUES (?, ?)");
+    foreach ($valid_group_ids as $group_id) {
+        $stmt_insert->execute([$group_id, $member_id]);
+    }
+};
+
 // Mitglied hinzufügen
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_member') {
     if (!has_permission_write('members')) {
@@ -882,6 +1005,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $divera_ucr_id_new = (int) preg_replace('/[^\d-]/', '', (string) ($_POST['divera_ucr_id'] ?? ''));
         if ($divera_ucr_id_new <= 0) {
             $divera_ucr_id_new = null;
+        }
+        $group_ids = $_POST['group_ids'] ?? [];
+        if (!is_array($group_ids)) {
+            $group_ids = [];
         }
         
         if (empty($first_name) || empty($last_name)) {
@@ -1034,6 +1161,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     ]);
                     
                     $new_member_id = $db->lastInsertId();
+                    $member_einheit_id = (int)$einheit_id > 0 ? (int)$einheit_id : 1;
+                    $save_member_groups($new_member_id, $group_ids, $member_einheit_id);
                     
                     // RIC-Zuweisungen speichern (nur wenn can_ric und RICs übergeben wurden)
                     if ($can_ric && isset($_POST['ric_ids']) && is_array($_POST['ric_ids'])) {
@@ -1262,6 +1391,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if ($divera_ucr_id_edit <= 0) {
             $divera_ucr_id_edit = null;
         }
+        $group_ids = $_POST['group_ids'] ?? [];
+        if (!is_array($group_ids)) {
+            $group_ids = [];
+        }
         
         if (empty($first_name) || empty($last_name)) {
             $error = 'Bitte geben Sie Vorname und Nachname ein.';
@@ -1440,6 +1573,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $divera_ucr_id_edit,
                             $member_id
                         ]);
+                        $member_einheit_stmt = $db->prepare("SELECT COALESCE(einheit_id, 1) FROM members WHERE id = ?");
+                        $member_einheit_stmt->execute([$member_id]);
+                        $member_einheit_id = (int)$member_einheit_stmt->fetchColumn();
+                        if ($member_einheit_id <= 0) {
+                            $member_einheit_id = 1;
+                        }
+                        $save_member_groups($member_id, $group_ids, $member_einheit_id);
                         
                         // Wenn PA-Träger deaktiviert, lösche den zugehörigen Geräteträger
                         if ($is_pa_traeger == 0) {
@@ -2046,6 +2186,12 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                         <i class="fas fa-search"></i>
                                     </span>
                                     <input type="text" class="form-control" id="memberSearchInput" placeholder="Mitglied suchen (Vorname, Nachname, E-Mail, Telefon, Geburtsdatum...)" autocomplete="off">
+                                    <select class="form-select" id="memberGroupFilter" style="max-width: 260px;">
+                                        <option value="">Alle Gruppen</option>
+                                        <?php foreach ($member_groups as $group): ?>
+                                        <option value="<?php echo (int)$group['id']; ?>"><?php echo htmlspecialchars($group['group_name']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
                                     <button class="btn btn-outline-secondary" type="button" id="clearSearchBtn" style="display: none;">
                                         <i class="fas fa-times"></i>
                                     </button>
@@ -2061,6 +2207,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             <th>Geburtsdatum</th>
                                             <th>Telefon</th>
                                             <th>Qualifikation</th>
+                                            <th>Gruppen</th>
                                             <th>Aktionen</th>
                                         </tr>
                                     </thead>
@@ -2069,8 +2216,9 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                         <tr style="cursor: pointer;" 
                                             data-member-id="<?php echo htmlspecialchars($member['member_id'] ?? ''); ?>"
                                             data-member-data="<?php echo htmlspecialchars(json_encode($member)); ?>"
+                                            data-group-ids="<?php echo htmlspecialchars((string)($member['group_ids'] ?? '')); ?>"
                                             class="member-row"
-                                            data-search-text="<?php echo htmlspecialchars(strtolower($member['first_name'] . ' ' . $member['last_name'] . ' ' . ($member['email'] ?? '') . ' ' . ($member['phone'] ?? '') . ' ' . ($member['qualification_name'] ?? '') . ' ' . ($member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : ''))); ?>"
+                                            data-search-text="<?php echo htmlspecialchars(strtolower($member['first_name'] . ' ' . $member['last_name'] . ' ' . ($member['email'] ?? '') . ' ' . ($member['phone'] ?? '') . ' ' . ($member['qualification_name'] ?? '') . ' ' . ($member['group_names'] ?? '') . ' ' . ($member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : ''))); ?>"
                                             onmouseover="this.style.backgroundColor='#f8f9fa'" 
                                             onmouseout="this.style.backgroundColor=''">
                                             <td>
@@ -2081,6 +2229,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                             <td><?php echo $member['birthdate'] ? date('d.m.Y', strtotime($member['birthdate'])) : '-'; ?></td>
                                             <td><?php echo htmlspecialchars($member['phone'] ?? '-'); ?></td>
                                             <td><?php echo htmlspecialchars($member['qualification_name'] ?? '-'); ?></td>
+                                            <td><?php echo htmlspecialchars($member['group_names'] ?? '-'); ?></td>
                                             <td class="no-click">
                                                 <?php if (!empty($member['member_id'])): ?>
                                                 <?php if ($can_members_write): ?>
@@ -2152,6 +2301,10 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Telefon</label>
                             <p class="form-control-plaintext" id="memberDetailsPhone"></p>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">Gruppen</label>
+                            <p class="form-control-plaintext" id="memberDetailsGroups"></p>
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">PA-Träger</label>
@@ -2365,6 +2518,17 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                     <option value="<?php echo (int)$q['id']; ?>"><?php echo htmlspecialchars($q['name']); ?></option>
                                     <?php endforeach; ?>
                                 </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="memberGroups">
+                                    <i class="fas fa-layer-group me-1"></i>Gruppen
+                                </label>
+                                <select class="form-select" name="group_ids[]" id="memberGroups" multiple size="5">
+                                    <?php foreach ($member_groups as $group): ?>
+                                    <option value="<?php echo (int)$group['id']; ?>"><?php echo htmlspecialchars($group['group_name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="form-text text-muted">Mehrfachauswahl mit Strg bzw. Umschalt-Taste.</small>
                             </div>
                                 <div class="col-12">
                                     <div class="form-check form-switch">
@@ -2834,11 +2998,14 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 const emailEl = document.getElementById('memberDetailsEmail');
                 const birthdateEl = document.getElementById('memberDetailsBirthdate');
                 const phoneEl = document.getElementById('memberDetailsPhone');
+                const groupsEl = document.getElementById('memberDetailsGroups');
                 
                 if (nameEl) nameEl.textContent = (member.first_name || '') + ' ' + (member.last_name || '');
                 if (firstNameEl) firstNameEl.textContent = member.first_name || '-';
                 if (lastNameEl) lastNameEl.textContent = member.last_name || '-';
                 if (emailEl) emailEl.textContent = member.email || '-';
+                if (phoneEl) phoneEl.textContent = member.phone || '-';
+                if (groupsEl) groupsEl.textContent = member.group_names || '-';
                 if (birthdateEl) {
                     if (member.birthdate) {
                         try {
@@ -2851,7 +3018,9 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                         birthdateEl.textContent = '-';
                     }
                 }
-                
+                if (phoneEl && !phoneEl.textContent) {
+                    phoneEl.textContent = '-';
+                }
                 // PA-Träger Status anzeigen
                 // PA-Träger Status anzeigen (Ja/Nein mit Tauglichkeitsstatus)
                 const paTraegerStatusEl = document.getElementById('memberDetailsPaTraegerStatus');
@@ -3550,6 +3719,16 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             }
             const qualEl = document.getElementById('memberQualification');
             if (qualEl) qualEl.value = member.qualification_id || '';
+            const groupsSelect = document.getElementById('memberGroups');
+            if (groupsSelect) {
+                const selectedGroupIds = String(member.group_ids || '')
+                    .split(',')
+                    .map(v => parseInt(v, 10))
+                    .filter(v => !isNaN(v) && v > 0);
+                Array.from(groupsSelect.options).forEach(function(opt) {
+                    opt.selected = selectedGroupIds.includes(parseInt(opt.value, 10));
+                });
+            }
             const isPaTraeger = member.is_pa_traeger == 1;
             document.getElementById('memberIsPaTraeger').checked = isPaTraeger;
             
@@ -3652,32 +3831,29 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
         document.addEventListener('DOMContentLoaded', function() {
             const searchInput = document.getElementById('memberSearchInput');
             const clearBtn = document.getElementById('clearSearchBtn');
+            const groupFilter = document.getElementById('memberGroupFilter');
             const memberRows = document.querySelectorAll('.member-row');
             
-            if (searchInput) {
-                searchInput.addEventListener('input', function() {
-                    const searchTerm = this.value.toLowerCase().trim();
-                    let visibleCount = 0;
-                    
-                    memberRows.forEach(function(row) {
-                        const searchText = row.getAttribute('data-search-text') || '';
-                        if (searchText.includes(searchTerm)) {
-                            row.style.display = '';
-                            visibleCount++;
-                        } else {
-                            row.style.display = 'none';
-                        }
-                    });
-                    
-                    // Clear-Button anzeigen/verstecken
-                    if (clearBtn) {
-                        if (searchTerm.length > 0) {
-                            clearBtn.style.display = 'block';
-                        } else {
-                            clearBtn.style.display = 'none';
-                        }
-                    }
+            function applyMemberListFilters() {
+                const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+                const selectedGroupId = groupFilter ? groupFilter.value : '';
+                memberRows.forEach(function(row) {
+                    const searchText = row.getAttribute('data-search-text') || '';
+                    const groupIds = String(row.getAttribute('data-group-ids') || '');
+                    const searchMatch = searchText.includes(searchTerm);
+                    const groupMatch = selectedGroupId === '' || groupIds.split(',').includes(selectedGroupId);
+                    row.style.display = (searchMatch && groupMatch) ? '' : 'none';
                 });
+                if (clearBtn) {
+                    clearBtn.style.display = searchTerm.length > 0 ? 'block' : 'none';
+                }
+            }
+
+            if (searchInput) {
+                searchInput.addEventListener('input', applyMemberListFilters);
+            }
+            if (groupFilter) {
+                groupFilter.addEventListener('change', applyMemberListFilters);
             }
             
             // Clear-Button Handler
@@ -3685,8 +3861,8 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                 clearBtn.addEventListener('click', function() {
                     if (searchInput) {
                         searchInput.value = '';
-                        searchInput.dispatchEvent(new Event('input'));
                     }
+                    applyMemberListFilters();
                 });
             }
         });
