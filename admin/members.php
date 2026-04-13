@@ -522,13 +522,23 @@ try {
         return $cmp;
     });
     
-    // Qualifikationen für Dropdown laden (einheitsspezifisch)
-    $qual_einheit = $ef > 0 ? $ef : 1;
+    // Qualifikationen für Dropdown laden:
+    // 1) Aktiver Einheitenfilter
+    // 2) aktuell gewählte Einheit aus der Session
+    // 3) ohne Einheit: alle Qualifikationen
+    $qual_einheit = $ef > 0 ? $ef : (function_exists('get_current_einheit_id') ? (get_current_einheit_id() ?: 0) : 0);
     try {
-        $q = $db->prepare("SELECT id, name FROM member_qualifications WHERE einheit_id = ? ORDER BY sort_order, name");
-        $q->execute([$qual_einheit]);
-        if ($q) {
-            $qualifications = $q->fetchAll(PDO::FETCH_ASSOC);
+        if ($qual_einheit > 0) {
+            $q = $db->prepare("SELECT id, name FROM member_qualifications WHERE einheit_id = ? ORDER BY sort_order, name");
+            $q->execute([$qual_einheit]);
+            if ($q) {
+                $qualifications = $q->fetchAll(PDO::FETCH_ASSOC);
+            }
+        } else {
+            $q = $db->query("SELECT id, name FROM member_qualifications ORDER BY sort_order, name");
+            if ($q) {
+                $qualifications = $q->fetchAll(PDO::FETCH_ASSOC);
+            }
         }
     } catch (Exception $e) {
         // Tabelle evtl. noch nicht vorhanden
@@ -541,9 +551,10 @@ try {
 // Standardqualifikation aus Einstellungen laden (einheitsspezifisch)
 $default_qualification_id = null;
 try {
-    if ($ef > 0) {
+    $default_qual_einheit = $ef > 0 ? $ef : (function_exists('get_current_einheit_id') ? (get_current_einheit_id() ?: 0) : 0);
+    if ($default_qual_einheit > 0) {
         require_once __DIR__ . '/../includes/einheit-settings-helper.php';
-        $es = load_settings_for_einheit($db, $ef);
+        $es = load_settings_for_einheit($db, $default_qual_einheit);
         $val = $es['member_default_qualification_id'] ?? '';
         if ($val !== '' && $val !== null) {
             $default_qualification_id = (int)$val;
