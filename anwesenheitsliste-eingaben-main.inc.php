@@ -556,6 +556,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
             $draft['custom_data'][$id] = $val;
         }
     }
+    if (!isset($draft['custom_data']) || !is_array($draft['custom_data'])) {
+        $draft['custom_data'] = [];
+    }
+    $draft['custom_data']['einsatzleiter_signature'] = trim((string)($_POST['einsatzleiter_signature'] ?? ''));
     if ($draft['typ'] === 'einsatz') {
         if ($typ_sonstige === '__custom__') {
             $draft['bezeichnung_sonstige'] = $typ_sonstige_freitext !== '' ? $typ_sonstige_freitext : 'Sonstiges';
@@ -1590,6 +1594,20 @@ if ($is_einsatz) {
                                 <?php elseif ($type === 'textarea'): ?>
                                 <label for="<?php echo htmlspecialchars($id); ?>" class="form-label"><?php echo htmlspecialchars($label); ?></label>
                                 <textarea class="form-control" id="<?php echo htmlspecialchars($id); ?>" name="<?php echo htmlspecialchars($id); ?>" rows="3" placeholder="Freitext"><?php echo htmlspecialchars($val); ?></textarea>
+                                <?php if ($id === 'bemerkung'): ?>
+                                <?php $signature_data = trim((string)($draft['custom_data']['einsatzleiter_signature'] ?? '')); ?>
+                                <div class="mt-3">
+                                    <label class="form-label">Unterschrift Einsatzleiter (optional)</label>
+                                    <input type="hidden" name="einsatzleiter_signature" id="einsatzleiter_signature" value="<?php echo htmlspecialchars($signature_data); ?>">
+                                    <div class="border rounded bg-white p-2">
+                                        <canvas id="einsatzleiter_signature_pad" style="width:100%;height:170px;touch-action:none;cursor:crosshair;"></canvas>
+                                    </div>
+                                    <div class="d-flex gap-2 mt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_clear_signature">Unterschrift löschen</button>
+                                    </div>
+                                    <small class="text-muted">Auf Tablet/Smartphone mit Finger oder Stift unterschreiben. Wenn leer, kann später manuell unterschrieben werden.</small>
+                                </div>
+                                <?php endif; ?>
                                 <?php else: ?>
                                 <label for="<?php echo htmlspecialchars($id); ?>" class="form-label"><?php echo htmlspecialchars($label); ?></label>
                                 <input type="text" class="form-control" id="<?php echo htmlspecialchars($id); ?>" name="<?php echo htmlspecialchars($id); ?>" placeholder="Freitext" value="<?php echo htmlspecialchars($val); ?>">
@@ -1994,6 +2012,99 @@ if ($is_einsatz) {
     </script>
     <script>
     (function(){var btn=document.getElementById('btn_geraetehaus');var input=document.getElementById('einsatzstelle');if(!btn||!input)return;btn.addEventListener('click',function(){var addr=btn.getAttribute('data-address')||'';if(addr)input.value=addr;});
+    })();
+    </script>
+    <script>
+    (function(){
+        var canvas = document.getElementById('einsatzleiter_signature_pad');
+        var hidden = document.getElementById('einsatzleiter_signature');
+        var clearBtn = document.getElementById('btn_clear_signature');
+        if (!canvas || !hidden) return;
+        var ctx = canvas.getContext('2d');
+        var drawing = false;
+        var hasStroke = false;
+        var lastX = 0, lastY = 0;
+
+        function resizeCanvas() {
+            var ratio = window.devicePixelRatio || 1;
+            var w = Math.max(300, Math.floor(canvas.clientWidth));
+            var h = Math.max(120, Math.floor(canvas.clientHeight));
+            var oldData = null;
+            if (hasStroke) oldData = canvas.toDataURL('image/png');
+            canvas.width = Math.floor(w * ratio);
+            canvas.height = Math.floor(h * ratio);
+            ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+            ctx.clearRect(0, 0, w, h);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = '#111';
+            ctx.lineWidth = 2;
+            if (oldData) {
+                var img = new Image();
+                img.onload = function() { ctx.drawImage(img, 0, 0, w, h); };
+                img.src = oldData;
+            }
+        }
+
+        function pointFromEvent(e) {
+            var rect = canvas.getBoundingClientRect();
+            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }
+
+        function beginStroke(e) {
+            e.preventDefault();
+            var p = pointFromEvent(e);
+            drawing = true;
+            lastX = p.x;
+            lastY = p.y;
+        }
+
+        function moveStroke(e) {
+            if (!drawing) return;
+            e.preventDefault();
+            var p = pointFromEvent(e);
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
+            lastX = p.x;
+            lastY = p.y;
+            hasStroke = true;
+            hidden.value = canvas.toDataURL('image/png');
+        }
+
+        function endStroke() {
+            if (!drawing) return;
+            drawing = false;
+            if (hasStroke) hidden.value = canvas.toDataURL('image/png');
+        }
+
+        canvas.addEventListener('pointerdown', beginStroke);
+        canvas.addEventListener('pointermove', moveStroke);
+        canvas.addEventListener('pointerup', endStroke);
+        canvas.addEventListener('pointerleave', endStroke);
+        canvas.addEventListener('pointercancel', endStroke);
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                hasStroke = false;
+                hidden.value = '';
+                resizeCanvas();
+            });
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', function() { resizeCanvas(); });
+
+        if (hidden.value && hidden.value.indexOf('data:image/') === 0) {
+            var img = new Image();
+            img.onload = function() {
+                ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+                ctx.drawImage(img, 0, 0, canvas.clientWidth, canvas.clientHeight);
+                hasStroke = true;
+            };
+            img.src = hidden.value;
+        }
     })();
     </script>
     <script>var el=document.getElementById('einsatzleiter');if(el)el.addEventListener('change',function(){var w=document.getElementById('einsatzleiter_freitext_wrap');if(w)w.style.display=this.value==='__freitext__'?'block':'none';});</script>

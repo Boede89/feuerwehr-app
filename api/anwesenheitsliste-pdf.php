@@ -242,6 +242,8 @@ $html = '<!DOCTYPE html>
         .bottom-row .einsatzleiter-cell { flex: 1; }
         .bottom-row .signature-cell { flex-shrink: 0; padding-top: 24px; }
         .signature-line { border-bottom: 1px solid #333; width: 160px; height: 22px; }
+        .signature-image-wrap { width: 160px; height: 50px; margin-bottom: 2px; display: flex; align-items: flex-end; justify-content: center; }
+        .signature-image { max-width: 160px; max-height: 50px; display: block; }
         .signature-label { font-size: 8pt; color: #666; margin-top: 2px; }
         @media print { body { padding: 0; } .section, .two-cols-table { page-break-inside: avoid; } }
     </style>
@@ -341,6 +343,11 @@ $html .= '</tbody></table></td></tr></table></div>';
 
 $leiter_label = $is_uebungsdienst_pdf ? 'Übungsleiter' : 'Einsatzleiter';
 $unterschrift_label = $is_uebungsdienst_pdf ? 'Unterschrift Übungsleiter' : 'Unterschrift Einsatzleiter';
+$signature_data = trim((string)($custom_data_pdf['einsatzleiter_signature'] ?? ''));
+$has_signature = (bool)preg_match('/^data:image\/(png|jpeg|jpg);base64,[A-Za-z0-9+\/=\s]+$/', $signature_data);
+$signature_html = $has_signature
+    ? '<div class="signature-image-wrap"><img class="signature-image" src="' . htmlspecialchars($signature_data) . '" alt="Unterschrift"></div>'
+    : '<div class="signature-line"></div>';
 $berichtersteller_name = $custom_data_pdf['berichtersteller_text'] ?? '';
 if ($berichtersteller_name === '' && !empty($custom_data_pdf['berichtersteller']) && ctype_digit((string)$custom_data_pdf['berichtersteller'])) {
     try {
@@ -359,7 +366,7 @@ $html .= '
             <span class="eingereicht-text">' . $eingereicht_str . '</span>
         </div>
         <div class="signature-cell">
-            <div class="signature-line"></div>
+            ' . $signature_html . '
             <div class="signature-label">' . htmlspecialchars($unterschrift_label) . '</div>
         </div>
     </div>
