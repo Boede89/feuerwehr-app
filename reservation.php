@@ -568,6 +568,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
+    <style>
+        .save-processing-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(1px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            pointer-events: all;
+        }
+        .save-processing-overlay.active { display: flex; }
+        .save-processing-box {
+            background: #fff;
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -742,6 +763,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             </div>
         </div>
     </main>
+    <div id="saveProcessingOverlay" class="save-processing-overlay" aria-live="polite" aria-hidden="true">
+        <div class="save-processing-box text-center">
+            <div class="spinner-border text-primary mb-2" role="status" aria-hidden="true"></div>
+            <div class="small text-muted">Reservierung wird gespeichert und verarbeitet...</div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -750,6 +777,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             // Hauptformular gezielt per ID holen (robuster gegen andere Formulare)
             const form = document.getElementById('reservationForm');
             const submitBtn = document.getElementById('submitReservationBtn');
+            const processingOverlay = document.getElementById('saveProcessingOverlay');
             if (!form || !submitBtn) return;
 
             let alreadySubmitting = false;
@@ -759,6 +787,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             function lockButton() {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Wird gesendet...';
+                if (processingOverlay) {
+                    processingOverlay.classList.add('active');
+                    processingOverlay.setAttribute('aria-hidden', 'false');
+                }
             }
 
             submitBtn.addEventListener('click', function(e) {
