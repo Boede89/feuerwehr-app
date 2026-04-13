@@ -197,9 +197,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
                                 continue;
                             }
                             if ($einheit_id > 0 && function_exists('send_email_with_pdf_for_einheit')) {
-                                send_email_with_pdf_for_einheit($em, $subject, $html, $pdf_content, $filename, $einheit_id);
+                                if (!send_email_with_pdf_for_einheit($em, $subject, $html, $pdf_content, $filename, $einheit_id)) {
+                                    error_log("Gerätewartmitteilung E-Mail fehlgeschlagen für {$em} (Einheit {$einheit_id})");
+                                }
                             } else {
-                                send_email_with_pdf_attachment($em, $subject, $html, $pdf_content, $filename);
+                                if (!send_email_with_pdf_attachment($em, $subject, $html, $pdf_content, $filename)) {
+                                    error_log("Gerätewartmitteilung E-Mail fehlgeschlagen für {$em} (global)");
+                                }
                             }
                         }
                     }

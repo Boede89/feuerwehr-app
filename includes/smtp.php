@@ -129,7 +129,7 @@ class SimpleSMTP {
             if (!$this->connection) { error_log("SMTP Verbindungsfehler: $errstr ($errno)"); return false; }
             fgets($this->connection, 512);
             $this->sendCommand("EHLO localhost");
-            if ($this->encryption !== 'ssl' && $this->port != 465) {
+            if ($this->encryption === 'tls') {
                 $this->sendCommand("STARTTLS");
                 if (!stream_socket_enable_crypto($this->connection, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) { fclose($this->connection); return false; }
                 $this->sendCommand("EHLO localhost");
@@ -197,7 +197,7 @@ class SimpleSMTP {
             $this->sendCommand("EHLO localhost");
             
             // STARTTLS nur wenn nicht bereits SSL
-            if ($this->encryption !== 'ssl' && $this->port != 465) {
+            if ($this->encryption === 'tls') {
                 $this->sendCommand("STARTTLS");
                 
                 // TLS-Verbindung starten

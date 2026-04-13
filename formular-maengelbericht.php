@@ -172,20 +172,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                     $subject = 'Neuer Mängelbericht: ' . $titel . ' (' . date('d.m.Y', strtotime($aufgenommen_am)) . ')';
                     $user_name = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '')) ?: 'Unbekannt';
                     $html = '<p>Ein neuer Mängelbericht wurde eingereicht.</p><p><strong>Standort:</strong> ' . htmlspecialchars($standort) . '<br><strong>Mangel an:</strong> ' . htmlspecialchars($mangel_an) . '<br><strong>Bezeichnung:</strong> ' . htmlspecialchars($bezeichnung ?: '-') . '<br><strong>Eingereicht von:</strong> ' . htmlspecialchars($user_name) . '</p><p>Der Mängelbericht ist dieser E-Mail als PDF angehängt.</p>';
+                    $mail_success = 0;
                     foreach ($all_emails as $em) {
                         $em = trim($em);
                         if ($em === '') {
                             continue;
                         }
                         if ($einheit_id > 0 && function_exists('send_email_with_pdf_for_einheit')) {
-                            send_email_with_pdf_for_einheit($em, $subject, $html, $pdf_content, $filename, $einheit_id);
+                            if (send_email_with_pdf_for_einheit($em, $subject, $html, $pdf_content, $filename, $einheit_id)) {
+                                $mail_success++;
+                            } else {
+                                error_log("Mängelbericht E-Mail fehlgeschlagen für {$em} (Einheit {$einheit_id})");
+                            }
                         } else {
-                            send_email_with_pdf_attachment($em, $subject, $html, $pdf_content, $filename);
+                            if (send_email_with_pdf_attachment($em, $subject, $html, $pdf_content, $filename)) {
+                                $mail_success++;
+                            } else {
+                                error_log("Mängelbericht E-Mail fehlgeschlagen für {$em} (global)");
+                            }
                         }
                     }
-                    try {
-                        $db->prepare("UPDATE maengelberichte SET email_sent_at = NOW() WHERE id = ?")->execute([$id]);
-                    } catch (Exception $e) {}
+                    if ($mail_success > 0) {
+                        try {
+                            $db->prepare("UPDATE maengelberichte SET email_sent_at = NOW() WHERE id = ?")->execute([$id]);
+                        } catch (Exception $e) {}
+                    }
                 }
             }
         }
