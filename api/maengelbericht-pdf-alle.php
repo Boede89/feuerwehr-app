@@ -108,6 +108,7 @@ foreach ($berichte as $idx => $bericht) {
 
     $html_parts[] = '
     <div class="mb-page" style="' . $page_break_style . ' page-break-inside: avoid;">
+        <div class="header">' . get_pdf_logo_html() . '</div>
         <div class="section">
             <div class="section-title">Mängelbericht – ' . htmlspecialchars($bericht['standort'] ?? '') . ' (' . date('d.m.Y', strtotime($bericht['aufgenommen_am'])) . ')</div>
             <table>
@@ -167,7 +168,6 @@ $html = '<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <div class="header">' . get_pdf_logo_html() . '</div>
     ' . implode('', $html_parts) . '
 </body>
 </html>';
@@ -241,11 +241,10 @@ if (file_exists($tcpdfPath)) {
             $pdf->SetAutoPageBreak(true, 12);
             $pdf->SetFont('helvetica', '', 10);
             // Pro Mängelbericht eine eigene Seite – zuverlässig für mehrere Berichte
-            $logo_html = '<div class="header">' . get_pdf_logo_html() . '</div>';
             $page_html = '<style>table{width:100%;border-collapse:collapse;font-size:9pt}.label-cell{width:140px;background:#f5f5f5;font-weight:bold;padding:3px 6px;border:1px solid #ddd}.value-cell{padding:3px 6px;border:1px solid #ddd}.section{margin-bottom:8px}.section-title{font-weight:bold;font-size:10pt;margin-bottom:4px}.geraetewart-section{margin-top:10px;padding-top:8px;border-top:2px solid #333}.signature-section{margin-top:10px;padding-top:8px;border-top:1px solid #333}.signature-line{border-bottom:1px solid #333;width:160px;min-height:22px;margin-top:10px;padding-top:4px}</style>';
             foreach ($html_parts as $part) {
                 $pdf->AddPage();
-                $pdf->writeHTML($page_html . $logo_html . $part, true, false, true, false, '');
+                $pdf->writeHTML($page_html . $part, true, false, true, false, '');
             }
             $pdf_content = $pdf->Output('', 'S');
             require_once __DIR__ . '/../includes/pdf-merge-anhaenge.inc.php';
