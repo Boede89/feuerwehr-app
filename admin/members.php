@@ -2196,6 +2196,9 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                                         <i class="fas fa-times"></i>
                                     </button>
                                 </div>
+                                <div class="small text-muted mt-2 d-flex align-items-center flex-wrap gap-2">
+                                    <span id="memberListFilterCount" class="badge bg-secondary"></span>
+                                </div>
                             </div>
                             <div class="table-responsive">
                                 <table class="table table-hover" id="membersTable">
@@ -3837,15 +3840,29 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
             function applyMemberListFilters() {
                 const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
                 const selectedGroupId = groupFilter ? groupFilter.value : '';
+                let visible = 0;
+                const total = memberRows.length;
                 memberRows.forEach(function(row) {
                     const searchText = row.getAttribute('data-search-text') || '';
                     const groupIds = String(row.getAttribute('data-group-ids') || '');
                     const searchMatch = searchText.includes(searchTerm);
                     const groupMatch = selectedGroupId === '' || groupIds.split(',').includes(selectedGroupId);
-                    row.style.display = (searchMatch && groupMatch) ? '' : 'none';
+                    const show = searchMatch && groupMatch;
+                    row.style.display = show ? '' : 'none';
+                    if (show) visible++;
                 });
                 if (clearBtn) {
                     clearBtn.style.display = searchTerm.length > 0 ? 'block' : 'none';
+                }
+                const countEl = document.getElementById('memberListFilterCount');
+                if (countEl) {
+                    if (total === 0) {
+                        countEl.textContent = '0 Mitglieder';
+                    } else if (visible === total) {
+                        countEl.textContent = total + ' Mitglieder';
+                    } else {
+                        countEl.textContent = visible + ' von ' + total + ' Mitglieder';
+                    }
                 }
             }
 
@@ -3865,6 +3882,7 @@ $show_list = isset($_GET['show_list']) && $_GET['show_list'] == '1';
                     applyMemberListFilters();
                 });
             }
+            applyMemberListFilters();
         });
         
         // Funktion zum Löschen eines Mitglieds

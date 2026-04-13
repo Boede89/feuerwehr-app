@@ -382,6 +382,7 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                     <a href="<?php echo htmlspecialchars($sort_base . '&sort=freq'); ?>" class="btn btn-sm <?php echo $sort_by === 'freq' ? 'btn-primary' : 'btn-outline-secondary'; ?>">KI</a>
                                     <a href="<?php echo htmlspecialchars($sort_base . '&sort=name'); ?>" class="btn btn-sm <?php echo $sort_by === 'name' ? 'btn-primary' : 'btn-outline-secondary'; ?>">Nach Name</a>
                                 </div>
+                                <span id="personalFilterCountBadge" class="badge bg-secondary align-self-center"></span>
                             </div>
                             <?php if (empty($members)): ?>
                                 <p class="text-muted">Keine Mitglieder in der Datenbank. Bitte zuerst in der Mitgliederverwaltung anlegen.</p>
@@ -441,13 +442,14 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                             <?php if (empty($members)): ?>
                                 <p class="text-muted">Keine Mitglieder in der Datenbank. Bitte zuerst in der Mitgliederverwaltung anlegen.</p>
                             <?php else: ?>
-                                <div class="d-flex flex-wrap gap-2 mb-3">
+                                <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
                                     <select class="form-select" id="personalGroupFilter" style="min-width: 220px; max-width: 280px;">
                                         <option value="">Alle Gruppen</option>
                                         <?php foreach ($available_groups as $gid => $gname): ?>
                                         <option value="<?php echo (int)$gid; ?>"><?php echo htmlspecialchars($gname); ?></option>
                                         <?php endforeach; ?>
                                     </select>
+                                    <span id="personalFilterCountBadge" class="badge bg-secondary"></span>
                                 </div>
                                 <div class="table-responsive">
                                     <table class="table table-hover anwesenheit-tabelle">
@@ -573,17 +575,36 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
             function applyPersonalFilters() {
                 var q = searchInput ? searchInput.value.trim().toLowerCase() : '';
                 var selectedGroupId = groupFilter ? groupFilter.value : '';
+                var visible = 0;
+                var total = 0;
                 if (isCardMode) {
-                    document.querySelectorAll('.personal-card-wrapper').forEach(function(wrap) {
+                    var wraps = document.querySelectorAll('.personal-card-wrapper');
+                    total = wraps.length;
+                    wraps.forEach(function(wrap) {
                         var searchOk = q === '' || (wrap.getAttribute('data-search') || '').indexOf(q) >= 0;
                         var groupOk = groupMatch(wrap.getAttribute('data-group-ids') || '', selectedGroupId);
-                        wrap.style.display = (searchOk && groupOk) ? '' : 'none';
+                        var show = searchOk && groupOk;
+                        wrap.style.display = show ? '' : 'none';
+                        if (show) visible++;
                     });
                 } else {
-                    document.querySelectorAll('.anwesenheit-tabelle tbody .anw-row').forEach(function(row) {
+                    var rows = document.querySelectorAll('.anwesenheit-tabelle tbody .anw-row');
+                    total = rows.length;
+                    rows.forEach(function(row) {
                         var groupOk = groupMatch(row.getAttribute('data-group-ids') || '', selectedGroupId);
                         row.style.display = groupOk ? '' : 'none';
+                        if (groupOk) visible++;
                     });
+                }
+                var badge = document.getElementById('personalFilterCountBadge');
+                if (badge) {
+                    if (total === 0) {
+                        badge.textContent = '0 Personen';
+                    } else if (visible === total) {
+                        badge.textContent = total + ' Personen';
+                    } else {
+                        badge.textContent = visible + ' von ' + total + ' Personen';
+                    }
                 }
             }
 
