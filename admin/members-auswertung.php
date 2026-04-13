@@ -425,8 +425,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
         $personen_maschinist = [];
         $personen_einheitsfuehrer = [];
         $personen_letzte = [];
-        $liste_member_vehicle = [];
-        $liste_role_vehicle = [];
+        /** @var array<int, array<int, int>> $mitglieder_vid_pro_liste Person + Liste → Fahrzeug (wenn in anwesenheitsliste_mitglieder gesetzt) */
+        $mitglieder_vid_pro_liste = [];
         $anzahl_einsaetze = 0;
         $anzahl_uebungen = 0;
         $anzahl_jhv_sonstiges = 0;
@@ -463,12 +463,10 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     else $personen_stats[$mid]['sonstiges']++;
                 } else $personen_stats[$mid]['uebungen']++;
                 $lid = (int)$r['liste_id'];
-                if (!empty($r['vehicle_id'])) {
-                    $vid = (int)$r['vehicle_id'];
-                    if ($vid > 0 && $lid > 0 && $mid > 0) {
-                        // Normale Fahrzeugzuordnung pro Liste/Person merken.
-                        $liste_member_vehicle[$lid][$mid] = $vid;
-                    }
+                $vid = (int)($r['vehicle_id'] ?? 0);
+                if ($vid > 0 && $lid > 0 && $mid > 0) {
+                    $personen_stats[$mid]['fahrzeuge'][$vid] = ($personen_stats[$mid]['fahrzeuge'][$vid] ?? 0) + 1;
+                    $mitglieder_vid_pro_liste[$lid][$mid] = $vid;
                 }
                 $von_t = $r['uhrzeit_von'] ?? null;
                 $bis_t = $r['uhrzeit_bis'] ?? null;
@@ -491,33 +489,23 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                 if ($typ_filter === 'sonstiges' && !ist_sonstiges($r)) continue;
                 $lid = (int)$r['anwesenheitsliste_id'];
                 $vid = (int)($r['vehicle_id'] ?? 0);
-                if (!empty($r['maschinist_member_id'])) {
-                    $mid = (int)$r['maschinist_member_id'];
-                    $personen_maschinist[$mid] = ($personen_maschinist[$mid] ?? 0) + 1;
-                    if ($lid > 0 && $vid > 0 && $mid > 0) {
-                        $liste_role_vehicle[$lid][$mid] = $vid;
+                $mid_m = (int)($r['maschinist_member_id'] ?? 0);
+                if ($mid_m > 0) {
+                    $personen_maschinist[$mid_m] = ($personen_maschinist[$mid_m] ?? 0) + 1;
+                    if ($lid > 0 && $vid > 0 && (int)($mitglieder_vid_pro_liste[$lid][$mid_m] ?? 0) <= 0) {
+                        $personen_stats[$mid_m] = $personen_stats[$mid_m] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0, 'jhv' => 0, 'sonstiges' => 0, 'fahrzeuge' => [], 'stunden' => 0];
+                        $personen_stats[$mid_m]['fahrzeuge'][$vid] = ($personen_stats[$mid_m]['fahrzeuge'][$vid] ?? 0) + 1;
+                        $mitglieder_vid_pro_liste[$lid][$mid_m] = $vid;
                     }
                 }
-                if (!empty($r['einheitsfuehrer_member_id'])) {
-                    $mid = (int)$r['einheitsfuehrer_member_id'];
-                    $personen_einheitsfuehrer[$mid] = ($personen_einheitsfuehrer[$mid] ?? 0) + 1;
-                    if ($lid > 0 && $vid > 0 && $mid > 0) {
-                        $liste_role_vehicle[$lid][$mid] = $vid;
+                $mid_e = (int)($r['einheitsfuehrer_member_id'] ?? 0);
+                if ($mid_e > 0) {
+                    $personen_einheitsfuehrer[$mid_e] = ($personen_einheitsfuehrer[$mid_e] ?? 0) + 1;
+                    if ($lid > 0 && $vid > 0 && (int)($mitglieder_vid_pro_liste[$lid][$mid_e] ?? 0) <= 0) {
+                        $personen_stats[$mid_e] = $personen_stats[$mid_e] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0, 'jhv' => 0, 'sonstiges' => 0, 'fahrzeuge' => [], 'stunden' => 0];
+                        $personen_stats[$mid_e]['fahrzeuge'][$vid] = ($personen_stats[$mid_e]['fahrzeuge'][$vid] ?? 0) + 1;
+                        $mitglieder_vid_pro_liste[$lid][$mid_e] = $vid;
                     }
-                }
-            }
-            // Fahrzeugzählung pro Person:
-            // Rollen (Maschinist/EF) haben Vorrang, sonst normale Fahrzeugzuordnung.
-            $alle_listen_ids = array_unique(array_merge(array_keys($liste_member_vehicle), array_keys($liste_role_vehicle)));
-            foreach ($alle_listen_ids as $lid) {
-                $members_in_list = [];
-                foreach (array_keys($liste_member_vehicle[$lid] ?? []) as $mid) $members_in_list[(int)$mid] = true;
-                foreach (array_keys($liste_role_vehicle[$lid] ?? []) as $mid) $members_in_list[(int)$mid] = true;
-                foreach (array_keys($members_in_list) as $mid) {
-                    $vid = (int)($liste_role_vehicle[$lid][$mid] ?? $liste_member_vehicle[$lid][$mid] ?? 0);
-                    if ($vid <= 0) continue;
-                    $personen_stats[$mid] = $personen_stats[$mid] ?? ['einsaetze' => 0, 'uebungen' => 0, 'jhv_sonstiges' => 0, 'jhv' => 0, 'sonstiges' => 0, 'fahrzeuge' => [], 'stunden' => 0];
-                    $personen_stats[$mid]['fahrzeuge'][$vid] = ($personen_stats[$mid]['fahrzeuge'][$vid] ?? 0) + 1;
                 }
             }
         } catch (Exception $e) {}
@@ -525,6 +513,37 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
         foreach ($members as $m) $member_map[(int)$m['id']] = $m;
         $vehicle_map = [];
         foreach ($vehicles as $v) $vehicle_map[(int)$v['id']] = $v['name'];
+        $vehicle_ids_fuer_namen = [];
+        foreach ($personen_stats as $st_ps) {
+            if (empty($st_ps['fahrzeuge']) || !is_array($st_ps['fahrzeuge'])) continue;
+            foreach (array_keys($st_ps['fahrzeuge']) as $vidi) {
+                $vidi = (int)$vidi;
+                if ($vidi <= 0) continue;
+                if (!isset($vehicle_map[$vidi]) || trim((string)$vehicle_map[$vidi]) === '') {
+                    $vehicle_ids_fuer_namen[$vidi] = true;
+                }
+            }
+        }
+        if (!empty($vehicle_ids_fuer_namen)) {
+            $ids_vn = array_keys($vehicle_ids_fuer_namen);
+            try {
+                $ph_vn = implode(',', array_fill(0, count($ids_vn), '?'));
+                $stn = $db->prepare("SELECT id, name FROM vehicles WHERE id IN ($ph_vn)");
+                $stn->execute($ids_vn);
+                while ($vr = $stn->fetch(PDO::FETCH_ASSOC)) {
+                    $vidi = (int)$vr['id'];
+                    $nm = trim((string)($vr['name'] ?? ''));
+                    $vehicle_map[$vidi] = $nm !== '' ? $nm : ('Fahrzeug #' . $vidi);
+                }
+            } catch (Exception $e) {}
+            foreach ($ids_vn as $vidi) {
+                $vidi = (int)$vidi;
+                if ($vidi <= 0) continue;
+                if (!isset($vehicle_map[$vidi]) || trim((string)$vehicle_map[$vidi]) === '') {
+                    $vehicle_map[$vidi] = 'Fahrzeug #' . $vidi;
+                }
+            }
+        }
         $get_teilnahme_count = function($m) use ($personen_stats, $typ_filter) {
             $s = $personen_stats[(int)$m['id']] ?? [];
             if ($typ_filter === 'einsaetze') return $s['einsaetze'] ?? 0;
@@ -591,8 +610,12 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
     if ($letzte !== '-') $letzte = date('d.m.Y', strtotime($letzte));
     $chart_person_fahrzeuge = [];
     arsort($s['fahrzeuge']);
-    foreach (array_slice($s['fahrzeuge'], 0, 8) as $vid => $cnt) {
-        $chart_person_fahrzeuge[] = ['label' => $vehicle_map[$vid] ?? '-', 'count' => $cnt];
+    foreach (array_slice($s['fahrzeuge'], 0, 8, true) as $vid => $cnt) {
+        $vid = (int)$vid;
+        if ($vid <= 0) continue;
+        $vl = $vehicle_map[$vid] ?? ('Fahrzeug #' . $vid);
+        if (trim((string)$vl) === '') $vl = 'Fahrzeug #' . $vid;
+        $chart_person_fahrzeuge[] = ['label' => $vl, 'count' => $cnt];
     }
     $chart_person_rollen = [];
     if ($masch > 0) $chart_person_rollen[] = ['label' => 'Als Maschinist', 'count' => $masch];
@@ -675,8 +698,8 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
     <div class="card mb-4">
         <div class="card-header">Fahrzeuge im Detail</div>
         <div class="card-body">
-            <?php foreach ($s['fahrzeuge'] as $vid => $cnt): ?>
-            <span class="badge bg-secondary me-1 mb-1"><?php echo htmlspecialchars($vehicle_map[$vid] ?? '-'); ?>: <?php echo $cnt; ?>×</span>
+            <?php foreach ($s['fahrzeuge'] as $vid => $cnt): $vid = (int)$vid; $vb = $vehicle_map[$vid] ?? ('Fahrzeug #' . $vid); if (trim((string)$vb) === '') $vb = 'Fahrzeug #' . $vid; ?>
+            <span class="badge bg-secondary me-1 mb-1"><?php echo htmlspecialchars($vb); ?>: <?php echo $cnt; ?>×</span>
             <?php endforeach; ?>
         </div>
     </div>
@@ -771,9 +794,12 @@ $filter_params = ['jahr' => $jahr, 'von' => $von, 'bis' => $bis, 'zeit_von' => $
                     if ($letzte !== '-') $letzte = date('d.m.Y', strtotime($letzte));
                     $fahrzeuge_str = [];
                     arsort($s['fahrzeuge']);
-                    foreach (array_slice($s['fahrzeuge'], 0, 5) as $vid => $cnt) {
-                        if (!isset($vehicle_map[$vid]) || trim((string)$vehicle_map[$vid]) === '') continue;
-                        $fahrzeuge_str[] = $vehicle_map[$vid] . ' (' . $cnt . ')';
+                    foreach (array_slice($s['fahrzeuge'], 0, 5, true) as $vid => $cnt) {
+                        $vid = (int)$vid;
+                        if ($vid <= 0) continue;
+                        $vn = $vehicle_map[$vid] ?? ('Fahrzeug #' . $vid);
+                        if (trim((string)$vn) === '') $vn = 'Fahrzeug #' . $vid;
+                        $fahrzeuge_str[] = $vn . ' (' . $cnt . ')';
                     }
                 ?>
                 <tr>
