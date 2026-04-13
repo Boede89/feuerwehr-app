@@ -166,7 +166,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_course_assignmen
                     }
                 }
                 
-                // Qualifikation und Lehrgänge sind entkoppelt – keine automatische Ableitung
+                // Qualifikation aus verknüpften Lehrgängen ableiten (falls vorhanden)
+                update_member_qualification_from_courses($member_id, $db);
                 
                 if ($db->inTransaction()) {
                     $db->commit();
@@ -1168,7 +1169,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             }
                         }
                     }
-                    // Qualifikation und Lehrgänge sind entkoppelt – jeweils unabhängig speichern
+                    // Qualifikation aus verknüpften Lehrgängen ableiten (falls vorhanden)
+                    update_member_qualification_from_courses($new_member_id, $db);
                     
                     // Wenn PA-Träger aktiviert, erstelle automatisch Geräteträger
                     if ($is_pa_traeger == 1) {
@@ -1550,7 +1552,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             }
                         }
                         
-                        // Qualifikation und Lehrgänge sind entkoppelt – jeweils unabhängig speichern
+                        // Qualifikation nach Lehrgangsänderungen automatisch aktualisieren
+                        if ($can_courses && isset($_POST['course_assignments_json']) && ($has_course_section || $has_course_data)) {
+                            update_member_qualification_from_courses($member_id, $db);
+                        }
                         
                         // Wenn Mitglied mit Benutzer verknüpft ist, aktualisiere auch Benutzer
                     if (!empty($old_user_id)) {
