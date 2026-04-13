@@ -38,6 +38,24 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
     exit;
 }
 $draft = &$_SESSION[$draft_key];
+if (!array_key_exists('personal_group_filter_id', $draft) && !empty($draft['dienstplan_id'])) {
+    try {
+        try {
+            $db->exec("ALTER TABLE dienstplan ADD COLUMN preselected_member_group_id INT NULL");
+        } catch (Exception $e2) {
+            /* Spalte existiert bereits */
+        }
+        $st_dp = $db->prepare("SELECT preselected_member_group_id FROM dienstplan WHERE id = ?");
+        $st_dp->execute([(int)$draft['dienstplan_id']]);
+        $row_dp = $st_dp->fetch(PDO::FETCH_ASSOC);
+        if ($row_dp && !empty($row_dp['preselected_member_group_id'])) {
+            $draft['personal_group_filter_id'] = (int)$row_dp['preselected_member_group_id'];
+        }
+    } catch (Exception $e) {
+        /* ignore */
+    }
+}
+$personal_group_filter_selected = isset($draft['personal_group_filter_id']) ? (int)$draft['personal_group_filter_id'] : 0;
 $is_uebungsdienst_draft = (($draft['typ'] ?? '') === 'einsatz' && trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst') || (($draft['typ'] ?? '') === 'manuell' && trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst');
 // typ_sonstige und uebungsleiter aus URL übernehmen (vom Hauptformular beim Klick auf Personal)
 if (($draft['typ'] ?? '') === 'einsatz' || $is_uebungsdienst_draft) {
@@ -184,6 +202,23 @@ foreach ($members as $m) {
     }
 }
 asort($available_groups, SORT_NATURAL | SORT_FLAG_CASE);
+try {
+    if ($einheit_id > 0) {
+        $stmt_ag = $db->prepare("SELECT id, group_name FROM member_groups WHERE einheit_id = ? ORDER BY group_name");
+        $stmt_ag->execute([$einheit_id]);
+    } else {
+        $stmt_ag = $db->query("SELECT id, group_name FROM member_groups ORDER BY group_name");
+    }
+    while ($gr = $stmt_ag->fetch(PDO::FETCH_ASSOC)) {
+        $gid = (int)($gr['id'] ?? 0);
+        if ($gid > 0 && !isset($available_groups[$gid])) {
+            $available_groups[$gid] = $gr['group_name'] ?? ('Gruppe ' . $gid);
+        }
+    }
+    asort($available_groups, SORT_NATURAL | SORT_FLAG_CASE);
+} catch (Exception $e) {
+    /* Tabelle member_groups evtl. fehlt */
+}
 // Fahrzeuge laden (einheitsspezifisch)
 $vehicles = [];
 try {
@@ -242,6 +277,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $draft['vehicle_maschinist'] = array_filter($draft['vehicle_maschinist'] ?? []);
     $draft['vehicle_einheitsfuehrer'] = array_filter($draft['vehicle_einheitsfuehrer'] ?? []);
     if (empty($draft['member_pa'])) $draft['member_pa'] = [];
+    $pgf_post = isset($_POST['personal_group_filter_id']) ? (int)$_POST['personal_group_filter_id'] : 0;
+    $draft['personal_group_filter_id'] = $pgf_post > 0 ? $pgf_post : null;
     // typ_sonstige und uebungsleiter aus POST übernehmen (vom Hauptformular, damit sie beim Zurückkehren erhalten bleiben)
     if (isset($_POST['typ_sonstige']) && (($draft['typ'] ?? '') === 'einsatz' || trim($draft['bezeichnung_sonstige'] ?? '') === 'Übungsdienst')) {
         $ts = trim((string)$_POST['typ_sonstige']);
@@ -363,10 +400,10 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                     <span class="input-group-text"><i class="fas fa-search"></i></span>
                                     <input type="text" class="form-control" id="personalSearch" placeholder="Person suchen..." autocomplete="off">
                                 </div>
-                                <select class="form-select" id="personalGroupFilter" style="min-width: 220px; max-width: 280px;">
+                                <select class="form-select" id="personalGroupFilter" name="personal_group_filter_id" style="min-width: 220px; max-width: 280px;">
                                     <option value="">Alle Gruppen</option>
                                     <?php foreach ($available_groups as $gid => $gname): ?>
-                                    <option value="<?php echo (int)$gid; ?>"><?php echo htmlspecialchars($gname); ?></option>
+                                    <option value="<?php echo (int)$gid; ?>"<?php echo $personal_group_filter_selected === (int)$gid ? ' selected' : ''; ?>><?php echo htmlspecialchars($gname); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                                 <?php
@@ -443,10 +480,10 @@ $vehicle_einheitsfuehrer = $draft['vehicle_einheitsfuehrer'] ?? [];
                                 <p class="text-muted">Keine Mitglieder in der Datenbank. Bitte zuerst in der Mitgliederverwaltung anlegen.</p>
                             <?php else: ?>
                                 <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
-                                    <select class="form-select" id="personalGroupFilter" style="min-width: 220px; max-width: 280px;">
+                                    <select class="form-select" id="personalGroupFilter" name="personal_group_filter_id" style="min-width: 220px; max-width: 280px;">
                                         <option value="">Alle Gruppen</option>
                                         <?php foreach ($available_groups as $gid => $gname): ?>
-                                        <option value="<?php echo (int)$gid; ?>"><?php echo htmlspecialchars($gname); ?></option>
+                                        <option value="<?php echo (int)$gid; ?>"<?php echo $personal_group_filter_selected === (int)$gid ? ' selected' : ''; ?>><?php echo htmlspecialchars($gname); ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                     <span id="personalFilterCountBadge" class="badge bg-secondary"></span>

@@ -190,6 +190,7 @@ if ($edit_id > 0 && $_SERVER['REQUEST_METHOD'] !== 'POST') {
                 'maengel' => [],
                 'anhaenge_temp' => [],
                 'beschreibung' => $beschreibung_edit,
+                'personal_group_filter_id' => null,
                 'edit_id' => $edit_id,
             ];
             $draft_loaded = true;
@@ -222,32 +223,15 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
     $uhrzeit_bis_init = '';
     $uebungsleiter_init = [];
     $beschreibung_init = '';
-    $members_init = [];
+    $personal_group_filter_init = null;
     if (!$is_einsatz && isset($dienst)) {
         $dienst_typ_init = $dienst['typ'] ?? 'uebungsdienst';
         if ($dienst_typ_init === 'sonstiges') {
             $beschreibung_init = trim($dienst['bezeichnung'] ?? '');
             if (!empty($dienst['preselected_member_group_id'])) {
-                $gid = (int)$dienst['preselected_member_group_id'];
-                $eid_grp = $einheit_id > 0 ? $einheit_id : (int)($dienst['einheit_id'] ?? 0);
-                if ($gid > 0 && $eid_grp > 0) {
-                    try {
-                        $stmt_mgm = $db->prepare("
-                            SELECT mgm.member_id FROM member_group_members mgm
-                            INNER JOIN member_groups mg ON mg.id = mgm.group_id
-                            WHERE mgm.group_id = ? AND mg.einheit_id = ?
-                        ");
-                        $stmt_mgm->execute([$gid, $eid_grp]);
-                        while ($r = $stmt_mgm->fetch(PDO::FETCH_ASSOC)) {
-                            $mid = (int)($r['member_id'] ?? 0);
-                            if ($mid > 0) {
-                                $members_init[] = $mid;
-                            }
-                        }
-                        $members_init = array_values(array_unique($members_init));
-                    } catch (Exception $e) {
-                        /* Tabellen können fehlen */
-                    }
+                $pg = (int)$dienst['preselected_member_group_id'];
+                if ($pg > 0) {
+                    $personal_group_filter_init = $pg;
                 }
             }
         } else {
@@ -274,7 +258,8 @@ if (!isset($_SESSION[$draft_key]) || $_SESSION[$draft_key]['datum'] !== $datum |
         'einsatzstichwort' => '',
         'thema' => $thema_init,
         'bemerkung' => '',
-        'members' => $members_init,
+        'members' => [],
+        'personal_group_filter_id' => $personal_group_filter_init,
         'member_vehicle' => [],
         'member_pa' => [],
         'vehicles' => [],

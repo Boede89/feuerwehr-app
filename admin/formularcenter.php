@@ -1139,14 +1139,14 @@ try {
                             <label for="dienstplan_beschreibung" class="form-label">Beschreibung *</label>
                             <input type="text" class="form-control" id="dienstplan_beschreibung" name="dienstplan_beschreibung" placeholder="z.B. Jahreshauptversammlung, Geräteprüfung, ..." autocomplete="off">
                             <div class="mt-3" id="dienstplan_gruppe_wrap" style="display: none;">
-                                <label for="dienstplan_preselected_member_group_id" class="form-label">Personengruppe (Anwesenheit vorausgewählt)</label>
+                                <label for="dienstplan_preselected_member_group_id" class="form-label">Personengruppe (Standard-Filter Personal)</label>
                                 <select class="form-select" id="dienstplan_preselected_member_group_id" name="dienstplan_preselected_member_group_id">
-                                    <option value="">— Keine Vorauswahl —</option>
+                                    <option value="">— Kein Filter voreingestellt —</option>
                                     <?php foreach ($member_groups_dienstplan ?? [] as $mg): ?>
                                     <option value="<?php echo (int)$mg['id']; ?>"><?php echo htmlspecialchars($mg['group_name']); ?></option>
                                     <?php endforeach; ?>
                                 </select>
-                                <div class="form-text">Beim Ausfüllen der Anwesenheitsliste sind diese Personen zunächst als anwesend markiert; die Auswahl bleibt jederzeit änderbar.</div>
+                                <div class="form-text">Im Schritt „Personal“ der Anwesenheitsliste ist die Gruppenauswahl zunächst auf diese Gruppe gesetzt (wie der Filter); Sie können den Filter jederzeit auf „Alle Gruppen“ oder eine andere Gruppe umstellen.</div>
                             </div>
                         </div>
                         <div class="mb-3">
