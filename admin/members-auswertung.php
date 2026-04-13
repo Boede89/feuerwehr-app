@@ -103,10 +103,11 @@ $thema_optionen = [];
 $is_uebungen_filter = ($typ_filter === 'uebungen');
 if ($bereich !== '') {
     try {
-        // Übungen wie in der Auswertung (ist_einsatz / ist_jhv_sonstiges): Dienstplan-Übungen + manuelle Listen,
-        // bei denen das Thema in a.bezeichnung steht (nicht mehr nur der Literal „Übungsdienst“).
-        $ueb_manuell = "(a.typ = 'manuell' AND NOT (TRIM(COALESCE(a.bezeichnung, '')) IN ('Sonstiges', 'Jahreshauptversammlung') OR TRIM(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')), '')) IN ('sonstiges', 'jahreshauptversammlung')))";
-        $ueb_cond = "((a.typ = 'dienst' AND d.typ IN ('uebungsdienst', 'dienst', 'uebung')) OR " . $ueb_manuell . ")";
+        // Wie bei „Nur Übungen“ in der Auswertung (ist_einsatz / ist_jhv_sonstiges) und analog formularcenter.php:
+        // Dienst: alles außer Einsatz, Sonstiges, JHV — nicht nur die drei Legacy-Typen uebungsdienst/dienst/uebung.
+        $ueb_dienst = "(a.typ = 'dienst' AND COALESCE(d.typ, '') NOT IN ('einsatz', 'sonstiges', 'jahreshauptversammlung'))";
+        $ueb_manuell = "(a.typ = 'manuell' AND (a.bezeichnung IS NULL OR TRIM(a.bezeichnung) NOT IN ('Sonstiges', 'Jahreshauptversammlung')) AND TRIM(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.typ_sonstige')), '')) NOT IN ('sonstiges', 'jahreshauptversammlung'))";
+        $ueb_cond = "(" . $ueb_dienst . " OR " . $ueb_manuell . ")";
         $thema_expr = "COALESCE(NULLIF(TRIM(a.bezeichnung), ''), NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(a.custom_data, '$.thema'))), ''), NULLIF(TRIM(d.bezeichnung), ''))";
         $stmt = $db->prepare("SELECT DISTINCT " . $thema_expr . " AS b FROM anwesenheitslisten a LEFT JOIN dienstplan d ON d.id = a.dienstplan_id WHERE a.datum BETWEEN ? AND ? AND " . $ueb_cond . $einheit_where_a . " AND (" . $thema_expr . ") IS NOT NULL AND TRIM(" . $thema_expr . ") != '' ORDER BY b");
         $stmt->execute([$von, $bis]);
