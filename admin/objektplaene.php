@@ -109,6 +109,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (isset($_POST['upload_folder'])) {
         $saved = 0;
         $skipped = 0;
+        $skip_reasons = [
+            'upload_error' => 0,
+            'not_pdf' => 0,
+            'invalid_path' => 0,
+            'move_failed' => 0,
+            'missing_tmp_or_name' => 0,
+        ];
 
         if (!isset($_FILES['objektplan_files'])) {
             $error = 'Keine Dateien übermittelt.';
@@ -120,6 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $err = (int)($files['error'][$i] ?? UPLOAD_ERR_NO_FILE);
                 if ($err !== UPLOAD_ERR_OK) {
                     $skipped++;
+                    $skip_reasons['upload_error']++;
                     continue;
                 }
 
@@ -128,10 +136,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $full_path = (string)($files['full_path'][$i] ?? $name);
                 if ($tmp === '' || $name === '') {
                     $skipped++;
+                    $skip_reasons['missing_tmp_or_name']++;
                     continue;
                 }
                 if (!$is_pdf_name($name)) {
                     $skipped++;
+                    $skip_reasons['not_pdf']++;
                     continue;
                 }
 
@@ -141,6 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 if ($safe_rel === '' || !$is_pdf_name($safe_rel)) {
                     $skipped++;
+                    $skip_reasons['invalid_path']++;
                     continue;
                 }
 
@@ -154,9 +165,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $saved++;
                 } else {
                     $skipped++;
+                    $skip_reasons['move_failed']++;
                 }
             }
             $message = "Upload abgeschlossen: {$saved} PDF gespeichert" . ($skipped > 0 ? ", {$skipped} übersprungen." : '.');
+            if ($skipped > 0) {
+                $details = [];
+                if ($skip_reasons['upload_error'] > 0) $details[] = $skip_reasons['upload_error'] . ' Upload-Fehler';
+                if ($skip_reasons['not_pdf'] > 0) $details[] = $skip_reasons['not_pdf'] . ' keine PDF';
+                if ($skip_reasons['invalid_path'] > 0) $details[] = $skip_reasons['invalid_path'] . ' ungültiger/bereinigter Dateipfad';
+                if ($skip_reasons['move_failed'] > 0) $details[] = $skip_reasons['move_failed'] . ' konnten nicht gespeichert werden';
+                if ($skip_reasons['missing_tmp_or_name'] > 0) $details[] = $skip_reasons['missing_tmp_or_name'] . ' ohne temporäre Datei/Name';
+                if (!empty($details)) {
+                    $message .= ' Gründe: ' . implode('; ', $details) . '.';
+                }
+            }
             if ($count > 0 && $active_max_file_uploads > 0 && $count >= $active_max_file_uploads) {
                 $message .= " Hinweis: Es wurden genau {$count} Dateien im Request erkannt (aktuelles max_file_uploads-Limit: {$active_max_file_uploads}). Wenn im Ordner mehr Dateien waren, bitte Upload in Teilmengen durchführen oder Limit weiter erhöhen.";
             }
@@ -179,6 +202,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $saved = 0;
                 $skipped = 0;
+                $skip_reasons = [
+                    'not_pdf' => 0,
+                    'invalid_path' => 0,
+                    'stream_error' => 0,
+                    'write_error' => 0,
+                ];
                 for ($i = 0; $i < $zip->numFiles; $i++) {
                     $entry = (string)$zip->getNameIndex($i);
                     if ($entry === '' || str_ends_with($entry, '/')) {
@@ -186,11 +215,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     if (!$is_pdf_name($entry)) {
                         $skipped++;
+                        $skip_reasons['not_pdf']++;
                         continue;
                     }
                     $safe_rel = $sanitize_path_part($entry);
                     if ($safe_rel === '' || !$is_pdf_name($safe_rel)) {
                         $skipped++;
+                        $skip_reasons['invalid_path']++;
                         continue;
                     }
                     $target = $objektplan_dir . DIRECTORY_SEPARATOR . $safe_rel;
@@ -201,12 +232,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stream = $zip->getStream($entry);
                     if ($stream === false) {
                         $skipped++;
+                        $skip_reasons['stream_error']++;
                         continue;
                     }
                     $out = @fopen($target, 'wb');
                     if ($out === false) {
                         fclose($stream);
                         $skipped++;
+                        $skip_reasons['write_error']++;
                         continue;
                     }
                     while (!feof($stream)) {
@@ -220,6 +253,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $zip->close();
                 $message = "ZIP-Import abgeschlossen: {$saved} PDF gespeichert" . ($skipped > 0 ? ", {$skipped} übersprungen." : '.');
+                if ($skipped > 0) {
+                    $details = [];
+                    if ($skip_reasons['not_pdf'] > 0) $details[] = $skip_reasons['not_pdf'] . ' keine PDF';
+                    if ($skip_reasons['invalid_path'] > 0) $details[] = $skip_reasons['invalid_path'] . ' ungültiger/bereinigter Dateipfad';
+                    if ($skip_reasons['stream_error'] > 0) $details[] = $skip_reasons['stream_error'] . ' konnten nicht aus ZIP gelesen werden';
+                    if ($skip_reasons['write_error'] > 0) $details[] = $skip_reasons['write_error'] . ' konnten nicht geschrieben werden';
+                    if (!empty($details)) {
+                        $message .= ' Gründe: ' . implode('; ', $details) . '.';
+                    }
+                }
             }
         }
     }
