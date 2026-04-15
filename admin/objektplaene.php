@@ -21,6 +21,19 @@ if (!is_dir($objektplan_dir)) {
 $message = '';
 $error = '';
 
+$parse_ini_size = static function ($size) {
+    $size = trim((string)$size);
+    if ($size === '') return 0;
+    $unit = mb_strtolower(substr($size, -1), 'UTF-8');
+    $value = (float)$size;
+    switch ($unit) {
+        case 'g': return (int)($value * 1024 * 1024 * 1024);
+        case 'm': return (int)($value * 1024 * 1024);
+        case 'k': return (int)($value * 1024);
+        default: return (int)$value;
+    }
+};
+
 $sanitize_path_part = static function ($value) {
     $value = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, (string)$value);
     $parts = explode(DIRECTORY_SEPARATOR, $value);
@@ -43,7 +56,17 @@ $is_pdf_name = static function ($filename) {
 };
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+    $content_length = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+    $post_max_size = $parse_ini_size(ini_get('post_max_size'));
+    $upload_max_size = $parse_ini_size(ini_get('upload_max_filesize'));
+    if ($content_length > 0 && empty($_POST) && empty($_FILES)) {
+        $error = 'Upload zu groß oder durch Server-Limits blockiert. Bitte kleinere Datenmengen hochladen oder die PHP-Limits erhöhen (post_max_size='
+            . (ini_get('post_max_size') ?: 'unbekannt') . ', upload_max_filesize=' . (ini_get('upload_max_filesize') ?: 'unbekannt') . ').';
+    } elseif ($post_max_size > 0 && $content_length > $post_max_size) {
+        $error = 'Upload überschreitet post_max_size (' . (ini_get('post_max_size') ?: 'unbekannt') . ').';
+    } elseif ($upload_max_size > 0 && isset($_FILES['objektplan_zip']['size']) && (int)$_FILES['objektplan_zip']['size'] > $upload_max_size) {
+        $error = 'ZIP-Datei überschreitet upload_max_filesize (' . (ini_get('upload_max_filesize') ?: 'unbekannt') . ').';
+    } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
     } elseif (isset($_POST['delete_file'])) {
         $rel = (string)($_POST['delete_file'] ?? '');
