@@ -461,8 +461,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                     form.reportValidity && form.reportValidity();
                     return false;
                 }
+                // Button wird im nächsten Schritt deaktiviert und wäre dann nicht mehr "successful".
+                // Daher Action-Flag explizit als Hidden-Feld mitsenden.
+                try {
+                    let submitHidden = form.querySelector('input[name="submit_room_reservation"]');
+                    if (!submitHidden) {
+                        submitHidden = document.createElement('input');
+                        submitHidden.type = 'hidden';
+                        submitHidden.name = 'submit_room_reservation';
+                        submitHidden.value = '1';
+                        form.appendChild(submitHidden);
+                    }
+                } catch (_) {}
+
+                e.preventDefault();
                 alreadySubmitting = true;
                 lockUi();
+                form.submit();
             });
 
             form.addEventListener('submit', function(e) {
@@ -472,6 +487,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                     form.reportValidity && form.reportValidity();
                     return;
                 }
+                // Enter-Submit ohne Button-Klick: Action-Flag sicherstellen.
+                try {
+                    let submitHidden = form.querySelector('input[name="submit_room_reservation"]');
+                    if (!submitHidden) {
+                        submitHidden = document.createElement('input');
+                        submitHidden.type = 'hidden';
+                        submitHidden.name = 'submit_room_reservation';
+                        submitHidden.value = '1';
+                        form.appendChild(submitHidden);
+                    }
+                } catch (_) {}
                 alreadySubmitting = true;
                 lockUi();
             });
