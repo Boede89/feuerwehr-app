@@ -494,6 +494,26 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
         $value = preg_replace('/[^a-z0-9]+/u', ' ', $value);
         return trim((string)$value);
     };
+    $extract_city_candidates = static function ($address) use ($normalize) {
+        $candidates = [];
+        $address = trim((string)$address);
+        if ($address === '') return $candidates;
+
+        if (preg_match('/\b\d{5}\s+([A-Za-zÄÖÜäöüß\-\s]+)$/u', $address, $m)) {
+            $city = $normalize($m[1] ?? '');
+            if ($city !== '') $candidates[] = $city;
+        }
+
+        $parts = array_map('trim', explode(',', $address));
+        if (!empty($parts)) {
+            $last = (string)end($parts);
+            $last = preg_replace('/\b\d{5}\b/u', '', $last);
+            $city = $normalize($last);
+            if ($city !== '') $candidates[] = $city;
+        }
+
+        return array_values(array_unique(array_filter($candidates)));
+    };
 
     $search_text = implode(' ', array_filter([
         (string)($alarm_context['address'] ?? ''),
@@ -501,6 +521,7 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
         (string)($alarm_context['location'] ?? ''),
         (string)($alarm_context['text'] ?? ''),
     ]));
+    $city_candidates = $extract_city_candidates((string)($alarm_context['address'] ?? ''));
 
     $collect_pdfs_in_directory = static function ($base_dir_local, $dir_full) {
         $items = [];
@@ -571,7 +592,29 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
                 $path = $file->getPathname();
                 $relative_raw = ltrim(str_replace('\\', '/', substr($path, strlen($base_dir))), '/');
                 $relative_norm = $normalize(pathinfo($relative_raw, PATHINFO_FILENAME));
+                $relative_from_root = ltrim(str_replace('\\', '/', substr($path, strlen($root))), '/');
+                $first_folder = '';
+                if ($relative_from_root !== '') {
+                    $relative_parts = explode('/', $relative_from_root);
+                    $first_folder = $normalize((string)($relative_parts[0] ?? ''));
+                }
                 if ($filename_norm === '') continue;
+
+                // Der Ort ist immer der erste Objektplan-Ordner.
+                // Wenn wir aus der Adresse einen Ort erkennen, muss dieser Ordner passen.
+                if (!empty($city_candidates)) {
+                    if ($first_folder === '') continue;
+                    $city_match = false;
+                    foreach ($city_candidates as $city_candidate) {
+                        if ($city_candidate === $first_folder || mb_strpos($first_folder, $city_candidate) !== false || mb_strpos($city_candidate, $first_folder) !== false) {
+                            $city_match = true;
+                            break;
+                        }
+                    }
+                    if (!$city_match) {
+                        continue;
+                    }
+                }
 
                 $score = 0;
                 if ($selected_address = $normalize((string)($alarm_context['address'] ?? ''))) {
@@ -587,6 +630,9 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
                         $score += 2;
                     }
                 }
+                if (!empty($city_candidates) && $first_folder !== '') {
+                    $score += 8;
+                }
                 if ($score <= 0) continue;
 
                 $relative = ltrim(str_replace('\\', '/', substr($path, strlen($base_dir))), '/');
@@ -600,6 +646,7 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
                         'filename' => $filename,
                         'url' => $url,
                         'all_in_dir' => $collect_pdfs_in_directory($base_dir, $dir_full),
+                        'matched_folder' => $first_folder,
                     ];
                 }
             }
@@ -871,6 +918,9 @@ if (!empty($selected_alarm_id)) {
                             </div>
                             <?php if (!empty($objektplan_files)): ?>
                                 <div class="small text-muted mt-1">Gefundene Pläne im passenden Ordner: <?php echo count($objektplan_files); ?></div>
+                                <?php if (!empty($objektplan_match['matched_folder'])): ?>
+                                    <div class="small text-muted">Ort-Ordner: <code><?php echo htmlspecialchars((string)$objektplan_match['matched_folder']); ?></code></div>
+                                <?php endif; ?>
                                 <div class="d-flex flex-wrap gap-2 mt-2">
                                     <?php foreach ($objektplan_files as $plan): ?>
                                         <a class="btn btn-sm btn-outline-danger" href="<?php echo htmlspecialchars($plan['url']); ?>" target="_blank" rel="noopener noreferrer">
