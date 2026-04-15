@@ -276,6 +276,11 @@ if (is_array($selected_alarm_reach)) {
         }
     }
 }
+
+$selected_address = trim((string)($selected_alarm['address'] ?? $selected_alarm_detail['address'] ?? ''));
+$selected_address_maps_url = $selected_address !== ''
+    ? 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($selected_address)
+    : '';
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -453,7 +458,14 @@ if (is_array($selected_alarm_reach)) {
                         </div>
                         <div class="col-12">
                             <div class="kv-label">Adresse</div>
-                            <div class="kv-value"><?php echo htmlspecialchars((string)($selected_alarm['address'] ?? $selected_alarm_detail['address'] ?? '')); ?></div>
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <div class="kv-value"><?php echo htmlspecialchars($selected_address); ?></div>
+                                <?php if ($selected_address_maps_url !== ''): ?>
+                                    <a class="btn btn-sm btn-outline-primary" href="<?php echo htmlspecialchars($selected_address_maps_url); ?>" target="_blank" rel="noopener noreferrer">
+                                        <i class="fas fa-map-marker-alt me-1"></i>In Google Maps
+                                    </a>
+                                <?php endif; ?>
+                            </div>
                         </div>
                         <div class="col-12">
                             <div class="kv-label">Text / Zusatzinfo</div>
