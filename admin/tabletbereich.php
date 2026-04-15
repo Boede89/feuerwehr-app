@@ -42,16 +42,46 @@ if (!in_array($auto_refresh_seconds, [0, 30, 60], true)) {
 }
 $use_demo_data = isset($_GET['demo']) && $_GET['demo'] === '1';
 
-$build_demo_payload = static function () {
+$build_demo_payload = static function () use ($base_upload_dir) {
     $now = time();
     $alarm_id = 987654;
     $alarm_date = $now - 900;
+    $demo_address = 'Markt 20, 41366 Schwalmtal';
+    $demo_title_suffix = 'Brennt PKW auf Parkplatz';
+
+    $objektplan_dirs = [
+        $base_upload_dir . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'objektplaene',
+        $base_upload_dir . DIRECTORY_SEPARATOR . 'objektplaene',
+        $base_upload_dir . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'objektplaene',
+    ];
+    foreach ($objektplan_dirs as $dir) {
+        if (!is_dir($dir)) continue;
+        try {
+            $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
+            foreach ($it as $file) {
+                if (!$file->isFile()) continue;
+                if (mb_strtolower((string)$file->getExtension(), 'UTF-8') !== 'pdf') continue;
+                $name_wo_ext = pathinfo($file->getFilename(), PATHINFO_FILENAME);
+                $name_clean = preg_replace('/[_\-]+/', ' ', (string)$name_wo_ext);
+                $name_clean = trim((string)$name_clean);
+                if ($name_clean !== '') {
+                    // Demo-Adresse bewusst aus vorhandenem Objektplan-Namen ableiten,
+                    // damit die automatische Plan-Erkennung im Test sicher greift.
+                    $demo_address = $name_clean;
+                    $demo_title_suffix = $name_clean;
+                }
+                break 2;
+            }
+        } catch (Throwable $e) {
+            // ignore
+        }
+    }
 
     $alarm_list = [[
         'id' => $alarm_id,
-        'title' => 'F2 - Brennt PKW auf Parkplatz',
+        'title' => 'F2 - ' . $demo_title_suffix,
         'text' => 'Mehrere Notrufe. Fahrzeugbrand droht auf weitere Fahrzeuge überzugreifen.',
-        'address' => 'Markt 20, 41366 Schwalmtal',
+        'address' => $demo_address,
         'date' => $alarm_date,
         'ts_create' => $alarm_date,
         'closed' => false,
@@ -62,11 +92,11 @@ $build_demo_payload = static function () {
         'data' => [
             'id' => $alarm_id,
             'number' => 'E-2026-0415-01',
-            'title' => 'F2 - Brennt PKW auf Parkplatz',
+            'title' => 'F2 - ' . $demo_title_suffix,
             'text' => 'PKW in Vollbrand. Erstmeldung durch Passanten. Ausbreitungsgefahr auf Hecke und weiteres Fahrzeug.',
             'keyword' => 'F2',
             'priority' => 2,
-            'address' => 'Markt 20, 41366 Schwalmtal',
+            'address' => $demo_address,
             'location' => 'Parkplatz Supermarkt Nord',
             'object' => 'Freifläche',
             'patient_count' => 0,
