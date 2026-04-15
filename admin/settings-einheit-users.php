@@ -68,6 +68,39 @@ try {
     // ignore
 }
 
+// Rollen-Tabellen/Spalten sicherstellen
+try {
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS permission_roles (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            einheit_id INT NOT NULL,
+            role_name VARCHAR(120) NOT NULL,
+            description TEXT NULL,
+            can_reservations TINYINT(1) DEFAULT 0,
+            can_atemschutz TINYINT(1) DEFAULT 0,
+            can_members TINYINT(1) DEFAULT 0,
+            can_ric TINYINT(1) DEFAULT 0,
+            can_courses TINYINT(1) DEFAULT 0,
+            can_forms TINYINT(1) DEFAULT 0,
+            can_forms_fill TINYINT(1) DEFAULT 0,
+            can_auswertung TINYINT(1) DEFAULT 0,
+            can_reservations_readonly TINYINT(1) DEFAULT 0,
+            can_atemschutz_readonly TINYINT(1) DEFAULT 0,
+            can_members_readonly TINYINT(1) DEFAULT 0,
+            can_ric_readonly TINYINT(1) DEFAULT 0,
+            can_courses_readonly TINYINT(1) DEFAULT 0,
+            can_forms_readonly TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_role_per_einheit (einheit_id, role_name),
+            INDEX idx_permission_roles_einheit (einheit_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+} catch (Exception $e) {
+    // ignore
+}
+try { $db->exec("ALTER TABLE users ADD COLUMN role_id INT NULL DEFAULT NULL"); } catch (Exception $e) {}
+
 // Neuer Benutzer
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_user') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -77,6 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $email = sanitize_input($_POST['email'] ?? '');
         $first_name = sanitize_input($_POST['first_name'] ?? '');
         $last_name = sanitize_input($_POST['last_name'] ?? '');
+        $role_id = (int)($_POST['role_id'] ?? 0);
         $password = $_POST['password'] ?? '';
         $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
         $can_atemschutz = isset($_POST['can_atemschutz']) ? 1 : 0;
@@ -92,6 +126,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $can_ric_readonly = isset($_POST['can_ric_readonly']) ? 1 : 0;
         $can_courses_readonly = isset($_POST['can_courses_readonly']) ? 1 : 0;
         $can_forms_readonly = isset($_POST['can_forms_readonly']) ? 1 : 0;
+        if ($role_id > 0) {
+            try {
+                $stmt_role = $db->prepare("SELECT id FROM permission_roles WHERE id = ? AND einheit_id = ?");
+                $stmt_role->execute([$role_id, $einheit_id]);
+                if (!$stmt_role->fetch()) {
+                    $role_id = 0;
+                }
+            } catch (Exception $e) {
+                $role_id = 0;
+            }
+        }
         if (empty($username) || empty($email) || empty($first_name) || empty($last_name) || empty($password)) {
             $error = "Alle Pflichtfelder sind erforderlich.";
         } elseif (!validate_email($email)) {
@@ -107,8 +152,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     try { $db->exec("ALTER TABLE users ADD COLUMN can_forms_fill TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
                     try { $db->exec("ALTER TABLE users ADD COLUMN can_auswertung TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
                     foreach (['can_reservations_readonly','can_atemschutz_readonly','can_members_readonly','can_ric_readonly','can_courses_readonly','can_forms_readonly'] as $c) { try { $db->exec("ALTER TABLE users ADD COLUMN $c TINYINT(1) DEFAULT 0"); } catch (Exception $e) {} }
-                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, user_type, einheit_id, is_active, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_auswertung, can_reservations_readonly, can_atemschutz_readonly, can_members_readonly, can_ric_readonly, can_courses_readonly, can_forms_readonly, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', 'user', ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)");
-                    $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $einheit_id, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly]);
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, user_type, einheit_id, role_id, is_active, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_auswertung, can_reservations_readonly, can_atemschutz_readonly, can_members_readonly, can_ric_readonly, can_courses_readonly, can_forms_readonly, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', 'user', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)");
+                    $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $einheit_id, $role_id > 0 ? $role_id : null, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly]);
                     $new_id = $db->lastInsertId();
                     try {
                         $stmt_m = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, einheit_id) VALUES (?, ?, ?, ?, ?)");
@@ -196,6 +241,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array
     }
 }
 
+// Berechtigungsrolle anlegen/bearbeiten/löschen
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array($_POST['action'], ['add_permission_role', 'edit_permission_role', 'delete_permission_role'], true)) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = "Ungültiger Sicherheitstoken.";
+    } else {
+        $action = $_POST['action'];
+        $role_name = trim((string)($_POST['role_name'] ?? ''));
+        $description = trim((string)($_POST['description'] ?? ''));
+
+        $role_can_reservations = isset($_POST['role_can_reservations']) ? 1 : 0;
+        $role_can_atemschutz = isset($_POST['role_can_atemschutz']) ? 1 : 0;
+        $role_can_members = isset($_POST['role_can_members']) ? 1 : 0;
+        $role_can_ric = isset($_POST['role_can_ric']) ? 1 : 0;
+        $role_can_courses = isset($_POST['role_can_courses']) ? 1 : 0;
+        $role_can_forms = isset($_POST['role_can_forms']) ? 1 : 0;
+        $role_can_forms_fill = isset($_POST['role_can_forms_fill']) ? 1 : 0;
+        $role_can_auswertung = isset($_POST['role_can_auswertung']) ? 1 : 0;
+        $role_can_reservations_readonly = isset($_POST['role_can_reservations_readonly']) ? 1 : 0;
+        $role_can_atemschutz_readonly = isset($_POST['role_can_atemschutz_readonly']) ? 1 : 0;
+        $role_can_members_readonly = isset($_POST['role_can_members_readonly']) ? 1 : 0;
+        $role_can_ric_readonly = isset($_POST['role_can_ric_readonly']) ? 1 : 0;
+        $role_can_courses_readonly = isset($_POST['role_can_courses_readonly']) ? 1 : 0;
+        $role_can_forms_readonly = isset($_POST['role_can_forms_readonly']) ? 1 : 0;
+
+        try {
+            if ($action === 'delete_permission_role') {
+                $role_id = (int)($_POST['role_id'] ?? 0);
+                $stmt = $db->prepare("UPDATE users SET role_id = NULL WHERE role_id = ? AND (einheit_id = ? OR id IN (SELECT user_id FROM user_einheiten WHERE einheit_id = ?))");
+                $stmt->execute([$role_id, $einheit_id, $einheit_id]);
+                $stmt = $db->prepare("DELETE FROM permission_roles WHERE id = ? AND einheit_id = ?");
+                $stmt->execute([$role_id, $einheit_id]);
+                header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=role_deleted");
+                exit;
+            }
+
+            if ($role_name === '') {
+                $error = "Bitte einen Rollennamen angeben.";
+            } else {
+                $role_id = (int)($_POST['role_id'] ?? 0);
+                if ($action === 'add_permission_role') {
+                    $stmt = $db->prepare("INSERT INTO permission_roles (einheit_id, role_name, description, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_auswertung, can_reservations_readonly, can_atemschutz_readonly, can_members_readonly, can_ric_readonly, can_courses_readonly, can_forms_readonly) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$einheit_id, $role_name, $description !== '' ? $description : null, $role_can_reservations, $role_can_atemschutz, $role_can_members, $role_can_ric, $role_can_courses, $role_can_forms, $role_can_forms_fill, $role_can_auswertung, $role_can_reservations_readonly, $role_can_atemschutz_readonly, $role_can_members_readonly, $role_can_ric_readonly, $role_can_courses_readonly, $role_can_forms_readonly]);
+                } else {
+                    $stmt = $db->prepare("UPDATE permission_roles SET role_name = ?, description = ?, can_reservations = ?, can_atemschutz = ?, can_members = ?, can_ric = ?, can_courses = ?, can_forms = ?, can_forms_fill = ?, can_auswertung = ?, can_reservations_readonly = ?, can_atemschutz_readonly = ?, can_members_readonly = ?, can_ric_readonly = ?, can_courses_readonly = ?, can_forms_readonly = ? WHERE id = ? AND einheit_id = ?");
+                    $stmt->execute([$role_name, $description !== '' ? $description : null, $role_can_reservations, $role_can_atemschutz, $role_can_members, $role_can_ric, $role_can_courses, $role_can_forms, $role_can_forms_fill, $role_can_auswertung, $role_can_reservations_readonly, $role_can_atemschutz_readonly, $role_can_members_readonly, $role_can_ric_readonly, $role_can_courses_readonly, $role_can_forms_readonly, $role_id, $einheit_id]);
+                }
+                header("Location: settings-einheit-users.php?id=" . $einheit_id . "&success=" . ($action === 'add_permission_role' ? 'role_added' : 'role_updated'));
+                exit;
+            }
+        } catch (Exception $e) {
+            $error = "Fehler: " . $e->getMessage();
+        }
+    }
+}
+
 // Benutzer bearbeiten (Berechtigungen)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_user') {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -206,6 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $email = sanitize_input($_POST['email'] ?? '');
         $first_name = sanitize_input($_POST['first_name'] ?? '');
         $last_name = sanitize_input($_POST['last_name'] ?? '');
+        $role_id = (int)($_POST['role_id'] ?? 0);
         if (!$user_id || !user_has_einheit_access($_SESSION['user_id'], $einheit_id)) {
             $error = "Ungültige Anfrage.";
         } elseif (empty($username) || empty($email) || empty($first_name) || empty($last_name)) {
@@ -229,6 +330,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $can_forms_readonly = isset($_POST['can_forms_readonly']) ? 1 : 0;
             $is_active = isset($_POST['is_active']) ? 1 : 0;
             $password = $_POST['password'] ?? '';
+            if ($role_id > 0) {
+                try {
+                    $stmt_role = $db->prepare("SELECT id FROM permission_roles WHERE id = ? AND einheit_id = ?");
+                    $stmt_role->execute([$role_id, $einheit_id]);
+                    if (!$stmt_role->fetch()) {
+                        $role_id = 0;
+                    }
+                } catch (Exception $e) {
+                    $role_id = 0;
+                }
+            }
             try {
                 $stmt_check = $db->prepare("SELECT id FROM users WHERE (einheit_id = ? OR id IN (SELECT user_id FROM user_einheiten WHERE einheit_id = ?)) AND id = ?");
                 $stmt_check->execute([$einheit_id, $einheit_id, $user_id]);
@@ -257,11 +369,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $divera_key_final = ($divera_key_to_save !== null) ? $divera_key_to_save : trim((string) ($cur['divera_access_key'] ?? ''));
                     if (!empty($password)) {
                         $pw_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_auswertung=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=?, password_hash=?, divera_access_key=? WHERE id=?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $pw_hash, $divera_key_final ?: null, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, role_id=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_auswertung=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=?, password_hash=?, divera_access_key=? WHERE id=?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $role_id > 0 ? $role_id : null, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $pw_hash, $divera_key_final ?: null, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_auswertung=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=?, divera_access_key=? WHERE id=?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $divera_key_final ?: null, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, role_id=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_auswertung=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=?, divera_access_key=? WHERE id=?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $role_id > 0 ? $role_id : null, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $divera_key_final ?: null, $user_id]);
                     }
                     try {
                         $stmt_m = $db->prepare("UPDATE members SET first_name=?, last_name=?, email=? WHERE user_id=? AND einheit_id=?");
@@ -456,6 +568,9 @@ if (isset($_GET['success'])) {
     if ($_GET['success'] === 'group_added') $message = "Gruppe wurde angelegt.";
     if ($_GET['success'] === 'group_updated') $message = "Gruppe wurde aktualisiert.";
     if ($_GET['success'] === 'group_deleted') $message = "Gruppe wurde gelöscht.";
+    if ($_GET['success'] === 'role_added') $message = "Berechtigungsrolle wurde angelegt.";
+    if ($_GET['success'] === 'role_updated') $message = "Berechtigungsrolle wurde aktualisiert.";
+    if ($_GET['success'] === 'role_deleted') $message = "Berechtigungsrolle wurde gelöscht.";
 }
 
 // Sicherstellen, dass alle Berechtigungsspalten existieren
@@ -469,16 +584,24 @@ try { $db->exec("ALTER TABLE users ADD COLUMN divera_access_key VARCHAR(512) NUL
 // Benutzer dieser Einheit laden (mit Berechtigungen und Divera-Key-Status)
 $unit_users = [];
 try {
-    $stmt = $db->prepare("SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.user_type, u.is_active, u.created_at,
+    $stmt = $db->prepare("SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.user_type, u.role_id, pr.role_name, u.is_active, u.created_at,
         u.can_reservations, u.can_atemschutz, u.can_members, u.can_ric, u.can_courses, u.can_forms, u.can_forms_fill, u.can_auswertung,
         u.can_reservations_readonly, u.can_atemschutz_readonly, u.can_members_readonly, u.can_ric_readonly, u.can_courses_readonly, u.can_forms_readonly,
         (u.divera_access_key IS NOT NULL AND TRIM(u.divera_access_key) != '') AS has_divera_key
-        FROM users u 
+        FROM users u
+        LEFT JOIN permission_roles pr ON pr.id = u.role_id
         WHERE (u.einheit_id = ? OR u.id IN (SELECT user_id FROM user_einheiten WHERE einheit_id = ?))
         AND u.is_system_user = 0
         ORDER BY u.last_name, u.first_name");
     $stmt->execute([$einheit_id, $einheit_id]);
     $unit_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
+$permission_roles = [];
+try {
+    $stmt = $db->prepare("SELECT * FROM permission_roles WHERE einheit_id = ? ORDER BY role_name");
+    $stmt->execute([$einheit_id]);
+    $permission_roles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 
 // Systembenutzer dieser Einheit laden
@@ -583,6 +706,7 @@ try {
                                 <th>Name</th>
                                 <th>Benutzername</th>
                                 <th>E-Mail</th>
+                                <th>Rolle</th>
                                 <th>Berechtigungen</th>
                                 <th>Divera</th>
                                 <th>Status</th>
@@ -595,6 +719,13 @@ try {
                                 <td><?php echo htmlspecialchars(trim($u['first_name'] . ' ' . $u['last_name'])); ?></td>
                                 <td><?php echo htmlspecialchars($u['username']); ?></td>
                                 <td><?php echo htmlspecialchars($u['email'] ?? ''); ?></td>
+                                <td>
+                                    <?php if (!empty($u['role_name'])): ?>
+                                        <span class="badge bg-dark"><?php echo htmlspecialchars($u['role_name']); ?></span>
+                                    <?php else: ?>
+                                        <span class="text-muted">—</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <div class="d-flex flex-wrap gap-1">
                                         <?php if (!empty($u['can_reservations'])): ?><span class="badge bg-primary">Reservierungen</span><?php endif; ?>
@@ -634,6 +765,7 @@ try {
                                         data-first-name="<?php echo htmlspecialchars($u['first_name'] ?? '', ENT_QUOTES); ?>"
                                         data-last-name="<?php echo htmlspecialchars($u['last_name'] ?? '', ENT_QUOTES); ?>"
                                         data-email="<?php echo htmlspecialchars($u['email'] ?? '', ENT_QUOTES); ?>"
+                                        data-role-id="<?php echo (int)($u['role_id'] ?? 0); ?>"
                                         data-can-reservations="<?php echo (int)($u['can_reservations'] ?? 0); ?>"
                                         data-can-atemschutz="<?php echo (int)($u['can_atemschutz'] ?? 0); ?>"
                                         data-can-members="<?php echo (int)($u['can_members'] ?? 0); ?>"
@@ -670,6 +802,87 @@ try {
                 </div>
                 <?php if (empty($unit_users)): ?>
                 <p class="text-muted mb-0">Noch keine Benutzer in dieser Einheit.</p>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-user-shield text-dark"></i> Berechtigungsrollen</h5>
+                <button type="button" class="btn btn-dark btn-sm" data-bs-toggle="modal" data-bs-target="#addRoleModal">
+                    <i class="fas fa-plus"></i> Rolle anlegen
+                </button>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">Rollen dienen als Vorlage. Beim Benutzer können Rechte trotz gewählter Rolle individuell angepasst werden.</p>
+                <?php if (empty($permission_roles)): ?>
+                    <p class="text-muted mb-0">Noch keine Berechtigungsrollen vorhanden.</p>
+                <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Rolle</th>
+                                <th>Beschreibung</th>
+                                <th>Rechte</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($permission_roles as $role): ?>
+                            <tr>
+                                <td><strong><?php echo htmlspecialchars($role['role_name']); ?></strong></td>
+                                <td><?php echo htmlspecialchars($role['description'] ?? '-'); ?></td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <?php if (!empty($role['can_reservations'])): ?><span class="badge bg-primary">Reservierungen</span><?php endif; ?>
+                                        <?php if (!empty($role['can_atemschutz'])): ?><span class="badge bg-success">Atemschutz</span><?php endif; ?>
+                                        <?php if (!empty($role['can_members'])): ?><span class="badge bg-info">Mitglieder</span><?php endif; ?>
+                                        <?php if (!empty($role['can_ric'])): ?><span class="badge bg-warning text-dark">RIC</span><?php endif; ?>
+                                        <?php if (!empty($role['can_courses'])): ?><span class="badge bg-secondary">Lehrgänge</span><?php endif; ?>
+                                        <?php if (!empty($role['can_forms'])): ?><span class="badge bg-secondary">Formularcenter</span><?php endif; ?>
+                                        <?php if (!empty($role['can_forms_fill'])): ?><span class="badge bg-secondary">Formulare ausfüllen</span><?php endif; ?>
+                                        <?php if (!empty($role['can_auswertung'])): ?><span class="badge bg-info">Auswertung</span><?php endif; ?>
+                                    </div>
+                                </td>
+                                <td class="d-flex gap-2">
+                                    <button type="button"
+                                            class="btn btn-outline-dark btn-sm"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#editRoleModal"
+                                            data-role-id="<?php echo (int)$role['id']; ?>"
+                                            data-role-name="<?php echo htmlspecialchars($role['role_name'], ENT_QUOTES); ?>"
+                                            data-role-description="<?php echo htmlspecialchars($role['description'] ?? '', ENT_QUOTES); ?>"
+                                            data-role-can-reservations="<?php echo (int)$role['can_reservations']; ?>"
+                                            data-role-can-atemschutz="<?php echo (int)$role['can_atemschutz']; ?>"
+                                            data-role-can-members="<?php echo (int)$role['can_members']; ?>"
+                                            data-role-can-ric="<?php echo (int)$role['can_ric']; ?>"
+                                            data-role-can-courses="<?php echo (int)$role['can_courses']; ?>"
+                                            data-role-can-forms="<?php echo (int)$role['can_forms']; ?>"
+                                            data-role-can-forms-fill="<?php echo (int)$role['can_forms_fill']; ?>"
+                                            data-role-can-auswertung="<?php echo (int)$role['can_auswertung']; ?>"
+                                            data-role-can-reservations-readonly="<?php echo (int)$role['can_reservations_readonly']; ?>"
+                                            data-role-can-atemschutz-readonly="<?php echo (int)$role['can_atemschutz_readonly']; ?>"
+                                            data-role-can-members-readonly="<?php echo (int)$role['can_members_readonly']; ?>"
+                                            data-role-can-ric-readonly="<?php echo (int)$role['can_ric_readonly']; ?>"
+                                            data-role-can-courses-readonly="<?php echo (int)$role['can_courses_readonly']; ?>"
+                                            data-role-can-forms-readonly="<?php echo (int)$role['can_forms_readonly']; ?>">
+                                        <i class="fas fa-edit"></i> Bearbeiten
+                                    </button>
+                                    <form method="POST" onsubmit="return confirm('Rolle wirklich löschen? Benutzer behalten ihre aktuell gespeicherten Rechte.');">
+                                        <input type="hidden" name="action" value="delete_permission_role">
+                                        <input type="hidden" name="role_id" value="<?php echo (int)$role['id']; ?>">
+                                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            <i class="fas fa-trash"></i> Löschen
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
                 <?php endif; ?>
             </div>
         </div>
@@ -895,6 +1108,67 @@ try {
         </div>
     </div>
 
+    <div class="modal fade" id="addRoleModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="action" value="add_permission_role">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-user-shield"></i> Berechtigungsrolle anlegen</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label" for="add_role_name">Rollenname *</label>
+                            <input type="text" class="form-control" name="role_name" id="add_role_name" required maxlength="120">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="add_role_description">Beschreibung</label>
+                            <textarea class="form-control" name="description" id="add_role_description" rows="2"></textarea>
+                        </div>
+                        <?php include __DIR__ . '/partials/role-permissions-fields.inc.php'; ?>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-dark"><i class="fas fa-save"></i> Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editRoleModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="action" value="edit_permission_role">
+                    <input type="hidden" name="role_id" id="edit_permission_role_id">
+                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-user-shield"></i> Berechtigungsrolle bearbeiten</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label" for="edit_role_name">Rollenname *</label>
+                            <input type="text" class="form-control" name="role_name" id="edit_role_name" required maxlength="120">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="edit_role_description">Beschreibung</label>
+                            <textarea class="form-control" name="description" id="edit_role_description" rows="2"></textarea>
+                        </div>
+                        <?php include __DIR__ . '/partials/role-permissions-fields-edit.inc.php'; ?>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-dark"><i class="fas fa-save"></i> Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Systembenutzer anlegen -->
     <div class="modal fade" id="addSystemUserModal" tabindex="-1">
         <div class="modal-dialog">
@@ -1106,6 +1380,33 @@ try {
                             </div>
                         </div>
                         <div class="mb-3">
+                            <label for="edit_role_id" class="form-label">Berechtigungsrolle</label>
+                            <select class="form-select role-select" name="role_id" id="edit_role_id" data-target-prefix="edit">
+                                <option value="">Keine Rolle (nur individuelle Rechte)</option>
+                                <?php foreach ($permission_roles as $role): ?>
+                                    <option
+                                        value="<?php echo (int)$role['id']; ?>"
+                                        data-can-reservations="<?php echo (int)$role['can_reservations']; ?>"
+                                        data-can-atemschutz="<?php echo (int)$role['can_atemschutz']; ?>"
+                                        data-can-members="<?php echo (int)$role['can_members']; ?>"
+                                        data-can-ric="<?php echo (int)$role['can_ric']; ?>"
+                                        data-can-courses="<?php echo (int)$role['can_courses']; ?>"
+                                        data-can-forms="<?php echo (int)$role['can_forms']; ?>"
+                                        data-can-forms-fill="<?php echo (int)$role['can_forms_fill']; ?>"
+                                        data-can-auswertung="<?php echo (int)$role['can_auswertung']; ?>"
+                                        data-can-reservations-readonly="<?php echo (int)$role['can_reservations_readonly']; ?>"
+                                        data-can-atemschutz-readonly="<?php echo (int)$role['can_atemschutz_readonly']; ?>"
+                                        data-can-members-readonly="<?php echo (int)$role['can_members_readonly']; ?>"
+                                        data-can-ric-readonly="<?php echo (int)$role['can_ric_readonly']; ?>"
+                                        data-can-courses-readonly="<?php echo (int)$role['can_courses_readonly']; ?>"
+                                        data-can-forms-readonly="<?php echo (int)$role['can_forms_readonly']; ?>">
+                                        <?php echo htmlspecialchars($role['role_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="text-muted">Beim Auswählen werden Rechte vorbefüllt. Sie können danach einzelne Rechte individuell anpassen.</small>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">Berechtigungen</label>
                             <p class="text-muted small mb-2">Aktivieren Sie „Nur Leserechte“, wenn der Benutzer nur ansehen, aber nicht bearbeiten darf.</p>
                             <div class="form-check">
@@ -1231,6 +1532,33 @@ try {
                             <input type="password" class="form-control" name="password" id="add_password" required>
                         </div>
                         <div class="mb-3">
+                            <label for="add_role_id" class="form-label">Berechtigungsrolle</label>
+                            <select class="form-select role-select" name="role_id" id="add_role_id" data-target-prefix="add">
+                                <option value="">Keine Rolle (nur individuelle Rechte)</option>
+                                <?php foreach ($permission_roles as $role): ?>
+                                    <option
+                                        value="<?php echo (int)$role['id']; ?>"
+                                        data-can-reservations="<?php echo (int)$role['can_reservations']; ?>"
+                                        data-can-atemschutz="<?php echo (int)$role['can_atemschutz']; ?>"
+                                        data-can-members="<?php echo (int)$role['can_members']; ?>"
+                                        data-can-ric="<?php echo (int)$role['can_ric']; ?>"
+                                        data-can-courses="<?php echo (int)$role['can_courses']; ?>"
+                                        data-can-forms="<?php echo (int)$role['can_forms']; ?>"
+                                        data-can-forms-fill="<?php echo (int)$role['can_forms_fill']; ?>"
+                                        data-can-auswertung="<?php echo (int)$role['can_auswertung']; ?>"
+                                        data-can-reservations-readonly="<?php echo (int)$role['can_reservations_readonly']; ?>"
+                                        data-can-atemschutz-readonly="<?php echo (int)$role['can_atemschutz_readonly']; ?>"
+                                        data-can-members-readonly="<?php echo (int)$role['can_members_readonly']; ?>"
+                                        data-can-ric-readonly="<?php echo (int)$role['can_ric_readonly']; ?>"
+                                        data-can-courses-readonly="<?php echo (int)$role['can_courses_readonly']; ?>"
+                                        data-can-forms-readonly="<?php echo (int)$role['can_forms_readonly']; ?>">
+                                        <?php echo htmlspecialchars($role['role_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="text-muted">Beim Auswählen werden Rechte vorbefüllt. Sie können danach einzelne Rechte individuell anpassen.</small>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">Berechtigungen</label>
                             <p class="text-muted small mb-2">Aktivieren Sie „Nur Leserechte“, wenn der Benutzer nur ansehen, aber nicht bearbeiten darf.</p>
                             <div class="form-check">
@@ -1310,6 +1638,7 @@ try {
             document.getElementById('edit_last_name').value = btn.dataset.lastName || '';
             document.getElementById('edit_username').value = btn.dataset.username || '';
             document.getElementById('edit_email').value = btn.dataset.email || '';
+            document.getElementById('edit_role_id').value = btn.dataset.roleId || '';
             document.getElementById('edit_can_reservations').checked = btn.dataset.canReservations == '1';
             document.getElementById('edit_can_atemschutz').checked = btn.dataset.canAtemschutz == '1';
             document.getElementById('edit_can_members').checked = btn.dataset.canMembers == '1';
@@ -1329,6 +1658,55 @@ try {
             document.getElementById('edit_divera_access_key').value = '';
             document.getElementById('edit_divera_access_key').placeholder = btn.dataset.diveraHasKey == '1' ? 'Leer lassen zum Beibehalten' : 'Key eintragen';
             document.getElementById('edit_divera_key_clear').checked = false;
+        });
+        var editRoleModalEl = document.getElementById('editRoleModal');
+        if (editRoleModalEl) {
+            editRoleModalEl.addEventListener('show.bs.modal', function(e) {
+                var btn = e.relatedTarget;
+                if (!btn) return;
+                document.getElementById('edit_permission_role_id').value = btn.dataset.roleId || '';
+                document.getElementById('edit_role_name').value = btn.dataset.roleName || '';
+                document.getElementById('edit_role_description').value = btn.dataset.roleDescription || '';
+                document.getElementById('edit_role_can_reservations').checked = btn.dataset.roleCanReservations == '1';
+                document.getElementById('edit_role_can_atemschutz').checked = btn.dataset.roleCanAtemschutz == '1';
+                document.getElementById('edit_role_can_members').checked = btn.dataset.roleCanMembers == '1';
+                document.getElementById('edit_role_can_ric').checked = btn.dataset.roleCanRic == '1';
+                document.getElementById('edit_role_can_courses').checked = btn.dataset.roleCanCourses == '1';
+                document.getElementById('edit_role_can_forms').checked = btn.dataset.roleCanForms == '1';
+                document.getElementById('edit_role_can_forms_fill').checked = btn.dataset.roleCanFormsFill == '1';
+                document.getElementById('edit_role_can_auswertung').checked = btn.dataset.roleCanAuswertung == '1';
+                document.getElementById('edit_role_can_reservations_readonly').checked = btn.dataset.roleCanReservationsReadonly == '1';
+                document.getElementById('edit_role_can_atemschutz_readonly').checked = btn.dataset.roleCanAtemschutzReadonly == '1';
+                document.getElementById('edit_role_can_members_readonly').checked = btn.dataset.roleCanMembersReadonly == '1';
+                document.getElementById('edit_role_can_ric_readonly').checked = btn.dataset.roleCanRicReadonly == '1';
+                document.getElementById('edit_role_can_courses_readonly').checked = btn.dataset.roleCanCoursesReadonly == '1';
+                document.getElementById('edit_role_can_forms_readonly').checked = btn.dataset.roleCanFormsReadonly == '1';
+            });
+        }
+        function applyRolePermissions(selectEl) {
+            if (!selectEl || !selectEl.selectedOptions || !selectEl.selectedOptions.length) return;
+            var option = selectEl.selectedOptions[0];
+            if (!option || !option.value) return;
+            var prefix = selectEl.dataset.targetPrefix || '';
+            var map = [
+                'can_reservations', 'can_atemschutz', 'can_members', 'can_ric', 'can_courses', 'can_forms',
+                'can_forms_fill', 'can_auswertung',
+                'can_reservations_readonly', 'can_atemschutz_readonly', 'can_members_readonly',
+                'can_ric_readonly', 'can_courses_readonly', 'can_forms_readonly'
+            ];
+            map.forEach(function(key) {
+                var id = prefix + '_' + key;
+                var el = document.getElementById(id);
+                if (el) {
+                    var dataKey = key.replace(/_([a-z])/g, function(_, c) { return c.toUpperCase(); });
+                    el.checked = option.dataset[dataKey] == '1';
+                }
+            });
+        }
+        document.querySelectorAll('.role-select').forEach(function(selectEl) {
+            selectEl.addEventListener('change', function() {
+                applyRolePermissions(this);
+            });
         });
         document.getElementById('regenerateLinkModal').addEventListener('show.bs.modal', function(e) {
             var btn = e.relatedTarget;
