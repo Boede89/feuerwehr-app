@@ -33,6 +33,8 @@ Options -Indexes
     php_flag display_errors Off
     php_flag log_errors On
     php_value error_log /var/log/php_errors.log
+    php_value upload_max_filesize 100M
+    php_value post_max_size 110M
 </IfModule>
 
 # URL Rewriting
