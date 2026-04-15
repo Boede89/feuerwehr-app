@@ -514,6 +514,27 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
 
         return array_values(array_unique(array_filter($candidates)));
     };
+    $normalize_city_folder = static function ($folder) use ($normalize) {
+        $folder = $normalize($folder);
+        // z.B. "06-Schwalmtal" -> "schwalmtal"
+        $folder = preg_replace('/^\d+\s*/u', '', (string)$folder);
+        return trim((string)$folder);
+    };
+    $extract_object_candidates = static function ($address, $title, $location) use ($normalize) {
+        $candidates = [];
+        $address = trim((string)$address);
+        if ($address !== '') {
+            $street_part = trim((string)explode(',', $address)[0]);
+            $street_part = preg_replace('/\b\d+[a-zA-Z]?\b/u', '', $street_part); // Hausnummern entfernen
+            $street_norm = $normalize($street_part);
+            if ($street_norm !== '') $candidates[] = $street_norm;
+        }
+        foreach ([$title, $location] as $text) {
+            $norm = $normalize((string)$text);
+            if ($norm !== '') $candidates[] = $norm;
+        }
+        return array_values(array_unique(array_filter($candidates)));
+    };
 
     $search_text = implode(' ', array_filter([
         (string)($alarm_context['address'] ?? ''),
@@ -522,6 +543,11 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
         (string)($alarm_context['text'] ?? ''),
     ]));
     $city_candidates = $extract_city_candidates((string)($alarm_context['address'] ?? ''));
+    $object_candidates = $extract_object_candidates(
+        (string)($alarm_context['address'] ?? ''),
+        (string)($alarm_context['title'] ?? ''),
+        (string)($alarm_context['location'] ?? '')
+    );
 
     $collect_pdfs_in_directory = static function ($base_dir_local, $dir_full) {
         $items = [];
@@ -594,9 +620,11 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
                 $relative_norm = $normalize(pathinfo($relative_raw, PATHINFO_FILENAME));
                 $relative_from_root = ltrim(str_replace('\\', '/', substr($path, strlen($root))), '/');
                 $first_folder = '';
+                $second_folder = '';
                 if ($relative_from_root !== '') {
                     $relative_parts = explode('/', $relative_from_root);
                     $first_folder = $normalize((string)($relative_parts[0] ?? ''));
+                    $second_folder = $normalize((string)($relative_parts[1] ?? ''));
                 }
                 if ($filename_norm === '') continue;
 
@@ -604,9 +632,14 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
                 // Wenn wir aus der Adresse einen Ort erkennen, muss dieser Ordner passen.
                 if (!empty($city_candidates)) {
                     if ($first_folder === '') continue;
+                    $first_city_folder = $normalize_city_folder($first_folder);
                     $city_match = false;
                     foreach ($city_candidates as $city_candidate) {
-                        if ($city_candidate === $first_folder || mb_strpos($first_folder, $city_candidate) !== false || mb_strpos($city_candidate, $first_folder) !== false) {
+                        if (
+                            $city_candidate === $first_city_folder ||
+                            mb_strpos($first_city_folder, $city_candidate) !== false ||
+                            mb_strpos($city_candidate, $first_city_folder) !== false
+                        ) {
                             $city_match = true;
                             break;
                         }
@@ -629,9 +662,20 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
                     if ($relative_norm !== '' && mb_strpos($relative_norm, $token) !== false) {
                         $score += 2;
                     }
+                    if ($second_folder !== '' && mb_strpos($second_folder, $token) !== false) {
+                        $score += 3;
+                    }
                 }
                 if (!empty($city_candidates) && $first_folder !== '') {
                     $score += 8;
+                }
+                foreach ($object_candidates as $object_candidate) {
+                    if ($object_candidate === '') continue;
+                    if ($second_folder !== '' && (mb_strpos($second_folder, $object_candidate) !== false || mb_strpos($object_candidate, $second_folder) !== false)) {
+                        $score += 18; // Objektordner ist stärkstes Signal
+                    } elseif ($relative_norm !== '' && mb_strpos($relative_norm, $object_candidate) !== false) {
+                        $score += 8;
+                    }
                 }
                 if ($score <= 0) continue;
 
@@ -647,6 +691,7 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
                         'url' => $url,
                         'all_in_dir' => $collect_pdfs_in_directory($base_dir, $dir_full),
                         'matched_folder' => $first_folder,
+                        'matched_object_folder' => $second_folder,
                     ];
                 }
             }
@@ -920,6 +965,9 @@ if (!empty($selected_alarm_id)) {
                                 <div class="small text-muted mt-1">Gefundene Pläne im passenden Ordner: <?php echo count($objektplan_files); ?></div>
                                 <?php if (!empty($objektplan_match['matched_folder'])): ?>
                                     <div class="small text-muted">Ort-Ordner: <code><?php echo htmlspecialchars((string)$objektplan_match['matched_folder']); ?></code></div>
+                                <?php endif; ?>
+                                <?php if (!empty($objektplan_match['matched_object_folder'])): ?>
+                                    <div class="small text-muted">Objekt-Ordner: <code><?php echo htmlspecialchars((string)$objektplan_match['matched_object_folder']); ?></code></div>
                                 <?php endif; ?>
                                 <div class="d-flex flex-wrap gap-2 mt-2">
                                     <?php foreach ($objektplan_files as $plan): ?>
