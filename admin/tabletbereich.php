@@ -502,15 +502,42 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
         (string)($alarm_context['text'] ?? ''),
     ]));
 
+    $collect_pdfs_in_directory = static function ($base_dir_local, $dir_full) {
+        $items = [];
+        if (!is_dir($dir_full)) return $items;
+        try {
+            $it = new FilesystemIterator($dir_full, FilesystemIterator::SKIP_DOTS);
+            foreach ($it as $entry) {
+                if (!$entry->isFile()) continue;
+                if (mb_strtolower((string)$entry->getExtension(), 'UTF-8') !== 'pdf') continue;
+                $full = $entry->getPathname();
+                $relative = ltrim(str_replace('\\', '/', substr($full, strlen($base_dir_local))), '/');
+                if ($relative === '') continue;
+                $items[] = [
+                    'filename' => $entry->getFilename(),
+                    'url' => '../' . $relative,
+                    'relative' => $relative,
+                ];
+            }
+        } catch (Throwable $e) {
+            return $items;
+        }
+        usort($items, static fn($a, $b) => strcasecmp($a['filename'], $b['filename']));
+        return $items;
+    };
+
     $preferred_plan_file = trim((string)($alarm_context['preferred_plan_file'] ?? ''));
     if ($preferred_plan_file !== '') {
         $preferred_full = realpath($base_dir . DIRECTORY_SEPARATOR . str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $preferred_plan_file));
         if ($preferred_full !== false && is_file($preferred_full) && mb_strtolower((string)pathinfo($preferred_full, PATHINFO_EXTENSION), 'UTF-8') === 'pdf') {
             $relative = ltrim(str_replace('\\', '/', substr($preferred_full, strlen($base_dir))), '/');
+            $dir_full = dirname($preferred_full);
+            $all_in_dir = $collect_pdfs_in_directory($base_dir, $dir_full);
             return [
                 'score' => 999,
                 'filename' => basename($preferred_full),
                 'url' => '../' . $relative,
+                'all_in_dir' => $all_in_dir,
             ];
         }
     }
@@ -567,10 +594,12 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
                 $url = '../' . $relative;
 
                 if ($best === null || $score > $best['score']) {
+                    $dir_full = dirname($path);
                     $best = [
                         'score' => $score,
                         'filename' => $filename,
                         'url' => $url,
+                        'all_in_dir' => $collect_pdfs_in_directory($base_dir, $dir_full),
                     ];
                 }
             }
@@ -583,6 +612,7 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
 };
 
 $objektplan_match = null;
+$objektplan_files = [];
 if (!empty($selected_alarm_id)) {
     $preferred_plan_file_for_match = '';
     if ($use_demo_data && isset($demo) && is_array($demo)) {
@@ -595,6 +625,16 @@ if (!empty($selected_alarm_id)) {
         'text' => (string)($selected_alarm['text'] ?? $selected_alarm_detail['text'] ?? ''),
         'preferred_plan_file' => $preferred_plan_file_for_match,
     ]);
+    if ($objektplan_match !== null) {
+        $objektplan_files = is_array($objektplan_match['all_in_dir'] ?? null) ? $objektplan_match['all_in_dir'] : [];
+        if (empty($objektplan_files) && !empty($objektplan_match['url'])) {
+            $objektplan_files[] = [
+                'filename' => (string)($objektplan_match['filename'] ?? 'Objektplan.pdf'),
+                'url' => (string)$objektplan_match['url'],
+                'relative' => '',
+            ];
+        }
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -823,14 +863,21 @@ if (!empty($selected_alarm_id)) {
                                         <i class="fas fa-map-marker-alt me-1"></i>In Google Maps
                                     </a>
                                 <?php endif; ?>
-                                <?php if ($objektplan_match !== null): ?>
-                                    <a class="btn btn-sm btn-outline-danger" href="<?php echo htmlspecialchars($objektplan_match['url']); ?>" target="_blank" rel="noopener noreferrer">
+                                <?php if (!empty($objektplan_files)): ?>
+                                    <a class="btn btn-sm btn-outline-danger" href="<?php echo htmlspecialchars($objektplan_files[0]['url']); ?>" target="_blank" rel="noopener noreferrer">
                                         <i class="fas fa-file-pdf me-1"></i>Objektplan öffnen
                                     </a>
                                 <?php endif; ?>
                             </div>
-                            <?php if ($objektplan_match !== null): ?>
-                                <div class="small text-muted mt-1">Gefundener Plan: <?php echo htmlspecialchars($objektplan_match['filename']); ?></div>
+                            <?php if (!empty($objektplan_files)): ?>
+                                <div class="small text-muted mt-1">Gefundene Pläne im passenden Ordner: <?php echo count($objektplan_files); ?></div>
+                                <div class="d-flex flex-wrap gap-2 mt-2">
+                                    <?php foreach ($objektplan_files as $plan): ?>
+                                        <a class="btn btn-sm btn-outline-danger" href="<?php echo htmlspecialchars($plan['url']); ?>" target="_blank" rel="noopener noreferrer">
+                                            <i class="fas fa-file-pdf me-1"></i><?php echo htmlspecialchars($plan['filename']); ?>
+                                        </a>
+                                    <?php endforeach; ?>
+                                </div>
                             <?php else: ?>
                                 <div class="small text-muted mt-1">Kein passender Objektplan gefunden (gesucht in `uploads/objektplaene`, `objektplaene`, `assets/objektplaene`).</div>
                             <?php endif; ?>
