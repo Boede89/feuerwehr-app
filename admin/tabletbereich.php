@@ -251,6 +251,39 @@ if ($vehicles_data === null && isset($selected_alarm_detail['resources']) && is_
     }));
 }
 
+$force_cards = [];
+if (is_array($forces_data)) {
+    foreach ($forces_data as $force_key => $force_value) {
+        if (!is_array($force_value)) {
+            continue;
+        }
+        $name = trim((string)($force_value['name'] ?? $force_value['title'] ?? $force_value['unit_name'] ?? $force_value['group_name'] ?? ''));
+        if ($name === '' && is_string($force_key)) {
+            $name = trim($force_key);
+        }
+        if ($name === '') {
+            $name = 'Einheit';
+        }
+        $type = trim((string)($force_value['type'] ?? $force_value['category'] ?? $force_value['organisation'] ?? ''));
+        $status = trim((string)($force_value['status'] ?? $force_value['state'] ?? $force_value['alarm_status'] ?? ''));
+        $count_raw = $force_value['count'] ?? $force_value['person_count'] ?? $force_value['members'] ?? null;
+        $count = is_numeric($count_raw) ? (int)$count_raw : null;
+        $details = [];
+        foreach (['function', 'role', 'note', 'radio', 'identifier'] as $dkey) {
+            if (!empty($force_value[$dkey])) {
+                $details[] = ucfirst($dkey) . ': ' . (string)$force_value[$dkey];
+            }
+        }
+        $force_cards[] = [
+            'name' => $name,
+            'type' => $type !== '' ? $type : '—',
+            'status' => $status !== '' ? $status : '—',
+            'count' => $count,
+            'details' => $details,
+        ];
+    }
+}
+
 $reach_entries = [];
 if (is_array($selected_alarm_reach)) {
     foreach (['received' => 'Empfangen', 'viewed' => 'Gesehen', 'confirmed' => 'Bestätigt'] as $key => $label) {
@@ -300,6 +333,10 @@ $selected_address_maps_url = $selected_address !== ''
         .kv-label { color: #6c757d; font-size: .85rem; }
         .kv-value { font-weight: 600; word-break: break-word; }
         .filter-grid .form-control, .filter-grid .form-select { min-height: 42px; }
+        .force-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: .75rem; background: #fff; }
+        .force-title { font-weight: 700; color: #1f2937; }
+        .force-meta { font-size: .85rem; color: #6b7280; }
+        .force-badges .badge { font-size: .75rem; }
         pre.tablet-pre {
             white-space: pre-wrap;
             word-break: break-word;
@@ -474,8 +511,32 @@ $selected_address_maps_url = $selected_address !== ''
                     </div>
                         </div>
                         <div class="tab-pane fade" id="tab-forces" role="tabpanel">
-                            <?php if (is_array($forces_data) && !empty($forces_data)): ?>
-                                <pre class="tablet-pre"><?php echo htmlspecialchars($pretty_json($forces_data)); ?></pre>
+                            <?php if (!empty($force_cards)): ?>
+                                <div class="row g-2">
+                                    <?php foreach ($force_cards as $force): ?>
+                                        <div class="col-12 col-md-6">
+                                            <div class="force-card h-100">
+                                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                                    <div>
+                                                        <div class="force-title"><?php echo htmlspecialchars($force['name']); ?></div>
+                                                        <div class="force-meta"><?php echo htmlspecialchars($force['type']); ?></div>
+                                                    </div>
+                                                    <div class="force-badges d-flex gap-1 flex-wrap justify-content-end">
+                                                        <span class="badge bg-secondary"><?php echo htmlspecialchars($force['status']); ?></span>
+                                                        <?php if ($force['count'] !== null): ?>
+                                                            <span class="badge bg-primary"><?php echo (int)$force['count']; ?> Pers.</span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                                <?php if (!empty($force['details'])): ?>
+                                                    <div class="small text-muted mt-2">
+                                                        <?php echo htmlspecialchars(implode(' · ', $force['details'])); ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
                             <?php else: ?>
                                 <p class="text-muted mb-0">Keine strukturierten Kräfte-Daten im Divera-Response gefunden.</p>
                             <?php endif; ?>
