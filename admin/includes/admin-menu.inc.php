@@ -60,6 +60,7 @@ $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
         <li><a class="dropdown-item" href="<?php echo $base; ?>dashboard.php<?php echo ($dashboard_einheit ?? $cur_eid ?? null) ? '?einheit_id=' . (int)($dashboard_einheit ?? $cur_eid ?? 0) : ''; ?>"><i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard</a></li>
         <?php if ($is_superadmin_user): ?>
         <li><a class="dropdown-item" href="<?php echo $base; ?>tabletbereich.php"><i class="fas fa-tablet-alt text-dark me-2"></i>Tabletbereich</a></li>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>objektplaene.php"><i class="fas fa-folder-open text-danger me-2"></i>Objektpläne</a></li>
         <?php endif; ?>
         <li><hr class="dropdown-divider"></li>
         <?php if ($can_reservations): ?>
