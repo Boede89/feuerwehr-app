@@ -52,6 +52,7 @@ RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
 RUN echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/custom.ini \
     && echo "upload_max_filesize = 100M" >> /usr/local/etc/php/conf.d/custom.ini \
     && echo "post_max_size = 110M" >> /usr/local/etc/php/conf.d/custom.ini \
+    && echo "max_file_uploads = 250" >> /usr/local/etc/php/conf.d/custom.ini \
     && echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/custom.ini \
     && echo "date.timezone = Europe/Berlin" >> /usr/local/etc/php/conf.d/custom.ini
 
