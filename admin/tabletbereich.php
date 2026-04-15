@@ -541,11 +541,14 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
 
                 $filename = $file->getFilename();
                 $filename_norm = $normalize(pathinfo($filename, PATHINFO_FILENAME));
+                $path = $file->getPathname();
+                $relative_raw = ltrim(str_replace('\\', '/', substr($path, strlen($base_dir))), '/');
+                $relative_norm = $normalize(pathinfo($relative_raw, PATHINFO_FILENAME));
                 if ($filename_norm === '') continue;
 
                 $score = 0;
                 if ($selected_address = $normalize((string)($alarm_context['address'] ?? ''))) {
-                    if ($selected_address !== '' && mb_strpos($filename_norm, $selected_address) !== false) {
+                    if ($selected_address !== '' && (mb_strpos($filename_norm, $selected_address) !== false || ($relative_norm !== '' && mb_strpos($relative_norm, $selected_address) !== false))) {
                         $score += 12;
                     }
                 }
@@ -553,10 +556,12 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
                     if (mb_strpos($filename_norm, $token) !== false) {
                         $score += 2;
                     }
+                    if ($relative_norm !== '' && mb_strpos($relative_norm, $token) !== false) {
+                        $score += 2;
+                    }
                 }
                 if ($score <= 0) continue;
 
-                $path = $file->getPathname();
                 $relative = ltrim(str_replace('\\', '/', substr($path, strlen($base_dir))), '/');
                 if ($relative === '') continue;
                 $url = '../' . $relative;
