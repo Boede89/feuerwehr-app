@@ -41,13 +41,56 @@ if (!in_array($auto_refresh_seconds, [0, 30, 60], true)) {
     $auto_refresh_seconds = 0;
 }
 $use_demo_data = isset($_GET['demo']) && $_GET['demo'] === '1';
+$demo_custom = $_SESSION['tablet_demo_custom'] ?? [];
 
-$build_demo_payload = static function () use ($base_upload_dir) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array($_POST['action'], ['save_demo_config', 'reset_demo_config'], true)) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungültiger Sicherheitstoken.';
+    } else {
+        if ($_POST['action'] === 'reset_demo_config') {
+            unset($_SESSION['tablet_demo_custom']);
+            $redirect = 'tabletbereich.php?einheit_id=' . (int)$einheit_id . '&demo=1';
+            header('Location: ' . $redirect);
+            exit;
+        }
+
+        $decode_json_array = static function ($value, $fallback) {
+            $value = trim((string)$value);
+            if ($value === '') return $fallback;
+            $decoded = json_decode($value, true);
+            return is_array($decoded) ? $decoded : $fallback;
+        };
+
+        $_SESSION['tablet_demo_custom'] = [
+            'title_suffix' => trim((string)($_POST['demo_title_suffix'] ?? '')),
+            'address' => trim((string)($_POST['demo_address'] ?? '')),
+            'text' => trim((string)($_POST['demo_text'] ?? '')),
+            'location' => trim((string)($_POST['demo_location'] ?? '')),
+            'keyword' => trim((string)($_POST['demo_keyword'] ?? 'F2')),
+            'priority' => (int)($_POST['demo_priority'] ?? 2),
+            'object' => trim((string)($_POST['demo_object'] ?? 'Freifläche')),
+            'forces' => $decode_json_array($_POST['demo_forces_json'] ?? '', []),
+            'vehicles' => $decode_json_array($_POST['demo_vehicles_json'] ?? '', []),
+            'resources' => $decode_json_array($_POST['demo_resources_json'] ?? '', []),
+            'reach' => $decode_json_array($_POST['demo_reach_json'] ?? '', []),
+        ];
+        $redirect = 'tabletbereich.php?einheit_id=' . (int)$einheit_id . '&demo=1';
+        header('Location: ' . $redirect);
+        exit;
+    }
+}
+
+$build_demo_payload = static function () use ($base_upload_dir, $demo_custom) {
     $now = time();
     $alarm_id = 987654;
     $alarm_date = $now - 900;
     $demo_address = 'Markt 20, 41366 Schwalmtal';
     $demo_title_suffix = 'Brennt PKW auf Parkplatz';
+    $demo_text = 'Mehrere Notrufe. Fahrzeugbrand droht auf weitere Fahrzeuge überzugreifen.';
+    $demo_location = 'Parkplatz Supermarkt Nord';
+    $demo_keyword = 'F2';
+    $demo_priority = 2;
+    $demo_object = 'Freifläche';
     $demo_preferred_plan_file = '';
 
     $objektplan_dirs = [
@@ -87,7 +130,7 @@ $build_demo_payload = static function () use ($base_upload_dir) {
     $alarm_list = [[
         'id' => $alarm_id,
         'title' => 'F2 - ' . $demo_title_suffix,
-        'text' => 'Mehrere Notrufe. Fahrzeugbrand droht auf weitere Fahrzeuge überzugreifen.',
+        'text' => $demo_text,
         'address' => $demo_address,
         'date' => $alarm_date,
         'ts_create' => $alarm_date,
@@ -100,12 +143,12 @@ $build_demo_payload = static function () use ($base_upload_dir) {
             'id' => $alarm_id,
             'number' => 'E-2026-0415-01',
             'title' => 'F2 - ' . $demo_title_suffix,
-            'text' => 'PKW in Vollbrand. Erstmeldung durch Passanten. Ausbreitungsgefahr auf Hecke und weiteres Fahrzeug.',
-            'keyword' => 'F2',
-            'priority' => 2,
+            'text' => $demo_text,
+            'keyword' => $demo_keyword,
+            'priority' => $demo_priority,
             'address' => $demo_address,
-            'location' => 'Parkplatz Supermarkt Nord',
-            'object' => 'Freifläche',
+            'location' => $demo_location,
+            'object' => $demo_object,
             'patient_count' => 0,
             'date' => $alarm_date,
             'ts_create' => $alarm_date,
@@ -152,6 +195,31 @@ $build_demo_payload = static function () use ($base_upload_dir) {
             ],
         ],
     ];
+
+    if (!empty($demo_custom) && is_array($demo_custom)) {
+        if (!empty($demo_custom['title_suffix'])) $demo_title_suffix = (string)$demo_custom['title_suffix'];
+        if (!empty($demo_custom['address'])) $demo_address = (string)$demo_custom['address'];
+        if (!empty($demo_custom['text'])) $demo_text = (string)$demo_custom['text'];
+        if (!empty($demo_custom['location'])) $demo_location = (string)$demo_custom['location'];
+        if (!empty($demo_custom['keyword'])) $demo_keyword = (string)$demo_custom['keyword'];
+        if (isset($demo_custom['priority'])) $demo_priority = (int)$demo_custom['priority'];
+        if (!empty($demo_custom['object'])) $demo_object = (string)$demo_custom['object'];
+
+        $alarm_list[0]['title'] = 'F2 - ' . $demo_title_suffix;
+        $alarm_list[0]['text'] = $demo_text;
+        $alarm_list[0]['address'] = $demo_address;
+        $alarm_detail_raw['data']['title'] = 'F2 - ' . $demo_title_suffix;
+        $alarm_detail_raw['data']['text'] = $demo_text;
+        $alarm_detail_raw['data']['keyword'] = $demo_keyword;
+        $alarm_detail_raw['data']['priority'] = $demo_priority;
+        $alarm_detail_raw['data']['address'] = $demo_address;
+        $alarm_detail_raw['data']['location'] = $demo_location;
+        $alarm_detail_raw['data']['object'] = $demo_object;
+        if (!empty($demo_custom['forces']) && is_array($demo_custom['forces'])) $alarm_detail_raw['data']['forces'] = $demo_custom['forces'];
+        if (!empty($demo_custom['vehicles']) && is_array($demo_custom['vehicles'])) $alarm_detail_raw['data']['vehicles'] = $demo_custom['vehicles'];
+        if (!empty($demo_custom['resources']) && is_array($demo_custom['resources'])) $alarm_detail_raw['data']['resources'] = $demo_custom['resources'];
+        if (!empty($demo_custom['reach']) && is_array($demo_custom['reach'])) $reach_raw['data'] = $demo_custom['reach'];
+    }
 
     return [
         'alarms' => $alarm_list,
@@ -644,6 +712,43 @@ if (!empty($selected_alarm_id)) {
                 <?php echo show_error($error); ?>
             <?php elseif ($message): ?>
                 <?php echo show_success($message); ?>
+            <?php endif; ?>
+
+            <?php if ($use_demo_data): ?>
+            <div class="card tablet-card mb-3">
+                <div class="card-header bg-white"><i class="fas fa-sliders-h me-2 text-dark"></i>Beispieldaten manuell anpassen</div>
+                <div class="card-body">
+                    <?php
+                        $demo_prefill = isset($demo) && is_array($demo) ? $demo : $build_demo_payload();
+                        $demo_data = $demo_prefill['selected_alarm_detail'] ?? [];
+                        $demo_reach = $demo_prefill['selected_alarm_reach'] ?? [];
+                    ?>
+                    <form method="POST" class="row g-2">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <input type="hidden" name="action" value="save_demo_config">
+                        <div class="col-12 col-md-6"><label class="form-label">Titel-Zusatz</label><input class="form-control" name="demo_title_suffix" value="<?php echo htmlspecialchars((string)($demo_data['title'] ?? '')); ?>"></div>
+                        <div class="col-12 col-md-6"><label class="form-label">Adresse</label><input class="form-control" name="demo_address" value="<?php echo htmlspecialchars((string)($demo_data['address'] ?? '')); ?>"></div>
+                        <div class="col-12 col-md-6"><label class="form-label">Ort</label><input class="form-control" name="demo_location" value="<?php echo htmlspecialchars((string)($demo_data['location'] ?? '')); ?>"></div>
+                        <div class="col-6 col-md-3"><label class="form-label">Stichwort</label><input class="form-control" name="demo_keyword" value="<?php echo htmlspecialchars((string)($demo_data['keyword'] ?? 'F2')); ?>"></div>
+                        <div class="col-6 col-md-3"><label class="form-label">Priorität</label><input type="number" class="form-control" name="demo_priority" value="<?php echo (int)($demo_data['priority'] ?? 2); ?>"></div>
+                        <div class="col-12"><label class="form-label">Text</label><textarea class="form-control" rows="2" name="demo_text"><?php echo htmlspecialchars((string)($demo_data['text'] ?? '')); ?></textarea></div>
+                        <div class="col-12 col-md-4"><label class="form-label">Objekt</label><input class="form-control" name="demo_object" value="<?php echo htmlspecialchars((string)($demo_data['object'] ?? '')); ?>"></div>
+                        <div class="col-12 col-md-4"><label class="form-label">Kräfte (JSON-Array)</label><textarea class="form-control" rows="6" name="demo_forces_json"><?php echo htmlspecialchars(json_encode($demo_data['forces'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></textarea></div>
+                        <div class="col-12 col-md-4"><label class="form-label">Fahrzeuge (JSON-Array)</label><textarea class="form-control" rows="6" name="demo_vehicles_json"><?php echo htmlspecialchars(json_encode($demo_data['vehicles'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></textarea></div>
+                        <div class="col-12 col-md-6"><label class="form-label">Ressourcen (JSON-Array)</label><textarea class="form-control" rows="6" name="demo_resources_json"><?php echo htmlspecialchars(json_encode($demo_data['resources'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></textarea></div>
+                        <div class="col-12 col-md-6"><label class="form-label">Reach (JSON-Objekt)</label><textarea class="form-control" rows="6" name="demo_reach_json"><?php echo htmlspecialchars(json_encode($demo_reach ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></textarea></div>
+                        <div class="col-12 d-flex gap-2">
+                            <button type="submit" class="btn btn-dark"><i class="fas fa-save me-1"></i>Demo-Daten speichern</button>
+                    </form>
+                            <form method="POST">
+                                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                                <input type="hidden" name="action" value="reset_demo_config">
+                                <button type="submit" class="btn btn-outline-secondary"><i class="fas fa-undo me-1"></i>Demo zurücksetzen</button>
+                            </form>
+                        </div>
+                    <div class="small text-muted mt-2">Hinweis: JSON-Felder müssen gültiges JSON sein. Bei ungültigem JSON werden Standarddaten verwendet.</div>
+                </div>
+            </div>
             <?php endif; ?>
 
             <div class="card tablet-card mb-3">
