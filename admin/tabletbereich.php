@@ -40,11 +40,108 @@ $auto_refresh_seconds = isset($_GET['auto_refresh']) ? (int)$_GET['auto_refresh'
 if (!in_array($auto_refresh_seconds, [0, 30, 60], true)) {
     $auto_refresh_seconds = 0;
 }
+$use_demo_data = isset($_GET['demo']) && $_GET['demo'] === '1';
+
+$build_demo_payload = static function () {
+    $now = time();
+    $alarm_id = 987654;
+    $alarm_date = $now - 900;
+
+    $alarm_list = [[
+        'id' => $alarm_id,
+        'title' => 'F2 - Brennt PKW auf Parkplatz',
+        'text' => 'Mehrere Notrufe. Fahrzeugbrand droht auf weitere Fahrzeuge überzugreifen.',
+        'address' => 'Musterstraße 12, 41334 Nettetal',
+        'date' => $alarm_date,
+        'ts_create' => $alarm_date,
+        'closed' => false,
+    ]];
+
+    $alarm_detail_raw = [
+        'success' => true,
+        'data' => [
+            'id' => $alarm_id,
+            'number' => 'E-2026-0415-01',
+            'title' => 'F2 - Brennt PKW auf Parkplatz',
+            'text' => 'PKW in Vollbrand. Erstmeldung durch Passanten. Ausbreitungsgefahr auf Hecke und weiteres Fahrzeug.',
+            'keyword' => 'F2',
+            'priority' => 2,
+            'address' => 'Musterstraße 12, 41334 Nettetal',
+            'location' => 'Parkplatz Supermarkt Nord',
+            'object' => 'Freifläche',
+            'patient_count' => 0,
+            'date' => $alarm_date,
+            'ts_create' => $alarm_date,
+            'closed' => false,
+            'forces' => [
+                ['name' => 'Löschgruppe Zentrum', 'type' => 'Feuerwehr', 'status' => 'alarmiert', 'count' => 9],
+                ['name' => 'Löschgruppe Lobberich', 'type' => 'Feuerwehr', 'status' => 'alarmiert', 'count' => 8],
+            ],
+            'vehicles' => [
+                ['name' => 'LF 20', 'radio' => 'FL-NET 1-LF20-1', 'status' => 'alarmiert'],
+                ['name' => 'HLF 20', 'radio' => 'FL-NET 1-HLF20-1', 'status' => 'alarmiert'],
+                ['name' => 'ELW 1', 'radio' => 'FL-NET 1-ELW1-1', 'status' => 'alarmiert'],
+            ],
+            'resources' => [
+                ['category' => 'vehicle', 'name' => 'LF 20', 'count' => 1],
+                ['category' => 'vehicle', 'name' => 'HLF 20', 'count' => 1],
+                ['category' => 'personnel', 'name' => 'PA-Träger', 'count' => 6],
+            ],
+            'additional' => [
+                'weather' => 'trocken, Wind mäßig',
+                'caller' => 'Leitstelle Kreis Viersen',
+                'note' => 'Zufahrt über Nordseite empfohlen',
+            ],
+        ],
+    ];
+
+    $reach_raw = [
+        'success' => true,
+        'data' => [
+            'received' => [
+                '251321' => ['name' => 'Max Mustermann', 'ts' => $now - 600],
+                '251322' => ['name' => 'Lisa Beispiel', 'ts' => $now - 590],
+                '251323' => ['name' => 'Tim Demo', 'ts' => $now - 570],
+            ],
+            'viewed' => [
+                '251321' => ['name' => 'Max Mustermann', 'ts' => $now - 520],
+                '251322' => ['name' => 'Lisa Beispiel', 'ts' => $now - 500],
+            ],
+            'confirmed' => [
+                '251321' => ['name' => 'Max Mustermann', 'status_id' => 44986, 'status_label' => 'Komme', 'ts' => $now - 470],
+            ],
+            'declined' => [
+                '251323' => ['name' => 'Tim Demo', 'status_id' => 44988, 'status_label' => 'Verhindert', 'ts' => $now - 430],
+            ],
+        ],
+    ];
+
+    return [
+        'alarms' => $alarm_list,
+        'selected_alarm_id' => $alarm_id,
+        'selected_alarm' => $alarm_list[0],
+        'raw_alarm_detail' => $alarm_detail_raw,
+        'raw_alarm_reach' => $reach_raw,
+        'selected_alarm_detail' => $alarm_detail_raw['data'],
+        'selected_alarm_reach' => $reach_raw['data'],
+    ];
+};
 
 $api_base = rtrim(trim((string)($divera_config['api_base_url'] ?? '')), '/') ?: 'https://app.divera247.com';
 $divera_key = trim(preg_replace('/[\r\n\t\v]+/', '', (string)($divera_config['access_key'] ?? '')));
 
-if ($divera_key === '') {
+if ($use_demo_data) {
+    $demo = $build_demo_payload();
+    $alarms = $demo['alarms'];
+    $filtered_alarms = $demo['alarms'];
+    $selected_alarm_id = (int)$demo['selected_alarm_id'];
+    $selected_alarm = $demo['selected_alarm'];
+    $raw_alarm_detail = $demo['raw_alarm_detail'];
+    $raw_alarm_reach = $demo['raw_alarm_reach'];
+    $selected_alarm_detail = $demo['selected_alarm_detail'];
+    $selected_alarm_reach = $demo['selected_alarm_reach'];
+    $message = 'Beispieldaten geladen. Keine Live-Divera-Daten.';
+} elseif ($divera_key === '') {
     $error = 'Kein Divera-Access-Key für diese Einheit hinterlegt.';
 } else {
     $alarms_error = null;
@@ -126,6 +223,7 @@ $query_base = [
     'to' => $to_filter_raw,
     'q' => $keyword_filter,
     'auto_refresh' => $auto_refresh_seconds,
+    'demo' => $use_demo_data ? '1' : '0',
 ];
 $build_link = static function (array $params) use ($query_base) {
     $query = array_merge($query_base, $params);
@@ -274,6 +372,12 @@ if (is_array($selected_alarm_reach)) {
                         </div>
                         <div class="col-12 col-md-4 d-grid">
                             <button type="submit" class="btn btn-primary"><i class="fas fa-download me-1"></i>Divera-Daten laden</button>
+                        </div>
+                        <div class="col-12 col-md-4 d-grid">
+                            <a href="<?php echo htmlspecialchars($build_link(['alarm_id' => 0, 'demo' => '1'])); ?>" class="btn btn-outline-dark"><i class="fas fa-flask me-1"></i>Beispieldaten laden</a>
+                        </div>
+                        <div class="col-12 col-md-4 d-grid">
+                            <a href="<?php echo htmlspecialchars($build_link(['alarm_id' => 0, 'demo' => '0'])); ?>" class="btn btn-outline-secondary"><i class="fas fa-rotate-left me-1"></i>Live-Daten zurücksetzen</a>
                         </div>
                     </form>
                     <div class="small text-muted mt-2">API: <code><?php echo htmlspecialchars($api_base); ?></code></div>
