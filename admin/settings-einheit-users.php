@@ -100,6 +100,16 @@ try {
     // ignore
 }
 try { $db->exec("ALTER TABLE users ADD COLUMN role_id INT NULL DEFAULT NULL"); } catch (Exception $e) {}
+try {
+    $stmt_default_role = $db->prepare("SELECT id FROM permission_roles WHERE einheit_id = ? AND role_name = ?");
+    $stmt_default_role->execute([$einheit_id, 'Einheitsadmin']);
+    if (!$stmt_default_role->fetch()) {
+        $stmt_default_role_insert = $db->prepare("INSERT INTO permission_roles (einheit_id, role_name, description, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_auswertung, can_reservations_readonly, can_atemschutz_readonly, can_members_readonly, can_ric_readonly, can_courses_readonly, can_forms_readonly) VALUES (?, ?, ?, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0)");
+        $stmt_default_role_insert->execute([$einheit_id, 'Einheitsadmin', 'Vordefinierte Rolle für Einheitsadministratoren']);
+    }
+} catch (Exception $e) {
+    // ignore
+}
 
 // Neuer Benutzer
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_user') {
@@ -112,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $last_name = sanitize_input($_POST['last_name'] ?? '');
         $role_id = (int)($_POST['role_id'] ?? 0);
         $password = $_POST['password'] ?? '';
+        $is_einheitsadmin = isset($_POST['is_einheitsadmin']) ? 1 : 0;
         $can_reservations = isset($_POST['can_reservations']) ? 1 : 0;
         $can_atemschutz = isset($_POST['can_atemschutz']) ? 1 : 0;
         $can_members = isset($_POST['can_members']) ? 1 : 0;
@@ -152,8 +163,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     try { $db->exec("ALTER TABLE users ADD COLUMN can_forms_fill TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
                     try { $db->exec("ALTER TABLE users ADD COLUMN can_auswertung TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
                     foreach (['can_reservations_readonly','can_atemschutz_readonly','can_members_readonly','can_ric_readonly','can_courses_readonly','can_forms_readonly'] as $c) { try { $db->exec("ALTER TABLE users ADD COLUMN $c TINYINT(1) DEFAULT 0"); } catch (Exception $e) {} }
-                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, user_type, einheit_id, role_id, is_active, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_auswertung, can_reservations_readonly, can_atemschutz_readonly, can_members_readonly, can_ric_readonly, can_courses_readonly, can_forms_readonly, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', 'user', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)");
-                    $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $einheit_id, $role_id > 0 ? $role_id : null, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly]);
+                    $user_type = $is_einheitsadmin ? 'einheitsadmin' : 'user';
+                    $can_users = $is_einheitsadmin ? 1 : 0;
+                    $can_settings = $is_einheitsadmin ? 1 : 0;
+                    $can_vehicles = $is_einheitsadmin ? 1 : 0;
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, first_name, last_name, user_role, user_type, einheit_id, role_id, is_active, can_reservations, can_atemschutz, can_members, can_ric, can_courses, can_forms, can_forms_fill, can_auswertung, can_reservations_readonly, can_atemschutz_readonly, can_members_readonly, can_ric_readonly, can_courses_readonly, can_forms_readonly, can_users, can_settings, can_vehicles, email_notifications) VALUES (?, ?, ?, ?, ?, 'user', ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
+                    $stmt->execute([$username, $email, $password_hash, $first_name, $last_name, $user_type, $einheit_id, $role_id > 0 ? $role_id : null, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $can_users, $can_settings, $can_vehicles]);
                     $new_id = $db->lastInsertId();
                     try {
                         $stmt_m = $db->prepare("INSERT INTO members (user_id, first_name, last_name, email, einheit_id) VALUES (?, ?, ?, ?, ?)");
@@ -307,6 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $first_name = sanitize_input($_POST['first_name'] ?? '');
         $last_name = sanitize_input($_POST['last_name'] ?? '');
         $role_id = (int)($_POST['role_id'] ?? 0);
+        $is_einheitsadmin = isset($_POST['is_einheitsadmin']) ? 1 : 0;
         if (!$user_id || !user_has_einheit_access($_SESSION['user_id'], $einheit_id)) {
             $error = "Ungültige Anfrage.";
         } elseif (empty($username) || empty($email) || empty($first_name) || empty($last_name)) {
@@ -369,11 +385,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $divera_key_final = ($divera_key_to_save !== null) ? $divera_key_to_save : trim((string) ($cur['divera_access_key'] ?? ''));
                     if (!empty($password)) {
                         $pw_hash = hash_password($password);
-                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, role_id=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_auswertung=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=?, password_hash=?, divera_access_key=? WHERE id=?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, $role_id > 0 ? $role_id : null, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $pw_hash, $divera_key_final ?: null, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, user_type=?, role_id=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_auswertung=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, can_users=?, can_settings=?, can_vehicles=?, is_active=?, password_hash=?, divera_access_key=? WHERE id=?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $is_einheitsadmin ? 'einheitsadmin' : 'user', $role_id > 0 ? $role_id : null, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_einheitsadmin ? 1 : 0, $is_einheitsadmin ? 1 : 0, $is_einheitsadmin ? 1 : 0, $is_active, $pw_hash, $divera_key_final ?: null, $user_id]);
                     } else {
-                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, role_id=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_auswertung=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, is_active=?, divera_access_key=? WHERE id=?");
-                        $stmt->execute([$username, $email, $first_name, $last_name, $role_id > 0 ? $role_id : null, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_active, $divera_key_final ?: null, $user_id]);
+                        $stmt = $db->prepare("UPDATE users SET username=?, email=?, first_name=?, last_name=?, user_type=?, role_id=?, can_reservations=?, can_atemschutz=?, can_members=?, can_ric=?, can_courses=?, can_forms=?, can_forms_fill=?, can_auswertung=?, can_reservations_readonly=?, can_atemschutz_readonly=?, can_members_readonly=?, can_ric_readonly=?, can_courses_readonly=?, can_forms_readonly=?, can_users=?, can_settings=?, can_vehicles=?, is_active=?, divera_access_key=? WHERE id=?");
+                        $stmt->execute([$username, $email, $first_name, $last_name, $is_einheitsadmin ? 'einheitsadmin' : 'user', $role_id > 0 ? $role_id : null, $can_reservations, $can_atemschutz, $can_members, $can_ric, $can_courses, $can_forms, $can_forms_fill, $can_auswertung, $can_reservations_readonly, $can_atemschutz_readonly, $can_members_readonly, $can_ric_readonly, $can_courses_readonly, $can_forms_readonly, $is_einheitsadmin ? 1 : 0, $is_einheitsadmin ? 1 : 0, $is_einheitsadmin ? 1 : 0, $is_active, $divera_key_final ?: null, $user_id]);
                     }
                     try {
                         $stmt_m = $db->prepare("UPDATE members SET first_name=?, last_name=?, email=? WHERE user_id=? AND einheit_id=?");
@@ -766,6 +782,7 @@ try {
                                         data-last-name="<?php echo htmlspecialchars($u['last_name'] ?? '', ENT_QUOTES); ?>"
                                         data-email="<?php echo htmlspecialchars($u['email'] ?? '', ENT_QUOTES); ?>"
                                         data-role-id="<?php echo (int)($u['role_id'] ?? 0); ?>"
+                                        data-is-einheitsadmin="<?php echo (($u['user_type'] ?? '') === 'einheitsadmin') ? '1' : '0'; ?>"
                                         data-can-reservations="<?php echo (int)($u['can_reservations'] ?? 0); ?>"
                                         data-can-atemschutz="<?php echo (int)($u['can_atemschutz'] ?? 0); ?>"
                                         data-can-members="<?php echo (int)($u['can_members'] ?? 0); ?>"
@@ -1386,6 +1403,7 @@ try {
                                 <?php foreach ($permission_roles as $role): ?>
                                     <option
                                         value="<?php echo (int)$role['id']; ?>"
+                                        data-is-default-einheitsadmin="<?php echo (($role['role_name'] ?? '') === 'Einheitsadmin') ? '1' : '0'; ?>"
                                         data-can-reservations="<?php echo (int)$role['can_reservations']; ?>"
                                         data-can-atemschutz="<?php echo (int)$role['can_atemschutz']; ?>"
                                         data-can-members="<?php echo (int)$role['can_members']; ?>"
@@ -1405,6 +1423,12 @@ try {
                                 <?php endforeach; ?>
                             </select>
                             <small class="text-muted">Beim Auswählen werden Rechte vorbefüllt. Sie können danach einzelne Rechte individuell anpassen.</small>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="is_einheitsadmin" id="edit_is_einheitsadmin">
+                                <label class="form-check-label" for="edit_is_einheitsadmin">Als Einheitsadmin führen (in globaler Benutzerverwaltung sichtbar)</label>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Berechtigungen</label>
@@ -1538,6 +1562,7 @@ try {
                                 <?php foreach ($permission_roles as $role): ?>
                                     <option
                                         value="<?php echo (int)$role['id']; ?>"
+                                        data-is-default-einheitsadmin="<?php echo (($role['role_name'] ?? '') === 'Einheitsadmin') ? '1' : '0'; ?>"
                                         data-can-reservations="<?php echo (int)$role['can_reservations']; ?>"
                                         data-can-atemschutz="<?php echo (int)$role['can_atemschutz']; ?>"
                                         data-can-members="<?php echo (int)$role['can_members']; ?>"
@@ -1557,6 +1582,12 @@ try {
                                 <?php endforeach; ?>
                             </select>
                             <small class="text-muted">Beim Auswählen werden Rechte vorbefüllt. Sie können danach einzelne Rechte individuell anpassen.</small>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="is_einheitsadmin" id="add_is_einheitsadmin">
+                                <label class="form-check-label" for="add_is_einheitsadmin">Als Einheitsadmin führen (in globaler Benutzerverwaltung sichtbar)</label>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Berechtigungen</label>
@@ -1639,6 +1670,7 @@ try {
             document.getElementById('edit_username').value = btn.dataset.username || '';
             document.getElementById('edit_email').value = btn.dataset.email || '';
             document.getElementById('edit_role_id').value = btn.dataset.roleId || '';
+            document.getElementById('edit_is_einheitsadmin').checked = btn.dataset.isEinheitsadmin == '1';
             document.getElementById('edit_can_reservations').checked = btn.dataset.canReservations == '1';
             document.getElementById('edit_can_atemschutz').checked = btn.dataset.canAtemschutz == '1';
             document.getElementById('edit_can_members').checked = btn.dataset.canMembers == '1';
@@ -1702,6 +1734,10 @@ try {
                     el.checked = option.dataset[dataKey] == '1';
                 }
             });
+            var adminToggle = document.getElementById(prefix + '_is_einheitsadmin');
+            if (adminToggle && option.dataset.isDefaultEinheitsadmin == '1') {
+                adminToggle.checked = true;
+            }
         }
         document.querySelectorAll('.role-select').forEach(function(selectEl) {
             selectEl.addEventListener('change', function() {
