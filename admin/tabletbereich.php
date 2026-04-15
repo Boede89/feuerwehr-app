@@ -48,6 +48,7 @@ $build_demo_payload = static function () use ($base_upload_dir) {
     $alarm_date = $now - 900;
     $demo_address = 'Markt 20, 41366 Schwalmtal';
     $demo_title_suffix = 'Brennt PKW auf Parkplatz';
+    $demo_preferred_plan_file = '';
 
     $objektplan_dirs = [
         $base_upload_dir . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'objektplaene',
@@ -69,6 +70,12 @@ $build_demo_payload = static function () use ($base_upload_dir) {
                     // damit die automatische Plan-Erkennung im Test sicher greift.
                     $demo_address = $name_clean;
                     $demo_title_suffix = $name_clean;
+                }
+                $full_path = $file->getPathname();
+                $base_norm = str_replace('\\', '/', $base_upload_dir);
+                $full_norm = str_replace('\\', '/', $full_path);
+                if (str_starts_with($full_norm, $base_norm . '/')) {
+                    $demo_preferred_plan_file = ltrim(substr($full_norm, strlen($base_norm)), '/');
                 }
                 break 2;
             }
@@ -154,6 +161,7 @@ $build_demo_payload = static function () use ($base_upload_dir) {
         'raw_alarm_reach' => $reach_raw,
         'selected_alarm_detail' => $alarm_detail_raw['data'],
         'selected_alarm_reach' => $reach_raw['data'],
+        'preferred_plan_file' => $demo_preferred_plan_file,
     ];
 };
 
@@ -425,6 +433,20 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
         (string)($alarm_context['location'] ?? ''),
         (string)($alarm_context['text'] ?? ''),
     ]));
+
+    $preferred_plan_file = trim((string)($alarm_context['preferred_plan_file'] ?? ''));
+    if ($preferred_plan_file !== '') {
+        $preferred_full = realpath($base_dir . DIRECTORY_SEPARATOR . str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $preferred_plan_file));
+        if ($preferred_full !== false && is_file($preferred_full) && mb_strtolower((string)pathinfo($preferred_full, PATHINFO_EXTENSION), 'UTF-8') === 'pdf') {
+            $relative = ltrim(str_replace('\\', '/', substr($preferred_full, strlen($base_dir))), '/');
+            return [
+                'score' => 999,
+                'filename' => basename($preferred_full),
+                'url' => '../' . $relative,
+            ];
+        }
+    }
+
     $search_normalized = $normalize($search_text);
     if ($search_normalized === '') {
         return null;
@@ -489,11 +511,16 @@ $find_objektplan_for_alarm = static function (array $alarm_context) {
 
 $objektplan_match = null;
 if (!empty($selected_alarm_id)) {
+    $preferred_plan_file_for_match = '';
+    if ($use_demo_data && isset($demo) && is_array($demo)) {
+        $preferred_plan_file_for_match = (string)($demo['preferred_plan_file'] ?? '');
+    }
     $objektplan_match = $find_objektplan_for_alarm([
         'address' => $selected_address,
         'title' => (string)($selected_alarm['title'] ?? $selected_alarm_detail['title'] ?? ''),
         'location' => (string)($selected_alarm_detail['location'] ?? ''),
         'text' => (string)($selected_alarm['text'] ?? $selected_alarm_detail['text'] ?? ''),
+        'preferred_plan_file' => $preferred_plan_file_for_match,
     ]);
 }
 ?>
