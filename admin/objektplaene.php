@@ -20,6 +20,9 @@ if (!is_dir($objektplan_dir)) {
 
 $message = '';
 $error = '';
+$active_max_file_uploads = (int)(ini_get('max_file_uploads') ?: 20);
+$active_upload_max_filesize = (string)(ini_get('upload_max_filesize') ?: 'unbekannt');
+$active_post_max_size = (string)(ini_get('post_max_size') ?: 'unbekannt');
 
 $parse_ini_size = static function ($size) {
     $size = trim((string)$size);
@@ -154,6 +157,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             $message = "Upload abgeschlossen: {$saved} PDF gespeichert" . ($skipped > 0 ? ", {$skipped} übersprungen." : '.');
+            if ($count > 0 && $active_max_file_uploads > 0 && $count >= $active_max_file_uploads) {
+                $message .= " Hinweis: Es wurden genau {$count} Dateien im Request erkannt (aktuelles max_file_uploads-Limit: {$active_max_file_uploads}). Wenn im Ordner mehr Dateien waren, bitte Upload in Teilmengen durchführen oder Limit weiter erhöhen.";
+            }
         }
     } elseif (isset($_POST['upload_zip'])) {
         $zip_err = (int)($_FILES['objektplan_zip']['error'] ?? UPLOAD_ERR_NO_FILE);
@@ -278,12 +284,14 @@ $format_size = static function ($bytes) {
                     <div class="card-header"><i class="fas fa-upload me-2"></i>Ordner-Upload (PDFs)</div>
                     <div class="card-body">
                         <p class="text-muted small">Hier können Sie einen kompletten Ordner mit Unterordnern hochladen. Nur PDF-Dateien werden übernommen.</p>
+                        <p class="small text-muted mb-2">Aktive Limits: <code>max_file_uploads=<?php echo (int)$active_max_file_uploads; ?></code>, <code>upload_max_filesize=<?php echo htmlspecialchars($active_upload_max_filesize); ?></code>, <code>post_max_size=<?php echo htmlspecialchars($active_post_max_size); ?></code></p>
                         <form method="POST" enctype="multipart/form-data">
                             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                             <input type="hidden" name="upload_folder" value="1">
                             <div class="mb-3">
                                 <label class="form-label">Ordner auswählen</label>
-                                <input type="file" name="objektplan_files[]" class="form-control" webkitdirectory directory multiple required>
+                                <input type="file" name="objektplan_files[]" id="objektplan_files_input" class="form-control" webkitdirectory directory multiple required>
+                                <small id="objektplan_files_hint" class="text-muted"></small>
                             </div>
                             <button type="submit" class="btn btn-primary"><i class="fas fa-upload me-1"></i>Ordner hochladen</button>
                         </form>
@@ -365,5 +373,27 @@ $format_size = static function ($bytes) {
             </div>
         </div>
     </div>
+    <script>
+        (function () {
+            var input = document.getElementById('objektplan_files_input');
+            var hint = document.getElementById('objektplan_files_hint');
+            var maxFiles = <?php echo (int)$active_max_file_uploads; ?>;
+            if (!input || !hint) return;
+            input.addEventListener('change', function () {
+                var count = (input.files && input.files.length) ? input.files.length : 0;
+                if (count <= 0) {
+                    hint.textContent = '';
+                    return;
+                }
+                if (maxFiles > 0 && count > maxFiles) {
+                    hint.className = 'text-danger';
+                    hint.textContent = 'Achtung: Gewählt ' + count + ' Dateien, erlaubt sind aktuell nur ' + maxFiles + ' pro Upload-Request.';
+                } else {
+                    hint.className = 'text-success';
+                    hint.textContent = count + ' Datei(en) ausgewählt.';
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

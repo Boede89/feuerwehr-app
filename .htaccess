@@ -35,6 +35,7 @@ Options -Indexes
     php_value error_log /var/log/php_errors.log
     php_value upload_max_filesize 100M
     php_value post_max_size 110M
+    php_value max_file_uploads 250
 </IfModule>
 
 # URL Rewriting
