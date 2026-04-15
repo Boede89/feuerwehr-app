@@ -68,6 +68,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'ZIP-Datei überschreitet upload_max_filesize (' . (ini_get('upload_max_filesize') ?: 'unbekannt') . ').';
     } elseif (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungültiger Sicherheitstoken.';
+    } elseif (isset($_POST['delete_all_files'])) {
+        $deleted = 0;
+        if (is_dir($objektplan_dir)) {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($objektplan_dir, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($it as $item) {
+                if ($item->isFile()) {
+                    if (mb_strtolower((string)$item->getExtension(), 'UTF-8') === 'pdf') {
+                        if (@unlink($item->getPathname())) {
+                            $deleted++;
+                        }
+                    }
+                } elseif ($item->isDir()) {
+                    @rmdir($item->getPathname()); // leere Unterordner aufräumen
+                }
+            }
+        }
+        $message = $deleted > 0 ? "{$deleted} Objektplan-Datei(en) wurden gelöscht." : 'Es waren keine PDF-Objektpläne zum Löschen vorhanden.';
     } elseif (isset($_POST['delete_file'])) {
         $rel = (string)($_POST['delete_file'] ?? '');
         $rel = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $rel);
@@ -293,7 +313,16 @@ $format_size = static function ($bytes) {
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-file-pdf me-2"></i>Vorhandene Objektpläne</span>
-                <span class="badge bg-secondary"><?php echo count($file_rows); ?> Datei(en)</span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary"><?php echo count($file_rows); ?> Datei(en)</span>
+                    <form method="POST" onsubmit="return confirm('Wirklich alle hinterlegten Objektpläne löschen? Diese Aktion kann nicht rückgängig gemacht werden.');">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <input type="hidden" name="delete_all_files" value="1">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-trash-alt"></i> Alle löschen
+                        </button>
+                    </form>
+                </div>
             </div>
             <div class="card-body">
                 <?php if (empty($file_rows)): ?>
