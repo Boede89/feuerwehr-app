@@ -32,6 +32,7 @@ if (!isset($can_auswertung)) {
 if (!isset($can_forms_fill)) {
     $can_forms_fill = function_exists('has_form_fill_permission') && has_form_fill_permission();
 }
+$is_superadmin_user = function_exists('is_superadmin') ? is_superadmin($_SESSION['user_id']) : false;
 $has_any = $can_reservations || $can_atemschutz || $can_settings || $can_members || $can_auswertung || $can_forms || $can_forms_fill;
 $btn_class = (!empty($admin_menu_in_navbar)) ? 'btn-outline-light' : 'btn-outline-primary';
 $base = isset($admin_menu_base) ? $admin_menu_base : '';
@@ -57,6 +58,9 @@ $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
         <?php endif; ?>
         <li><a class="dropdown-item" href="<?php echo htmlspecialchars($index_url); ?>"><i class="fas fa-home text-primary me-2"></i>Startseite</a></li>
         <li><a class="dropdown-item" href="<?php echo $base; ?>dashboard.php<?php echo ($dashboard_einheit ?? $cur_eid ?? null) ? '?einheit_id=' . (int)($dashboard_einheit ?? $cur_eid ?? 0) : ''; ?>"><i class="fas fa-tachometer-alt text-primary me-2"></i>Dashboard</a></li>
+        <?php if ($is_superadmin_user): ?>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>tabletbereich.php"><i class="fas fa-tablet-alt text-dark me-2"></i>Tabletbereich</a></li>
+        <?php endif; ?>
         <li><hr class="dropdown-divider"></li>
         <?php if ($can_reservations): ?>
         <li><a class="dropdown-item" href="<?php echo $base; ?>reservations.php"><i class="fas fa-calendar text-primary me-2"></i>Reservierungen</a></li>
