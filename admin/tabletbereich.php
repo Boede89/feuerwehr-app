@@ -284,6 +284,61 @@ if (is_array($forces_data)) {
     }
 }
 
+$vehicle_cards = [];
+if (is_array($vehicles_data)) {
+    foreach ($vehicles_data as $vehicle_key => $vehicle_value) {
+        if (!is_array($vehicle_value)) {
+            continue;
+        }
+        $name = trim((string)($vehicle_value['name'] ?? $vehicle_value['title'] ?? $vehicle_value['vehicle_name'] ?? $vehicle_value['funkrufname'] ?? ''));
+        if ($name === '' && is_string($vehicle_key)) {
+            $name = trim($vehicle_key);
+        }
+        if ($name === '') {
+            $name = 'Fahrzeug';
+        }
+        $status = trim((string)($vehicle_value['status'] ?? $vehicle_value['state'] ?? $vehicle_value['alarm_status'] ?? ''));
+        $radio = trim((string)($vehicle_value['radio'] ?? $vehicle_value['call_sign'] ?? $vehicle_value['funkruf'] ?? ''));
+        $type = trim((string)($vehicle_value['type'] ?? $vehicle_value['category'] ?? $vehicle_value['kind'] ?? ''));
+        $count_raw = $vehicle_value['count'] ?? $vehicle_value['amount'] ?? null;
+        $count = is_numeric($count_raw) ? (int)$count_raw : null;
+        $details = [];
+        foreach (['location', 'note', 'identifier'] as $dkey) {
+            if (!empty($vehicle_value[$dkey])) {
+                $details[] = ucfirst($dkey) . ': ' . (string)$vehicle_value[$dkey];
+            }
+        }
+        $vehicle_cards[] = [
+            'name' => $name,
+            'status' => $status !== '' ? $status : '—',
+            'radio' => $radio,
+            'type' => $type !== '' ? $type : '—',
+            'count' => $count,
+            'details' => $details,
+        ];
+    }
+}
+
+$reach_cards = [];
+if (!empty($reach_entries)) {
+    foreach ($reach_entries as $entry) {
+        $details = [];
+        if (is_array($entry['details'] ?? null)) {
+            foreach (['ts', 'note', 'status_label'] as $k) {
+                if (!empty($entry['details'][$k])) {
+                    $details[] = ucfirst(str_replace('_', ' ', $k)) . ': ' . (string)$entry['details'][$k];
+                }
+            }
+        }
+        $reach_cards[] = [
+            'status' => (string)($entry['status'] ?? '—'),
+            'name' => (string)($entry['name'] ?? 'Unbekannt'),
+            'id' => (string)($entry['id'] ?? ''),
+            'details' => $details,
+        ];
+    }
+}
+
 $reach_entries = [];
 if (is_array($selected_alarm_reach)) {
     foreach (['received' => 'Empfangen', 'viewed' => 'Gesehen', 'confirmed' => 'Bestätigt'] as $key => $label) {
@@ -337,6 +392,8 @@ $selected_address_maps_url = $selected_address !== ''
         .force-title { font-weight: 700; color: #1f2937; }
         .force-meta { font-size: .85rem; color: #6b7280; }
         .force-badges .badge { font-size: .75rem; }
+        .vehicle-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: .75rem; background: #fff; }
+        .reply-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: .75rem; background: #fff; }
         pre.tablet-pre {
             white-space: pre-wrap;
             word-break: break-word;
@@ -542,8 +599,33 @@ $selected_address_maps_url = $selected_address !== ''
                             <?php endif; ?>
                         </div>
                         <div class="tab-pane fade" id="tab-vehicles" role="tabpanel">
-                            <?php if (is_array($vehicles_data) && !empty($vehicles_data)): ?>
-                                <pre class="tablet-pre"><?php echo htmlspecialchars($pretty_json($vehicles_data)); ?></pre>
+                            <?php if (!empty($vehicle_cards)): ?>
+                                <div class="row g-2">
+                                    <?php foreach ($vehicle_cards as $vehicle): ?>
+                                        <div class="col-12 col-md-6">
+                                            <div class="vehicle-card h-100">
+                                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                                    <div>
+                                                        <div class="force-title"><?php echo htmlspecialchars($vehicle['name']); ?></div>
+                                                        <div class="force-meta"><?php echo htmlspecialchars($vehicle['type']); ?></div>
+                                                        <?php if ($vehicle['radio'] !== ''): ?>
+                                                            <div class="small text-muted mt-1"><i class="fas fa-broadcast-tower me-1"></i><?php echo htmlspecialchars($vehicle['radio']); ?></div>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <div class="force-badges d-flex gap-1 flex-wrap justify-content-end">
+                                                        <span class="badge bg-secondary"><?php echo htmlspecialchars($vehicle['status']); ?></span>
+                                                        <?php if ($vehicle['count'] !== null): ?>
+                                                            <span class="badge bg-primary">x<?php echo (int)$vehicle['count']; ?></span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                                <?php if (!empty($vehicle['details'])): ?>
+                                                    <div class="small text-muted mt-2"><?php echo htmlspecialchars(implode(' · ', $vehicle['details'])); ?></div>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
                             <?php else: ?>
                                 <p class="text-muted mb-0">Keine strukturierten Fahrzeug-Daten im Divera-Response gefunden.</p>
                             <?php endif; ?>
@@ -559,8 +641,27 @@ $selected_address_maps_url = $selected_address !== ''
                                 <div class="col-4"><div class="p-2 border rounded text-center"><div class="small text-muted">Gesehen</div><div class="h5 mb-0"><?php echo (int)$viewed; ?></div></div></div>
                                 <div class="col-4"><div class="p-2 border rounded text-center"><div class="small text-muted">Bestätigt</div><div class="h5 mb-0"><?php echo (int)$confirmed; ?></div></div></div>
                             </div>
-                            <?php if (!empty($reach_entries)): ?>
-                                <pre class="tablet-pre"><?php echo htmlspecialchars($pretty_json($reach_entries)); ?></pre>
+                            <?php if (!empty($reach_cards)): ?>
+                                <div class="row g-2">
+                                    <?php foreach ($reach_cards as $reply): ?>
+                                        <div class="col-12 col-md-6">
+                                            <div class="reply-card h-100">
+                                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                                    <div>
+                                                        <div class="force-title"><?php echo htmlspecialchars($reply['name']); ?></div>
+                                                        <?php if ($reply['id'] !== ''): ?>
+                                                            <div class="force-meta">ID: <?php echo htmlspecialchars($reply['id']); ?></div>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <span class="badge bg-secondary"><?php echo htmlspecialchars($reply['status']); ?></span>
+                                                </div>
+                                                <?php if (!empty($reply['details'])): ?>
+                                                    <div class="small text-muted mt-2"><?php echo htmlspecialchars(implode(' · ', $reply['details'])); ?></div>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
                             <?php else: ?>
                                 <p class="text-muted mb-0">Keine Rückmeldungsdetails vorhanden.</p>
                             <?php endif; ?>
