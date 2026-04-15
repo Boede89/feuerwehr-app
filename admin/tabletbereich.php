@@ -369,6 +369,103 @@ $selected_address = trim((string)($selected_alarm['address'] ?? $selected_alarm_
 $selected_address_maps_url = $selected_address !== ''
     ? 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($selected_address)
     : '';
+
+$find_objektplan_for_alarm = static function (array $alarm_context) {
+    $base_dir = realpath(__DIR__ . '/..');
+    if ($base_dir === false) {
+        return null;
+    }
+
+    $search_roots = [
+        $base_dir . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'objektplaene',
+        $base_dir . DIRECTORY_SEPARATOR . 'objektplaene',
+        $base_dir . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'objektplaene',
+    ];
+
+    $normalize = static function ($value) {
+        $value = mb_strtolower((string)$value, 'UTF-8');
+        $value = str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $value);
+        $value = preg_replace('/[^a-z0-9]+/u', ' ', $value);
+        return trim((string)$value);
+    };
+
+    $search_text = implode(' ', array_filter([
+        (string)($alarm_context['address'] ?? ''),
+        (string)($alarm_context['title'] ?? ''),
+        (string)($alarm_context['location'] ?? ''),
+        (string)($alarm_context['text'] ?? ''),
+    ]));
+    $search_normalized = $normalize($search_text);
+    if ($search_normalized === '') {
+        return null;
+    }
+
+    $raw_tokens = preg_split('/\s+/u', $search_normalized, -1, PREG_SPLIT_NO_EMPTY);
+    $ignore_tokens = ['strasse', 'str', 'straße', 'platz', 'einsatz', 'f2', 'f3', 'brand', 'feuerwehr', 'und', 'der', 'die', 'das'];
+    $tokens = [];
+    foreach ($raw_tokens as $token) {
+        if (mb_strlen($token, 'UTF-8') < 3) continue;
+        if (in_array($token, $ignore_tokens, true)) continue;
+        $tokens[] = $token;
+    }
+    $tokens = array_values(array_unique($tokens));
+
+    $best = null;
+    foreach ($search_roots as $root) {
+        if (!is_dir($root)) continue;
+        try {
+            $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+            foreach ($it as $file) {
+                if (!$file->isFile()) continue;
+                if (mb_strtolower((string)$file->getExtension(), 'UTF-8') !== 'pdf') continue;
+
+                $filename = $file->getFilename();
+                $filename_norm = $normalize(pathinfo($filename, PATHINFO_FILENAME));
+                if ($filename_norm === '') continue;
+
+                $score = 0;
+                if ($selected_address = $normalize((string)($alarm_context['address'] ?? ''))) {
+                    if ($selected_address !== '' && mb_strpos($filename_norm, $selected_address) !== false) {
+                        $score += 12;
+                    }
+                }
+                foreach ($tokens as $token) {
+                    if (mb_strpos($filename_norm, $token) !== false) {
+                        $score += 2;
+                    }
+                }
+                if ($score <= 0) continue;
+
+                $path = $file->getPathname();
+                $relative = ltrim(str_replace('\\', '/', substr($path, strlen($base_dir))), '/');
+                if ($relative === '') continue;
+                $url = '../' . $relative;
+
+                if ($best === null || $score > $best['score']) {
+                    $best = [
+                        'score' => $score,
+                        'filename' => $filename,
+                        'url' => $url,
+                    ];
+                }
+            }
+        } catch (Throwable $e) {
+            // ignore directory scan errors
+        }
+    }
+
+    return ($best !== null && $best['score'] >= 4) ? $best : null;
+};
+
+$objektplan_match = null;
+if (!empty($selected_alarm_id)) {
+    $objektplan_match = $find_objektplan_for_alarm([
+        'address' => $selected_address,
+        'title' => (string)($selected_alarm['title'] ?? $selected_alarm_detail['title'] ?? ''),
+        'location' => (string)($selected_alarm_detail['location'] ?? ''),
+        'text' => (string)($selected_alarm['text'] ?? $selected_alarm_detail['text'] ?? ''),
+    ]);
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -559,7 +656,17 @@ $selected_address_maps_url = $selected_address !== ''
                                         <i class="fas fa-map-marker-alt me-1"></i>In Google Maps
                                     </a>
                                 <?php endif; ?>
+                                <?php if ($objektplan_match !== null): ?>
+                                    <a class="btn btn-sm btn-outline-danger" href="<?php echo htmlspecialchars($objektplan_match['url']); ?>" target="_blank" rel="noopener noreferrer">
+                                        <i class="fas fa-file-pdf me-1"></i>Objektplan öffnen
+                                    </a>
+                                <?php endif; ?>
                             </div>
+                            <?php if ($objektplan_match !== null): ?>
+                                <div class="small text-muted mt-1">Gefundener Plan: <?php echo htmlspecialchars($objektplan_match['filename']); ?></div>
+                            <?php else: ?>
+                                <div class="small text-muted mt-1">Kein passender Objektplan gefunden (gesucht in `uploads/objektplaene`, `objektplaene`, `assets/objektplaene`).</div>
+                            <?php endif; ?>
                         </div>
                         <div class="col-12">
                             <div class="kv-label">Text / Zusatzinfo</div>
