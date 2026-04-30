@@ -393,17 +393,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                                 </div>
                                 <div id="timeframes">
                                     <div class="timeframe-row row mb-3 g-3">
-                                        <div class="col-md-5">
-                                            <label class="form-label">Von (Datum & Uhrzeit) *</label>
-                                            <input type="datetime-local" class="form-control start-datetime" name="start_datetime_0" required>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Datum *</label>
+                                            <input type="date" class="form-control timeframe-date" required>
                                         </div>
-                                        <div class="col-md-5">
-                                            <label class="form-label">Bis (Datum & Uhrzeit) *</label>
-                                            <input type="datetime-local" class="form-control end-datetime" name="end_datetime_0" required>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Von (Uhrzeit) *</label>
+                                            <input type="time" class="form-control timeframe-start-time" required>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Bis (Uhrzeit) *</label>
+                                            <input type="time" class="form-control timeframe-end-time" required>
                                         </div>
                                         <div class="col-md-2 d-flex align-items-end">
                                             <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100" style="display: none;"> <i class="fas fa-trash"></i> </button>
                                         </div>
+                                        <input type="datetime-local" class="start-datetime d-none" name="start_datetime_0" required>
+                                        <input type="datetime-local" class="end-datetime d-none" name="end_datetime_0" required>
                                     </div>
                                 </div>
                             </div>
@@ -442,6 +448,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
             if (!form || !submitBtn) return;
             let alreadySubmitting = false;
 
+            function syncTimeframeRow(row) {
+                if (!row) return;
+                const dateInput = row.querySelector('.timeframe-date');
+                const startTimeInput = row.querySelector('.timeframe-start-time');
+                const endTimeInput = row.querySelector('.timeframe-end-time');
+                const startHidden = row.querySelector('.start-datetime');
+                const endHidden = row.querySelector('.end-datetime');
+                if (!dateInput || !startTimeInput || !endTimeInput || !startHidden || !endHidden) return;
+                const d = dateInput.value || '';
+                const s = startTimeInput.value || '';
+                const e = endTimeInput.value || '';
+                startHidden.value = (d && s) ? (d + 'T' + s) : '';
+                endHidden.value = (d && e) ? (d + 'T' + e) : '';
+            }
+
+            function syncAllTimeframes() {
+                document.querySelectorAll('.timeframe-row').forEach(syncTimeframeRow);
+            }
+
             function lockUi() {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Wird gesendet...';
@@ -456,6 +481,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                     e.preventDefault();
                     return false;
                 }
+                if (!form.checkValidity()) {
+                    e.preventDefault();
+                    form.reportValidity && form.reportValidity();
+                    return false;
+                }
+                syncAllTimeframes();
                 if (!form.checkValidity()) {
                     e.preventDefault();
                     form.reportValidity && form.reportValidity();
@@ -482,6 +513,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
 
             form.addEventListener('submit', function(e) {
                 if (alreadySubmitting) return;
+                syncAllTimeframes();
                 if (!form.checkValidity()) {
                     e.preventDefault();
                     form.reportValidity && form.reportValidity();
@@ -508,10 +540,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
             const timeframesDiv = document.getElementById('timeframes');
             const newRow = document.createElement('div');
             newRow.className = 'timeframe-row row mb-3 g-3';
-            newRow.innerHTML = '<div class="col-md-5"><label class="form-label">Von (Datum & Uhrzeit) *</label><input type="datetime-local" class="form-control start-datetime" name="start_datetime_' + timeframeCount + '" required></div><div class="col-md-5"><label class="form-label">Bis (Datum & Uhrzeit) *</label><input type="datetime-local" class="form-control end-datetime" name="end_datetime_' + timeframeCount + '" required></div><div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100"> <i class="fas fa-trash"></i> </button></div>';
+            newRow.innerHTML = '<div class="col-md-4"><label class="form-label">Datum *</label><input type="date" class="form-control timeframe-date" required></div><div class="col-md-3"><label class="form-label">Von (Uhrzeit) *</label><input type="time" class="form-control timeframe-start-time" required></div><div class="col-md-3"><label class="form-label">Bis (Uhrzeit) *</label><input type="time" class="form-control timeframe-end-time" required></div><div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100"> <i class="fas fa-trash"></i> </button></div><input type="datetime-local" class="start-datetime d-none" name="start_datetime_' + timeframeCount + '" required><input type="datetime-local" class="end-datetime d-none" name="end_datetime_' + timeframeCount + '" required>';
             timeframesDiv.appendChild(newRow);
             timeframeCount++;
             document.querySelectorAll('.remove-timeframe').forEach(btn => btn.style.display = 'block');
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            const minDate = now.toISOString().slice(0, 10);
+            const dateInput = newRow.querySelector('.timeframe-date');
+            if (dateInput) dateInput.min = minDate;
+            ['change','input'].forEach(function(evt) {
+                const d = newRow.querySelector('.timeframe-date');
+                const s = newRow.querySelector('.timeframe-start-time');
+                const e = newRow.querySelector('.timeframe-end-time');
+                if (d) d.addEventListener(evt, function(){ syncTimeframeRow(newRow); });
+                if (s) s.addEventListener(evt, function(){ syncTimeframeRow(newRow); });
+                if (e) e.addEventListener(evt, function(){ syncTimeframeRow(newRow); });
+            });
         });
         document.addEventListener('click', function(e) {
             if (e.target.closest('.remove-timeframe')) {
@@ -521,6 +566,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                 }
             }
         });
+        (function initTimeframeRows(){
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            const minDate = now.toISOString().slice(0, 10);
+            document.querySelectorAll('.timeframe-row').forEach(function(row){
+                const d = row.querySelector('.timeframe-date');
+                const s = row.querySelector('.timeframe-start-time');
+                const e = row.querySelector('.timeframe-end-time');
+                if (d) d.min = minDate;
+                const binder = function(){
+                    syncTimeframeRow(row);
+                    if (d && s && e && d.value && s.value && e.value && e.value <= s.value) {
+                        e.value = '';
+                        syncTimeframeRow(row);
+                    }
+                };
+                if (d) { d.addEventListener('change', binder); d.addEventListener('input', binder); }
+                if (s) { s.addEventListener('change', binder); s.addEventListener('input', binder); }
+                if (e) { e.addEventListener('change', binder); e.addEventListener('input', binder); }
+            });
+        })();
         <?php if ($redirect_to_home): ?>
         setTimeout(function() { window.location.href = <?php echo json_encode('index.php' . $einheit_param); ?>; }, 3000);
         <?php endif; ?>

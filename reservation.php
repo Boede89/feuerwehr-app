@@ -746,19 +746,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                                 
                                 <div id="timeframes">
                                     <div class="timeframe-row row mb-3 g-3">
-                                        <div class="col-md-5">
-                                            <label class="form-label" style="white-space: nowrap;">Von (Datum & Uhrzeit) <span class="text-danger">*</span></label>
-                                            <input type="datetime-local" class="form-control start-datetime" name="start_datetime_0" required>
+                                        <div class="col-md-4">
+                                            <label class="form-label" style="white-space: nowrap;">Datum <span class="text-danger">*</span></label>
+                                            <input type="date" class="form-control timeframe-date" required>
                                         </div>
-                                        <div class="col-md-5">
-                                            <label class="form-label" style="white-space: nowrap;">Bis (Datum & Uhrzeit) <span class="text-danger">*</span></label>
-                                            <input type="datetime-local" class="form-control end-datetime" name="end_datetime_0" required>
+                                        <div class="col-md-3">
+                                            <label class="form-label" style="white-space: nowrap;">Von (Uhrzeit) <span class="text-danger">*</span></label>
+                                            <input type="time" class="form-control timeframe-start-time" required>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label" style="white-space: nowrap;">Bis (Uhrzeit) <span class="text-danger">*</span></label>
+                                            <input type="time" class="form-control timeframe-end-time" required>
                                         </div>
                                         <div class="col-md-2 d-flex align-items-end">
                                             <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100" style="display: none;">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </div>
+                                        <input type="datetime-local" class="start-datetime d-none" name="start_datetime_0" required>
+                                        <input type="datetime-local" class="end-datetime d-none" name="end_datetime_0" required>
                                     </div>
                                 </div>
                             </div>
@@ -825,6 +831,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 return timeframes;
             }
 
+            function syncTimeframeRow(row) {
+                if (!row) return;
+                const dateInput = row.querySelector('.timeframe-date');
+                const startTimeInput = row.querySelector('.timeframe-start-time');
+                const endTimeInput = row.querySelector('.timeframe-end-time');
+                const startHidden = row.querySelector('.start-datetime');
+                const endHidden = row.querySelector('.end-datetime');
+                if (!dateInput || !startTimeInput || !endTimeInput || !startHidden || !endHidden) return;
+                const d = dateInput.value || '';
+                const s = startTimeInput.value || '';
+                const e = endTimeInput.value || '';
+                startHidden.value = (d && s) ? (d + 'T' + s) : '';
+                endHidden.value = (d && e) ? (d + 'T' + e) : '';
+            }
+
+            function syncAllTimeframes() {
+                document.querySelectorAll('.timeframe-row').forEach(syncTimeframeRow);
+            }
+
             function formatDateTime(v) {
                 if (!v) return '-';
                 const d = new Date(v);
@@ -838,9 +863,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     const overlaps = Array.isArray(w.overlapping_reservations) ? w.overlapping_reservations : [];
                     const selectedNames = Array.isArray(w.selected_vehicle_names) ? w.selected_vehicle_names.filter(Boolean) : [];
                     const selectedLabel = selectedNames.length ? selectedNames.join(', ') : 'Das ausgewählte Fahrzeug';
-                    let title = `Achtung: ${selectedLabel} ist das letzte verfügbare Löschfahrzeug in diesem Zeitraum.`;
+                    const overlapVehicle = overlaps.length ? (overlaps[0].vehicle_name || 'ein anderes Löschfahrzeug') : 'ein anderes Löschfahrzeug';
+                    let title = `Achtung: ${selectedLabel} ist das letzte Löschfahrzeug für diesen Zeitraum, da ${overlapVehicle} bereits reserviert wurde.`;
                     if (w.remaining_after <= 0) {
-                        title = `Achtung: ${selectedLabel} würde das letzte Löschfahrzeug in diesem Zeitraum binden.`;
+                        title = `Achtung: ${selectedLabel} ist das letzte Löschfahrzeug für diesen Zeitraum.`;
                     }
                     html += `<div class="alert alert-danger mb-3"><h6 class="mb-2">${title}</h6><div class="small mb-2"><strong>Zeitraum ${w.index || (idx + 1)}:</strong> ${formatDateTime(w.start)} - ${formatDateTime(w.end)}<br><strong>Verbleibend:</strong> ${w.remaining_after} (Mindestwert ${w.min_available})</div>`;
                     if (overlaps.length) {
@@ -922,6 +948,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     return false;
                 }
                 e.preventDefault();
+                syncAllTimeframes();
+                if (!form.checkValidity()) {
+                    form.reportValidity && form.reportValidity();
+                    return false;
+                }
                 ensureHiddenSubmitData();
 
                 if (!availabilityWarningConfirmed) {
@@ -969,6 +1000,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             form.addEventListener('submit', function(ev){
                 console.log('🟦 Form submit Event');
                 if (alreadySubmitting) return;
+                syncAllTimeframes();
                 if (!form.checkValidity()) {
                     console.log('🟥 HTML5-Validierung im submit-Event fehlgeschlagen');
                     ev.preventDefault();
@@ -1049,19 +1081,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             const newTimeframe = document.createElement('div');
             newTimeframe.className = 'timeframe-row row mb-3';
             newTimeframe.innerHTML = `
-                <div class="col-md-5">
-                    <label class="form-label" style="white-space: nowrap;">Von (Datum & Uhrzeit) <span class="text-danger">*</span></label>
-                    <input type="datetime-local" class="form-control start-datetime" name="start_datetime_${timeframeCount}" required>
+                <div class="col-md-4">
+                    <label class="form-label" style="white-space: nowrap;">Datum <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control timeframe-date" required>
                 </div>
-                <div class="col-md-5">
-                    <label class="form-label" style="white-space: nowrap;">Bis (Datum & Uhrzeit) <span class="text-danger">*</span></label>
-                    <input type="datetime-local" class="form-control end-datetime" name="end_datetime_${timeframeCount}" required>
+                <div class="col-md-3">
+                    <label class="form-label" style="white-space: nowrap;">Von (Uhrzeit) <span class="text-danger">*</span></label>
+                    <input type="time" class="form-control timeframe-start-time" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" style="white-space: nowrap;">Bis (Uhrzeit) <span class="text-danger">*</span></label>
+                    <input type="time" class="form-control timeframe-end-time" required>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
+                <input type="datetime-local" class="start-datetime d-none" name="start_datetime_${timeframeCount}" required>
+                <input type="datetime-local" class="end-datetime d-none" name="end_datetime_${timeframeCount}" required>
             `;
             
             timeframesDiv.appendChild(newTimeframe);
@@ -1093,24 +1131,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         
         // Datum-Validierung für Zeiträume
         function setupTimeframeValidation(timeframeRow) {
-            const startInput = timeframeRow.querySelector('.start-datetime');
-            const endInput = timeframeRow.querySelector('.end-datetime');
-            
-            startInput.addEventListener('change', function() {
-                const startDate = new Date(this.value);
-                const endDate = new Date(endInput.value);
-                
-                if (endInput.value && endDate <= startDate) {
-                    endInput.value = '';
+            const dateInput = timeframeRow.querySelector('.timeframe-date');
+            const startTimeInput = timeframeRow.querySelector('.timeframe-start-time');
+            const endTimeInput = timeframeRow.querySelector('.timeframe-end-time');
+            if (!dateInput || !startTimeInput || !endTimeInput) return;
+
+            function syncAndValidate() {
+                syncTimeframeRow(timeframeRow);
+                if (dateInput.value && startTimeInput.value && endTimeInput.value && endTimeInput.value <= startTimeInput.value) {
+                    endTimeInput.value = '';
+                    syncTimeframeRow(timeframeRow);
                     alert('Das Enddatum muss nach dem Startdatum liegen.');
                 }
-            });
+            }
+            dateInput.addEventListener('change', syncAndValidate);
+            startTimeInput.addEventListener('change', syncAndValidate);
+            endTimeInput.addEventListener('change', syncAndValidate);
             
             // Mindestdatum setzen
             const now = new Date();
             now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-            const minDateTime = now.toISOString().slice(0, 16);
-            startInput.min = minDateTime;
+            const minDate = now.toISOString().slice(0, 10);
+            dateInput.min = minDate;
         }
         
         // Initiale Validierung für ersten Zeitraum
