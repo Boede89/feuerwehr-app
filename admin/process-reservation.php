@@ -5,6 +5,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once '../includes/einheit-settings-helper.php';
 require_once '../config/divera.php';
 
 function output_json($data) {
@@ -56,6 +57,7 @@ if (!$input || !isset($input['action']) || !isset($input['reservation_id'])) {
 $action = $input['action'];
 $reservation_id = (int)$input['reservation_id'];
 $reason = $input['reason'] ?? '';
+$force_availability_override = !empty($input['force_availability_override']);
 
 // Divera-Spalte ggf. anlegen (vor Transaktion, da ALTER TABLE implizit committet)
 try {
@@ -169,6 +171,26 @@ try {
     }
     
     if ($action === 'approve') {
+        $availability_warning = check_loeschfahrzeug_availability_warning(
+            [(int)$reservation['vehicle_id']],
+            $reservation['start_datetime'],
+            $reservation['end_datetime'],
+            $reservation_einheit_id > 0 ? $reservation_einheit_id : null,
+            $reservation_id
+        );
+        if (!empty($availability_warning['warning']) && !$force_availability_override) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            output_json([
+                'success' => false,
+                'has_availability_warning' => true,
+                'availability_warning' => $availability_warning,
+                'message' => 'Warnung zur Mindestverfügbarkeit von Löschfahrzeugen.'
+            ]);
+            exit;
+        }
+
         // Prüfe auf Konflikte vor der Genehmigung
         $conflicts = checkReservationConflicts($reservation);
         
@@ -352,6 +374,26 @@ try {
         output_json(['success' => true, 'message' => 'Reservierung wurde abgelehnt']);
         
     } elseif ($action === 'approve_with_conflict_resolution') {
+        $availability_warning = check_loeschfahrzeug_availability_warning(
+            [(int)$reservation['vehicle_id']],
+            $reservation['start_datetime'],
+            $reservation['end_datetime'],
+            $reservation_einheit_id > 0 ? $reservation_einheit_id : null,
+            $reservation_id
+        );
+        if (!empty($availability_warning['warning']) && !$force_availability_override) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            output_json([
+                'success' => false,
+                'has_availability_warning' => true,
+                'availability_warning' => $availability_warning,
+                'message' => 'Warnung zur Mindestverfügbarkeit von Löschfahrzeugen.'
+            ]);
+            exit;
+        }
+
         // Reservierung genehmigen und Konflikte lösen
         $conflict_ids = $input['conflict_ids'] ?? [];
         

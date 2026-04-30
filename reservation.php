@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/einheit-settings-helper.php';
 
 $message = '';
 $error = '';
+$availability_warnings = [];
 $selectedVehicle = null;
 $selectedVehicles = []; // Array für mehrere Fahrzeuge
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
@@ -82,6 +83,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservati
         if ($vehicle_id && $requester_name && $requester_email && $reason && $start_datetime && $end_datetime) {
             try {
                 $res_einheit = (int)($_POST['einheit_id'] ?? $einheit_id);
+                $availability_check = check_loeschfahrzeug_availability_warning([$vehicle_id], $start_datetime, $end_datetime, $res_einheit > 0 ? $res_einheit : null);
+                if (!empty($availability_check['warning'])) {
+                    $availability_warnings[] = "Warnung Löschfahrzeug-Verfügbarkeit: Insgesamt {$availability_check['total_count']}, nach Reservierung belegt {$availability_check['reserved_after_count']}, verbleibend {$availability_check['remaining_after']} (Mindestwert {$availability_check['min_available']}).";
+                }
                 try {
                     $db->exec("ALTER TABLE reservations ADD COLUMN einheit_id INT NULL");
                 } catch (Exception $e) {}
@@ -223,6 +228,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservati
                 }
                 
                 $message = "Reservierung wurde trotz Konflikt erfolgreich eingereicht. Bitte beachten Sie, dass es Überschneidungen mit anderen Reservierungen geben kann.";
+                if (!empty($availability_warnings)) {
+                    $message .= ' ' . implode(' ', $availability_warnings);
+                }
                 $redirect_to_home = true; // Flag für Weiterleitung setzen
             } catch(PDOException $e) {
                 $error = "Fehler beim Speichern der Reservierung: " . $e->getMessage();
@@ -368,6 +376,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 
                 if ($conflict_found) {
                     break; // Stoppe die Verarbeitung und zeige Modal
+                }
+
+                $res_einheit = (int)($_POST['einheit_id'] ?? $einheit_id);
+                $availability_check = check_loeschfahrzeug_availability_warning($vehicle_ids, $start_datetime, $end_datetime, $res_einheit > 0 ? $res_einheit : null);
+                if (!empty($availability_check['warning'])) {
+                    $availability_warnings[] = "Zeitraum " . ($index + 1) . ": Warnung Löschfahrzeug-Verfügbarkeit – insgesamt {$availability_check['total_count']}, danach belegt {$availability_check['reserved_after_count']}, verbleibend {$availability_check['remaining_after']} (Mindestwert {$availability_check['min_available']}).";
                 }
                 
                 // Debug: Validierung erfolgreich
@@ -543,11 +557,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 
                 if (empty($errors)) {
                     $message = "Alle $success_count Reservierungen wurden erfolgreich eingereicht. Sie erhalten eine E-Mail, sobald über Ihre Anträge entschieden wurde.";
+                    if (!empty($availability_warnings)) {
+                        $message .= ' ' . implode(' ', $availability_warnings);
+                    }
                     echo '<script>console.log("✅ Erfolgreiche Reservierung - Weiterleitung zur Startseite");</script>';
                     // Weiterleitung zur Startseite nach 3 Sekunden
                     $redirect_to_home = true;
                 } else {
                     $message = "$success_count Reservierungen wurden erfolgreich eingereicht. " . implode(' ', $errors);
+                    if (!empty($availability_warnings)) {
+                        $message .= ' ' . implode(' ', $availability_warnings);
+                    }
                     echo '<script>console.log("⚠️ Teilweise erfolgreiche Reservierung mit Fehlern");</script>';
                 }
             } else {

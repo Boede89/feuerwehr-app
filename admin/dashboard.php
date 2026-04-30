@@ -1615,6 +1615,7 @@ if ($can_atemschutz) {
             const isRoom = reservation._type === 'room';
             window.currentReservationType = isRoom ? 'room' : 'vehicle';
             window.currentReservationId = reservation.id;
+            window.forceAvailabilityOverride = false;
             const resourceLabel = document.getElementById('modalResourceLabel');
             const resourceName = document.getElementById('modalResourceName');
             if (isRoom) {
@@ -1772,6 +1773,11 @@ if ($can_atemschutz) {
             successModal.show();
             setTimeout(() => location.reload(), reloadDelay);
         }
+
+        function buildAvailabilityWarningText(warn) {
+            if (!warn) return 'Warnung zur Fahrzeugverfügbarkeit erkannt.';
+            return `Achtung: Nach dieser Genehmigung bleiben in der Kategorie ${warn.group_label || 'Löschfahrzeug'} nur ${warn.remaining_after} verfügbar (Mindestwert: ${warn.min_available}). Insgesamt: ${warn.total_count}, danach belegt: ${warn.reserved_after_count}.`;
+        }
         
         // Reservierung genehmigen
         function approveReservation() {
@@ -1790,6 +1796,7 @@ if ($can_atemschutz) {
                 : {
                     action: 'approve',
                     reservation_id: window.currentReservationId,
+                    force_availability_override: !!window.forceAvailabilityOverride,
                     divera_group_ids: (function() {
                         const dvVal = document.getElementById('diveraGroupSelect')?.value ?? '';
                         return (dvVal !== '' && dvVal !== '0') ? [parseInt(dvVal, 10)] : [];
@@ -1842,6 +1849,16 @@ if ($can_atemschutz) {
                     approveBtn.innerHTML = originalText;
                     
                     showConflictWarning(data.conflicts);
+                } else if (data.has_availability_warning) {
+                    approveBtn.disabled = false;
+                    approveBtn.innerHTML = originalText;
+                    const text = buildAvailabilityWarningText(data.availability_warning);
+                    if (confirm(text + '\n\nTrotzdem genehmigen?')) {
+                        window.forceAvailabilityOverride = true;
+                        approveReservation();
+                    } else {
+                        window.forceAvailabilityOverride = false;
+                    }
                 } else {
                     approveBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
                     approveBtn.classList.remove('btn-success');
@@ -1935,6 +1952,7 @@ if ($can_atemschutz) {
                     action: 'approve_with_conflict_resolution',
                     reservation_id: window.currentReservationId,
                     conflict_ids: window.conflictIds,
+                    force_availability_override: !!window.forceAvailabilityOverride,
                     divera_group_ids: (function() {
                         const dvVal = document.getElementById('diveraGroupSelect')?.value ?? '';
                         return (dvVal !== '' && dvVal !== '0') ? [parseInt(dvVal, 10)] : [];
@@ -1964,6 +1982,16 @@ if ($can_atemschutz) {
                         subMsg = '<div class="alert alert-danger py-2 mt-2 mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Divera: ' + (data.divera_error.message || 'HTTP ' + data.divera_error.code) + '</div>';
                     }
                     showSuccessMessage(mainMsg, subMsg, data.needs_divera_key ? 5000 : 2000);
+                } else if (data.has_availability_warning) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = originalText;
+                    const text = buildAvailabilityWarningText(data.availability_warning);
+                    if (confirm(text + '\n\nTrotzdem mit Konfliktlösung genehmigen?')) {
+                        window.forceAvailabilityOverride = true;
+                        confirmConflictResolution();
+                    } else {
+                        window.forceAvailabilityOverride = false;
+                    }
                 } else {
                     confirmBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Fehler';
                     confirmBtn.classList.remove('btn-warning');

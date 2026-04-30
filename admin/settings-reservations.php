@@ -42,6 +42,22 @@ try {
 
 $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
 
+$vehicles_for_warning = [];
+try {
+    $sql_veh = "SELECT id, name, is_active FROM vehicles";
+    $params_veh = [];
+    if ($einheit_id > 0) {
+        $sql_veh .= " WHERE (einheit_id = ? OR einheit_id IS NULL)";
+        $params_veh[] = $einheit_id;
+    }
+    $sql_veh .= " ORDER BY name ASC";
+    $stmt_veh = $db->prepare($sql_veh);
+    $stmt_veh->execute($params_veh);
+    $vehicles_for_warning = $stmt_veh->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $vehicles_for_warning = [];
+}
+
 // Kein Fallback auf globale Divera-Einstellungen – jede Einheit hat eigene Konfiguration.
 
 // Benutzer für E-Mail-Benachrichtigungen laden (nur echte Benutzer, keine Systembenutzer/Endgeräte)
@@ -130,6 +146,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'fahrzeug' || isse
                 'divera_reservation_enabled' => isset($_POST['divera_reservation_enabled']) ? '1' : '0',
                 'google_calendar_reservation_enabled' => isset($_POST['google_calendar_reservation_enabled']) ? '1' : '0',
                 'divera_reservation_default_group_id' => trim((string)($_POST['divera_reservation_default_group_id'] ?? '')),
+                'reservation_loesch_warn_enabled' => isset($_POST['reservation_loesch_warn_enabled']) ? '1' : '0',
+                'reservation_loesch_min_available' => (string)max(0, (int)($_POST['reservation_loesch_min_available'] ?? 1)),
+                'reservation_loesch_vehicle_ids' => json_encode(array_values(array_filter(array_map('intval', (array)($_POST['reservation_loesch_vehicle_ids'] ?? [])), function($v) { return $v > 0; }))),
             ];
 
             if ($einheit_id > 0) {
@@ -341,6 +360,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($active_tab === 'raum' || (isset($
                     <input type="hidden" name="divera_reservation_default_group_id" value="">
                     <?php endif; ?>
                 </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="fas fa-shield-alt"></i> Mindestverfügbarkeit Löschfahrzeuge (Warnung)</div>
+            <div class="card-body">
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="reservation_loesch_warn_enabled" id="reservation_loesch_warn_enabled" value="1" <?php echo (($settings['reservation_loesch_warn_enabled'] ?? '0') === '1') ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="reservation_loesch_warn_enabled">
+                        Warnung anzeigen, wenn nach Reservierung/Genehmigung zu wenige Löschfahrzeuge verfügbar sind
+                    </label>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="reservation_loesch_min_available">Mindestens verfügbar</label>
+                    <input type="number" class="form-control" id="reservation_loesch_min_available" name="reservation_loesch_min_available" min="0" value="<?php echo (int)($settings['reservation_loesch_min_available'] ?? 1); ?>">
+                    <div class="form-text">Beispiel: 1 = Es soll immer mindestens ein Löschfahrzeug frei bleiben.</div>
+                </div>
+                <?php
+                $selected_loesch_ids = [];
+                $selected_loesch_raw = $settings['reservation_loesch_vehicle_ids'] ?? '[]';
+                $selected_loesch_dec = json_decode($selected_loesch_raw, true);
+                if (is_array($selected_loesch_dec)) {
+                    $selected_loesch_ids = array_map('intval', $selected_loesch_dec);
+                }
+                ?>
+                <label class="form-label">Als Löschfahrzeug behandeln</label>
+                <div class="row">
+                    <?php foreach ($vehicles_for_warning as $vw): ?>
+                        <div class="col-md-6 col-lg-4 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="reservation_loesch_vehicle_ids[]" value="<?php echo (int)$vw['id']; ?>" id="loesch_vehicle_<?php echo (int)$vw['id']; ?>" <?php echo in_array((int)$vw['id'], $selected_loesch_ids, true) ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="loesch_vehicle_<?php echo (int)$vw['id']; ?>">
+                                    <?php echo htmlspecialchars($vw['name']); ?>
+                                    <?php if (!(int)$vw['is_active']): ?><span class="text-muted small">(inaktiv)</span><?php endif; ?>
+                                </label>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php if (empty($vehicles_for_warning)): ?>
+                    <div class="alert alert-warning mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Keine Fahrzeuge gefunden.</div>
+                <?php endif; ?>
             </div>
         </div>
 

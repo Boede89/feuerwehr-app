@@ -1794,6 +1794,116 @@ function check_vehicle_conflict($vehicle_id, $start_datetime, $end_datetime, $ex
 }
 
 /**
+ * Lädt die Warnregel zur Mindestverfügbarkeit für Löschfahrzeuge.
+ * Gibt ein normalisiertes Array mit aktivierter Regel, Mindestanzahl und Fahrzeug-IDs zurück.
+ */
+function get_loeschfahrzeug_warning_rule($einheit_id = null) {
+    global $db;
+
+    $einheit_id = (int)($einheit_id ?? 0);
+    $settings = [];
+    if (function_exists('load_settings_for_einheit')) {
+        try {
+            if ($einheit_id > 0) {
+                $settings = load_settings_for_einheit($db, $einheit_id);
+            } else {
+                $settings = load_settings_for_einheit($db, null);
+            }
+        } catch (Exception $e) {
+            $settings = [];
+        }
+    }
+
+    $enabled = (($settings['reservation_loesch_warn_enabled'] ?? '0') === '1');
+    $min_available = (int)($settings['reservation_loesch_min_available'] ?? 1);
+    if ($min_available < 0) $min_available = 0;
+
+    $vehicle_ids = [];
+    $raw_ids = $settings['reservation_loesch_vehicle_ids'] ?? '[]';
+    $decoded = json_decode((string)$raw_ids, true);
+    if (is_array($decoded)) {
+        $vehicle_ids = array_values(array_unique(array_filter(array_map('intval', $decoded), function($v) {
+            return $v > 0;
+        })));
+    }
+
+    return [
+        'enabled' => $enabled,
+        'min_available' => $min_available,
+        'vehicle_ids' => $vehicle_ids,
+    ];
+}
+
+/**
+ * Prüft die Mindestverfügbarkeit von als Löschfahrzeug markierten Fahrzeugen.
+ */
+function check_loeschfahrzeug_availability_warning($selected_vehicle_ids, $start_datetime, $end_datetime, $einheit_id = null, $exclude_reservation_id = null) {
+    global $db;
+
+    $rule = get_loeschfahrzeug_warning_rule($einheit_id);
+    if (!$rule['enabled'] || empty($rule['vehicle_ids'])) {
+        return ['warning' => false];
+    }
+
+    $group_vehicle_ids = $rule['vehicle_ids'];
+    $selected_vehicle_ids = array_values(array_unique(array_filter(array_map('intval', (array)$selected_vehicle_ids), function($v) {
+        return $v > 0;
+    })));
+    $selected_group_ids = array_values(array_intersect($selected_vehicle_ids, $group_vehicle_ids));
+    if (empty($selected_group_ids)) {
+        return ['warning' => false];
+    }
+
+    $ph_total = implode(',', array_fill(0, count($group_vehicle_ids), '?'));
+    $sql_total = "SELECT COUNT(*) FROM vehicles WHERE id IN ($ph_total) AND is_active = 1";
+    $params_total = $group_vehicle_ids;
+    $einheit_id = (int)($einheit_id ?? 0);
+    if ($einheit_id > 0) {
+        $sql_total .= " AND (einheit_id = ? OR einheit_id IS NULL)";
+        $params_total[] = $einheit_id;
+    }
+    $stmt_total = $db->prepare($sql_total);
+    $stmt_total->execute($params_total);
+    $total_count = (int)$stmt_total->fetchColumn();
+    if ($total_count <= 0) {
+        return ['warning' => false];
+    }
+
+    $ph_res = implode(',', array_fill(0, count($group_vehicle_ids), '?'));
+    $sql_res = "SELECT DISTINCT vehicle_id FROM reservations
+                WHERE vehicle_id IN ($ph_res)
+                  AND status IN ('pending','approved')
+                  AND start_datetime < ?
+                  AND end_datetime > ?";
+    $params_res = array_merge($group_vehicle_ids, [$end_datetime, $start_datetime]);
+    if (!empty($exclude_reservation_id)) {
+        $sql_res .= " AND id != ?";
+        $params_res[] = (int)$exclude_reservation_id;
+    }
+    $stmt_res = $db->prepare($sql_res);
+    $stmt_res->execute($params_res);
+    $reserved_now = array_map('intval', $stmt_res->fetchAll(PDO::FETCH_COLUMN));
+
+    $reserved_after = array_values(array_unique(array_merge($reserved_now, $selected_group_ids)));
+    $reserved_after_count = count($reserved_after);
+    $remaining_after = $total_count - $reserved_after_count;
+    $min_available = (int)$rule['min_available'];
+
+    if ($remaining_after >= $min_available) {
+        return ['warning' => false];
+    }
+
+    return [
+        'warning' => true,
+        'group_label' => 'Löschfahrzeug',
+        'total_count' => $total_count,
+        'reserved_after_count' => $reserved_after_count,
+        'remaining_after' => $remaining_after,
+        'min_available' => $min_available,
+    ];
+}
+
+/**
  * Prüft ob ein Raum für den angegebenen Zeitraum bereits genehmigt reserviert ist.
  */
 function check_room_conflict($room_id, $start_datetime, $end_datetime, $exclude_id = null) {
