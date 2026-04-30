@@ -167,12 +167,6 @@ try {
     // Spalten existieren bereits, ignoriere Fehler
 }
 
-// Debug: Berechtigungen anzeigen
-echo '<script>console.log("🔍 Dashboard Debug - Berechtigungen:");</script>';
-echo '<script>console.log("can_reservations:", ' . json_encode($can_reservations) . ');</script>';
-echo '<script>console.log("can_atemschutz:", ' . json_encode($can_atemschutz) . ');</script>';
-echo '<script>console.log("can_settings:", ' . json_encode($can_settings) . ');</script>';
-echo '<script>console.log("user_id:", ' . json_encode($_SESSION['user_id'] ?? 'nicht gesetzt') . ');</script>';
 
 // Reservierungen laden (nur wenn berechtigt)
 $pending_reservations = [];
@@ -194,9 +188,7 @@ if ($can_reservations) {
         ");
         $stmt->execute([$effective_unit_id, $effective_unit_id]);
         $pending_reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        echo '<script>console.log("❌ Fahrzeug-Reservierungen:", ' . json_encode($e->getMessage()) . ');</script>';
-    }
+    } catch (Exception $e) {}
     // Raum-Reservierungen (gefiltert nach Einheit: Reservation ODER Raum muss passen; NULL = Einheit 1)
     try {
         $stmt_room = $db->prepare("
@@ -212,10 +204,7 @@ if ($can_reservations) {
         $pending_room_reservations = $stmt_room->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         error_log("Dashboard room_reservations: " . $e->getMessage());
-        echo '<script>console.log("❌ Raum-Reservierungen:", ' . json_encode($e->getMessage()) . ');</script>';
     }
-    echo '<script>console.log("🔍 Reservierungen geladen:", ' . json_encode(count($pending_reservations) . ' Fahrzeuge, ' . count($pending_room_reservations) . ' Räume') . ');</script>';
-    echo '<script>console.log("Raum-Reservierungen:", ' . json_encode($pending_room_reservations) . ');</script>';
 }
 
 // Divera-Empfänger-Gruppen und Standard für Genehmigung (nur Einheit der aktuellen Ansicht, kein globaler Fallback)
@@ -2610,7 +2599,6 @@ if ($can_atemschutz) {
         });
         
         // Debug: Einstellungen anzeigen
-        console.log('Dashboard-Einstellungen geladen:', <?php echo json_encode($dashboard_preferences); ?>);
     });
     
     // Sektion umschalten

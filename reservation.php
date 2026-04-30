@@ -23,26 +23,13 @@ if (is_logged_in() && !has_permission('reservations')) {
     exit;
 }
 
-// Browser Console Logging für Debugging
-echo '<script>';
-echo 'console.log("🔍 Reservation Page Debug");';
-echo 'console.log("Zeitstempel:", new Date().toLocaleString());';
-echo 'console.log("Session user_id:", ' . json_encode($_SESSION['user_id'] ?? 'nicht gesetzt') . ');';
-echo 'console.log("Session role:", ' . json_encode($_SESSION['role'] ?? 'nicht gesetzt') . ');';
-echo 'console.log("Selected Vehicle:", ' . json_encode($selectedVehicle ?? 'nicht gesetzt') . ');';
-echo 'console.log("Message:", ' . json_encode($message ?? '') . ');';
-echo 'console.log("Error:", ' . json_encode($error ?? '') . ');';
-echo 'console.log("POST Data:", ' . json_encode($_POST ?? []) . ');';
-echo '</script>';
 
 // Ausgewählte Fahrzeuge aus POST-Daten oder Session laden
 if (isset($_POST['vehicle_data'])) {
     $selectedVehicle = json_decode($_POST['vehicle_data'], true);
-    echo '<script>console.log("✅ Fahrzeug aus POST-Daten geladen:", ' . json_encode($selectedVehicle) . ');</script>';
     
     // Prüfe ob Fahrzeug korrekt geladen wurde
     if (!$selectedVehicle || !isset($selectedVehicle['id'])) {
-        echo '<script>console.log("❌ Fahrzeug-Daten sind unvollständig:", ' . json_encode($selectedVehicle) . ');</script>';
         $error = "Fehler beim Laden der Fahrzeug-Daten. Bitte wählen Sie erneut ein Fahrzeug aus.";
     } else {
         // Füge das erste Fahrzeug zu selectedVehicles hinzu
@@ -51,21 +38,18 @@ if (isset($_POST['vehicle_data'])) {
 } elseif (isset($_SESSION['selected_vehicle'])) {
     $selectedVehicle = $_SESSION['selected_vehicle'];
     $selectedVehicles = [$selectedVehicle];
-    echo '<script>console.log("✅ Fahrzeug aus Session geladen:", ' . json_encode($selectedVehicle) . ');</script>';
 } else {
     // Kein Fahrzeug ausgewählt, zeige Fehlermeldung und Weiterleitung
     $redirect_url = 'index.php';
     if (!empty($_GET['einheit_id'])) {
         $redirect_url .= '?einheit_id=' . (int)$_GET['einheit_id'];
     }
-    echo '<script>console.log("❌ Kein Fahrzeug ausgewählt - Prüfe SessionStorage");</script>';
     $error = "Bitte wählen Sie zuerst ein Fahrzeug aus.";
     echo '<script>setTimeout(function() { window.location.href = ' . json_encode($redirect_url) . '; }, 3000);</script>';
 }
 
 // Konflikt-Verarbeitung (wenn Benutzer trotz Konflikt fortfahren möchte)
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservation'])) {
-    echo '<script>console.log("🔍 Konflikt-Reservierung wird verarbeitet...");</script>';
     
     $csrf_token = $_POST['csrf_token'] ?? '';
     
@@ -94,7 +78,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservati
                 $stmt = $db->prepare("INSERT INTO reservations (vehicle_id, requester_name, requester_email, reason, location, start_datetime, end_datetime, calendar_conflicts, status, einheit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$vehicle_id, $requester_name, $requester_email, $reason, $location, $start_datetime, $end_datetime, json_encode([]), 'pending', $res_einheit > 0 ? $res_einheit : null]);
                 
-                echo '<script>console.log("✅ Konflikt-Reservierung erfolgreich gespeichert - Sende E-Mails");</script>';
                 
                 // E-Mail nur an explizit ausgewählte Benutzer der Einheit (settings-reservations Fahrzeug-Tab)
                 $admin_emails = [];
@@ -122,9 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservati
                             }
                         }
                     }
-                    echo '<script>console.log("🔍 Admin-E-Mails gefunden:", ' . count($admin_emails) . ');</script>';
                 } catch (Exception $e) {
-                    echo '<script>console.log("❌ Fehler beim Laden der Admin-E-Mails:", ' . json_encode($e->getMessage()) . ');</script>';
                 }
                 
                 if (!empty($admin_emails) && $res_einheit > 0) {
@@ -220,11 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservati
                     
                     foreach ($admin_emails as $admin_email) {
                         $email_sent = send_email_for_einheit($admin_email, $subject, $message_content, $res_einheit, true);
-                        if ($email_sent) {
-                            echo '<script>console.log("✅ Konflikt-E-Mail gesendet an:", ' . json_encode($admin_email) . ');</script>';
-                        } else {
-                            echo '<script>console.log("❌ Konflikt-E-Mail fehlgeschlagen an:", ' . json_encode($admin_email) . ');</script>';
-                        }
+                        $email_sent = send_email_for_einheit($admin_email, $subject, $message_content, $res_einheit, true);
                     }
                 }
                 
@@ -246,21 +223,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['force_submit_reservati
 
 // Formular verarbeiten
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation'])) {
-    echo '<script>console.log("🔍 Formular wird verarbeitet...");</script>';
     
     $csrf_token = $_POST['csrf_token'] ?? '';
     
     if (!validate_csrf_token($csrf_token)) {
         $error = "Ungültiger Sicherheitstoken. Bitte versuchen Sie es erneut.";
-        echo '<script>console.log("❌ CSRF Token ungültig");</script>';
     } else {
-        echo '<script>console.log("✅ CSRF Token gültig");</script>';
         
         // Prüfe ob Fahrzeuge verfügbar sind
         $vehicle_ids = $_POST['vehicle_ids'] ?? [];
         if (empty($vehicle_ids)) {
             $error = "Keine Fahrzeuge ausgewählt. Bitte wählen Sie mindestens ein Fahrzeug aus.";
-            echo '<script>console.log("❌ Keine Fahrzeug-IDs verfügbar");</script>';
         } else {
             $requester_name = sanitize_input($_POST['requester_name'] ?? '');
             $requester_email = sanitize_input($_POST['requester_email'] ?? '');
@@ -274,12 +247,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     $decoded = json_decode($rawVehicleData, true);
                     if (is_array($decoded) && isset($decoded['id'])) {
                         $vehicle_ids = [ (int)$decoded['id'] ];
-                        echo '<script>console.log("✅ Fallback vehicle_ids aus vehicle_data gesetzt:", ' . json_encode($vehicle_ids) . ');</script>';
                     }
                 }
             }
-            
-            echo '<script>console.log("✅ Formular-Daten geladen:", {vehicle_ids: ' . json_encode($vehicle_ids) . ', requester_name: "' . $requester_name . '", reason: "' . $reason . '"});</script>';
         
         // Mehrere Datum/Zeit-Paare verarbeiten
         $date_times = [];
@@ -297,17 +267,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             $i++;
         }
         
-        echo '<script>console.log("🔍 Zeiträume gefunden:", ' . count($date_times) . ');</script>';
         
         // Validierung
         if (empty($requester_name) || empty($requester_email) || empty($reason) || empty($location) || empty($date_times)) {
             $error = "Bitte füllen Sie alle Felder aus und geben Sie mindestens einen Zeitraum an.";
-            echo '<script>console.log("❌ Validierung fehlgeschlagen - Felder unvollständig");</script>';
         } elseif (!validate_email($requester_email)) {
             $error = "Bitte geben Sie eine gültige E-Mail-Adresse ein.";
-            echo '<script>console.log("❌ Validierung fehlgeschlagen - E-Mail ungültig");</script>';
         } else {
-            echo '<script>console.log("✅ Validierung erfolgreich - Starte Reservierung-Speicherung");</script>';
             $success_count = 0;
             $errors = [];
             $override_availability_warning = isset($_POST['override_availability_warning']) && $_POST['override_availability_warning'] === '1';
@@ -422,7 +388,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             }
             
             if ($error === '' && $success_count > 0) {
-                echo '<script>console.log("✅ Reservierungen erfolgreich gespeichert - Sende E-Mails");</script>';
                 
                 // E-Mail nur an explizit ausgewählte Benutzer der Einheit (settings-reservations Fahrzeug-Tab)
                 $admin_emails = [];
@@ -451,9 +416,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             }
                         }
                     }
-                    echo '<script>console.log("🔍 Admin-E-Mails gefunden:", ' . count($admin_emails) . ');</script>';
                 } catch (Exception $e) {
-                    echo '<script>console.log("❌ Fehler beim Laden der Admin-E-Mails:", ' . json_encode($e->getMessage()) . ');</script>';
                 }
                 
                 if (!empty($admin_emails) && $res_einheit > 0) {
@@ -562,11 +525,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     
                     foreach ($admin_emails as $admin_email) {
                         $email_sent = send_email_for_einheit($admin_email, $subject, $message_content, $res_einheit, true);
-                        if ($email_sent) {
-                            echo '<script>console.log("✅ E-Mail gesendet an:", ' . json_encode($admin_email) . ');</script>';
-                        } else {
-                            echo '<script>console.log("❌ E-Mail fehlgeschlagen an:", ' . json_encode($admin_email) . ');</script>';
-                        }
+                        $email_sent = send_email_for_einheit($admin_email, $subject, $message_content, $res_einheit, true);
                     }
                 }
                 
@@ -577,7 +536,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     if (!empty($availability_warnings)) {
                         $message .= ' ' . implode(' ', $availability_warnings);
                     }
-                    echo '<script>console.log("✅ Erfolgreiche Reservierung - Weiterleitung zur Startseite");</script>';
                     // Weiterleitung zur Startseite nach 3 Sekunden
                     $redirect_to_home = true;
                 } else {
@@ -585,11 +543,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     if (!empty($availability_warnings)) {
                         $message .= ' ' . implode(' ', $availability_warnings);
                     }
-                    echo '<script>console.log("⚠️ Teilweise erfolgreiche Reservierung mit Fehlern");</script>';
                 }
             } elseif ($error === '') {
                 $error = "Keine Reservierungen konnten gespeichert werden. " . implode(' ', $errors);
-                echo '<script>console.log("❌ Keine Reservierungen gespeichert");</script>';
             }
         }
         }
@@ -997,14 +953,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             submitBtn.addEventListener('click', function(e) {
-                console.log('🟦 Submit-Button geklickt');
                 if (alreadySubmitting) {
-                    console.log('🟨 Bereits im Submit-Vorgang, verhindere Doppel-Submit');
                     e.preventDefault();
                     return false;
                 }
                 if (!form.checkValidity()) {
-                    console.log('🟥 HTML5-Validierung fehlgeschlagen');
                     e.preventDefault();
                     form.reportValidity && form.reportValidity();
                     return false;
@@ -1030,11 +983,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Zusätzlich: falls das Formular aus anderen Gründen submitted wird (Enter-Taste), UI auch sperren
             form.addEventListener('submit', function(ev){
-                console.log('🟦 Form submit Event');
                 if (alreadySubmitting) return;
                 syncAllTimeframes();
                 if (!form.checkValidity()) {
-                    console.log('🟥 HTML5-Validierung im submit-Event fehlgeschlagen');
                     ev.preventDefault();
                     form.reportValidity && form.reportValidity();
                     return;
@@ -1048,22 +999,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         });
         // Fahrzeugdaten aus Session Storage laden und übertragen
         window.addEventListener('load', function() {
-            console.log('🔍 Lade Fahrzeug aus SessionStorage...');
             const selectedVehicle = sessionStorage.getItem('selectedVehicle');
-            console.log('SessionStorage selectedVehicle:', selectedVehicle);
             
             if (selectedVehicle) {
                 try {
                     const vehicleData = JSON.parse(selectedVehicle);
-                    console.log('✅ Fahrzeug aus SessionStorage geladen:', vehicleData);
                     
                     // Fahrzeug-Daten in verstecktes Feld übertragen
                     const vehicleDataInput = document.querySelector('input[name="vehicle_data"]');
                     if (vehicleDataInput) {
                         vehicleDataInput.value = JSON.stringify(vehicleData);
-                        console.log('✅ Fahrzeug-Daten in Formular übertragen:', vehicleDataInput.value);
-                    } else {
-                        console.log('❌ Verstecktes Feld vehicle_data nicht gefunden');
                     }
                     
                     // Fahrzeug-Info anzeigen (nur falls Element existiert)
@@ -1073,15 +1018,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <strong>${vehicleData.name}</strong><br>
                             <small>${vehicleData.description}</small>
                         `;
-                        console.log('✅ Fahrzeug-Info angezeigt');
                     }
                     
                     // Prüfe ob PHP das Fahrzeug erkannt hat
                     const phpVehicleName = document.querySelector('.card-header p strong').textContent;
-                    console.log('🔍 PHP Fahrzeug-Name:', phpVehicleName);
                     
                     if (phpVehicleName === 'Kein Fahrzeug ausgewählt') {
-                        console.log('🔄 PHP hat Fahrzeug nicht erkannt - Lade Seite neu...');
                         // Formular mit Fahrzeug-Daten absenden
                         const form = document.createElement('form');
                         form.method = 'POST';
@@ -1096,11 +1038,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         document.body.appendChild(form);
                         form.submit();
                     }
-                } catch (e) {
-                    console.log('❌ Fehler beim Parsen der Fahrzeug-Daten:', e);
-                }
+                } catch (e) {}
             } else {
-                console.log('❌ Kein Fahrzeug in SessionStorage gefunden');
                 window.location.href = <?php echo json_encode('index.php' . $einheit_param); ?>;
             }
         });
