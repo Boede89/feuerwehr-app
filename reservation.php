@@ -1188,7 +1188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // Initiale Validierung für vorhandene Zeiträume
-        document.querySelectorAll('.timeframe-row').forEach(function(row){ setupTimeframeValidation(row); syncTimeframeRow(row); });
+        document.querySelectorAll('.timeframe-row').forEach(function(row){ setupTimeframeValidation(row); });
         
         // Automatische Weiterleitung zur Startseite nach erfolgreicher Reservierung
         <?php if (isset($redirect_to_home) && $redirect_to_home): ?>
