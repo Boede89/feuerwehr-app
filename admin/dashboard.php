@@ -1641,7 +1641,8 @@ if ($can_atemschutz) {
             const conflictDetails = document.getElementById('conflictDetails');
             if (conflictDetails) conflictDetails.remove();
             
-            const diveraBlock = document.getElementById('diveraGroupSelect')?.closest('.mb-3');
+            const diveraSelectEl = document.getElementById('diveraGroupSelect');
+            const diveraBlock = diveraSelectEl ? diveraSelectEl.closest('.mb-3') : null;
             if (diveraBlock) diveraBlock.style.display = isRoom ? 'none' : '';
             
             if (isRoom) checkRoomConflicts(reservation.id); else checkReservationConflicts(reservation.id);
@@ -1823,7 +1824,8 @@ if ($can_atemschutz) {
                     reservation_id: window.currentReservationId,
                     force_availability_override: !!window.forceAvailabilityOverride,
                     divera_group_ids: (function() {
-                        const dvVal = document.getElementById('diveraGroupSelect')?.value ?? '';
+                        var dvEl = document.getElementById('diveraGroupSelect');
+                        var dvVal = dvEl ? dvEl.value : '';
                         return (dvVal !== '' && dvVal !== '0') ? [parseInt(dvVal, 10)] : [];
                     })()
                 };
@@ -1979,7 +1981,8 @@ if ($can_atemschutz) {
                     conflict_ids: window.conflictIds,
                     force_availability_override: !!window.forceAvailabilityOverride,
                     divera_group_ids: (function() {
-                        const dvVal = document.getElementById('diveraGroupSelect')?.value ?? '';
+                        var dvEl = document.getElementById('diveraGroupSelect');
+                        var dvVal = dvEl ? dvEl.value : '';
                         return (dvVal !== '' && dvVal !== '0') ? [parseInt(dvVal, 10)] : [];
                     })()
                 };
