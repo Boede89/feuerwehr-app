@@ -43,9 +43,39 @@ function mobile_members_server_token(PDO $db): string {
     return trim((string)(getenv('MOBILE_API_TOKEN') ?: ''));
 }
 
+function mobile_members_einsatzapp_tokens(PDO $db): array {
+    $tokens = [];
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM einheit_settings WHERE setting_key = 'einsatzapp_api_tokens'");
+        $stmt->execute();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $raw = trim((string)($row['setting_value'] ?? ''));
+            if ($raw === '') continue;
+            $decoded = json_decode($raw, true);
+            if (!is_array($decoded)) continue;
+            foreach ($decoded as $entry) {
+                if (!is_array($entry)) continue;
+                $token = trim((string)($entry['token'] ?? ''));
+                if ($token !== '') $tokens[] = $token;
+            }
+        }
+    } catch (Throwable $e) {
+    }
+    return array_values(array_unique($tokens));
+}
+
 $requestToken = mobile_members_request_token();
 $serverToken = mobile_members_server_token($db);
-if ($serverToken === '' || !hash_equals($serverToken, $requestToken)) {
+$valid = ($serverToken !== '' && hash_equals($serverToken, $requestToken));
+if (!$valid) {
+    foreach (mobile_members_einsatzapp_tokens($db) as $token) {
+        if (hash_equals($token, $requestToken)) {
+            $valid = true;
+            break;
+        }
+    }
+}
+if (!$valid) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Nicht autorisiert (ungueltiger Mobile-Token).']);
     exit;

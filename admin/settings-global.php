@@ -17,7 +17,7 @@ if (!hasAdminPermission()) {
 
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 $einheit = null;
-$valid_tabs = ['smtp', 'google', 'einheit', 'drucker', 'divera', 'fahrzeuge', 'raeume'];
+$valid_tabs = ['smtp', 'google', 'einheit', 'einsatzapp', 'drucker', 'divera', 'fahrzeuge', 'raeume'];
 $global_valid_tabs = ['app', 'feedback', 'smtp'];
 if ($einheit_id <= 0) {
     $active_tab = isset($_GET['tab']) ? preg_replace('/[^a-z0-9_-]/', '', $_GET['tab']) : 'app';
@@ -216,6 +216,7 @@ if (isset($_GET['global_smtp_applied']) && $_GET['global_smtp_applied'] === '1')
 $settings = [];
 $divera_reservation_groups = [];
 $anw_divera_status_presets = [];
+$einsatzapp_api_tokens = [];
 try {
     $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
     if ($einheit_id > 0) {
@@ -246,6 +247,18 @@ try {
         }
         while (count($anw_divera_status_presets) < 2) {
             $anw_divera_status_presets[] = ['id' => 0, 'label' => ''];
+        }
+        if (!empty($settings['einsatzapp_api_tokens'])) {
+            $decTokens = json_decode($settings['einsatzapp_api_tokens'], true);
+            if (is_array($decTokens)) {
+                foreach ($decTokens as $row) {
+                    if (!is_array($row)) continue;
+                    $tok = trim((string)($row['token'] ?? ''));
+                    $lbl = trim((string)($row['label'] ?? ''));
+                    if ($tok === '') continue;
+                    $einsatzapp_api_tokens[] = ['label' => $lbl, 'token' => $tok];
+                }
+            }
         }
     }
 } catch (Exception $e) {
@@ -405,7 +418,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     'anwesenheitsliste_divera_rueckmeldung_status_id' => $anw_divera_status_id,
                     'anwesenheitsliste_divera_rueckmeldung_status_presets' => json_encode($anw_status_presets_save, JSON_UNESCAPED_UNICODE),
                 ];
-                $all = array_merge($smtp, $google, $app, $printer, $divera);
+                $api_labels = $_POST['einsatzapp_api_label'] ?? [];
+                $api_tokens = $_POST['einsatzapp_api_token'] ?? [];
+                $einsatzapp_tokens_save = [];
+                foreach ($api_tokens as $i => $tokenRaw) {
+                    $token = trim((string)$tokenRaw);
+                    $label = trim((string)($api_labels[$i] ?? ''));
+                    if ($token === '') continue;
+                    $einsatzapp_tokens_save[] = ['label' => $label, 'token' => $token];
+                }
+                $einsatzapp = [
+                    'einsatzapp_api_tokens' => json_encode($einsatzapp_tokens_save, JSON_UNESCAPED_UNICODE),
+                ];
+                $all = array_merge($smtp, $google, $app, $printer, $divera, $einsatzapp);
                 save_settings_bulk_for_einheit($db, $save_einheit_id, $all);
             } else {
                 // Global: App, Feedback-E-Mail, SMTP (für Feedback/Wünsche unabhängig von Einheiten)
@@ -604,6 +629,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                 <button class="nav-link <?php echo $active_tab === 'einheit' ? 'active' : ''; ?>" id="tab-einheit-btn" data-bs-toggle="tab" data-bs-target="#tab-einheit" type="button" role="tab"><i class="fas fa-building me-1"></i> Einheit</button>
             </li>
             <li class="nav-item" role="presentation">
+                <button class="nav-link <?php echo $active_tab === 'einsatzapp' ? 'active' : ''; ?>" id="tab-einsatzapp-btn" data-bs-toggle="tab" data-bs-target="#tab-einsatzapp" type="button" role="tab"><i class="fas fa-mobile-screen-button me-1"></i> Einsatzapp</button>
+            </li>
+            <li class="nav-item" role="presentation">
                 <button class="nav-link <?php echo $active_tab === 'drucker' ? 'active' : ''; ?>" id="tab-drucker-btn" data-bs-toggle="tab" data-bs-target="#tab-drucker" type="button" role="tab"><i class="fas fa-print me-1"></i> Drucker</button>
             </li>
             <li class="nav-item" role="presentation">
@@ -725,6 +753,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                             <button type="submit" form="einheitForm" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
                         </div>
                         <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade <?php echo $active_tab === 'einsatzapp' ? 'show active' : ''; ?>" id="tab-einsatzapp" role="tabpanel">
+                <div class="card">
+                    <div class="card-header"><i class="fas fa-mobile-screen-button"></i> Einsatzapp API-Einstellungen</div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Verwalten Sie API-Tokens fuer die Einsatzapp. Mehrere Tokens sind moeglich (z. B. pro Geraet oder Rolle).</p>
+                        <div id="einsatzappTokenContainer">
+                            <?php foreach ($einsatzapp_api_tokens as $tok): ?>
+                            <div class="row g-2 align-items-center mb-2 einsatzapp-token-row">
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control" name="einsatzapp_api_label[]" placeholder="Bezeichnung / Kommentar" value="<?php echo htmlspecialchars($tok['label'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                                </div>
+                                <div class="col-md-7">
+                                    <input type="text" class="form-control" name="einsatzapp_api_token[]" placeholder="API-Token" value="<?php echo htmlspecialchars($tok['token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                                </div>
+                                <div class="col-md-1 d-grid">
+                                    <button type="button" class="btn btn-outline-danger btn-remove-einsatzapp-token" title="Token entfernen"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAddEinsatzappToken"><i class="fas fa-plus me-1"></i>Token hinzufuegen</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="btnGenerateEinsatzappToken"><i class="fas fa-key me-1"></i>Zufaelligen Schluessel erzeugen</button>
+                        </div>
+                        <small class="text-muted d-block mt-2">Tokens werden beim Speichern der Einstellungen uebernommen. Leere Zeilen werden ignoriert.</small>
                     </div>
                 </div>
             </div>
@@ -1250,6 +1306,50 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     refreshAnwDiveraStatusPick();
+
+    var einsatzappContainer = document.getElementById('einsatzappTokenContainer');
+    var btnAddToken = document.getElementById('btnAddEinsatzappToken');
+    var btnGenToken = document.getElementById('btnGenerateEinsatzappToken');
+    function randomToken(len) {
+        var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@$%*_-';
+        var arr = new Uint32Array(len);
+        if (window.crypto && window.crypto.getRandomValues) {
+            window.crypto.getRandomValues(arr);
+        } else {
+            for (var i = 0; i < len; i++) arr[i] = Math.floor(Math.random() * chars.length);
+        }
+        var out = '';
+        for (var j = 0; j < len; j++) out += chars.charAt(arr[j] % chars.length);
+        return out;
+    }
+    function createTokenRow(label, token) {
+        var row = document.createElement('div');
+        row.className = 'row g-2 align-items-center mb-2 einsatzapp-token-row';
+        row.innerHTML =
+            '<div class="col-md-4"><input type="text" class="form-control" name="einsatzapp_api_label[]" placeholder="Bezeichnung / Kommentar"></div>' +
+            '<div class="col-md-7"><input type="text" class="form-control" name="einsatzapp_api_token[]" placeholder="API-Token"></div>' +
+            '<div class="col-md-1 d-grid"><button type="button" class="btn btn-outline-danger btn-remove-einsatzapp-token" title="Token entfernen"><i class="fas fa-trash"></i></button></div>';
+        row.querySelector('input[name="einsatzapp_api_label[]"]').value = label || '';
+        row.querySelector('input[name="einsatzapp_api_token[]"]').value = token || '';
+        return row;
+    }
+    if (einsatzappContainer) {
+        if (btnAddToken) {
+            btnAddToken.addEventListener('click', function() {
+                einsatzappContainer.appendChild(createTokenRow('', ''));
+            });
+        }
+        if (btnGenToken) {
+            btnGenToken.addEventListener('click', function() {
+                einsatzappContainer.appendChild(createTokenRow('Neuer Token', randomToken(40)));
+            });
+        }
+        einsatzappContainer.addEventListener('click', function(e) {
+            if (e.target.closest('.btn-remove-einsatzapp-token')) {
+                e.target.closest('.einsatzapp-token-row').remove();
+            }
+        });
+    }
 });
 <?php if ($einheit_id > 0): ?>
 function openVehicleModal() {
