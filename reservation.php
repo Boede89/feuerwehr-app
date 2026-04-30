@@ -7,6 +7,7 @@ require_once __DIR__ . '/includes/einheit-settings-helper.php';
 $message = '';
 $error = '';
 $availability_warnings = [];
+$availability_modal_data = null;
 $selectedVehicle = null;
 $selectedVehicles = []; // Array für mehrere Fahrzeuge
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : (isset($_POST['einheit_id']) ? (int)$_POST['einheit_id'] : 0);
@@ -390,6 +391,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             $overlap_hint = ' Bereits reserviert: ' . ($ov['vehicle_name'] ?? 'Fahrzeug') . ' von ' . ($ov['requester_name'] ?? 'Unbekannt') . (!empty($ov['reason']) ? ' (Grund: ' . $ov['reason'] . ')' : '') . '.';
                         }
                         $error = "Achtung: Das ausgewählte Löschfahrzeug ist das letzte verfügbare Fahrzeug in Zeitraum " . ($index + 1) . ". Bitte bestätigen Sie die Warnung im Dialog." . $overlap_hint;
+                        $availability_modal_data = [
+                            'index' => $index + 1,
+                            'start' => $start_datetime,
+                            'end' => $end_datetime,
+                            'warning' => $availability_check,
+                        ];
                         break;
                     }
                 }
@@ -666,7 +673,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                             <?php echo show_success($message); ?>
                         <?php endif; ?>
                         
-                        <?php if ($error): ?>
+                        <?php if ($error && !$availability_modal_data): ?>
                             <?php echo show_error($error); ?>
                         <?php endif; ?>
                         
@@ -1217,6 +1224,57 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     window.location.href = 'index.php';
                 }, 300);
             });
+        });
+        <?php endif; ?>
+
+        <?php if (!empty($availability_modal_data)): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            var modalData = <?php echo json_encode($availability_modal_data, JSON_UNESCAPED_UNICODE); ?>;
+            var warn = modalData.warning || {};
+            var overlaps = Array.isArray(warn.overlapping_reservations) ? warn.overlapping_reservations : [];
+            var selectedNames = Array.isArray(warn.selected_vehicle_names) ? warn.selected_vehicle_names.filter(Boolean) : [];
+            var selectedLabel = selectedNames.length ? selectedNames.join(', ') : 'Das ausgewählte Fahrzeug';
+            var overlapVehicle = overlaps.length ? (overlaps[0].vehicle_name || 'ein anderes Löschfahrzeug') : 'ein anderes Löschfahrzeug';
+            var title = 'Achtung: ' + selectedLabel + ' ist das letzte Löschfahrzeug für diesen Zeitraum, da ' + overlapVehicle + ' bereits reserviert wurde.';
+            if ((warn.remaining_after || 0) <= 0) {
+                title = 'Achtung: ' + selectedLabel + ' ist das letzte Löschfahrzeug für diesen Zeitraum.';
+            }
+            var html = '<div class="alert alert-danger mb-0"><h6 class="mb-2">' + title + '</h6>';
+            html += '<div class="small mb-2"><strong>Zeitraum ' + (modalData.index || 1) + ':</strong> ' + (modalData.start || '') + ' - ' + (modalData.end || '') + '<br>';
+            html += '<strong>Verbleibend:</strong> ' + (warn.remaining_after ?? '-') + ' (Mindestwert ' + (warn.min_available ?? '-') + ')</div>';
+            if (overlaps.length) {
+                html += '<div class="small"><strong>Bereits reserviert:</strong><ul class="mb-0 mt-1">';
+                overlaps.forEach(function(r) {
+                    html += '<li><strong>' + (r.vehicle_name || 'Fahrzeug') + '</strong> (' + (r.status === 'approved' ? 'genehmigt' : 'beantragt') + ') von ' + (r.requester_name || 'Unbekannt') + (r.reason ? ' - Grund: ' + r.reason : '') + '</li>';
+                });
+                html += '</ul></div>';
+            }
+            html += '</div>';
+
+            var body = document.getElementById('availabilityWarningContent');
+            var modalEl = document.getElementById('availabilityWarningModal');
+            var btnConfirm = document.getElementById('btnConfirmAvailabilitySubmit');
+            var btnCancel = document.getElementById('btnCancelAvailabilitySubmit');
+            var form = document.getElementById('reservationForm');
+            if (!body || !modalEl || !btnConfirm || !btnCancel || !form) return;
+            body.innerHTML = html;
+            var modal = new bootstrap.Modal(modalEl);
+            btnConfirm.onclick = function() {
+                var ov = form.querySelector('input[name="override_availability_warning"]');
+                if (!ov) {
+                    ov = document.createElement('input');
+                    ov.type = 'hidden';
+                    ov.name = 'override_availability_warning';
+                    form.appendChild(ov);
+                }
+                ov.value = '1';
+                modal.hide();
+                form.submit();
+            };
+            btnCancel.onclick = function() {
+                modal.hide();
+            };
+            modal.show();
         });
         <?php endif; ?>
     </script>
