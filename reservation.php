@@ -1017,37 +1017,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 ensureHiddenSubmitData();
 
-                if (!availabilityWarningConfirmed) {
-                    const vehicleInputs = Array.from(form.querySelectorAll('input[name="vehicle_ids[]"]'));
-                    const vehicleIds = vehicleInputs.map(function(el) { return parseInt(el.value, 10); }).filter(function(v) { return v > 0; });
-                    const timeframes = collectTimeframes();
-                    const einheitInput = form.querySelector('input[name="einheit_id"]');
-                    const einheitId = einheitInput ? parseInt(einheitInput.value || '0', 10) : 0;
-                    if (vehicleIds.length && timeframes.length) {
-                        fetch('api/check-loeschfahrzeug-warning.php', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ vehicle_ids: vehicleIds, timeframes: timeframes, einheit_id: einheitId > 0 ? einheitId : 0 })
-                        })
-                        .then(function(r) { return r.json(); })
-                        .then(function(data) {
-                            if (data && data.success && data.has_warning && Array.isArray(data.warnings) && data.warnings.length) {
-                                openAvailabilityWarningModal(data.warnings);
-                                return;
-                            }
-                            // Erst UI, dann absenden
-                            alreadySubmitting = true;
-                            lockButton();
-                            form.submit();
-                        })
-                        .catch(function() {
-                            alreadySubmitting = true;
-                            lockButton();
-                            form.submit();
-                        });
-                        return false;
-                    }
-                } else {
+                if (availabilityWarningConfirmed) {
                     availabilityWarningConfirmed = false;
                 }
 
