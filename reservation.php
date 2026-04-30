@@ -309,6 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             echo '<script>console.log("✅ Validierung erfolgreich - Starte Reservierung-Speicherung");</script>';
             $success_count = 0;
             $errors = [];
+            $override_availability_warning = isset($_POST['override_availability_warning']) && $_POST['override_availability_warning'] === '1';
             
             foreach ($date_times as $index => $dt) {
                 // Debug: Verarbeite Zeitraum
@@ -382,6 +383,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 $availability_check = check_loeschfahrzeug_availability_warning($vehicle_ids, $start_datetime, $end_datetime, $res_einheit > 0 ? $res_einheit : null);
                 if (!empty($availability_check['warning'])) {
                     $availability_warnings[] = "Zeitraum " . ($index + 1) . ": Warnung Löschfahrzeug-Verfügbarkeit – insgesamt {$availability_check['total_count']}, danach belegt {$availability_check['reserved_after_count']}, verbleibend {$availability_check['remaining_after']} (Mindestwert {$availability_check['min_available']}).";
+                    if (!$override_availability_warning) {
+                        $overlap_hint = '';
+                        if (!empty($availability_check['overlapping_reservations'][0])) {
+                            $ov = $availability_check['overlapping_reservations'][0];
+                            $overlap_hint = ' Bereits reserviert: ' . ($ov['vehicle_name'] ?? 'Fahrzeug') . ' von ' . ($ov['requester_name'] ?? 'Unbekannt') . (!empty($ov['reason']) ? ' (Grund: ' . $ov['reason'] . ')' : '') . '.';
+                        }
+                        $error = "Achtung: Das ausgewählte Löschfahrzeug ist das letzte verfügbare Fahrzeug in Zeitraum " . ($index + 1) . ". Bitte bestätigen Sie die Warnung im Dialog." . $overlap_hint;
+                        break;
+                    }
                 }
                 
                 // Debug: Validierung erfolgreich
@@ -404,7 +414,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 }
             }
             
-            if ($success_count > 0) {
+            if ($error === '' && $success_count > 0) {
                 echo '<script>console.log("✅ Reservierungen erfolgreich gespeichert - Sende E-Mails");</script>';
                 
                 // E-Mail nur an explizit ausgewählte Benutzer der Einheit (settings-reservations Fahrzeug-Tab)
@@ -570,7 +580,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     }
                     echo '<script>console.log("⚠️ Teilweise erfolgreiche Reservierung mit Fehlern");</script>';
                 }
-            } else {
+            } elseif ($error === '') {
                 $error = "Keine Reservierungen konnten gespeichert werden. " . implode(' ', $errors);
                 echo '<script>console.log("❌ Keine Reservierungen gespeichert");</script>';
             }
@@ -892,11 +902,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 const modal = new bootstrap.Modal(modalEl);
                 btnConfirm.onclick = function() {
                     availabilityWarningConfirmed = true;
+                    let ov = form.querySelector('input[name="override_availability_warning"]');
+                    if (!ov) {
+                        ov = document.createElement('input');
+                        ov.type = 'hidden';
+                        ov.name = 'override_availability_warning';
+                        form.appendChild(ov);
+                    }
+                    ov.value = '1';
                     modal.hide();
                     submitBtn.click();
                 };
                 btnCancel.onclick = function() {
                     availabilityWarningConfirmed = false;
+                    const ov = form.querySelector('input[name="override_availability_warning"]');
+                    if (ov) ov.value = '';
                 };
                 modal.show();
                 return true;
