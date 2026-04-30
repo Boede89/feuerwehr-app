@@ -408,8 +408,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
                                         <div class="col-md-2 d-flex align-items-end">
                                             <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100" style="display: none;"> <i class="fas fa-trash"></i> </button>
                                         </div>
-                                        <input type="datetime-local" class="start-datetime d-none" name="start_datetime_0" required>
-                                        <input type="datetime-local" class="end-datetime d-none" name="end_datetime_0" required>
+                                        <input type="datetime-local" class="start-datetime d-none" name="start_datetime_0">
+                                        <input type="datetime-local" class="end-datetime d-none" name="end_datetime_0">
                                     </div>
                                 </div>
                             </div>
@@ -540,7 +540,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_room_reservatio
             const timeframesDiv = document.getElementById('timeframes');
             const newRow = document.createElement('div');
             newRow.className = 'timeframe-row row mb-3 g-3';
-            newRow.innerHTML = '<div class="col-md-4"><label class="form-label">Datum *</label><input type="date" class="form-control timeframe-date" required></div><div class="col-md-3"><label class="form-label">Von (Uhrzeit) *</label><input type="time" class="form-control timeframe-start-time" required></div><div class="col-md-3"><label class="form-label">Bis (Uhrzeit) *</label><input type="time" class="form-control timeframe-end-time" required></div><div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100"> <i class="fas fa-trash"></i> </button></div><input type="datetime-local" class="start-datetime d-none" name="start_datetime_' + timeframeCount + '" required><input type="datetime-local" class="end-datetime d-none" name="end_datetime_' + timeframeCount + '" required>';
+            newRow.innerHTML = '<div class="col-md-4"><label class="form-label">Datum *</label><input type="date" class="form-control timeframe-date" required></div><div class="col-md-3"><label class="form-label">Von (Uhrzeit) *</label><input type="time" class="form-control timeframe-start-time" required></div><div class="col-md-3"><label class="form-label">Bis (Uhrzeit) *</label><input type="time" class="form-control timeframe-end-time" required></div><div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100"> <i class="fas fa-trash"></i> </button></div><input type="datetime-local" class="start-datetime d-none" name="start_datetime_' + timeframeCount + '"><input type="datetime-local" class="end-datetime d-none" name="end_datetime_' + timeframeCount + '">';
             timeframesDiv.appendChild(newRow);
             timeframeCount++;
             document.querySelectorAll('.remove-timeframe').forEach(btn => btn.style.display = 'block');
