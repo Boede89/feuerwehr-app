@@ -614,6 +614,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php if (isset($redirect_to_home) && $redirect_to_home): ?>
+    <meta http-equiv="refresh" content="3;url=<?php echo htmlspecialchars('index.php' . $einheit_param, ENT_QUOTES, 'UTF-8'); ?>">
+    <?php endif; ?>
     <title>Fahrzeug Reservierung - Feuerwehr App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -838,7 +841,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </main>
-    <div id="saveProcessingOverlay" class="save-processing-overlay" aria-live="polite" aria-hidden="true">
+    <div id="saveProcessingOverlay" class="save-processing-overlay<?php echo (isset($redirect_to_home) && $redirect_to_home) ? ' active' : ''; ?>" aria-live="polite" aria-hidden="<?php echo (isset($redirect_to_home) && $redirect_to_home) ? 'false' : 'true'; ?>">
         <div class="save-processing-box text-center">
             <div class="spinner-border text-primary mb-2" role="status" aria-hidden="true"></div>
             <div class="small text-muted">Reservierung wird gespeichert und verarbeitet...</div>
