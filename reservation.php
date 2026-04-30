@@ -1261,7 +1261,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             html += '<div><strong>Zeitraum ' + (modalData.index || 1) + '</strong></div>';
             html += '<div class="mt-1"><i class="fas fa-calendar-alt me-1"></i>' + formatDateTimeDe(modalData.start) + ' <span class="mx-1">bis</span> ' + formatDateTimeDe(modalData.end) + '</div>';
             html += '</div>';
-            html += '<div class="small mb-2"><strong>Verbleibend:</strong> ' + (warn.remaining_after ?? '-') + ' (Mindestwert ' + (warn.min_available ?? '-') + ')</div>';
+            var remainingAfter = (typeof warn.remaining_after !== 'undefined' && warn.remaining_after !== null) ? warn.remaining_after : '-';
+            var minAvailable = (typeof warn.min_available !== 'undefined' && warn.min_available !== null) ? warn.min_available : '-';
+            html += '<div class="small mb-2"><strong>Verbleibend:</strong> ' + remainingAfter + ' (Mindestwert ' + minAvailable + ')</div>';
             if (overlaps.length) {
                 html += '<div class="small"><strong>Bereits reserviert:</strong><ul class="mb-0 mt-1">';
                 overlaps.forEach(function(r) {
@@ -1278,7 +1280,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             var form = document.getElementById('reservationForm');
             if (!body || !modalEl || !btnConfirm || !btnCancel || !form) return;
             body.innerHTML = html;
-            var modal = new bootstrap.Modal(modalEl);
+            var modal = null;
+            try {
+                modal = new bootstrap.Modal(modalEl);
+            } catch (e) {
+                modal = null;
+            }
             btnConfirm.onclick = function() {
                 var ov = form.querySelector('input[name="override_availability_warning"]');
                 if (!ov) {
@@ -1317,13 +1324,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if (d && e && eh) eh.value = (d.value && e.value) ? (d.value + 'T' + e.value) : '';
                     });
                 } catch (_) {}
-                modal.hide();
+                if (modal) modal.hide();
                 form.submit();
             };
             btnCancel.onclick = function() {
-                modal.hide();
+                if (modal) modal.hide();
             };
-            modal.show();
+            if (modal) {
+                modal.show();
+            } else {
+                // Fallback falls Bootstrap-Modal nicht initialisiert werden kann
+                alert(title);
+            }
         });
         <?php endif; ?>
     </script>
