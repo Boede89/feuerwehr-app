@@ -1188,6 +1188,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         // Automatische Weiterleitung zur Startseite nach erfolgreicher Reservierung
         <?php if (isset($redirect_to_home) && $redirect_to_home): ?>
         document.addEventListener('DOMContentLoaded', function() {
+            var processingOverlay = document.getElementById('saveProcessingOverlay');
+            if (processingOverlay) {
+                processingOverlay.classList.add('active');
+                processingOverlay.setAttribute('aria-hidden', 'false');
+            }
             setTimeout(function() {
                 window.location.href = <?php echo json_encode('index.php' . $einheit_param); ?>;
             }, 3000);
@@ -1296,6 +1301,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     processingOverlay.classList.add('active');
                     processingOverlay.setAttribute('aria-hidden', 'false');
                 }
+                try {
+                    document.querySelectorAll('.timeframe-row').forEach(function(row){
+                        var d = row.querySelector('.timeframe-date');
+                        var s = row.querySelector('.timeframe-start-time');
+                        var e = row.querySelector('.timeframe-end-time');
+                        var sh = row.querySelector('.start-datetime');
+                        var eh = row.querySelector('.end-datetime');
+                        if (d && s && sh) sh.value = (d.value && s.value) ? (d.value + 'T' + s.value) : '';
+                        if (d && e && eh) eh.value = (d.value && e.value) ? (d.value + 'T' + e.value) : '';
+                    });
+                } catch (_) {}
                 modal.hide();
                 form.submit();
             };
