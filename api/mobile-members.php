@@ -64,6 +64,53 @@ function mobile_members_einsatzapp_tokens(PDO $db): array {
     return array_values(array_unique($tokens));
 }
 
+function mobile_members_einheit_id_for_token(PDO $db, string $requestToken): int {
+    if ($requestToken === '') return 0;
+    try {
+        $stmt = $db->prepare("SELECT einheit_id, setting_value FROM einheit_settings WHERE setting_key = 'einsatzapp_api_tokens'");
+        $stmt->execute();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $einheitId = (int)($row['einheit_id'] ?? 0);
+            if ($einheitId <= 0) continue;
+            $raw = trim((string)($row['setting_value'] ?? ''));
+            if ($raw === '') continue;
+            $decoded = json_decode($raw, true);
+            if (!is_array($decoded)) continue;
+            foreach ($decoded as $entry) {
+                if (!is_array($entry)) continue;
+                $token = trim((string)($entry['token'] ?? ''));
+                if ($token !== '' && hash_equals($token, $requestToken)) {
+                    return $einheitId;
+                }
+            }
+        }
+    } catch (Throwable $e) {
+    }
+    return 0;
+}
+
+function mobile_members_status_labels(PDO $db, int $einheitId): array {
+    if ($einheitId <= 0) return [];
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key = 'anwesenheitsliste_divera_rueckmeldung_status_presets' LIMIT 1");
+        $stmt->execute([$einheitId]);
+        $raw = trim((string)($stmt->fetchColumn() ?: ''));
+        if ($raw === '') return [];
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) return [];
+        $out = [];
+        foreach ($decoded as $row) {
+            if (!is_array($row)) continue;
+            $id = (int)($row['id'] ?? 0);
+            $label = trim((string)($row['label'] ?? ''));
+            if ($id > 0 && $label !== '') $out[(string)$id] = $label;
+        }
+        return $out;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
 $requestToken = mobile_members_request_token();
 $serverToken = mobile_members_server_token($db);
 $valid = ($serverToken !== '' && hash_equals($serverToken, $requestToken));
@@ -80,6 +127,8 @@ if (!$valid) {
     echo json_encode(['success' => false, 'message' => 'Nicht autorisiert (ungueltiger Mobile-Token).']);
     exit;
 }
+
+$matchedEinheitId = mobile_members_einheit_id_for_token($db, $requestToken);
 
 try {
     $stmt = $db->query("
@@ -102,6 +151,7 @@ try {
         'message' => 'OK',
         'data' => [
             'members' => $members,
+            'status_labels' => mobile_members_status_labels($db, $matchedEinheitId),
         ],
     ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
