@@ -1650,7 +1650,7 @@ if ($is_einsatz) {
                                     <button type="button" class="btn btn-sm btn-outline-secondary" id="btnKameraAnhangAl" title="Kamera (mobil)"><i class="fas fa-camera"></i> Foto aufnehmen</button>
                                     <span class="small text-muted d-none" id="al_anhaenge_upload_status" aria-live="polite"></span>
                                 </div>
-                                <input type="file" class="d-none" id="anwesenheitsliste_anhaenge_camera" accept="image/*" capture="environment">
+                                <input type="file" id="anwesenheitsliste_anhaenge_camera" accept="image/*" capture="environment" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;" tabindex="-1" aria-hidden="true">
                                 <small class="text-muted">Unterwegs: „Foto aufnehmen“ nutzen oder „Dateien auswählen“ – bei manchen Geräten bietet die Dateiauswahl ebenfalls die Kamera.</small>
                             </div>
                             <div class="d-flex flex-wrap gap-2">
@@ -1812,8 +1812,20 @@ if ($is_einsatz) {
                     .catch(function() { window.alert('Netzwerkfehler'); });
             });
         }
+        function openCameraPicker(input) {
+            if (!input) return;
+            input.setAttribute('accept', 'image/*');
+            input.setAttribute('capture', 'environment');
+            if (typeof input.showPicker === 'function') {
+                try {
+                    input.showPicker();
+                    return;
+                } catch (e) {}
+            }
+            input.click();
+        }
         if (btnCamAl && inpCamAl) {
-            btnCamAl.addEventListener('click', function() { inpCamAl.click(); });
+            btnCamAl.addEventListener('click', function() { openCameraPicker(inpCamAl); });
         }
         if (inpCamAl) {
             inpCamAl.addEventListener('change', function() { uploadAlFiles(this); });

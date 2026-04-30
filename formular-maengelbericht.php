@@ -349,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                                 <input type="file" class="form-control form-control-sm" style="max-width:280px" name="maengelbericht_anhaenge[]" id="maengelbericht_anhaenge_files" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="btnKameraMbForm"><i class="fas fa-camera"></i> Foto</button>
                             </div>
-                            <input type="file" class="d-none" id="maengelbericht_anhaenge_cam" accept="image/*" capture="environment">
+                            <input type="file" id="maengelbericht_anhaenge_cam" accept="image/*" capture="environment" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;" tabindex="-1" aria-hidden="true">
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Unterschrift (optional)</label>
@@ -410,8 +410,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
     var b = document.getElementById('btnKameraMbForm');
     var c = document.getElementById('maengelbericht_anhaenge_cam');
     var f = document.getElementById('maengelbericht_anhaenge_files');
+    function openCameraPicker(input) {
+        if (!input) return;
+        input.setAttribute('accept', 'image/*');
+        input.setAttribute('capture', 'environment');
+        if (typeof input.showPicker === 'function') {
+            try {
+                input.showPicker();
+                return;
+            } catch (e) {}
+        }
+        input.click();
+    }
     if (b && c && f) {
-        b.addEventListener('click', function() { c.click(); });
+        b.addEventListener('click', function() { openCameraPicker(c); });
         c.addEventListener('change', function() {
             if (!this.files || !this.files.length) return;
             try {

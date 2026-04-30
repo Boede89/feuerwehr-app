@@ -286,7 +286,7 @@ $members_json = json_encode(array_map(function($m) {
                                                 <input type="file" class="form-control form-control-sm maengel-anhaenge-input" style="max-width:260px" name="maengel[<?php echo (int)$idx; ?>][anhaenge][]" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">
                                                 <button type="button" class="btn btn-sm btn-outline-secondary btn-maengel-kamera" title="Kamera"><i class="fas fa-camera"></i></button>
                                             </div>
-                                            <input type="file" class="d-none maengel-anhaenge-camera" accept="image/*" capture="environment">
+                                            <input type="file" class="maengel-anhaenge-camera" accept="image/*" capture="environment" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;" tabindex="-1" aria-hidden="true">
                                             <?php if (!empty($m['anhaenge_temp']) && is_array($m['anhaenge_temp'])): ?>
                                             <ul class="small text-muted mb-0 mt-1"><?php foreach ($m['anhaenge_temp'] as $at): ?>
                                                 <li><?php echo htmlspecialchars($at['orig'] ?? ($at['path'] ?? '')); ?></li>
@@ -367,7 +367,19 @@ $members_json = json_encode(array_map(function($m) {
         var main = block.querySelector('.maengel-anhaenge-input');
         var cam = block.querySelector('.maengel-anhaenge-camera');
         if (!btn || !main || !cam) return;
-        btn.addEventListener('click', function() { cam.click(); });
+        function openCameraPicker(input) {
+            if (!input) return;
+            input.setAttribute('accept', 'image/*');
+            input.setAttribute('capture', 'environment');
+            if (typeof input.showPicker === 'function') {
+                try {
+                    input.showPicker();
+                    return;
+                } catch (e) {}
+            }
+            input.click();
+        }
+        btn.addEventListener('click', function() { openCameraPicker(cam); });
         cam.addEventListener('change', function() {
             if (!this.files || !this.files.length) return;
             try {
@@ -410,7 +422,7 @@ $members_json = json_encode(array_map(function($m) {
             '<div class="col-12"><label class="form-label">Anhänge (Foto / PDF, optional)</label><div class="d-flex flex-wrap gap-2 align-items-center">' +
             '<input type="file" class="form-control form-control-sm maengel-anhaenge-input" style="max-width:260px" name="maengel[' + idx + '][anhaenge][]" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">' +
             '<button type="button" class="btn btn-sm btn-outline-secondary btn-maengel-kamera" title="Kamera"><i class="fas fa-camera"></i></button></div>' +
-            '<input type="file" class="d-none maengel-anhaenge-camera" accept="image/*" capture="environment">' +
+            '<input type="file" class="maengel-anhaenge-camera" accept="image/*" capture="environment" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;" tabindex="-1" aria-hidden="true">' +
             '</div></div></div></div>';
         var div = document.createElement('div');
         div.innerHTML = html;
