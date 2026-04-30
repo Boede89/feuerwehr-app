@@ -961,6 +961,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                                                 <div class="form-check m-0">
                                                     <input type="hidden" name="anw_divera_status_preset_hide[<?php echo (int)$pi; ?>]" value="0">
                                                     <input class="form-check-input anw-status-preset-hide" type="checkbox" name="anw_divera_status_preset_hide[<?php echo (int)$pi; ?>]" value="1" <?php echo !empty($sp['hide_in_app']) ? 'checked' : ''; ?> title="In Einsatzapp ausblenden">
+                                                    <label class="form-check-label ms-1 small">In Einsatzapp ausblenden</label>
                                                 </div>
                                             </div>
                                             <button type="button" class="btn btn-outline-danger btn-remove-status-preset" title="Zeile entfernen"><i class="fas fa-trash"></i></button>
