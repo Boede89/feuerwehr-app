@@ -1297,11 +1297,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     processingOverlay.setAttribute('aria-hidden', 'false');
                 }
                 modal.hide();
-                if (typeof form.requestSubmit === 'function' && submitBtn) {
-                    form.requestSubmit(submitBtn);
-                } else {
-                    form.submit();
-                }
+                form.submit();
             };
             btnCancel.onclick = function() {
                 modal.hide();
