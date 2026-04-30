@@ -90,7 +90,30 @@ function mobile_members_einheit_id_for_token(PDO $db, string $requestToken): int
 }
 
 function mobile_members_status_labels(PDO $db, int $einheitId): array {
-    if ($einheitId <= 0) return [];
+    if ($einheitId <= 0) {
+        try {
+            $stmt = $db->prepare("SELECT setting_value FROM einheit_settings WHERE setting_key = 'anwesenheitsliste_divera_rueckmeldung_status_presets'");
+            $stmt->execute();
+            $out = [];
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $raw = trim((string)($row['setting_value'] ?? ''));
+                if ($raw === '') continue;
+                $decoded = json_decode($raw, true);
+                if (!is_array($decoded)) continue;
+                foreach ($decoded as $entry) {
+                    if (!is_array($entry)) continue;
+                    $id = (int)($entry['id'] ?? 0);
+                    $label = trim((string)($entry['label'] ?? ''));
+                    if ($id > 0 && $label !== '' && !isset($out[(string)$id])) {
+                        $out[(string)$id] = $label;
+                    }
+                }
+            }
+            return $out;
+        } catch (Throwable $e) {
+            return [];
+        }
+    }
     try {
         $stmt = $db->prepare("SELECT setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key = 'anwesenheitsliste_divera_rueckmeldung_status_presets' LIMIT 1");
         $stmt->execute([$einheitId]);
