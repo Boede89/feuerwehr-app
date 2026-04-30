@@ -595,6 +595,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         }
     }
 }
+
+$posted_timeframes = [];
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $ti = 0;
+    while (isset($_POST["start_datetime_$ti"]) && isset($_POST["end_datetime_$ti"])) {
+        $st = trim((string)($_POST["start_datetime_$ti"] ?? ''));
+        $en = trim((string)($_POST["end_datetime_$ti"] ?? ''));
+        if ($st !== '' && $en !== '') {
+            $posted_timeframes[] = ['start' => $st, 'end' => $en];
+        }
+        $ti++;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -762,27 +775,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                                 </div>
                                 
                                 <div id="timeframes">
+                                    <?php
+                                    $render_timeframes = !empty($posted_timeframes) ? $posted_timeframes : [['start' => '', 'end' => '']];
+                                    foreach ($render_timeframes as $tf_idx => $tf):
+                                        $st_val = (string)($tf['start'] ?? '');
+                                        $en_val = (string)($tf['end'] ?? '');
+                                        $d_val = '';
+                                        $st_time = '';
+                                        $en_time = '';
+                                        if ($st_val !== '' && strpos($st_val, 'T') !== false) {
+                                            $parts = explode('T', $st_val, 2);
+                                            $d_val = $parts[0];
+                                            $st_time = substr($parts[1], 0, 5);
+                                        }
+                                        if ($en_val !== '' && strpos($en_val, 'T') !== false) {
+                                            $parts = explode('T', $en_val, 2);
+                                            $en_time = substr($parts[1], 0, 5);
+                                        }
+                                    ?>
                                     <div class="timeframe-row row mb-3 g-3">
                                         <div class="col-md-4">
                                             <label class="form-label" style="white-space: nowrap;">Datum <span class="text-danger">*</span></label>
-                                            <input type="date" class="form-control timeframe-date" required>
+                                            <input type="date" class="form-control timeframe-date" value="<?php echo htmlspecialchars($d_val); ?>" required>
                                         </div>
                                         <div class="col-md-3">
                                             <label class="form-label" style="white-space: nowrap;">Von (Uhrzeit) <span class="text-danger">*</span></label>
-                                            <input type="time" class="form-control timeframe-start-time" required>
+                                            <input type="time" class="form-control timeframe-start-time" value="<?php echo htmlspecialchars($st_time); ?>" required>
                                         </div>
                                         <div class="col-md-3">
                                             <label class="form-label" style="white-space: nowrap;">Bis (Uhrzeit) <span class="text-danger">*</span></label>
-                                            <input type="time" class="form-control timeframe-end-time" required>
+                                            <input type="time" class="form-control timeframe-end-time" value="<?php echo htmlspecialchars($en_time); ?>" required>
                                         </div>
                                         <div class="col-md-2 d-flex align-items-end">
-                                            <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100" style="display: none;">
+                                            <button type="button" class="btn btn-outline-danger btn-sm remove-timeframe w-100" style="display: <?php echo count($render_timeframes) > 1 ? 'block' : 'none'; ?>;">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </div>
-                                        <input type="datetime-local" class="start-datetime d-none" name="start_datetime_0">
-                                        <input type="datetime-local" class="end-datetime d-none" name="end_datetime_0">
+                                        <input type="datetime-local" class="start-datetime d-none" name="start_datetime_<?php echo (int)$tf_idx; ?>" value="<?php echo htmlspecialchars($st_val); ?>">
+                                        <input type="datetime-local" class="end-datetime d-none" name="end_datetime_<?php echo (int)$tf_idx; ?>" value="<?php echo htmlspecialchars($en_val); ?>">
                                     </div>
+                                    <?php endforeach; ?>
                                 </div>
                             </div>
                             
@@ -1100,7 +1132,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             }
         });
         
-        let timeframeCount = 1;
+        let timeframeCount = document.querySelectorAll('.timeframe-row').length;
         
         // Weitere Zeit hinzufügen
         document.getElementById('add-timeframe').addEventListener('click', function() {
@@ -1182,8 +1214,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             dateInput.min = minDate;
         }
         
-        // Initiale Validierung für ersten Zeitraum
-        setupTimeframeValidation(document.querySelector('.timeframe-row'));
+        // Initiale Validierung für vorhandene Zeiträume
+        document.querySelectorAll('.timeframe-row').forEach(function(row){ setupTimeframeValidation(row); syncTimeframeRow(row); });
         
         // Automatische Weiterleitung zur Startseite nach erfolgreicher Reservierung
         <?php if (isset($redirect_to_home) && $redirect_to_home): ?>
