@@ -242,12 +242,13 @@ try {
                     $anw_divera_status_presets[] = [
                         'id' => (int) ($row['id'] ?? 0),
                         'label' => trim((string) ($row['label'] ?? '')),
+                        'hide_in_app' => !empty($row['hide_in_app']) ? 1 : 0,
                     ];
                 }
             }
         }
         while (count($anw_divera_status_presets) < 2) {
-            $anw_divera_status_presets[] = ['id' => 0, 'label' => ''];
+            $anw_divera_status_presets[] = ['id' => 0, 'label' => '', 'hide_in_app' => 0];
         }
         if (!empty($settings['einsatzapp_api_tokens'])) {
             $decTokens = json_decode($settings['einsatzapp_api_tokens'], true);
@@ -425,12 +426,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                 $anw_divera_status_id = preg_replace('/\s+/', ' ', trim($anw_divera_status_id));
                 $preset_ids_post = $_POST['anw_divera_status_preset_id'] ?? [];
                 $preset_labels_post = $_POST['anw_divera_status_preset_label'] ?? [];
+                $preset_hide_post = $_POST['anw_divera_status_preset_hide'] ?? [];
                 $anw_status_presets_save = [];
                 foreach ($preset_ids_post as $pi => $pval) {
                     $pid = (int) trim((string) $pval);
                     $plbl = trim((string) ($preset_labels_post[$pi] ?? ''));
+                    $phide = !empty($preset_hide_post[$pi]) ? 1 : 0;
                     if ($pid > 0 || $plbl !== '') {
-                        $anw_status_presets_save[] = ['id' => $pid, 'label' => $plbl];
+                        $anw_status_presets_save[] = ['id' => $pid, 'label' => $plbl, 'hide_in_app' => $phide];
                     }
                 }
                 $divera = [
@@ -950,10 +953,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                                     <label class="form-label">Merkliste: Status-ID &amp; Beschreibung (optional)</label>
                                     <p class="text-muted small mb-2">Damit Sie Rückmelde-Status aus Divera zuordnen können. Die Beschreibung erscheint in der Schnellauswahl neben dem Filterfeld (IDs bitte aus der API-Debug-Seite oder Divera übernehmen).</p>
                                     <div id="diveraStatusPresetsContainer">
-                                        <?php foreach ($anw_divera_status_presets as $sp): ?>
+                                        <?php foreach ($anw_divera_status_presets as $pi => $sp): ?>
                                         <div class="input-group mb-2 divera-status-preset-row">
                                             <input type="number" class="form-control anw-status-preset-id" name="anw_divera_status_preset_id[]" placeholder="Status-ID" value="<?php echo (int)($sp['id'] ?? 0) > 0 ? (int)$sp['id'] : ''; ?>" min="0" title="Äußerer Schlüssel unter ucr_answered">
                                             <input type="text" class="form-control anw-status-preset-label" name="anw_divera_status_preset_label[]" placeholder="Beschreibung (z. B. Komme, Nicht verfügbar)" value="<?php echo htmlspecialchars($sp['label'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                                            <div class="input-group-text">
+                                                <div class="form-check m-0">
+                                                    <input type="hidden" name="anw_divera_status_preset_hide[<?php echo (int)$pi; ?>]" value="0">
+                                                    <input class="form-check-input anw-status-preset-hide" type="checkbox" name="anw_divera_status_preset_hide[<?php echo (int)$pi; ?>]" value="1" <?php echo !empty($sp['hide_in_app']) ? 'checked' : ''; ?> title="In Einsatzapp ausblenden">
+                                                </div>
+                                            </div>
                                             <button type="button" class="btn btn-outline-danger btn-remove-status-preset" title="Zeile entfernen"><i class="fas fa-trash"></i></button>
                                         </div>
                                         <?php endforeach; ?>
@@ -1291,8 +1300,10 @@ document.addEventListener('DOMContentLoaded', function() {
         var spRowTpl = function() {
             var div = document.createElement('div');
             div.className = 'input-group mb-2 divera-status-preset-row';
+            var idx = document.querySelectorAll('.divera-status-preset-row').length;
             div.innerHTML = '<input type="number" class="form-control anw-status-preset-id" name="anw_divera_status_preset_id[]" placeholder="Status-ID" min="0" title="Äußerer Schlüssel unter ucr_answered">' +
                 '<input type="text" class="form-control anw-status-preset-label" name="anw_divera_status_preset_label[]" placeholder="Beschreibung (z. B. Komme, Nicht verfügbar)">' +
+                '<div class="input-group-text"><div class="form-check m-0"><input type="hidden" name="anw_divera_status_preset_hide[' + idx + ']" value="0"><input class="form-check-input anw-status-preset-hide" type="checkbox" name="anw_divera_status_preset_hide[' + idx + ']" value="1" title="In Einsatzapp ausblenden"></div></div>' +
                 '<button type="button" class="btn btn-outline-danger btn-remove-status-preset" title="Zeile entfernen"><i class="fas fa-trash"></i></button>';
             return div;
         };

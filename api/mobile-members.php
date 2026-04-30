@@ -90,7 +90,7 @@ function mobile_members_einheit_id_for_token(PDO $db, string $requestToken): int
 }
 
 function mobile_members_status_data(PDO $db, int $einheitId): array {
-    $result = ['labels' => [], 'order' => []];
+    $result = ['labels' => [], 'order' => [], 'hidden' => []];
     if ($einheitId <= 0) {
         try {
             $stmt = $db->prepare("SELECT setting_value FROM einheit_settings WHERE setting_key = 'anwesenheitsliste_divera_rueckmeldung_status_presets'");
@@ -107,6 +107,9 @@ function mobile_members_status_data(PDO $db, int $einheitId): array {
                     if ($id > 0 && $label !== '' && !isset($result['labels'][(string)$id])) {
                         $result['labels'][(string)$id] = $label;
                         $result['order'][] = $id;
+                    }
+                    if ($id > 0 && !empty($entry['hide_in_app']) && !in_array($id, $result['hidden'], true)) {
+                        $result['hidden'][] = $id;
                     }
                 }
             }
@@ -129,6 +132,9 @@ function mobile_members_status_data(PDO $db, int $einheitId): array {
             if ($id > 0 && $label !== '') {
                 $result['labels'][(string)$id] = $label;
                 $result['order'][] = $id;
+            }
+            if ($id > 0 && !empty($row['hide_in_app']) && !in_array($id, $result['hidden'], true)) {
+                $result['hidden'][] = $id;
             }
         }
         return $result;
@@ -180,6 +186,7 @@ try {
             'members' => $members,
             'status_labels' => $statusData['labels'],
             'status_order' => array_values(array_map('intval', $statusData['order'] ?? [])),
+            'hidden_status_ids' => array_values(array_map('intval', $statusData['hidden'] ?? [])),
         ],
     ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
