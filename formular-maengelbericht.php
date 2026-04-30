@@ -347,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                             <p class="text-muted small mb-2">Fotos erscheinen im PDF auf einer <strong>eigenen Seite</strong> nach dem Mängelbericht (in der Regel Seite 2); zusätzliche PDF-Dateien werden hinten angehängt.</p>
                             <div class="d-flex flex-wrap gap-2 align-items-center">
                                 <input type="file" class="form-control form-control-sm" style="max-width:280px" name="maengelbericht_anhaenge[]" id="maengelbericht_anhaenge_files" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnKameraMbForm"><i class="fas fa-camera"></i> Foto</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnKameraMbForm"><i class="fas fa-camera"></i> Foto aufnehmen</button>
                             </div>
                             <input type="file" id="maengelbericht_anhaenge_cam" accept="image/*" capture="environment" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;" tabindex="-1" aria-hidden="true">
                         </div>

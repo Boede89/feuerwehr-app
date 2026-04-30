@@ -284,7 +284,7 @@ $members_json = json_encode(array_map(function($m) {
                                             <label class="form-label">Anhänge (Foto / PDF, optional)</label>
                                             <div class="d-flex flex-wrap gap-2 align-items-center">
                                                 <input type="file" class="form-control form-control-sm maengel-anhaenge-input" style="max-width:260px" name="maengel[<?php echo (int)$idx; ?>][anhaenge][]" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">
-                                                <button type="button" class="btn btn-sm btn-outline-secondary btn-maengel-kamera" title="Kamera"><i class="fas fa-camera"></i></button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary btn-maengel-kamera" title="Foto aufnehmen"><i class="fas fa-camera"></i> Foto aufnehmen</button>
                                             </div>
                                             <input type="file" class="maengel-anhaenge-camera" accept="image/*" capture="environment" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;" tabindex="-1" aria-hidden="true">
                                             <?php if (!empty($m['anhaenge_temp']) && is_array($m['anhaenge_temp'])): ?>
@@ -421,7 +421,7 @@ $members_json = json_encode(array_map(function($m) {
             '<div class="list-group position-absolute w-100 mt-1 shadow aufgenommen-suggestions" style="z-index:1050;max-height:180px;overflow-y:auto;display:none;"></div></div></div>' +
             '<div class="col-12"><label class="form-label">Anhänge (Foto / PDF, optional)</label><div class="d-flex flex-wrap gap-2 align-items-center">' +
             '<input type="file" class="form-control form-control-sm maengel-anhaenge-input" style="max-width:260px" name="maengel[' + idx + '][anhaenge][]" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf">' +
-            '<button type="button" class="btn btn-sm btn-outline-secondary btn-maengel-kamera" title="Kamera"><i class="fas fa-camera"></i></button></div>' +
+            '<button type="button" class="btn btn-sm btn-outline-secondary btn-maengel-kamera" title="Foto aufnehmen"><i class="fas fa-camera"></i> Foto aufnehmen</button></div>' +
             '<input type="file" class="maengel-anhaenge-camera" accept="image/*" capture="environment" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;" tabindex="-1" aria-hidden="true">' +
             '</div></div></div></div>';
         var div = document.createElement('div');
