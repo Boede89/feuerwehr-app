@@ -89,12 +89,12 @@ function mobile_members_einheit_id_for_token(PDO $db, string $requestToken): int
     return 0;
 }
 
-function mobile_members_status_labels(PDO $db, int $einheitId): array {
+function mobile_members_status_data(PDO $db, int $einheitId): array {
+    $result = ['labels' => [], 'order' => []];
     if ($einheitId <= 0) {
         try {
             $stmt = $db->prepare("SELECT setting_value FROM einheit_settings WHERE setting_key = 'anwesenheitsliste_divera_rueckmeldung_status_presets'");
             $stmt->execute();
-            $out = [];
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $raw = trim((string)($row['setting_value'] ?? ''));
                 if ($raw === '') continue;
@@ -104,33 +104,36 @@ function mobile_members_status_labels(PDO $db, int $einheitId): array {
                     if (!is_array($entry)) continue;
                     $id = (int)($entry['id'] ?? 0);
                     $label = trim((string)($entry['label'] ?? ''));
-                    if ($id > 0 && $label !== '' && !isset($out[(string)$id])) {
-                        $out[(string)$id] = $label;
+                    if ($id > 0 && $label !== '' && !isset($result['labels'][(string)$id])) {
+                        $result['labels'][(string)$id] = $label;
+                        $result['order'][] = $id;
                     }
                 }
             }
-            return $out;
+            return $result;
         } catch (Throwable $e) {
-            return [];
+            return $result;
         }
     }
     try {
         $stmt = $db->prepare("SELECT setting_value FROM einheit_settings WHERE einheit_id = ? AND setting_key = 'anwesenheitsliste_divera_rueckmeldung_status_presets' LIMIT 1");
         $stmt->execute([$einheitId]);
         $raw = trim((string)($stmt->fetchColumn() ?: ''));
-        if ($raw === '') return [];
+        if ($raw === '') return $result;
         $decoded = json_decode($raw, true);
-        if (!is_array($decoded)) return [];
-        $out = [];
+        if (!is_array($decoded)) return $result;
         foreach ($decoded as $row) {
             if (!is_array($row)) continue;
             $id = (int)($row['id'] ?? 0);
             $label = trim((string)($row['label'] ?? ''));
-            if ($id > 0 && $label !== '') $out[(string)$id] = $label;
+            if ($id > 0 && $label !== '') {
+                $result['labels'][(string)$id] = $label;
+                $result['order'][] = $id;
+            }
         }
-        return $out;
+        return $result;
     } catch (Throwable $e) {
-        return [];
+        return $result;
     }
 }
 
@@ -152,6 +155,7 @@ if (!$valid) {
 }
 
 $matchedEinheitId = mobile_members_einheit_id_for_token($db, $requestToken);
+$statusData = mobile_members_status_data($db, $matchedEinheitId);
 
 try {
     $stmt = $db->query("
@@ -174,7 +178,8 @@ try {
         'message' => 'OK',
         'data' => [
             'members' => $members,
-            'status_labels' => mobile_members_status_labels($db, $matchedEinheitId),
+            'status_labels' => $statusData['labels'],
+            'status_order' => array_values(array_map('intval', $statusData['order'] ?? [])),
         ],
     ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
