@@ -1278,8 +1278,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     form.appendChild(ov);
                 }
                 ov.value = '1';
+                var sr = form.querySelector('input[name="submit_reservation"]');
+                if (!sr) {
+                    sr = document.createElement('input');
+                    sr.type = 'hidden';
+                    sr.name = 'submit_reservation';
+                    sr.value = '1';
+                    form.appendChild(sr);
+                }
+                var submitBtn = document.getElementById('submitReservationBtn');
+                var processingOverlay = document.getElementById('saveProcessingOverlay');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Wird gesendet...';
+                }
+                if (processingOverlay) {
+                    processingOverlay.classList.add('active');
+                    processingOverlay.setAttribute('aria-hidden', 'false');
+                }
                 modal.hide();
-                form.submit();
+                if (typeof form.requestSubmit === 'function' && submitBtn) {
+                    form.requestSubmit(submitBtn);
+                } else {
+                    form.submit();
+                }
             };
             btnCancel.onclick = function() {
                 modal.hide();
