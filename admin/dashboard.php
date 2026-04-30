@@ -1705,11 +1705,6 @@ if ($can_atemschutz) {
             const statusElement = document.getElementById('modalStatus');
             const nameKey = isRoom ? 'room_name' : 'vehicle_name';
             const availabilityWarn = (!isRoom && data.availability_warning && data.availability_warning.warning) ? data.availability_warning : null;
-            if (availabilityWarn) {
-                setTimeout(function() {
-                    alert(buildAvailabilityWarningText(availabilityWarn));
-                }, 120);
-            }
 
             if (data.has_conflicts) {
                 // Konflikte gefunden - zeige Warnung
