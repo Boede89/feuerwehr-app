@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once '../includes/einheit-settings-helper.php';
 
 // Prüfe ob Benutzer eingeloggt ist
 if (!is_logged_in()) {
