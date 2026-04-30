@@ -214,7 +214,7 @@ if ($can_reservations) {
         error_log("Dashboard room_reservations: " . $e->getMessage());
         echo '<script>console.log("❌ Raum-Reservierungen:", ' . json_encode($e->getMessage()) . ');</script>';
     }
-    echo '<script>console.log("🔍 Reservierungen geladen:", ' . count($pending_reservations) . ' Fahrzeuge, ' . count($pending_room_reservations) . ' Räume);</script>';
+    echo '<script>console.log("🔍 Reservierungen geladen:", ' . json_encode(count($pending_reservations) . ' Fahrzeuge, ' . count($pending_room_reservations) . ' Räume') . ');</script>';
     echo '<script>console.log("Raum-Reservierungen:", ' . json_encode($pending_room_reservations) . ');</script>';
 }
 
