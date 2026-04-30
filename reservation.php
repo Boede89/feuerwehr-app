@@ -801,6 +801,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             if (!form || !submitBtn) return;
 
             let alreadySubmitting = false;
+            let availabilityWarningConfirmed = false;
 
             function showPendingModal() { /* Modal deaktiviert */ }
 
@@ -813,19 +814,69 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 }
             }
 
-            submitBtn.addEventListener('click', function(e) {
-                console.log('🟦 Submit-Button geklickt');
-                if (alreadySubmitting) {
-                    console.log('🟨 Bereits im Submit-Vorgang, verhindere Doppel-Submit');
-                    e.preventDefault();
-                    return false;
-                }
-                if (!form.checkValidity()) {
-                    console.log('🟥 HTML5-Validierung fehlgeschlagen');
-                    e.preventDefault();
-                    form.reportValidity && form.reportValidity();
-                    return false;
-                }
+            function collectTimeframes() {
+                const rows = Array.from(document.querySelectorAll('.timeframe-row'));
+                const timeframes = [];
+                rows.forEach(function(row) {
+                    const start = (row.querySelector('.start-datetime') || {}).value || '';
+                    const end = (row.querySelector('.end-datetime') || {}).value || '';
+                    if (start && end) timeframes.push({ start: start, end: end });
+                });
+                return timeframes;
+            }
+
+            function formatDateTime(v) {
+                if (!v) return '-';
+                const d = new Date(v);
+                if (isNaN(d.getTime())) return v;
+                return d.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+            }
+
+            function buildAvailabilityWarningHtml(warnings) {
+                let html = '';
+                warnings.forEach(function(w, idx) {
+                    const overlaps = Array.isArray(w.overlapping_reservations) ? w.overlapping_reservations : [];
+                    const selectedNames = Array.isArray(w.selected_vehicle_names) ? w.selected_vehicle_names.filter(Boolean) : [];
+                    const selectedLabel = selectedNames.length ? selectedNames.join(', ') : 'Das ausgewählte Fahrzeug';
+                    let title = `Achtung: ${selectedLabel} ist das letzte verfügbare Löschfahrzeug in diesem Zeitraum.`;
+                    if (w.remaining_after <= 0) {
+                        title = `Achtung: ${selectedLabel} würde das letzte Löschfahrzeug in diesem Zeitraum binden.`;
+                    }
+                    html += `<div class="alert alert-danger mb-3"><h6 class="mb-2">${title}</h6><div class="small mb-2"><strong>Zeitraum ${w.index || (idx + 1)}:</strong> ${formatDateTime(w.start)} - ${formatDateTime(w.end)}<br><strong>Verbleibend:</strong> ${w.remaining_after} (Mindestwert ${w.min_available})</div>`;
+                    if (overlaps.length) {
+                        html += '<div class="small"><strong>Bereits reserviert:</strong><ul class="mb-0 mt-1">';
+                        overlaps.forEach(function(r) {
+                            html += `<li><strong>${r.vehicle_name || 'Fahrzeug'}</strong> (${r.status === 'approved' ? 'genehmigt' : 'beantragt'}) von ${r.requester_name || 'Unbekannt'}${r.reason ? ' – Grund: ' + r.reason : ''}</li>`;
+                        });
+                        html += '</ul></div>';
+                    }
+                    html += '</div>';
+                });
+                return html;
+            }
+
+            function openAvailabilityWarningModal(warnings) {
+                const body = document.getElementById('availabilityWarningContent');
+                const btnConfirm = document.getElementById('btnConfirmAvailabilitySubmit');
+                const btnCancel = document.getElementById('btnCancelAvailabilitySubmit');
+                if (!body || !btnConfirm || !btnCancel) return false;
+                body.innerHTML = buildAvailabilityWarningHtml(warnings);
+                const modalEl = document.getElementById('availabilityWarningModal');
+                if (!modalEl) return false;
+                const modal = new bootstrap.Modal(modalEl);
+                btnConfirm.onclick = function() {
+                    availabilityWarningConfirmed = true;
+                    modal.hide();
+                    submitBtn.click();
+                };
+                btnCancel.onclick = function() {
+                    availabilityWarningConfirmed = false;
+                };
+                modal.show();
+                return true;
+            }
+
+            function ensureHiddenSubmitData() {
                 // Stelle sicher, dass mindestens ein vehicle_ids[] Feld vorhanden ist
                 try {
                     const hasVehicleIds = form.querySelectorAll('input[name="vehicle_ids[]"]').length > 0;
@@ -839,7 +890,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                                 hidden.name = 'vehicle_ids[]';
                                 hidden.value = String(obj.id);
                                 form.appendChild(hidden);
-                                console.log('✅ vehicle_ids[] per JS ergänzt:', hidden.value);
                             }
                         }
                     }
@@ -856,9 +906,59 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                         form.appendChild(submitHidden);
                     }
                 } catch (_) {}
+            }
+
+            submitBtn.addEventListener('click', function(e) {
+                console.log('🟦 Submit-Button geklickt');
+                if (alreadySubmitting) {
+                    console.log('🟨 Bereits im Submit-Vorgang, verhindere Doppel-Submit');
+                    e.preventDefault();
+                    return false;
+                }
+                if (!form.checkValidity()) {
+                    console.log('🟥 HTML5-Validierung fehlgeschlagen');
+                    e.preventDefault();
+                    form.reportValidity && form.reportValidity();
+                    return false;
+                }
+                e.preventDefault();
+                ensureHiddenSubmitData();
+
+                if (!availabilityWarningConfirmed) {
+                    const vehicleInputs = Array.from(form.querySelectorAll('input[name="vehicle_ids[]"]'));
+                    const vehicleIds = vehicleInputs.map(function(el) { return parseInt(el.value, 10); }).filter(function(v) { return v > 0; });
+                    const timeframes = collectTimeframes();
+                    const einheitInput = form.querySelector('input[name="einheit_id"]');
+                    const einheitId = einheitInput ? parseInt(einheitInput.value || '0', 10) : 0;
+                    if (vehicleIds.length && timeframes.length) {
+                        fetch('api/check-loeschfahrzeug-warning.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ vehicle_ids: vehicleIds, timeframes: timeframes, einheit_id: einheitId > 0 ? einheitId : 0 })
+                        })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data && data.success && data.has_warning && Array.isArray(data.warnings) && data.warnings.length) {
+                                openAvailabilityWarningModal(data.warnings);
+                                return;
+                            }
+                            // Erst UI, dann absenden
+                            alreadySubmitting = true;
+                            lockButton();
+                            form.submit();
+                        })
+                        .catch(function() {
+                            alreadySubmitting = true;
+                            lockButton();
+                            form.submit();
+                        });
+                        return false;
+                    }
+                } else {
+                    availabilityWarningConfirmed = false;
+                }
 
                 // Erst UI, dann absenden
-                e.preventDefault();
                 alreadySubmitting = true;
                 lockButton();
                 // Nur Button-Feedback, direkt absenden
@@ -875,17 +975,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     form.reportValidity && form.reportValidity();
                     return;
                 }
-                // Sicherstellen, dass der Server die Aktion erkennt (submit_reservation)
-                try {
-                    let submitHidden = form.querySelector('input[name="submit_reservation"]');
-                    if (!submitHidden) {
-                        submitHidden = document.createElement('input');
-                        submitHidden.type = 'hidden';
-                        submitHidden.name = 'submit_reservation';
-                        submitHidden.value = '1';
-                        form.appendChild(submitHidden);
-                    }
-                } catch (_) {}
+                ensureHiddenSubmitData();
 
                 alreadySubmitting = true;
                 lockButton();
@@ -1070,6 +1160,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
     </script>
     
     <!-- Pending-Modal entfernt: Button zeigt Status an -->
+
+    <div class="modal fade" id="availabilityWarningModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="fas fa-shield-alt me-2"></i>Warnung zur Löschfahrzeug-Verfügbarkeit</h5>
+                </div>
+                <div class="modal-body" id="availabilityWarningContent"></div>
+                <div class="modal-footer">
+                    <button type="button" id="btnCancelAvailabilitySubmit" class="btn btn-secondary"><i class="fas fa-times me-1"></i>Abbrechen</button>
+                    <button type="button" id="btnConfirmAvailabilitySubmit" class="btn btn-danger"><i class="fas fa-exclamation-triangle me-1"></i>Trotzdem beantragen</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Konflikt-Modal -->
     <div class="modal fade" id="conflictModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">

@@ -98,7 +98,14 @@ try {
         'success' => true,
         'has_conflicts' => !empty($conflicts),
         'conflicts' => $formatted_conflicts,
-        'conflict_count' => count($conflicts)
+        'conflict_count' => count($conflicts),
+        'availability_warning' => check_loeschfahrzeug_availability_warning(
+            [(int)$reservation['vehicle_id']],
+            $reservation['start_datetime'],
+            $reservation['end_datetime'],
+            !empty($reservation['einheit_id']) ? (int)$reservation['einheit_id'] : null,
+            (int)$reservation_id
+        )
     ]);
     
 } catch (Exception $e) {

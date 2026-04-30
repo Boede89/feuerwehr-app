@@ -1916,6 +1916,40 @@ function check_loeschfahrzeug_availability_warning($selected_vehicle_ids, $start
     $stmt_res->execute($params_res);
     $reserved_now = array_map('intval', $stmt_res->fetchAll(PDO::FETCH_COLUMN));
 
+    $selected_names = [];
+    try {
+        if (!empty($selected_group_ids)) {
+            $ph_sel = implode(',', array_fill(0, count($selected_group_ids), '?'));
+            $stmt_sel = $db->prepare("SELECT id, name FROM vehicles WHERE id IN ($ph_sel)");
+            $stmt_sel->execute($selected_group_ids);
+            foreach ($stmt_sel->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $selected_names[(int)$row['id']] = (string)($row['name'] ?? '');
+            }
+        }
+    } catch (Exception $e) {}
+
+    $overlap_details = [];
+    try {
+        $sql_det = "SELECT r.id, r.requester_name, r.reason, r.start_datetime, r.end_datetime, r.status, v.id AS vehicle_id, v.name AS vehicle_name
+                    FROM reservations r
+                    JOIN vehicles v ON v.id = r.vehicle_id
+                    WHERE r.vehicle_id IN ($ph_res)
+                      AND r.status IN ('pending','approved')
+                      AND r.start_datetime < ?
+                      AND r.end_datetime > ?";
+        $params_det = array_merge($group_vehicle_ids, [$end_datetime, $start_datetime]);
+        if (!empty($exclude_reservation_id)) {
+            $sql_det .= " AND r.id != ?";
+            $params_det[] = (int)$exclude_reservation_id;
+        }
+        $sql_det .= " ORDER BY r.start_datetime ASC";
+        $stmt_det = $db->prepare($sql_det);
+        $stmt_det->execute($params_det);
+        $overlap_details = $stmt_det->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $overlap_details = [];
+    }
+
     $reserved_after = array_values(array_unique(array_merge($reserved_now, $selected_group_ids)));
     $reserved_after_count = count($reserved_after);
     $remaining_after = $total_count - $reserved_after_count;
@@ -1932,6 +1966,8 @@ function check_loeschfahrzeug_availability_warning($selected_vehicle_ids, $start
         'reserved_after_count' => $reserved_after_count,
         'remaining_after' => $remaining_after,
         'min_available' => $min_available,
+        'selected_vehicle_names' => array_values(array_filter(array_map('strval', $selected_names))),
+        'overlapping_reservations' => $overlap_details,
     ];
 }
 

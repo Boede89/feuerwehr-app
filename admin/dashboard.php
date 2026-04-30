@@ -1703,6 +1703,7 @@ if ($can_atemschutz) {
         function displayConflictInfo(data, isRoom) {
             const statusElement = document.getElementById('modalStatus');
             const nameKey = isRoom ? 'room_name' : 'vehicle_name';
+            const availabilityWarn = (!isRoom && data.availability_warning && data.availability_warning.warning) ? data.availability_warning : null;
 
             if (data.has_conflicts) {
                 // Konflikte gefunden - zeige Warnung
@@ -1730,6 +1731,14 @@ if ($can_atemschutz) {
                 });
                 
                 conflictsHtml += '</div></div>';
+                if (availabilityWarn) {
+                    const overlap = Array.isArray(availabilityWarn.overlapping_reservations) ? availabilityWarn.overlapping_reservations : [];
+                    let rows = '';
+                    overlap.forEach(function(r) {
+                        rows += `<li><strong>${r.vehicle_name || 'Fahrzeug'}</strong> (${r.status === 'approved' ? 'genehmigt' : 'beantragt'}) – ${r.requester_name || 'Unbekannt'}: ${r.reason || '-'} </li>`;
+                    });
+                    conflictsHtml += `<div class="mt-3"><h6 class="text-danger"><i class="fas fa-shield-alt me-2"></i>Mindestverfügbarkeit:</h6><div class="alert alert-danger mb-0">Nach Genehmigung bleiben nur <strong>${availabilityWarn.remaining_after}</strong> ${availabilityWarn.group_label || 'Löschfahrzeug(e)'} verfügbar (Mindestwert: ${availabilityWarn.min_available}). ${rows ? '<ul class="mb-0 mt-2">' + rows + '</ul>' : ''}</div></div>`;
+                }
                 
                 // Konflikte nach dem Status-Element einfügen
                 const existingConflicts = document.getElementById('conflictDetails');
@@ -1746,13 +1755,24 @@ if ($can_atemschutz) {
                 // Keine Konflikte - zeige grünen Status
                 statusElement.innerHTML = `
                     <span class="badge bg-warning text-dark me-2">Ausstehend</span>
-                    <span class="badge bg-success">Kein Konflikt</span>
+                    <span class="badge ${availabilityWarn ? 'bg-danger' : 'bg-success'}">${availabilityWarn ? 'Verfügbarkeitswarnung' : 'Kein Konflikt'}</span>
                 `;
                 
                 // Entferne eventuell vorhandene Konflikt-Details
                 const existingConflicts = document.getElementById('conflictDetails');
                 if (existingConflicts) {
                     existingConflicts.remove();
+                }
+                if (availabilityWarn) {
+                    const overlap = Array.isArray(availabilityWarn.overlapping_reservations) ? availabilityWarn.overlapping_reservations : [];
+                    let rows = '';
+                    overlap.forEach(function(r) {
+                        rows += `<li><strong>${r.vehicle_name || 'Fahrzeug'}</strong> (${r.status === 'approved' ? 'genehmigt' : 'beantragt'}) – ${r.requester_name || 'Unbekannt'}: ${r.reason || '-'} </li>`;
+                    });
+                    const conflictDiv = document.createElement('div');
+                    conflictDiv.id = 'conflictDetails';
+                    conflictDiv.innerHTML = `<div class="mt-3"><h6 class="text-danger"><i class="fas fa-shield-alt me-2"></i>Mindestverfügbarkeit:</h6><div class="alert alert-danger mb-0">Nach Genehmigung bleiben nur <strong>${availabilityWarn.remaining_after}</strong> ${availabilityWarn.group_label || 'Löschfahrzeug(e)'} verfügbar (Mindestwert: ${availabilityWarn.min_available}). ${rows ? '<ul class="mb-0 mt-2">' + rows + '</ul>' : ''}</div></div>`;
+                    statusElement.parentNode.insertAdjacentElement('afterend', conflictDiv);
                 }
             }
         }
