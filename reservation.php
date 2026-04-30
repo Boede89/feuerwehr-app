@@ -1239,9 +1239,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             if ((warn.remaining_after || 0) <= 0) {
                 title = 'Achtung: ' + selectedLabel + ' ist das letzte Löschfahrzeug für diesen Zeitraum.';
             }
-            var html = '<div class="alert alert-danger mb-0"><h6 class="mb-2">' + title + '</h6>';
-            html += '<div class="small mb-2"><strong>Zeitraum ' + (modalData.index || 1) + ':</strong> ' + (modalData.start || '') + ' - ' + (modalData.end || '') + '<br>';
-            html += '<strong>Verbleibend:</strong> ' + (warn.remaining_after ?? '-') + ' (Mindestwert ' + (warn.min_available ?? '-') + ')</div>';
+            function formatDateTimeDe(v) {
+                if (!v) return '-';
+                var d = new Date(v);
+                if (isNaN(d.getTime())) return v;
+                return d.toLocaleString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            }
+
+            var html = '<div class="alert alert-danger mb-3"><h6 class="mb-2">' + title + '</h6></div>';
+            html += '<div class="border rounded p-2 mb-2 bg-light small">';
+            html += '<div><strong>Zeitraum ' + (modalData.index || 1) + '</strong></div>';
+            html += '<div class="mt-1"><i class="fas fa-calendar-alt me-1"></i>' + formatDateTimeDe(modalData.start) + ' <span class="mx-1">bis</span> ' + formatDateTimeDe(modalData.end) + '</div>';
+            html += '</div>';
+            html += '<div class="small mb-2"><strong>Verbleibend:</strong> ' + (warn.remaining_after ?? '-') + ' (Mindestwert ' + (warn.min_available ?? '-') + ')</div>';
             if (overlaps.length) {
                 html += '<div class="small"><strong>Bereits reserviert:</strong><ul class="mb-0 mt-1">';
                 overlaps.forEach(function(r) {
