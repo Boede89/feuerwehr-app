@@ -217,6 +217,7 @@ $settings = [];
 $divera_reservation_groups = [];
 $anw_divera_status_presets = [];
 $einsatzapp_api_tokens = [];
+$legacy_mobile_api_token = '';
 try {
     $settings = load_settings_for_einheit($db, $einheit_id > 0 ? $einheit_id : null);
     if ($einheit_id > 0) {
@@ -258,6 +259,28 @@ try {
                     if ($tok === '') continue;
                     $einsatzapp_api_tokens[] = ['label' => $lbl, 'token' => $tok];
                 }
+            }
+        }
+        try {
+            $stmtLegacy = $db->prepare("SELECT setting_value FROM settings WHERE setting_key = 'mobile_api_token' LIMIT 1");
+            $stmtLegacy->execute();
+            $legacy_mobile_api_token = trim((string)($stmtLegacy->fetchColumn() ?: ''));
+        } catch (Throwable $e) {
+            $legacy_mobile_api_token = '';
+        }
+        if ($legacy_mobile_api_token !== '') {
+            $exists = false;
+            foreach ($einsatzapp_api_tokens as $entry) {
+                if (hash_equals((string)$entry['token'], $legacy_mobile_api_token)) {
+                    $exists = true;
+                    break;
+                }
+            }
+            if (!$exists) {
+                $einsatzapp_api_tokens[] = [
+                    'label' => 'Legacy Global Token',
+                    'token' => $legacy_mobile_api_token
+                ];
             }
         }
     }
