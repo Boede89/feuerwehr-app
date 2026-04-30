@@ -1806,6 +1806,15 @@ function get_loeschfahrzeug_warning_rule($einheit_id = null) {
         try {
             if ($einheit_id > 0) {
                 $settings = load_settings_for_einheit($db, $einheit_id);
+                // Fallback auf globale Settings, falls Schlüssel in der Einheit noch nicht gesetzt sind.
+                if (!array_key_exists('reservation_loesch_warn_enabled', $settings)) {
+                    $global_settings = load_settings_for_einheit($db, null);
+                    foreach (['reservation_loesch_warn_enabled', 'reservation_loesch_min_available', 'reservation_loesch_vehicle_ids'] as $k) {
+                        if (!array_key_exists($k, $settings) && array_key_exists($k, $global_settings)) {
+                            $settings[$k] = $global_settings[$k];
+                        }
+                    }
+                }
             } else {
                 $settings = load_settings_for_einheit($db, null);
             }
@@ -1840,15 +1849,38 @@ function get_loeschfahrzeug_warning_rule($einheit_id = null) {
 function check_loeschfahrzeug_availability_warning($selected_vehicle_ids, $start_datetime, $end_datetime, $einheit_id = null, $exclude_reservation_id = null) {
     global $db;
 
+    $selected_vehicle_ids = array_values(array_unique(array_filter(array_map('intval', (array)$selected_vehicle_ids), function($v) {
+        return $v > 0;
+    })));
+    $einheit_id = (int)($einheit_id ?? 0);
+
+    // Fallback: Einheit automatisch über Fahrzeuge oder Reservierung bestimmen.
+    if ($einheit_id <= 0 && !empty($selected_vehicle_ids)) {
+        try {
+            $ph_e = implode(',', array_fill(0, count($selected_vehicle_ids), '?'));
+            $stmt_e = $db->prepare("SELECT einheit_id FROM vehicles WHERE id IN ($ph_e) AND einheit_id IS NOT NULL ORDER BY einheit_id LIMIT 1");
+            $stmt_e->execute($selected_vehicle_ids);
+            $einheit_id = (int)($stmt_e->fetchColumn() ?: 0);
+        } catch (Exception $e) {
+            $einheit_id = 0;
+        }
+    }
+    if ($einheit_id <= 0 && !empty($exclude_reservation_id)) {
+        try {
+            $stmt_e = $db->prepare("SELECT COALESCE(r.einheit_id, v.einheit_id) FROM reservations r LEFT JOIN vehicles v ON v.id = r.vehicle_id WHERE r.id = ? LIMIT 1");
+            $stmt_e->execute([(int)$exclude_reservation_id]);
+            $einheit_id = (int)($stmt_e->fetchColumn() ?: 0);
+        } catch (Exception $e) {
+            $einheit_id = 0;
+        }
+    }
+
     $rule = get_loeschfahrzeug_warning_rule($einheit_id);
     if (!$rule['enabled'] || empty($rule['vehicle_ids'])) {
         return ['warning' => false];
     }
 
     $group_vehicle_ids = $rule['vehicle_ids'];
-    $selected_vehicle_ids = array_values(array_unique(array_filter(array_map('intval', (array)$selected_vehicle_ids), function($v) {
-        return $v > 0;
-    })));
     $selected_group_ids = array_values(array_intersect($selected_vehicle_ids, $group_vehicle_ids));
     if (empty($selected_group_ids)) {
         return ['warning' => false];
