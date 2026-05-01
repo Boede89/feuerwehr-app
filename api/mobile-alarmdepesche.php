@@ -158,6 +158,7 @@ $alarmTs = mad_parse_alarm_ts($_GET['alarm_ts'] ?? null);
 $baseUrl = mad_base_url();
 
 try {
+    $rows = [];
     if ($alarmTs !== null) {
         $from = gmdate('Y-m-d H:i:s', $alarmTs - 120);   // -2 min
         $to = gmdate('Y-m-d H:i:s', $alarmTs + 1800);    // +30 min
@@ -171,6 +172,18 @@ try {
         ");
         $stmt->execute([$einheitId, $from, $to]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if (empty($rows)) {
+            // Fallback: gleiche Zeitlogik ohne Einheitenfilter (hilft bei abweichender Token->Einheit Zuordnung)
+            $stmt = $db->prepare("
+                SELECT id, received_at_utc, filename_original
+                FROM alarmdepesche_inbox
+                WHERE received_at_utc BETWEEN ? AND ?
+                ORDER BY received_at_utc ASC
+                LIMIT 20
+            ");
+            $stmt->execute([$from, $to]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        }
     } else {
         $stmt = $db->prepare("
             SELECT id, received_at_utc, filename_original
@@ -182,6 +195,18 @@ try {
         ");
         $stmt->execute([$einheitId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if (empty($rows)) {
+            // Fallback: neueste Depeschen ohne Einheitenfilter
+            $stmt = $db->prepare("
+                SELECT id, received_at_utc, filename_original
+                FROM alarmdepesche_inbox
+                WHERE received_at_utc >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR)
+                ORDER BY received_at_utc DESC
+                LIMIT 20
+            ");
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        }
     }
 
     $candidates = [];
