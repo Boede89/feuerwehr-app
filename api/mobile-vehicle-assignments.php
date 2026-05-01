@@ -114,6 +114,38 @@ function mobile_va_ensure_table(PDO $db): void {
     ");
 }
 
+function mobile_va_crew_strength(PDO $db, array $memberIds): string {
+    $ids = array_values(array_unique(array_map('intval', array_filter($memberIds))));
+    if (empty($ids)) return '0/0/0/0';
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $stmt = $db->prepare("
+            SELECT LOWER(TRIM(COALESCE(q.name, ''))) AS qual_name
+            FROM members m
+            LEFT JOIN member_qualifications q ON q.id = m.qualification_id
+            WHERE m.id IN ($placeholders)
+        ");
+        $stmt->execute($ids);
+        $zf = 0;
+        $gf = 0;
+        $mannschaft = 0;
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $name = (string)($row['qual_name'] ?? '');
+            if (strpos($name, 'zugführer') !== false || $name === 'zf') {
+                $zf++;
+            } elseif (strpos($name, 'gruppenführer') !== false || $name === 'gf') {
+                $gf++;
+            } else {
+                $mannschaft++;
+            }
+        }
+        $sum = $zf + $gf + $mannschaft;
+        return $zf . '/' . $gf . '/' . $mannschaft . '/' . $sum;
+    } catch (Throwable $e) {
+        return '0/0/0/0';
+    }
+}
+
 function mobile_va_load_assignments(PDO $db, int $einheitId): array {
     $sql = "
         SELECT a.vehicle_id, a.member_id, m.first_name, m.last_name
@@ -126,18 +158,29 @@ function mobile_va_load_assignments(PDO $db, int $einheitId): array {
     $stmt->execute([$einheitId]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $byVehicle = [];
+    $memberIdsByVehicle = [];
     foreach ($rows as $row) {
         $vehicleId = (int)($row['vehicle_id'] ?? 0);
         if ($vehicleId <= 0) continue;
+        $memberId = (int)($row['member_id'] ?? 0);
         $name = trim(((string)($row['first_name'] ?? '')) . ' ' . ((string)($row['last_name'] ?? '')));
-        if ($name === '') $name = 'Mitglied #' . (int)($row['member_id'] ?? 0);
+        if ($name === '') $name = 'Mitglied #' . $memberId;
         if (!isset($byVehicle[(string)$vehicleId])) $byVehicle[(string)$vehicleId] = [];
+        if (!isset($memberIdsByVehicle[(string)$vehicleId])) $memberIdsByVehicle[(string)$vehicleId] = [];
         $byVehicle[(string)$vehicleId][] = [
-            'member_id' => (int)($row['member_id'] ?? 0),
+            'member_id' => $memberId,
             'member_name' => $name,
         ];
+        if ($memberId > 0) $memberIdsByVehicle[(string)$vehicleId][] = $memberId;
     }
-    return $byVehicle;
+    $crewByVehicle = [];
+    foreach ($memberIdsByVehicle as $vehicleId => $memberIds) {
+        $crewByVehicle[(string)$vehicleId] = mobile_va_crew_strength($db, $memberIds);
+    }
+    return [
+        'by_vehicle' => $byVehicle,
+        'crew_strength_by_vehicle' => $crewByVehicle,
+    ];
 }
 
 $requestToken = mobile_va_request_token();
@@ -177,31 +220,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     $action = trim((string)($payload['action'] ?? ''));
-    if ($action !== 'assign') {
+    if (!in_array($action, ['assign', 'remove_member', 'clear_vehicle'], true)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Ungueltige Aktion.']);
         exit;
     }
 
     $vehicleId = (int)($payload['vehicle_id'] ?? 0);
-    $memberIdsRaw = $payload['member_ids'] ?? [];
-    if ($vehicleId <= 0 || !is_array($memberIdsRaw) || empty($memberIdsRaw)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'vehicle_id und member_ids sind erforderlich.']);
-        exit;
-    }
-    $memberIds = [];
-    foreach ($memberIdsRaw as $mid) {
-        $id = (int)$mid;
-        if ($id > 0) $memberIds[] = $id;
-    }
-    $memberIds = array_values(array_unique($memberIds));
-    if (empty($memberIds)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Keine gueltigen member_ids uebergeben.']);
-        exit;
-    }
-
     try {
         $db->beginTransaction();
 
@@ -214,18 +239,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        $stmtMember = $db->prepare("SELECT id FROM members WHERE id = ? LIMIT 1");
-        $stmtDeleteExisting = $db->prepare("DELETE FROM mobile_vehicle_assignments WHERE einheit_id = ? AND member_id = ?");
-        $stmtInsert = $db->prepare("INSERT INTO mobile_vehicle_assignments (einheit_id, vehicle_id, member_id) VALUES (?, ?, ?)");
-
-        foreach ($memberIds as $memberId) {
-            $stmtMember->execute([$memberId]);
-            if (!$stmtMember->fetchColumn()) {
-                continue;
+        if ($action === 'assign') {
+            $memberIdsRaw = $payload['member_ids'] ?? [];
+            if (!is_array($memberIdsRaw) || empty($memberIdsRaw)) {
+                $db->rollBack();
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'member_ids sind erforderlich.']);
+                exit;
             }
-            // 1 Person = 1 Fahrzeug (innerhalb derselben Einheit)
-            $stmtDeleteExisting->execute([$einheitId, $memberId]);
-            $stmtInsert->execute([$einheitId, $vehicleId, $memberId]);
+            $memberIds = [];
+            foreach ($memberIdsRaw as $mid) {
+                $id = (int)$mid;
+                if ($id > 0) $memberIds[] = $id;
+            }
+            $memberIds = array_values(array_unique($memberIds));
+            if (empty($memberIds)) {
+                $db->rollBack();
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Keine gueltigen member_ids uebergeben.']);
+                exit;
+            }
+
+            $stmtMember = $db->prepare("SELECT id FROM members WHERE id = ? LIMIT 1");
+            $stmtDeleteExisting = $db->prepare("DELETE FROM mobile_vehicle_assignments WHERE einheit_id = ? AND member_id = ?");
+            $stmtInsert = $db->prepare("INSERT INTO mobile_vehicle_assignments (einheit_id, vehicle_id, member_id) VALUES (?, ?, ?)");
+
+            foreach ($memberIds as $memberId) {
+                $stmtMember->execute([$memberId]);
+                if (!$stmtMember->fetchColumn()) {
+                    continue;
+                }
+                // 1 Person = 1 Fahrzeug (innerhalb derselben Einheit)
+                $stmtDeleteExisting->execute([$einheitId, $memberId]);
+                $stmtInsert->execute([$einheitId, $vehicleId, $memberId]);
+            }
+        } elseif ($action === 'remove_member') {
+            $memberId = (int)($payload['member_id'] ?? 0);
+            if ($memberId <= 0) {
+                $db->rollBack();
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'member_id ist erforderlich.']);
+                exit;
+            }
+            $stmt = $db->prepare("DELETE FROM mobile_vehicle_assignments WHERE einheit_id = ? AND vehicle_id = ? AND member_id = ?");
+            $stmt->execute([$einheitId, $vehicleId, $memberId]);
+        } elseif ($action === 'clear_vehicle') {
+            $stmt = $db->prepare("DELETE FROM mobile_vehicle_assignments WHERE einheit_id = ? AND vehicle_id = ?");
+            $stmt->execute([$einheitId, $vehicleId]);
         }
 
         $db->commit();
@@ -238,13 +298,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 try {
-    $byVehicle = mobile_va_load_assignments($db, $einheitId);
+    $assignmentData = mobile_va_load_assignments($db, $einheitId);
     echo json_encode([
         'success' => true,
         'message' => 'OK',
         'data' => [
             'einheit_id' => $einheitId,
-            'by_vehicle' => $byVehicle,
+            'by_vehicle' => $assignmentData['by_vehicle'] ?? new stdClass(),
+            'crew_strength_by_vehicle' => $assignmentData['crew_strength_by_vehicle'] ?? new stdClass(),
         ],
     ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
