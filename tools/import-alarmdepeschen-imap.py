@@ -110,6 +110,8 @@ def load_imap_settings_from_db(conn, einheit_id: int) -> dict:
         "alarmdepesche_imap_user",
         "alarmdepesche_imap_password",
         "alarmdepesche_imap_folder",
+        "alarmdepesche_imap_search_mode",
+        "alarmdepesche_subject_filter",
     ]
     placeholders = ",".join(["%s"] * len(keys))
     out = {}
@@ -227,6 +229,10 @@ def run_import(args: argparse.Namespace) -> int:
             port = int((imap_cfg.get("alarmdepesche_imap_port", "") or "993").strip())
         except Exception:
             port = 993
+    search_mode = (imap_cfg.get("alarmdepesche_imap_search_mode", "") or "UNSEEN").strip().upper()
+    if search_mode not in {"UNSEEN", "ALL"}:
+        search_mode = "UNSEEN"
+    subject_filter = (imap_cfg.get("alarmdepesche_subject_filter", "") or "").strip().lower()
 
     if not host or not user or not password:
         print("Fehlende IMAP Parameter. Bitte in den Einstellungen (Einsatzapp) hinterlegen oder per CLI uebergeben.", file=sys.stderr)
@@ -236,7 +242,7 @@ def run_import(args: argparse.Namespace) -> int:
     imap.login(user, password)
     imap.select(folder)
 
-    status, ids = imap.search(None, "UNSEEN")
+    status, ids = imap.search(None, search_mode)
     if status != "OK":
         print("IMAP Suche fehlgeschlagen.", file=sys.stderr)
         return 1
@@ -272,6 +278,8 @@ def run_import(args: argparse.Namespace) -> int:
 
         msg = email.message_from_bytes(raw_email)
         subject = decode_mime_header(msg.get("Subject", ""))
+        if subject_filter and subject_filter not in subject.lower():
+            continue
         sender = decode_mime_header(msg.get("From", ""))
         date_raw = msg.get("Date", "")
         try:

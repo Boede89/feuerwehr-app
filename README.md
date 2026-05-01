@@ -77,6 +77,8 @@ Die Alarmdepesche wird per IMAP importiert und ueber die Mobile-API bereitgestel
    - Benutzer
    - Passwort
    - Ordner (z. B. INBOX)
+   - Suchmodus (`UNSEEN` oder `ALL`)
+   - optional Betreff-Filter
 
 2. Im Web-Container `PyMySQL` installieren:
 

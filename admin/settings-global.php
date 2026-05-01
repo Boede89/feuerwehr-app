@@ -464,6 +464,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     'alarmdepesche_imap_user' => trim((string)($_POST['alarmdepesche_imap_user'] ?? '')),
                     'alarmdepesche_imap_password' => $imapPassword,
                     'alarmdepesche_imap_folder' => trim((string)($_POST['alarmdepesche_imap_folder'] ?? 'INBOX')),
+                    'alarmdepesche_imap_search_mode' => in_array(trim((string)($_POST['alarmdepesche_imap_search_mode'] ?? 'UNSEEN')), ['UNSEEN', 'ALL'], true)
+                        ? trim((string)($_POST['alarmdepesche_imap_search_mode'] ?? 'UNSEEN'))
+                        : 'UNSEEN',
+                    'alarmdepesche_subject_filter' => trim((string)($_POST['alarmdepesche_subject_filter'] ?? '')),
                 ];
                 $all = array_merge($smtp, $google, $app, $printer, $divera, $einsatzapp);
                 save_settings_bulk_for_einheit($db, $save_einheit_id, $all);
@@ -842,6 +846,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                             <div class="col-md-6">
                                 <label class="form-label">IMAP Passwort</label>
                                 <input type="password" class="form-control" name="alarmdepesche_imap_password" placeholder="Leer lassen = bisheriges Passwort behalten">
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-4">
+                                <label class="form-label">Suchmodus</label>
+                                <?php $imap_search_mode = strtoupper(trim((string)($settings['alarmdepesche_imap_search_mode'] ?? 'UNSEEN'))); ?>
+                                <select class="form-select" name="alarmdepesche_imap_search_mode">
+                                    <option value="UNSEEN" <?php echo $imap_search_mode === 'UNSEEN' ? 'selected' : ''; ?>>Nur ungelesene Mails (UNSEEN)</option>
+                                    <option value="ALL" <?php echo $imap_search_mode === 'ALL' ? 'selected' : ''; ?>>Alle Mails (ALL)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Betreff-Filter (optional)</label>
+                                <input type="text" class="form-control" name="alarmdepesche_subject_filter" placeholder="z.B. Alarmdepesche" value="<?php echo htmlspecialchars($settings['alarmdepesche_subject_filter'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                             </div>
                         </div>
                         <small class="text-muted d-block mt-2">Hinweis: Das Passwort wird nur ueberschrieben, wenn hier ein neuer Wert eingetragen wird.</small>
