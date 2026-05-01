@@ -52,10 +52,10 @@ def decode_mime_header(raw: str) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="IMAP Import fuer Alarmdepeschen")
     parser.add_argument("--host", default=os.getenv("FAX_IMAP_HOST", ""))
-    parser.add_argument("--port", default=int(os.getenv("FAX_IMAP_PORT", "993")), type=int)
+    parser.add_argument("--port", default=int(os.getenv("FAX_IMAP_PORT", "0")), type=int)
     parser.add_argument("--user", default=os.getenv("FAX_IMAP_USER", ""))
     parser.add_argument("--password", default=os.getenv("FAX_IMAP_PASS", ""))
-    parser.add_argument("--folder", default=os.getenv("FAX_IMAP_FOLDER", "INBOX"))
+    parser.add_argument("--folder", default=os.getenv("FAX_IMAP_FOLDER", ""))
     parser.add_argument("--einheit-id", default=int(os.getenv("FAX_EINHEIT_ID", "0")), type=int)
 
     parser.add_argument("--db-host", default=os.getenv("DB_HOST", "mysql"))
@@ -101,6 +101,45 @@ def ensure_table(conn) -> None:
     with conn.cursor() as cur:
         cur.execute(sql)
     conn.commit()
+
+
+def load_imap_settings_from_db(conn, einheit_id: int) -> dict:
+    keys = [
+        "alarmdepesche_imap_host",
+        "alarmdepesche_imap_port",
+        "alarmdepesche_imap_user",
+        "alarmdepesche_imap_password",
+        "alarmdepesche_imap_folder",
+    ]
+    placeholders = ",".join(["%s"] * len(keys))
+    out = {}
+    with conn.cursor() as cur:
+        if einheit_id > 0:
+            try:
+                cur.execute(
+                    f"""
+                    SELECT setting_key, setting_value
+                    FROM einheit_settings
+                    WHERE einheit_id = %s AND setting_key IN ({placeholders})
+                    """,
+                    [einheit_id, *keys],
+                )
+                for row in cur.fetchall() or []:
+                    out[row["setting_key"]] = row["setting_value"] or ""
+            except Exception:
+                pass
+        if not out:
+            cur.execute(
+                f"""
+                SELECT setting_key, setting_value
+                FROM settings
+                WHERE setting_key IN ({placeholders})
+                """,
+                keys,
+            )
+            for row in cur.fetchall() or []:
+                out[row["setting_key"]] = row["setting_value"] or ""
+    return out
 
 
 def message_uid_exists(conn, uid: str) -> bool:
@@ -170,17 +209,32 @@ def save_pdf_bytes(data: bytes, received_at: datetime, original_name: str) -> tu
 
 
 def run_import(args: argparse.Namespace) -> int:
-    if not args.host or not args.user or not args.password:
-        print("Fehlende IMAP Parameter: --host --user --password", file=sys.stderr)
-        return 1
-
     ensure_upload_dir()
     conn = db_connect(args)
     ensure_table(conn)
+    imap_cfg = load_imap_settings_from_db(conn, args.einheit_id)
 
-    imap = imaplib.IMAP4_SSL(args.host, args.port, ssl_context=ssl.create_default_context())
-    imap.login(args.user, args.password)
-    imap.select(args.folder)
+    host = args.host or (imap_cfg.get("alarmdepesche_imap_host", "").strip())
+    user = args.user or (imap_cfg.get("alarmdepesche_imap_user", "").strip())
+    password = args.password or (imap_cfg.get("alarmdepesche_imap_password", "").strip())
+    folder = args.folder or (imap_cfg.get("alarmdepesche_imap_folder", "").strip() or "INBOX")
+    try:
+        port = int(args.port or 0) if args.port else 0
+    except Exception:
+        port = 0
+    if port <= 0:
+        try:
+            port = int((imap_cfg.get("alarmdepesche_imap_port", "") or "993").strip())
+        except Exception:
+            port = 993
+
+    if not host or not user or not password:
+        print("Fehlende IMAP Parameter. Bitte in den Einstellungen (Einsatzapp) hinterlegen oder per CLI uebergeben.", file=sys.stderr)
+        return 1
+
+    imap = imaplib.IMAP4_SSL(host, port, ssl_context=ssl.create_default_context())
+    imap.login(user, password)
+    imap.select(folder)
 
     status, ids = imap.search(None, "UNSEEN")
     if status != "OK":

@@ -71,20 +71,27 @@ Die Datenbank wird automatisch mit dem Schema initialisiert. Der Standard-Admin-
 
 Die Alarmdepesche wird per IMAP importiert und ueber die Mobile-API bereitgestellt.
 
-1. Im Web-Container `PyMySQL` installieren:
+1. In den Einstellungen der Einheit unter **Einsatzapp API-Einstellungen** IMAP-Werte setzen:
+   - IMAP Host
+   - Port
+   - Benutzer
+   - Passwort
+   - Ordner (z. B. INBOX)
+
+2. Im Web-Container `PyMySQL` installieren:
 
 ```bash
 docker exec -it feuerwehr_web bash
 pip install pymysql
 ```
 
-2. Import manuell testen:
+3. Import manuell testen (liest IMAP-Daten aus den Einstellungen):
 
 ```bash
-docker exec -it feuerwehr_web bash -lc "cd /var/www/html && python3 tools/import-alarmdepeschen-imap.py --host=IMAP_HOST --port=993 --user=FAX_POSTFACH --password=PASSWORT --folder=INBOX --einheit-id=1"
+docker exec -it feuerwehr_web bash -lc "cd /var/www/html && python3 tools/import-alarmdepeschen-imap.py --einheit-id=1"
 ```
 
-3. Regelmaessig per Cron/Task ausfuehren (z. B. alle 2 Minuten).
+4. Regelmaessig per Cron/Task ausfuehren (z. B. alle 2 Minuten).
 
 Verfuegbare Endpunkte:
 

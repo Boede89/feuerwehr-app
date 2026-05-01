@@ -453,8 +453,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     if ($token === '') continue;
                     $einsatzapp_tokens_save[] = ['label' => $label, 'token' => $token];
                 }
+                $imapPasswordInput = trim((string)($_POST['alarmdepesche_imap_password'] ?? ''));
+                $imapPassword = $imapPasswordInput !== ''
+                    ? $imapPasswordInput
+                    : trim((string)($settings['alarmdepesche_imap_password'] ?? ''));
                 $einsatzapp = [
                     'einsatzapp_api_tokens' => json_encode($einsatzapp_tokens_save, JSON_UNESCAPED_UNICODE),
+                    'alarmdepesche_imap_host' => trim((string)($_POST['alarmdepesche_imap_host'] ?? '')),
+                    'alarmdepesche_imap_port' => trim((string)($_POST['alarmdepesche_imap_port'] ?? '993')),
+                    'alarmdepesche_imap_user' => trim((string)($_POST['alarmdepesche_imap_user'] ?? '')),
+                    'alarmdepesche_imap_password' => $imapPassword,
+                    'alarmdepesche_imap_folder' => trim((string)($_POST['alarmdepesche_imap_folder'] ?? 'INBOX')),
                 ];
                 $all = array_merge($smtp, $google, $app, $printer, $divera, $einsatzapp);
                 save_settings_bulk_for_einheit($db, $save_einheit_id, $all);
@@ -807,6 +816,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                             <button type="button" class="btn btn-outline-primary btn-sm" id="btnGenerateEinsatzappToken"><i class="fas fa-key me-1"></i>Zufaelligen Schluessel erzeugen</button>
                         </div>
                         <small class="text-muted d-block mt-2">Tokens werden beim Speichern der Einstellungen uebernommen. Leere Zeilen werden ignoriert.</small>
+
+                        <hr class="my-4">
+                        <h6 class="mb-3"><i class="fas fa-file-pdf me-1"></i> Alarmdepesche (IMAP Postfach)</h6>
+                        <p class="text-muted small mb-3">Diese Zugangsdaten werden vom Import-Script verwendet, um Fax-PDFs aus dem Postfach abzurufen.</p>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label">IMAP Host</label>
+                                <input type="text" class="form-control" name="alarmdepesche_imap_host" placeholder="z.B. imap.example.com" value="<?php echo htmlspecialchars($settings['alarmdepesche_imap_host'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Port</label>
+                                <input type="number" class="form-control" name="alarmdepesche_imap_port" placeholder="993" value="<?php echo htmlspecialchars($settings['alarmdepesche_imap_port'] ?? '993', ENT_QUOTES, 'UTF-8'); ?>">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">IMAP Ordner</label>
+                                <input type="text" class="form-control" name="alarmdepesche_imap_folder" placeholder="INBOX" value="<?php echo htmlspecialchars($settings['alarmdepesche_imap_folder'] ?? 'INBOX', ENT_QUOTES, 'UTF-8'); ?>">
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label">IMAP Benutzer</label>
+                                <input type="text" class="form-control" name="alarmdepesche_imap_user" placeholder="z.B. fax@feuerwehr.de" value="<?php echo htmlspecialchars($settings['alarmdepesche_imap_user'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">IMAP Passwort</label>
+                                <input type="password" class="form-control" name="alarmdepesche_imap_password" placeholder="Leer lassen = bisheriges Passwort behalten">
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mt-2">Hinweis: Das Passwort wird nur ueberschrieben, wenn hier ein neuer Wert eingetragen wird.</small>
                     </div>
                 </div>
             </div>
