@@ -67,6 +67,30 @@ Die Datenbank wird automatisch mit dem Schema initialisiert. Der Standard-Admin-
 5. Tragen Sie den API-Schlüssel in den Einstellungen ein
 6. Optional: Geben Sie eine spezifische Kalender-ID ein (Standard: primary)
 
+### Alarmdepesche (Fax per E-Mail)
+
+Die Alarmdepesche wird per IMAP importiert und ueber die Mobile-API bereitgestellt.
+
+1. Im Web-Container `PyMySQL` installieren:
+
+```bash
+docker exec -it feuerwehr_web bash
+pip install pymysql
+```
+
+2. Import manuell testen:
+
+```bash
+docker exec -it feuerwehr_web bash -lc "cd /var/www/html && python3 tools/import-alarmdepeschen-imap.py --host=IMAP_HOST --port=993 --user=FAX_POSTFACH --password=PASSWORT --folder=INBOX --einheit-id=1"
+```
+
+3. Regelmaessig per Cron/Task ausfuehren (z. B. alle 2 Minuten).
+
+Verfuegbare Endpunkte:
+
+- `GET /api/mobile-alarmdepesche.php?alarm_ts=<unix>`
+- `GET /api/mobile-alarmdepesche-download.php?id=<id>&mobile_token=<token>`
+
 ## Verwendung
 
 ### Für Benutzer
