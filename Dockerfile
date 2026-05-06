@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     python3 \
-    python3-pip \
+    python3-pymysql \
     libpng-dev \
     libjpeg-dev \
     libfreetype6-dev \
@@ -28,9 +28,6 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     xml \
     curl \
     opcache
-
-# Python-Abhaengigkeit fuer Alarmdepeschen-Importer
-RUN pip3 install --no-cache-dir pymysql
 
 # Apache mod_rewrite aktivieren
 RUN a2enmod rewrite
