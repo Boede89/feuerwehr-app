@@ -90,6 +90,7 @@ $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item" href="<?php echo $base; ?>settings.php"><i class="fas fa-cog text-secondary me-2"></i>Einstellungen</a></li>
         <li><a class="dropdown-item" href="<?php echo $base; ?>alarmdepeschen.php"><i class="fas fa-file-pdf text-danger me-2"></i>Alarmdepeschen</a></li>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>divera-samples.php"><i class="fas fa-database text-primary me-2"></i>Divera Beispieldaten</a></li>
         <li><a class="dropdown-item" href="<?php echo $base; ?>feedback.php"><i class="fas fa-comment-dots text-info me-2"></i>Feedback</a></li>
         <?php endif; ?>
         <li><hr class="dropdown-divider"></li>

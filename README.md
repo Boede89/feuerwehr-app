@@ -100,6 +100,32 @@ Verfuegbare Endpunkte:
 - `GET /api/mobile-alarmdepesche.php?alarm_ts=<unix>`
 - `GET /api/mobile-alarmdepesche-download.php?id=<id>&mobile_token=<token>`
 
+### Divera Beispieldaten (Mobile API)
+
+Fuer Testbetrieb ohne aktiven Divera-Einsatz steht ein zusaetzlicher Mobile-Endpunkt bereit:
+
+- `GET /api/mobile-divera-samples.php`
+- `POST /api/mobile-divera-samples.php`
+
+Auth erfolgt identisch zu den anderen Mobile-Endpunkten per:
+
+- `X-Mobile-Token: <token>`
+- oder `Authorization: Bearer <token>`
+
+`POST` erwartet JSON mit:
+
+- `action`: `"save"`
+- `display_name`
+- `keyword`
+- `incident_date`
+- `raw_data` mit `alarmsJson`, `alarmDetailJson`, `reachJson`, `eventsJson`
+
+Die Daten werden in der Tabelle `mobile_divera_samples` gespeichert (wird automatisch angelegt).
+
+Verwaltung als Einheitsadmin:
+
+- `admin/divera-samples.php` (Liste und Loeschen der Datensaetze)
+
 ## Verwendung
 
 ### Für Benutzer
