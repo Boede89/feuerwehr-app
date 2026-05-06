@@ -81,13 +81,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'refre
             if (!$scriptPath || !is_file($scriptPath)) {
                 $error = 'Import-Script nicht gefunden.';
             } else {
-                $pythonCandidates = ['python3', 'python'];
+                $pythonCandidates = ['/usr/bin/python3', 'python3'];
                 $pythonCandidates = array_values(array_unique(array_filter($pythonCandidates, static function ($value) {
                     return trim((string)$value) !== '';
                 })));
 
                 $output = [];
                 $exitCode = 1;
+                $allErrors = [];
                 foreach ($pythonCandidates as $pythonCmd) {
                     $candidateOutput = [];
                     $candidateExit = 1;
@@ -98,6 +99,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'refre
                     @exec($cmd . ' 2>&1', $candidateOutput, $candidateExit);
                     $output = $candidateOutput;
                     $exitCode = $candidateExit;
+                    if ($candidateExit !== 0) {
+                        $allErrors[] = trim(implode(' ', $candidateOutput));
+                    }
                     if ($candidateExit === 0) {
                         break;
                     }
@@ -110,6 +114,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'refre
                         : 'Import erfolgreich ausgefuehrt.';
                 } else {
                     $details = trim(implode(' ', $output));
+                    if ($details === '' && !empty($allErrors)) {
+                        $details = trim(implode(' | ', array_filter($allErrors)));
+                    }
                     if (stripos($details, 'python: not found') !== false || stripos($details, 'python3: not found') !== false) {
                         $error = 'Import fehlgeschlagen: Python fehlt im Web-Container. '
                             . 'Bitte Container neu bauen/starten: '
