@@ -69,6 +69,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'refresh_import') {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungueltiger Sicherheitstoken.';
+    } else {
+        $einheitIdForImport = (int)($_POST['einheit_id'] ?? 0);
+        if ($einheitIdForImport <= 0) {
+            $error = 'Bitte eine gueltige Einheit waehlen, bevor der Import gestartet wird.';
+        } else {
+            $scriptPath = realpath(__DIR__ . '/../tools/import-alarmdepeschen-imap.py');
+            if (!$scriptPath || !is_file($scriptPath)) {
+                $error = 'Import-Script nicht gefunden.';
+            } else {
+                $commands = [
+                    'python3 ' . escapeshellarg($scriptPath) . ' --einheit-id=' . $einheitIdForImport,
+                    'python ' . escapeshellarg($scriptPath) . ' --einheit-id=' . $einheitIdForImport,
+                ];
+                $output = [];
+                $exitCode = 1;
+                foreach ($commands as $cmd) {
+                    $output = [];
+                    $exitCode = 1;
+                    @exec($cmd . ' 2>&1', $output, $exitCode);
+                    if ($exitCode === 0) {
+                        break;
+                    }
+                }
+
+                if ($exitCode === 0) {
+                    $summary = trim(implode(' ', $output));
+                    $message = $summary !== ''
+                        ? ('Import gestartet: ' . $summary)
+                        : 'Import erfolgreich ausgefuehrt.';
+                } else {
+                    $details = trim(implode(' ', $output));
+                    $error = 'Import fehlgeschlagen.' . ($details !== '' ? (' Details: ' . $details) : '');
+                }
+            }
+        }
+    }
+}
+
 $einheitId = function_exists('get_current_einheit_id') ? (int)(get_current_einheit_id() ?? 0) : 0;
 $filterEinheit = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : $einheitId;
 $limit = 200;
@@ -119,9 +160,19 @@ try {
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h3 mb-0"><i class="fas fa-file-pdf text-danger"></i> Alarmdepeschen</h1>
-        <a href="settings-einsatzapp.php<?php echo $filterEinheit > 0 ? '?id=' . $filterEinheit : ''; ?>" class="btn btn-outline-secondary">
-            <i class="fas fa-gear me-1"></i> Einsatzapp Einstellungen
-        </a>
+        <div class="d-flex gap-2">
+            <form method="post" class="d-inline">
+                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                <input type="hidden" name="action" value="refresh_import">
+                <input type="hidden" name="einheit_id" value="<?php echo (int)$filterEinheit; ?>">
+                <button type="submit" class="btn btn-primary" <?php echo $filterEinheit > 0 ? '' : 'disabled'; ?> title="<?php echo $filterEinheit > 0 ? 'Neue Alarmdepeschen aus dem IMAP-Postfach abrufen' : 'Bitte eine Einheit auswaehlen'; ?>">
+                    <i class="fas fa-arrows-rotate me-1"></i> Aktualisieren
+                </button>
+            </form>
+            <a href="settings-einsatzapp.php<?php echo $filterEinheit > 0 ? '?id=' . $filterEinheit : ''; ?>" class="btn btn-outline-secondary">
+                <i class="fas fa-gear me-1"></i> Einsatzapp Einstellungen
+            </a>
+        </div>
     </div>
 
     <?php if ($message) echo show_success($message); ?>
