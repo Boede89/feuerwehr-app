@@ -77,24 +77,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'refre
         if ($einheitIdForImport <= 0) {
             $error = 'Bitte eine gueltige Einheit waehlen, bevor der Import gestartet wird.';
         } else {
-            $scriptPath = realpath(__DIR__ . '/../tools/import-alarmdepeschen-imap.py');
+            $scriptPath = realpath(__DIR__ . '/../tools/import-alarmdepeschen-imap.php');
             if (!$scriptPath || !is_file($scriptPath)) {
                 $error = 'Import-Script nicht gefunden.';
             } else {
-                $commands = [
-                    'python3 ' . escapeshellarg($scriptPath) . ' --einheit-id=' . $einheitIdForImport,
-                    'python ' . escapeshellarg($scriptPath) . ' --einheit-id=' . $einheitIdForImport,
-                ];
                 $output = [];
                 $exitCode = 1;
-                foreach ($commands as $cmd) {
-                    $output = [];
-                    $exitCode = 1;
-                    @exec($cmd . ' 2>&1', $output, $exitCode);
-                    if ($exitCode === 0) {
-                        break;
-                    }
-                }
+                $phpBinary = defined('PHP_BINARY') ? PHP_BINARY : 'php';
+                $cmd = escapeshellarg($phpBinary)
+                    . ' '
+                    . escapeshellarg($scriptPath)
+                    . ' --from-settings=1 --einheit-id=' . $einheitIdForImport;
+                @exec($cmd . ' 2>&1', $output, $exitCode);
 
                 if ($exitCode === 0) {
                     $summary = trim(implode(' ', $output));

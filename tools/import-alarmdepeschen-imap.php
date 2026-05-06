@@ -98,9 +98,41 @@ $user = arg_value($argv, 'user', getenv('FAX_IMAP_USER') ?: '');
 $pass = arg_value($argv, 'pass', getenv('FAX_IMAP_PASS') ?: '');
 $folder = arg_value($argv, 'folder', getenv('FAX_IMAP_FOLDER') ?: 'INBOX');
 $einheitId = (int)arg_value($argv, 'einheit-id', getenv('FAX_EINHEIT_ID') ?: '0');
+$fromSettings = in_array(strtolower(arg_value($argv, 'from-settings', '0')), ['1', 'true', 'yes'], true);
+
+if ($fromSettings && $einheitId > 0 && ($host === '' || $user === '' || $pass === '')) {
+    try {
+        $stmt = $db->prepare("
+            SELECT setting_key, setting_value
+            FROM einheit_settings
+            WHERE einheit_id = ?
+              AND setting_key IN (
+                'alarmdepesche_imap_host',
+                'alarmdepesche_imap_port',
+                'alarmdepesche_imap_user',
+                'alarmdepesche_imap_password',
+                'alarmdepesche_imap_folder'
+              )
+        ");
+        $stmt->execute([$einheitId]);
+        $map = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $k = (string)($row['setting_key'] ?? '');
+            $v = trim((string)($row['setting_value'] ?? ''));
+            if ($k !== '') $map[$k] = $v;
+        }
+        if ($host === '') $host = $map['alarmdepesche_imap_host'] ?? '';
+        if ($user === '') $user = $map['alarmdepesche_imap_user'] ?? '';
+        if ($pass === '') $pass = $map['alarmdepesche_imap_password'] ?? '';
+        if (($port === '' || $port === '993') && !empty($map['alarmdepesche_imap_port'])) $port = $map['alarmdepesche_imap_port'];
+        if (($folder === '' || strtoupper($folder) === 'INBOX') && !empty($map['alarmdepesche_imap_folder'])) $folder = $map['alarmdepesche_imap_folder'];
+    } catch (Throwable $e) {
+        fwrite(STDERR, "Konnte IMAP-Einstellungen der Einheit nicht laden.\n");
+    }
+}
 
 if ($host === '' || $user === '' || $pass === '') {
-    fwrite(STDERR, "Fehlende IMAP Parameter (host/user/pass).\n");
+    fwrite(STDERR, "Fehlende IMAP Parameter (host/user/pass). Nutzen Sie ggf. --from-settings=1 --einheit-id=<id>.\n");
     exit(1);
 }
 
