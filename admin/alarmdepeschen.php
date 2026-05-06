@@ -121,6 +121,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'refre
                         $error = 'Import fehlgeschlagen: Python fehlt im Web-Container. '
                             . 'Bitte Container neu bauen/starten: '
                             . '`docker compose build web && docker compose up -d web`';
+                    } elseif (stripos($details, 'AUTHENTICATIONFAILED') !== false || stripos($details, 'Invalid credentials') !== false) {
+                        $error = 'Import fehlgeschlagen: IMAP-Anmeldung nicht moeglich (ungueltige Zugangsdaten). '
+                            . 'Bitte in den Einsatzapp-Einstellungen IMAP-Benutzer und IMAP-Passwort pruefen bzw. neu speichern '
+                            . '(bei Gmail ggf. App-Passwort statt normalem Konto-Passwort verwenden).';
                     } elseif (stripos($details, 'pymysql') !== false) {
                         $error = 'Import fehlgeschlagen: PyMySQL fehlt im Web-Container. '
                             . 'Bitte Container neu bauen/starten: '
