@@ -63,6 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--db-name", default=os.getenv("DB_NAME", "feuerwehr_app"))
     parser.add_argument("--db-user", default=os.getenv("DB_USER", "feuerwehr_user"))
     parser.add_argument("--db-password", default=os.getenv("DB_PASSWORD", "feuerwehr_password"))
+    parser.add_argument("--test-only", action="store_true", help="Nur IMAP-Verbindung testen, kein Import")
     return parser.parse_args()
 
 
@@ -241,6 +242,13 @@ def run_import(args: argparse.Namespace) -> int:
     imap = imaplib.IMAP4_SSL(host, port, ssl_context=ssl.create_default_context())
     imap.login(user, password)
     imap.select(folder)
+
+    if args.test_only:
+        imap.close()
+        imap.logout()
+        conn.close()
+        print("IMAP-Verbindung erfolgreich.")
+        return 0
 
     status, ids = imap.search(None, search_mode)
     if status != "OK":

@@ -60,7 +60,7 @@ try {
     $error = 'Fehler beim Laden der Einsatzapp-Einstellungen: ' . $e->getMessage();
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_einsatzapp'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_einsatzapp']) && !isset($_POST['test_imap'])) {
     if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Ungueltiger Sicherheitstoken.';
     } else {
@@ -111,6 +111,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_einsatzapp'])) {
             $message = 'Einsatzapp-Einstellungen gespeichert.';
         } catch (Throwable $e) {
             $error = 'Fehler beim Speichern: ' . $e->getMessage();
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['test_imap'])) {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Ungueltiger Sicherheitstoken.';
+    } else {
+        $host = trim((string)($_POST['alarmdepesche_imap_host'] ?? ($settings['alarmdepesche_imap_host'] ?? '')));
+        $port = trim((string)($_POST['alarmdepesche_imap_port'] ?? ($settings['alarmdepesche_imap_port'] ?? '993')));
+        $user = trim((string)($_POST['alarmdepesche_imap_user'] ?? ($settings['alarmdepesche_imap_user'] ?? '')));
+        $folder = trim((string)($_POST['alarmdepesche_imap_folder'] ?? ($settings['alarmdepesche_imap_folder'] ?? 'INBOX')));
+        $passwordInput = trim((string)($_POST['alarmdepesche_imap_password'] ?? ''));
+        $password = $passwordInput !== '' ? $passwordInput : trim((string)($settings['alarmdepesche_imap_password'] ?? ''));
+
+        if ($host === '' || $user === '' || $password === '') {
+            $error = 'IMAP-Test nicht moeglich: Bitte Host, Benutzer und Passwort angeben.';
+        } else {
+            $scriptPath = realpath(__DIR__ . '/../tools/import-alarmdepeschen-imap.py');
+            if (!$scriptPath || !is_file($scriptPath)) {
+                $error = 'IMAP-Test nicht moeglich: Import-Script nicht gefunden.';
+            } else {
+                $pythonCandidates = ['/usr/bin/python3', 'python3'];
+                $output = [];
+                $exitCode = 1;
+                foreach ($pythonCandidates as $pythonCmd) {
+                    $candidateOutput = [];
+                    $candidateExit = 1;
+                    $cmd = escapeshellarg($pythonCmd)
+                        . ' '
+                        . escapeshellarg($scriptPath)
+                        . ' --test-only'
+                        . ' --einheit-id=' . (int)$einheit_id
+                        . ' --host=' . escapeshellarg($host)
+                        . ' --port=' . (int)$port
+                        . ' --user=' . escapeshellarg($user)
+                        . ' --password=' . escapeshellarg($password)
+                        . ' --folder=' . escapeshellarg($folder);
+                    @exec($cmd . ' 2>&1', $candidateOutput, $candidateExit);
+                    $output = $candidateOutput;
+                    $exitCode = $candidateExit;
+                    if ($candidateExit === 0) {
+                        break;
+                    }
+                }
+
+                if ($exitCode === 0) {
+                    $summary = trim(implode(' ', $output));
+                    $message = $summary !== '' ? ('IMAP-Test erfolgreich: ' . $summary) : 'IMAP-Test erfolgreich.';
+                } else {
+                    $details = trim(implode(' ', $output));
+                    if (stripos($details, 'AUTHENTICATIONFAILED') !== false || stripos($details, 'Invalid credentials') !== false) {
+                        $error = 'IMAP-Test fehlgeschlagen: Login nicht moeglich (Benutzer/Passwort ungueltig).';
+                    } else {
+                        $error = 'IMAP-Test fehlgeschlagen.' . ($details !== '' ? (' Details: ' . $details) : '');
+                    }
+                }
+            }
         }
     }
 }
@@ -236,6 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_einsatzapp'])) {
 
             <div class="d-flex flex-wrap gap-2 mb-4">
                 <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Einsatzapp-Einstellungen speichern</button>
+                <button type="submit" class="btn btn-outline-success" name="test_imap" value="1"><i class="fas fa-plug me-1"></i>IMAP Verbindung testen</button>
                 <a class="btn btn-outline-danger" href="alarmdepeschen.php?einheit_id=<?php echo (int)$einheit_id; ?>"><i class="fas fa-file-pdf me-1"></i>Alarmdepeschen verwalten</a>
                 <a class="btn btn-outline-primary" href="divera-samples.php?einheit_id=<?php echo (int)$einheit_id; ?>"><i class="fas fa-database me-1"></i>Divera Beispieldaten verwalten</a>
             </div>
