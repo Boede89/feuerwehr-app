@@ -118,6 +118,21 @@ $einheit_param = '&einheit_id=' . $einheit_id;
                 </div>
             </div>
 
+            <!-- Einsatzapp -->
+            <div class="col-md-6">
+                <div class="card h-100 border-primary">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title text-primary"><i class="fas fa-mobile-screen-button me-2"></i>Einsatzapp</h5>
+                        <p class="text-muted">Alle Einstellungen und Verwaltungsseiten rund um die App an einem Ort.</p>
+                        <div class="mt-auto">
+                            <a class="btn btn-primary" href="settings-einsatzapp.php?id=<?php echo $einheit_id; ?>">
+                                <i class="fas fa-layer-group"></i> Öffnen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Benutzerverwaltung -->
             <div class="col-md-6">
                 <div class="card h-100">
