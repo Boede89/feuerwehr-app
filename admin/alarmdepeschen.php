@@ -77,29 +77,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'refre
         if ($einheitIdForImport <= 0) {
             $error = 'Bitte eine gueltige Einheit waehlen, bevor der Import gestartet wird.';
         } else {
-            $scriptPath = realpath(__DIR__ . '/../tools/import-alarmdepeschen-imap.php');
+            $scriptPath = realpath(__DIR__ . '/../tools/import-alarmdepeschen-imap.py');
             if (!$scriptPath || !is_file($scriptPath)) {
                 $error = 'Import-Script nicht gefunden.';
             } else {
-                $phpCandidates = [];
-                $phpBinary = defined('PHP_BINARY') ? trim((string)PHP_BINARY) : '';
-                if ($phpBinary !== '') $phpCandidates[] = $phpBinary;
-                $phpBinDir = defined('PHP_BINDIR') ? trim((string)PHP_BINDIR) : '';
-                if ($phpBinDir !== '') $phpCandidates[] = rtrim($phpBinDir, '/\\') . DIRECTORY_SEPARATOR . 'php';
-                $phpCandidates[] = 'php';
-                $phpCandidates = array_values(array_unique(array_filter($phpCandidates, static function ($value) {
+                $pythonCandidates = ['python3', 'python'];
+                $pythonCandidates = array_values(array_unique(array_filter($pythonCandidates, static function ($value) {
                     return trim((string)$value) !== '';
                 })));
 
                 $output = [];
                 $exitCode = 1;
-                foreach ($phpCandidates as $phpCmd) {
+                foreach ($pythonCandidates as $pythonCmd) {
                     $candidateOutput = [];
                     $candidateExit = 1;
-                    $cmd = escapeshellarg($phpCmd)
+                    $cmd = escapeshellarg($pythonCmd)
                         . ' '
                         . escapeshellarg($scriptPath)
-                        . ' --from-settings=1 --einheit-id=' . $einheitIdForImport;
+                        . ' --einheit-id=' . $einheitIdForImport;
                     @exec($cmd . ' 2>&1', $candidateOutput, $candidateExit);
                     $output = $candidateOutput;
                     $exitCode = $candidateExit;
@@ -115,8 +110,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'refre
                         : 'Import erfolgreich ausgefuehrt.';
                 } else {
                     $details = trim(implode(' ', $output));
-                    if (stripos($details, 'PHP-IMAP Erweiterung ist nicht installiert') !== false) {
-                        $error = 'Import fehlgeschlagen: PHP-IMAP Erweiterung fehlt im Web-Container. '
+                    if (stripos($details, 'python: not found') !== false || stripos($details, 'python3: not found') !== false) {
+                        $error = 'Import fehlgeschlagen: Python fehlt im Web-Container. '
+                            . 'Bitte Container neu bauen/starten: '
+                            . '`docker compose build web && docker compose up -d web`';
+                    } elseif (stripos($details, 'pymysql') !== false) {
+                        $error = 'Import fehlgeschlagen: PyMySQL fehlt im Web-Container. '
                             . 'Bitte Container neu bauen/starten: '
                             . '`docker compose build web && docker compose up -d web`';
                     } else {
