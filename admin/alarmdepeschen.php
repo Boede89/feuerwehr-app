@@ -81,14 +81,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'refre
             if (!$scriptPath || !is_file($scriptPath)) {
                 $error = 'Import-Script nicht gefunden.';
             } else {
+                $phpCandidates = [];
+                $phpBinary = defined('PHP_BINARY') ? trim((string)PHP_BINARY) : '';
+                if ($phpBinary !== '') $phpCandidates[] = $phpBinary;
+                $phpBinDir = defined('PHP_BINDIR') ? trim((string)PHP_BINDIR) : '';
+                if ($phpBinDir !== '') $phpCandidates[] = rtrim($phpBinDir, '/\\') . DIRECTORY_SEPARATOR . 'php';
+                $phpCandidates[] = 'php';
+                $phpCandidates = array_values(array_unique(array_filter($phpCandidates, static function ($value) {
+                    return trim((string)$value) !== '';
+                })));
+
                 $output = [];
                 $exitCode = 1;
-                $phpBinary = defined('PHP_BINARY') ? PHP_BINARY : 'php';
-                $cmd = escapeshellarg($phpBinary)
-                    . ' '
-                    . escapeshellarg($scriptPath)
-                    . ' --from-settings=1 --einheit-id=' . $einheitIdForImport;
-                @exec($cmd . ' 2>&1', $output, $exitCode);
+                foreach ($phpCandidates as $phpCmd) {
+                    $candidateOutput = [];
+                    $candidateExit = 1;
+                    $cmd = escapeshellarg($phpCmd)
+                        . ' '
+                        . escapeshellarg($scriptPath)
+                        . ' --from-settings=1 --einheit-id=' . $einheitIdForImport;
+                    @exec($cmd . ' 2>&1', $candidateOutput, $candidateExit);
+                    $output = $candidateOutput;
+                    $exitCode = $candidateExit;
+                    if ($candidateExit === 0) {
+                        break;
+                    }
+                }
 
                 if ($exitCode === 0) {
                     $summary = trim(implode(' ', $output));
