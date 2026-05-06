@@ -165,8 +165,14 @@ $statusData = mobile_members_status_data($db, $matchedEinheitId);
 
 try {
     $stmt = $db->query("
-        SELECT id, first_name, last_name, divera_ucr_id
-        FROM members
+        SELECT
+            m.id,
+            m.first_name,
+            m.last_name,
+            m.divera_ucr_id,
+            COALESCE(q.name, '') AS qualification_name
+        FROM members m
+        LEFT JOIN member_qualifications q ON q.id = m.qualification_id
         ORDER BY last_name, first_name
     ");
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -177,6 +183,7 @@ try {
             'first_name' => (string)($row['first_name'] ?? ''),
             'last_name' => (string)($row['last_name'] ?? ''),
             'divera_ucr_id' => (int)($row['divera_ucr_id'] ?? 0),
+            'qualification_name' => (string)($row['qualification_name'] ?? ''),
         ];
     }
     echo json_encode([
