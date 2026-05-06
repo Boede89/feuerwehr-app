@@ -17,7 +17,7 @@ if (!hasAdminPermission()) {
 
 $einheit_id = isset($_GET['einheit_id']) ? (int)$_GET['einheit_id'] : 0;
 $einheit = null;
-$valid_tabs = ['smtp', 'google', 'einheit', 'einsatzapp', 'drucker', 'divera', 'fahrzeuge', 'raeume'];
+$valid_tabs = ['smtp', 'google', 'einheit', 'drucker', 'divera', 'fahrzeuge', 'raeume'];
 $global_valid_tabs = ['app', 'feedback', 'smtp'];
 if ($einheit_id <= 0) {
     $active_tab = isset($_GET['tab']) ? preg_replace('/[^a-z0-9_-]/', '', $_GET['tab']) : 'app';
@@ -444,32 +444,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                     'anwesenheitsliste_divera_rueckmeldung_status_id' => $anw_divera_status_id,
                     'anwesenheitsliste_divera_rueckmeldung_status_presets' => json_encode($anw_status_presets_save, JSON_UNESCAPED_UNICODE),
                 ];
-                $api_labels = $_POST['einsatzapp_api_label'] ?? [];
-                $api_tokens = $_POST['einsatzapp_api_token'] ?? [];
-                $einsatzapp_tokens_save = [];
-                foreach ($api_tokens as $i => $tokenRaw) {
-                    $token = trim((string)$tokenRaw);
-                    $label = trim((string)($api_labels[$i] ?? ''));
-                    if ($token === '') continue;
-                    $einsatzapp_tokens_save[] = ['label' => $label, 'token' => $token];
-                }
-                $imapPasswordInput = trim((string)($_POST['alarmdepesche_imap_password'] ?? ''));
-                $imapPassword = $imapPasswordInput !== ''
-                    ? $imapPasswordInput
-                    : trim((string)($settings['alarmdepesche_imap_password'] ?? ''));
-                $einsatzapp = [
-                    'einsatzapp_api_tokens' => json_encode($einsatzapp_tokens_save, JSON_UNESCAPED_UNICODE),
-                    'alarmdepesche_imap_host' => trim((string)($_POST['alarmdepesche_imap_host'] ?? '')),
-                    'alarmdepesche_imap_port' => trim((string)($_POST['alarmdepesche_imap_port'] ?? '993')),
-                    'alarmdepesche_imap_user' => trim((string)($_POST['alarmdepesche_imap_user'] ?? '')),
-                    'alarmdepesche_imap_password' => $imapPassword,
-                    'alarmdepesche_imap_folder' => trim((string)($_POST['alarmdepesche_imap_folder'] ?? 'INBOX')),
-                    'alarmdepesche_imap_search_mode' => in_array(trim((string)($_POST['alarmdepesche_imap_search_mode'] ?? 'UNSEEN')), ['UNSEEN', 'ALL'], true)
-                        ? trim((string)($_POST['alarmdepesche_imap_search_mode'] ?? 'UNSEEN'))
-                        : 'UNSEEN',
-                    'alarmdepesche_subject_filter' => trim((string)($_POST['alarmdepesche_subject_filter'] ?? '')),
-                ];
-                $all = array_merge($smtp, $google, $app, $printer, $divera, $einsatzapp);
+                $all = array_merge($smtp, $google, $app, $printer, $divera);
                 save_settings_bulk_for_einheit($db, $save_einheit_id, $all);
             } else {
                 // Global: App, Feedback-E-Mail, SMTP (für Feedback/Wünsche unabhängig von Einheiten)
@@ -668,9 +643,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                 <button class="nav-link <?php echo $active_tab === 'einheit' ? 'active' : ''; ?>" id="tab-einheit-btn" data-bs-toggle="tab" data-bs-target="#tab-einheit" type="button" role="tab"><i class="fas fa-building me-1"></i> Einheit</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link <?php echo $active_tab === 'einsatzapp' ? 'active' : ''; ?>" id="tab-einsatzapp-btn" data-bs-toggle="tab" data-bs-target="#tab-einsatzapp" type="button" role="tab"><i class="fas fa-mobile-screen-button me-1"></i> Einsatzapp</button>
-            </li>
-            <li class="nav-item" role="presentation">
                 <button class="nav-link <?php echo $active_tab === 'drucker' ? 'active' : ''; ?>" id="tab-drucker-btn" data-bs-toggle="tab" data-bs-target="#tab-drucker" type="button" role="tab"><i class="fas fa-print me-1"></i> Drucker</button>
             </li>
             <li class="nav-item" role="presentation">
@@ -792,77 +764,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['action']) || $_POST
                             <button type="submit" form="einheitForm" class="btn btn-primary"><i class="fas fa-save"></i> Speichern</button>
                         </div>
                         <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-            <div class="tab-pane fade <?php echo $active_tab === 'einsatzapp' ? 'show active' : ''; ?>" id="tab-einsatzapp" role="tabpanel">
-                <div class="card">
-                    <div class="card-header"><i class="fas fa-mobile-screen-button"></i> Einsatzapp API-Einstellungen</div>
-                    <div class="card-body">
-                        <p class="text-muted small mb-3">Verwalten Sie API-Tokens fuer die Einsatzapp. Mehrere Tokens sind moeglich (z. B. pro Geraet oder Rolle).</p>
-                        <div id="einsatzappTokenContainer">
-                            <?php foreach ($einsatzapp_api_tokens as $tok): ?>
-                            <div class="row g-2 align-items-center mb-2 einsatzapp-token-row">
-                                <div class="col-md-4">
-                                    <input type="text" class="form-control" name="einsatzapp_api_label[]" placeholder="Bezeichnung / Kommentar" value="<?php echo htmlspecialchars($tok['label'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
-                                </div>
-                                <div class="col-md-7">
-                                    <input type="text" class="form-control" name="einsatzapp_api_token[]" placeholder="API-Token" value="<?php echo htmlspecialchars($tok['token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
-                                </div>
-                                <div class="col-md-1 d-grid">
-                                    <button type="button" class="btn btn-outline-danger btn-remove-einsatzapp-token" title="Token entfernen"><i class="fas fa-trash"></i></button>
-                                </div>
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                        <div class="d-flex gap-2 mt-2">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAddEinsatzappToken"><i class="fas fa-plus me-1"></i>Token hinzufuegen</button>
-                            <button type="button" class="btn btn-outline-primary btn-sm" id="btnGenerateEinsatzappToken"><i class="fas fa-key me-1"></i>Zufaelligen Schluessel erzeugen</button>
-                        </div>
-                        <small class="text-muted d-block mt-2">Tokens werden beim Speichern der Einstellungen uebernommen. Leere Zeilen werden ignoriert.</small>
-
-                        <hr class="my-4">
-                        <h6 class="mb-3"><i class="fas fa-file-pdf me-1"></i> Alarmdepesche (IMAP Postfach)</h6>
-                        <p class="text-muted small mb-3">Diese Zugangsdaten werden vom Import-Script verwendet, um Fax-PDFs aus dem Postfach abzurufen.</p>
-                        <div class="row g-2">
-                            <div class="col-md-6">
-                                <label class="form-label">IMAP Host</label>
-                                <input type="text" class="form-control" name="alarmdepesche_imap_host" placeholder="z.B. imap.example.com" value="<?php echo htmlspecialchars($settings['alarmdepesche_imap_host'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Port</label>
-                                <input type="number" class="form-control" name="alarmdepesche_imap_port" placeholder="993" value="<?php echo htmlspecialchars($settings['alarmdepesche_imap_port'] ?? '993', ENT_QUOTES, 'UTF-8'); ?>">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">IMAP Ordner</label>
-                                <input type="text" class="form-control" name="alarmdepesche_imap_folder" placeholder="INBOX" value="<?php echo htmlspecialchars($settings['alarmdepesche_imap_folder'] ?? 'INBOX', ENT_QUOTES, 'UTF-8'); ?>">
-                            </div>
-                        </div>
-                        <div class="row g-2 mt-1">
-                            <div class="col-md-6">
-                                <label class="form-label">IMAP Benutzer</label>
-                                <input type="text" class="form-control" name="alarmdepesche_imap_user" placeholder="z.B. fax@feuerwehr.de" value="<?php echo htmlspecialchars($settings['alarmdepesche_imap_user'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">IMAP Passwort</label>
-                                <input type="password" class="form-control" name="alarmdepesche_imap_password" placeholder="Leer lassen = bisheriges Passwort behalten">
-                            </div>
-                        </div>
-                        <div class="row g-2 mt-1">
-                            <div class="col-md-4">
-                                <label class="form-label">Suchmodus</label>
-                                <?php $imap_search_mode = strtoupper(trim((string)($settings['alarmdepesche_imap_search_mode'] ?? 'UNSEEN'))); ?>
-                                <select class="form-select" name="alarmdepesche_imap_search_mode">
-                                    <option value="UNSEEN" <?php echo $imap_search_mode === 'UNSEEN' ? 'selected' : ''; ?>>Nur ungelesene Mails (UNSEEN)</option>
-                                    <option value="ALL" <?php echo $imap_search_mode === 'ALL' ? 'selected' : ''; ?>>Alle Mails (ALL)</option>
-                                </select>
-                            </div>
-                            <div class="col-md-8">
-                                <label class="form-label">Betreff-Filter (optional)</label>
-                                <input type="text" class="form-control" name="alarmdepesche_subject_filter" placeholder="z.B. Alarmdepesche" value="<?php echo htmlspecialchars($settings['alarmdepesche_subject_filter'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
-                            </div>
-                        </div>
-                        <small class="text-muted d-block mt-2">Hinweis: Das Passwort wird nur ueberschrieben, wenn hier ein neuer Wert eingetragen wird.</small>
                     </div>
                 </div>
             </div>

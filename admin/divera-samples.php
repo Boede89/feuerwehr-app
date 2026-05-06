@@ -118,8 +118,8 @@ try {
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h3 mb-0"><i class="fas fa-database text-primary"></i> Divera Beispieldaten</h1>
-        <a href="settings-global.php<?php echo $filterEinheit > 0 ? '?einheit_id=' . $filterEinheit . '&tab=einsatzapp' : ''; ?>" class="btn btn-outline-secondary">
-            <i class="fas fa-gear me-1"></i> EinsatzApp Einstellungen
+        <a href="settings-einsatzapp.php<?php echo $filterEinheit > 0 ? '?id=' . $filterEinheit : ''; ?>" class="btn btn-outline-secondary">
+            <i class="fas fa-gear me-1"></i> Einsatzapp Einstellungen
         </a>
     </div>
 
