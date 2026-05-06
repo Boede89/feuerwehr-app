@@ -11,12 +11,15 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     libcurl4-openssl-dev \
+    libc-client-dev \
+    libkrb5-dev \
     pkg-config \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # PHP Extensions installieren
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-configure imap --with-kerberos --with-imap-ssl \
     && docker-php-ext-install -j$(nproc) \
     pdo_mysql \
     mysqli \
@@ -25,6 +28,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     mbstring \
     xml \
     curl \
+    imap \
     opcache
 
 # Apache mod_rewrite aktivieren

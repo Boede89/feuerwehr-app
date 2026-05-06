@@ -115,7 +115,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'refre
                         : 'Import erfolgreich ausgefuehrt.';
                 } else {
                     $details = trim(implode(' ', $output));
-                    $error = 'Import fehlgeschlagen.' . ($details !== '' ? (' Details: ' . $details) : '');
+                    if (stripos($details, 'PHP-IMAP Erweiterung ist nicht installiert') !== false) {
+                        $error = 'Import fehlgeschlagen: PHP-IMAP Erweiterung fehlt im Web-Container. '
+                            . 'Bitte Container neu bauen/starten: '
+                            . '`docker compose build web && docker compose up -d web`';
+                    } else {
+                        $error = 'Import fehlgeschlagen.' . ($details !== '' ? (' Details: ' . $details) : '');
+                    }
                 }
             }
         }
