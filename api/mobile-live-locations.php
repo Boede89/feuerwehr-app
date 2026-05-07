@@ -210,44 +210,50 @@ if (!is_array($payload)) {
 
 $vehicleId = (int)($payload['vehicle_id'] ?? 0);
 $vehicleName = trim((string)($payload['vehicle_name'] ?? ''));
-$latitude = isset($payload['latitude']) ? (float)$payload['latitude'] : 0.0;
-$longitude = isset($payload['longitude']) ? (float)$payload['longitude'] : 0.0;
+$latitude = isset($payload['latitude']) ? (float)$payload['latitude'] : null;
+$longitude = isset($payload['longitude']) ? (float)$payload['longitude'] : null;
 $accuracy = isset($payload['accuracy_m']) ? (float)$payload['accuracy_m'] : null;
 $speed = isset($payload['speed_mps']) ? (float)$payload['speed_mps'] : null;
 $heading = isset($payload['heading_deg']) ? (float)$payload['heading_deg'] : null;
 
-if ($vehicleId <= 0 || $vehicleName === '') {
-    http_response_code(422);
-    echo json_encode(['success' => false, 'message' => 'vehicle_id und vehicle_name sind erforderlich.']);
-    exit;
-}
-if ($latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180) {
-    http_response_code(422);
-    echo json_encode(['success' => false, 'message' => 'Ungueltige Koordinaten.']);
-    exit;
-}
-
 $incidentLat = isset($payload['incident_latitude']) ? (float)$payload['incident_latitude'] : null;
 $incidentLon = isset($payload['incident_longitude']) ? (float)$payload['incident_longitude'] : null;
 $incidentLabel = trim((string)($payload['incident_label'] ?? 'Einsatzstelle'));
+$updateIncidentOnly = !empty($payload['update_incident_only']);
+
+$hasVehiclePayload = $vehicleId > 0 && $vehicleName !== '' && $latitude !== null && $longitude !== null;
+$hasIncidentPayload = $incidentLat !== null && $incidentLon !== null &&
+    $incidentLat >= -90 && $incidentLat <= 90 && $incidentLon >= -180 && $incidentLon <= 180;
+
+if (!$hasVehiclePayload && !$hasIncidentPayload) {
+    http_response_code(422);
+    echo json_encode(['success' => false, 'message' => 'Weder gueltige Fahrzeug- noch Einsatzkoordinaten uebergeben.']);
+    exit;
+}
+if ($hasVehiclePayload && ($latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180)) {
+    http_response_code(422);
+    echo json_encode(['success' => false, 'message' => 'Ungueltige Fahrzeugkoordinaten.']);
+    exit;
+}
 
 try {
-    $stmt = $db->prepare("
-        INSERT INTO mobile_vehicle_locations (einheit_id, vehicle_id, vehicle_name, latitude, longitude, accuracy_m, speed_mps, heading_deg)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            vehicle_name = VALUES(vehicle_name),
-            latitude = VALUES(latitude),
-            longitude = VALUES(longitude),
-            accuracy_m = VALUES(accuracy_m),
-            speed_mps = VALUES(speed_mps),
-            heading_deg = VALUES(heading_deg),
-            updated_at = CURRENT_TIMESTAMP
-    ");
-    $stmt->execute([$einheitId, $vehicleId, $vehicleName, $latitude, $longitude, $accuracy, $speed, $heading]);
+    if ($hasVehiclePayload && !$updateIncidentOnly) {
+        $stmt = $db->prepare("
+            INSERT INTO mobile_vehicle_locations (einheit_id, vehicle_id, vehicle_name, latitude, longitude, accuracy_m, speed_mps, heading_deg)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                vehicle_name = VALUES(vehicle_name),
+                latitude = VALUES(latitude),
+                longitude = VALUES(longitude),
+                accuracy_m = VALUES(accuracy_m),
+                speed_mps = VALUES(speed_mps),
+                heading_deg = VALUES(heading_deg),
+                updated_at = CURRENT_TIMESTAMP
+        ");
+        $stmt->execute([$einheitId, $vehicleId, $vehicleName, $latitude, $longitude, $accuracy, $speed, $heading]);
+    }
 
-    if ($incidentLat !== null && $incidentLon !== null &&
-        $incidentLat >= -90 && $incidentLat <= 90 && $incidentLon >= -180 && $incidentLon <= 180) {
+    if ($hasIncidentPayload) {
         $incidentStmt = $db->prepare("
             INSERT INTO mobile_incident_locations (einheit_id, label, latitude, longitude)
             VALUES (?, ?, ?, ?)

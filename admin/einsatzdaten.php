@@ -126,13 +126,35 @@ $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einhei
             if (data.incident && Number.isFinite(data.incident.latitude) && Number.isFinite(data.incident.longitude)) {
                 const pos = [data.incident.latitude, data.incident.longitude];
                 if (!incidentMarker) {
-                    incidentMarker = L.marker(pos, { title: data.incident.label || 'Einsatzstelle', icon: incidentIcon }).addTo(map);
+                    incidentMarker = L.marker(pos, { title: data.incident.label || 'Einsatzstelle', icon: incidentIcon, draggable: true }).addTo(map);
                     incidentMarker.bindPopup('<strong>' + (data.incident.label || 'Einsatzstelle') + '</strong>');
                     incidentMarker.bindTooltip(data.incident.label || 'Einsatzstelle', {
                         permanent: true,
                         direction: 'top',
                         offset: [0, -16],
                         className: 'incident-label'
+                    });
+                    incidentMarker.on('dragend', async function(ev) {
+                        const ll = ev.target.getLatLng();
+                        try {
+                            const res = await fetch('einsatzdaten-update-incident.php', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'same-origin',
+                                body: JSON.stringify({
+                                    latitude: ll.lat,
+                                    longitude: ll.lng,
+                                    label: data.incident.label || 'Einsatzstelle'
+                                })
+                            });
+                            const out = await res.json();
+                            if (!out.success) {
+                                throw new Error(out.message || 'Speichern fehlgeschlagen');
+                            }
+                            metaEl.innerHTML = '<span class="badge bg-success">Einsatzstelle gespeichert</span>';
+                        } catch (err) {
+                            metaEl.innerHTML = '<span class="text-danger">Verschieben nicht gespeichert: ' + (err.message || 'Unbekannt') + '</span>';
+                        }
                     });
                 } else {
                     incidentMarker.setLatLng(pos);
