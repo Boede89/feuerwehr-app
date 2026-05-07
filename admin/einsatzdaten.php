@@ -136,6 +136,24 @@ $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einhei
                     });
                     incidentMarker.on('dragend', async function(ev) {
                         const ll = ev.target.getLatLng();
+                        let nextLabel = data.incident.label || 'Einsatzstelle';
+                        try {
+                            const rev = await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + encodeURIComponent(ll.lat) + '&lon=' + encodeURIComponent(ll.lng), {
+                                headers: { 'Accept': 'application/json' }
+                            });
+                            const revJson = await rev.json();
+                            const addr = revJson && revJson.address ? revJson.address : null;
+                            if (addr) {
+                                const road = addr.road || addr.pedestrian || addr.footway || addr.path || '';
+                                const number = addr.house_number || '';
+                                const city = addr.city || addr.town || addr.village || addr.municipality || '';
+                                const composed = [ [road, number].filter(Boolean).join(' '), city ].filter(Boolean).join(', ');
+                                if (composed) nextLabel = composed;
+                            } else if (revJson && revJson.display_name) {
+                                nextLabel = String(revJson.display_name).split(',').slice(0, 2).join(',').trim() || nextLabel;
+                            }
+                        } catch (e) {
+                        }
                         try {
                             const res = await fetch('einsatzdaten-update-incident.php', {
                                 method: 'POST',
@@ -144,13 +162,15 @@ $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einhei
                                 body: JSON.stringify({
                                     latitude: ll.lat,
                                     longitude: ll.lng,
-                                    label: data.incident.label || 'Einsatzstelle'
+                                    label: nextLabel
                                 })
                             });
                             const out = await res.json();
                             if (!out.success) {
                                 throw new Error(out.message || 'Speichern fehlgeschlagen');
                             }
+                            incidentMarker.setTooltipContent(nextLabel);
+                            incidentMarker.setPopupContent('<strong>' + nextLabel + '</strong>');
                             metaEl.innerHTML = '<span class="badge bg-success">Einsatzstelle gespeichert</span>';
                         } catch (err) {
                             metaEl.innerHTML = '<span class="text-danger">Verschieben nicht gespeichert: ' + (err.message || 'Unbekannt') + '</span>';

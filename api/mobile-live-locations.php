@@ -88,9 +88,11 @@ function mll_ensure_tables(PDO $db): void {
             accuracy_m DOUBLE NULL,
             speed_mps DOUBLE NULL,
             heading_deg DOUBLE NULL,
+            source_token_hash VARCHAR(64) NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY uniq_unit_vehicle (einheit_id, vehicle_id),
-            KEY idx_unit_updated (einheit_id, updated_at)
+            KEY idx_unit_updated (einheit_id, updated_at),
+            KEY idx_token_hash (source_token_hash)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
     $db->exec("
@@ -104,6 +106,14 @@ function mll_ensure_tables(PDO $db): void {
             UNIQUE KEY uniq_unit_incident (einheit_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+    try {
+        $db->exec("ALTER TABLE mobile_vehicle_locations ADD COLUMN source_token_hash VARCHAR(64) NULL AFTER heading_deg");
+    } catch (Throwable $e) {
+    }
+    try {
+        $db->exec("ALTER TABLE mobile_vehicle_locations ADD INDEX idx_token_hash (source_token_hash)");
+    } catch (Throwable $e) {
+    }
 }
 
 $requestToken = mll_request_token();
@@ -220,6 +230,8 @@ $incidentLat = isset($payload['incident_latitude']) ? (float)$payload['incident_
 $incidentLon = isset($payload['incident_longitude']) ? (float)$payload['incident_longitude'] : null;
 $incidentLabel = trim((string)($payload['incident_label'] ?? 'Einsatzstelle'));
 $updateIncidentOnly = !empty($payload['update_incident_only']);
+$replaceVehicleForToken = !empty($payload['replace_vehicle_for_token']);
+$tokenHash = hash('sha256', $requestToken);
 
 $hasVehiclePayload = $vehicleId > 0 && $vehicleName !== '' && $latitude !== null && $longitude !== null;
 $hasIncidentPayload = $incidentLat !== null && $incidentLon !== null &&
@@ -238,9 +250,18 @@ if ($hasVehiclePayload && ($latitude < -90 || $latitude > 90 || $longitude < -18
 
 try {
     if ($hasVehiclePayload && !$updateIncidentOnly) {
+        if ($replaceVehicleForToken && $tokenHash !== '') {
+            $cleanup = $db->prepare("
+                DELETE FROM mobile_vehicle_locations
+                WHERE einheit_id = ?
+                  AND source_token_hash = ?
+                  AND vehicle_id <> ?
+            ");
+            $cleanup->execute([$einheitId, $tokenHash, $vehicleId]);
+        }
         $stmt = $db->prepare("
-            INSERT INTO mobile_vehicle_locations (einheit_id, vehicle_id, vehicle_name, latitude, longitude, accuracy_m, speed_mps, heading_deg)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO mobile_vehicle_locations (einheit_id, vehicle_id, vehicle_name, latitude, longitude, accuracy_m, speed_mps, heading_deg, source_token_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 vehicle_name = VALUES(vehicle_name),
                 latitude = VALUES(latitude),
@@ -248,9 +269,10 @@ try {
                 accuracy_m = VALUES(accuracy_m),
                 speed_mps = VALUES(speed_mps),
                 heading_deg = VALUES(heading_deg),
+                source_token_hash = VALUES(source_token_hash),
                 updated_at = CURRENT_TIMESTAMP
         ");
-        $stmt->execute([$einheitId, $vehicleId, $vehicleName, $latitude, $longitude, $accuracy, $speed, $heading]);
+        $stmt->execute([$einheitId, $vehicleId, $vehicleName, $latitude, $longitude, $accuracy, $speed, $heading, $tokenHash]);
     }
 
     if ($hasIncidentPayload) {
