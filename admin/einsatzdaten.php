@@ -13,6 +13,7 @@ $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einhei
 $conn = (isset($db) && $db instanceof PDO) ? $db : null;
 $incidents = [];
 $incidentsError = null;
+$showingAllUnits = false;
 try {
     if (!$conn) {
         throw new RuntimeException('Keine gueltige Datenbankverbindung vorhanden.');
@@ -20,9 +21,11 @@ try {
     if (function_exists('einsatz_ensure_table')) {
         einsatz_ensure_table($conn);
     }
-    $stmt = $conn->prepare("
+
+    $baseSelect = "
         SELECT
             id,
+            einheit_id,
             divera_alarm_id AS einsatznummer,
             title,
             address,
@@ -34,11 +37,21 @@ try {
             created_at,
             last_synced_at
         FROM einsatz_data
-        WHERE einheit_id = ?
-        ORDER BY is_active DESC, last_synced_at DESC, id DESC
-    ");
-    $stmt->execute([$einheitId]);
+    ";
+
+    if ($einheitId > 0) {
+        $stmt = $conn->prepare($baseSelect . " WHERE einheit_id = ? ORDER BY is_active DESC, last_synced_at DESC, id DESC");
+        $stmt->execute([$einheitId]);
+    } else {
+        $stmt = $conn->query($baseSelect . " ORDER BY is_active DESC, last_synced_at DESC, id DESC");
+    }
     $incidents = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    if ($einheitId > 0 && empty($incidents)) {
+        $stmtAll = $conn->query($baseSelect . " ORDER BY is_active DESC, last_synced_at DESC, id DESC");
+        $incidents = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $showingAllUnits = !empty($incidents);
+    }
 } catch (Throwable $e) {
     $incidentsError = $e->getMessage();
 }
@@ -105,6 +118,11 @@ try {
             <span class="badge bg-secondary"><?php echo (int)count($incidents); ?> Eintraege</span>
         </div>
         <div class="card-body p-0">
+            <?php if ($showingAllUnits): ?>
+                <div class="alert alert-info m-3 mb-0">
+                    Fuer die aktuelle Einheit wurden keine Eintraege gefunden. Es werden daher Einsaetze aller Einheiten angezeigt.
+                </div>
+            <?php endif; ?>
             <?php if ($incidentsError): ?>
                 <div class="alert alert-danger m-3 mb-0">
                     Fehler beim Laden der Einsatzdaten: <?php echo htmlspecialchars($incidentsError, ENT_QUOTES, 'UTF-8'); ?>
@@ -119,6 +137,7 @@ try {
                         <thead class="table-light">
                         <tr>
                             <th>ID</th>
+                            <th>Einheit</th>
                             <th>Einsatznummer</th>
                             <th>Titel</th>
                             <th>Adresse</th>
@@ -133,6 +152,7 @@ try {
                         <?php foreach ($incidents as $incident): ?>
                             <tr>
                                 <td><?php echo (int)$incident['id']; ?></td>
+                                <td><?php echo (int)($incident['einheit_id'] ?? 0); ?></td>
                                 <td><?php echo htmlspecialchars((string)($incident['einsatznummer'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td><?php echo htmlspecialchars((string)($incident['title'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td><?php echo htmlspecialchars((string)($incident['address'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></td>
