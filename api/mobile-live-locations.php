@@ -193,27 +193,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         ");
         $incidentStmt->execute([$einheitId]);
         $incidentRow = $incidentStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$incidentRow) {
-            $fallbackStmt = $db->prepare("
-                SELECT label, latitude, longitude, updated_at
-                FROM mobile_incident_locations
-                WHERE einheit_id = 0
-                ORDER BY updated_at DESC
-                LIMIT 1
-            ");
-            $fallbackStmt->execute();
-            $incidentRow = $fallbackStmt->fetch(PDO::FETCH_ASSOC);
-        }
-        if (!$incidentRow) {
-            $latestStmt = $db->prepare("
-                SELECT label, latitude, longitude, updated_at
-                FROM mobile_incident_locations
-                ORDER BY updated_at DESC
-                LIMIT 1
-            ");
-            $latestStmt->execute();
-            $incidentRow = $latestStmt->fetch(PDO::FETCH_ASSOC);
-        }
         if ($incidentRow) {
             $incident = [
                 'label' => (string)($incidentRow['label'] ?? ''),
@@ -287,6 +266,7 @@ $incidentLon = isset($payload['incident_longitude']) ? (float)$payload['incident
 $incidentLabel = trim((string)($payload['incident_label'] ?? 'Einsatzstelle'));
 $updateIncidentOnly = !empty($payload['update_incident_only']);
 $replaceVehicleForToken = !empty($payload['replace_vehicle_for_token']);
+$clearIncident = !empty($payload['clear_incident']);
 $tokenHash = hash('sha256', $requestToken);
 
 $hasVehiclePayload = $vehicleId > 0 && $vehicleName !== '' && $latitude !== null && $longitude !== null;
@@ -331,7 +311,10 @@ try {
         $stmt->execute([$einheitId, $vehicleId, $vehicleName, $latitude, $longitude, $accuracy, $speed, $heading, $tokenHash]);
     }
 
-    if ($hasIncidentPayload) {
+    if ($clearIncident) {
+        $clearStmt = $db->prepare("DELETE FROM mobile_incident_locations WHERE einheit_id = ?");
+        $clearStmt->execute([$einheitId]);
+    } else if ($hasIncidentPayload) {
         if ($incidentLabel === '' || strcasecmp($incidentLabel, 'Einsatzstelle') === 0) {
             $geoLabel = mll_reverse_geocode_label($incidentLat, $incidentLon);
             if ($geoLabel !== '') $incidentLabel = $geoLabel;
