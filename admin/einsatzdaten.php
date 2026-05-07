@@ -22,6 +22,24 @@ $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einhei
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <style>
         #einsatz-map { height: 70vh; min-height: 420px; border-radius: .5rem; }
+        .leaflet-tooltip.vehicle-label {
+            background: #0b2a4a;
+            color: #fff;
+            border: 0;
+            box-shadow: 0 1px 6px rgba(0,0,0,.25);
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 10px;
+        }
+        .leaflet-tooltip.incident-label {
+            background: #7f1d1d;
+            color: #fff;
+            border: 0;
+            box-shadow: 0 1px 6px rgba(0,0,0,.25);
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
@@ -61,16 +79,36 @@ $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einhei
     const vehicleMarkers = new Map();
     let initialFitDone = false;
     const metaEl = document.getElementById('einsatz-meta');
+    const incidentIcon = L.divIcon({
+        className: 'incident-marker-icon',
+        html: '<div style="width:28px;height:28px;border-radius:50%;background:#dc2626;border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 6px rgba(0,0,0,.35);font-size:15px;">🔥</div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+    });
+    const vehicleIcon = L.divIcon({
+        className: 'vehicle-marker-icon',
+        html: '<div style="width:28px;height:28px;border-radius:50%;background:#1d4ed8;border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 6px rgba(0,0,0,.35);font-size:14px;">🚒</div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+    });
 
     function upsertVehicleMarker(v) {
         const id = String(v.vehicle_id);
         const label = v.vehicle_name || ('Fahrzeug #' + id);
         let marker = vehicleMarkers.get(id);
         if (!marker) {
-            marker = L.marker([v.latitude, v.longitude], { title: label }).addTo(map);
+            marker = L.marker([v.latitude, v.longitude], { title: label, icon: vehicleIcon }).addTo(map);
             vehicleMarkers.set(id, marker);
+            marker.bindTooltip(label, {
+                permanent: true,
+                direction: 'top',
+                offset: [0, -16],
+                className: 'vehicle-label'
+            });
         } else {
             marker.setLatLng([v.latitude, v.longitude]);
+            marker.setIcon(vehicleIcon);
+            marker.setTooltipContent(label);
         }
         marker.bindPopup('<strong>' + label + '</strong><br>Letztes Update: ' + (v.updated_at || '-'));
         return marker;
@@ -88,11 +126,19 @@ $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einhei
             if (data.incident && Number.isFinite(data.incident.latitude) && Number.isFinite(data.incident.longitude)) {
                 const pos = [data.incident.latitude, data.incident.longitude];
                 if (!incidentMarker) {
-                    incidentMarker = L.marker(pos, { title: data.incident.label || 'Einsatzstelle' }).addTo(map);
+                    incidentMarker = L.marker(pos, { title: data.incident.label || 'Einsatzstelle', icon: incidentIcon }).addTo(map);
                     incidentMarker.bindPopup('<strong>' + (data.incident.label || 'Einsatzstelle') + '</strong>');
+                    incidentMarker.bindTooltip(data.incident.label || 'Einsatzstelle', {
+                        permanent: true,
+                        direction: 'top',
+                        offset: [0, -16],
+                        className: 'incident-label'
+                    });
                 } else {
                     incidentMarker.setLatLng(pos);
+                    incidentMarker.setIcon(incidentIcon);
                     incidentMarker.setPopupContent('<strong>' + (data.incident.label || 'Einsatzstelle') + '</strong>');
+                    incidentMarker.setTooltipContent(data.incident.label || 'Einsatzstelle');
                 }
                 bounds.push(pos);
             } else if (incidentMarker) {
