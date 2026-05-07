@@ -46,6 +46,7 @@ try {
         SELECT vehicle_id, vehicle_name, latitude, longitude, accuracy_m, speed_mps, heading_deg, updated_at
         FROM mobile_vehicle_locations
         WHERE einheit_id = ?
+          AND updated_at >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
         ORDER BY vehicle_name ASC, vehicle_id ASC
     ");
     $vehiclesStmt->execute([$einheitId]);

@@ -116,6 +116,40 @@ function mll_ensure_tables(PDO $db): void {
     }
 }
 
+function mll_reverse_geocode_label(float $lat, float $lon): string {
+    $url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' . rawurlencode((string)$lat) . '&lon=' . rawurlencode((string)$lon);
+    $opts = [
+        'http' => [
+            'method' => 'GET',
+            'timeout' => 3,
+            'header' => "Accept: application/json\r\nUser-Agent: FeuerwehrApp-LiveLocation/1.0\r\n",
+        ],
+    ];
+    $ctx = stream_context_create($opts);
+    $raw = @file_get_contents($url, false, $ctx);
+    if (!is_string($raw) || $raw === '') return '';
+    $json = json_decode($raw, true);
+    if (!is_array($json)) return '';
+    $addr = $json['address'] ?? null;
+    if (is_array($addr)) {
+        $road = trim((string)($addr['road'] ?? $addr['pedestrian'] ?? $addr['footway'] ?? $addr['path'] ?? ''));
+        $num = trim((string)($addr['house_number'] ?? ''));
+        $city = trim((string)($addr['city'] ?? $addr['town'] ?? $addr['village'] ?? $addr['municipality'] ?? ''));
+        $line1 = trim($road . ($num !== '' ? ' ' . $num : ''));
+        $parts = [];
+        if ($line1 !== '') $parts[] = $line1;
+        if ($city !== '') $parts[] = $city;
+        $label = trim(implode(', ', $parts));
+        if ($label !== '') return $label;
+    }
+    $display = trim((string)($json['display_name'] ?? ''));
+    if ($display !== '') {
+        $pieces = array_slice(array_map('trim', explode(',', $display)), 0, 2);
+        return trim(implode(', ', array_filter($pieces, static fn($v) => $v !== '')));
+    }
+    return '';
+}
+
 $requestToken = mll_request_token();
 $serverToken = mll_server_token($db);
 $valid = ($serverToken !== '' && hash_equals($serverToken, $requestToken));
@@ -172,6 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             SELECT vehicle_id, vehicle_name, latitude, longitude, accuracy_m, speed_mps, heading_deg, updated_at
             FROM mobile_vehicle_locations
             WHERE einheit_id = ?
+              AND updated_at >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
             ORDER BY vehicle_name ASC, vehicle_id ASC
         ");
         $vehiclesStmt->execute([$einheitId]);
@@ -276,6 +311,10 @@ try {
     }
 
     if ($hasIncidentPayload) {
+        if ($incidentLabel === '' || strcasecmp($incidentLabel, 'Einsatzstelle') === 0) {
+            $geoLabel = mll_reverse_geocode_label($incidentLat, $incidentLon);
+            if ($geoLabel !== '') $incidentLabel = $geoLabel;
+        }
         $incidentStmt = $db->prepare("
             INSERT INTO mobile_incident_locations (einheit_id, label, latitude, longitude)
             VALUES (?, ?, ?, ?)
