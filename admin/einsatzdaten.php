@@ -23,20 +23,19 @@ try {
     $stmt = $conn->prepare("
         SELECT
             id,
-            einsatznummer,
+            divera_alarm_id AS einsatznummer,
             title,
             address,
             latitude,
             longitude,
             is_active,
             is_sample,
-            alarm_timestamp,
+            alarm_ts,
             created_at,
-            updated_at,
             last_synced_at
         FROM einsatz_data
         WHERE einheit_id = ?
-        ORDER BY is_active DESC, updated_at DESC, id DESC
+        ORDER BY is_active DESC, last_synced_at DESC, id DESC
     ");
     $stmt->execute([$einheitId]);
     $incidents = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -160,8 +159,15 @@ try {
                                         : '-';
                                     ?>
                                 </td>
-                                <td><?php echo htmlspecialchars((string)($incident['alarm_timestamp'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></td>
-                                <td><?php echo htmlspecialchars((string)($incident['updated_at'] ?? $incident['last_synced_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td>
+                                    <?php
+                                    $alarmTs = isset($incident['alarm_ts']) ? (int)$incident['alarm_ts'] : 0;
+                                    echo $alarmTs > 0
+                                        ? htmlspecialchars(date('Y-m-d H:i:s', $alarmTs), ENT_QUOTES, 'UTF-8')
+                                        : '-';
+                                    ?>
+                                </td>
+                                <td><?php echo htmlspecialchars((string)($incident['last_synced_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
