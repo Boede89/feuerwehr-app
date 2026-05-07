@@ -3,12 +3,42 @@ session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/einheiten-setup.php';
+require_once __DIR__ . '/../includes/einsatz-sync-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || !hasAdminPermission()) {
     header('Location: ../login.php?error=access_denied');
     exit;
 }
 $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einheit_id() : 0;
+$incidents = [];
+$incidentsError = null;
+try {
+    if (function_exists('einsatz_ensure_table')) {
+        einsatz_ensure_table($pdo);
+    }
+    $stmt = $pdo->prepare("
+        SELECT
+            id,
+            einsatznummer,
+            title,
+            address,
+            latitude,
+            longitude,
+            is_active,
+            is_sample,
+            alarm_timestamp,
+            created_at,
+            updated_at,
+            last_synced_at
+        FROM einsatz_data
+        WHERE einheit_id = ?
+        ORDER BY is_active DESC, updated_at DESC, id DESC
+    ");
+    $stmt->execute([$einheitId]);
+    $incidents = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Throwable $e) {
+    $incidentsError = $e->getMessage();
+}
 ?>
 <!doctype html>
 <html lang="de">
@@ -64,6 +94,76 @@ $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einhei
                 Aktuell liegt kein aktiver Einsatz vor. Die Karte wird angezeigt, sobald eine Einsatzstelle verfuegbar ist.
             </div>
             <div class="mt-3" id="einsatz-meta">Lade Daten ...</div>
+        </div>
+    </div>
+    <div class="card mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong><i class="fas fa-table text-primary"></i> Einsaetze aus Einsatzdatenbank</strong>
+            <span class="badge bg-secondary"><?php echo (int)count($incidents); ?> Eintraege</span>
+        </div>
+        <div class="card-body p-0">
+            <?php if ($incidentsError): ?>
+                <div class="alert alert-danger m-3 mb-0">
+                    Fehler beim Laden der Einsatzdaten: <?php echo htmlspecialchars($incidentsError, ENT_QUOTES, 'UTF-8'); ?>
+                </div>
+            <?php elseif (empty($incidents)): ?>
+                <div class="alert alert-secondary m-3 mb-0">
+                    Keine Einsaetze in der Einsatzdatenbank vorhanden.
+                </div>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Einsatznummer</th>
+                            <th>Titel</th>
+                            <th>Adresse</th>
+                            <th>Status</th>
+                            <th>Typ</th>
+                            <th>Koordinaten</th>
+                            <th>Alarmzeit</th>
+                            <th>Letztes Update</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($incidents as $incident): ?>
+                            <tr>
+                                <td><?php echo (int)$incident['id']; ?></td>
+                                <td><?php echo htmlspecialchars((string)($incident['einsatznummer'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td><?php echo htmlspecialchars((string)($incident['title'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td><?php echo htmlspecialchars((string)($incident['address'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td>
+                                    <?php if ((int)($incident['is_active'] ?? 0) === 1): ?>
+                                        <span class="badge bg-success">Aktiv</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-secondary">Inaktiv</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if ((int)($incident['is_sample'] ?? 0) === 1): ?>
+                                        <span class="badge bg-warning text-dark">Beispiel</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-primary">Echt</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php
+                                    $lat = isset($incident['latitude']) ? (float)$incident['latitude'] : null;
+                                    $lon = isset($incident['longitude']) ? (float)$incident['longitude'] : null;
+                                    echo ($lat !== null && $lon !== null)
+                                        ? htmlspecialchars(number_format($lat, 6, '.', '') . ', ' . number_format($lon, 6, '.', ''), ENT_QUOTES, 'UTF-8')
+                                        : '-';
+                                    ?>
+                                </td>
+                                <td><?php echo htmlspecialchars((string)($incident['alarm_timestamp'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td><?php echo htmlspecialchars((string)($incident['updated_at'] ?? $incident['last_synced_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
