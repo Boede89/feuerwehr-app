@@ -60,6 +60,9 @@ $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einhei
     <div class="card">
         <div class="card-body">
             <div id="einsatz-map"></div>
+            <div id="einsatz-empty" class="alert alert-secondary d-none mb-0">
+                Aktuell liegt kein aktiver Einsatz vor. Die Karte wird angezeigt, sobald eine Einsatzstelle verfuegbar ist.
+            </div>
             <div class="mt-3" id="einsatz-meta">Lade Daten ...</div>
         </div>
     </div>
@@ -79,6 +82,8 @@ $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einhei
     const vehicleMarkers = new Map();
     let initialFitDone = false;
     const metaEl = document.getElementById('einsatz-meta');
+    const mapEl = document.getElementById('einsatz-map');
+    const emptyEl = document.getElementById('einsatz-empty');
     const incidentIcon = L.divIcon({
         className: 'incident-marker-icon',
         html: '<div style="width:28px;height:28px;border-radius:50%;background:#dc2626;border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 6px rgba(0,0,0,.35);font-size:15px;">🔥</div>',
@@ -124,6 +129,8 @@ $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einhei
             const bounds = [];
 
             if (data.incident && Number.isFinite(data.incident.latitude) && Number.isFinite(data.incident.longitude)) {
+                mapEl.classList.remove('d-none');
+                emptyEl.classList.add('d-none');
                 const pos = [data.incident.latitude, data.incident.longitude];
                 if (!incidentMarker) {
                     incidentMarker = L.marker(pos, { title: data.incident.label || 'Einsatzstelle', icon: incidentIcon }).addTo(map);
@@ -155,10 +162,15 @@ $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einhei
             });
 
             for (const [key, marker] of vehicleMarkers.entries()) {
-                if (!seen.has(key)) {
+                if (!seen.has(key) || !data.incident) {
                     map.removeLayer(marker);
                     vehicleMarkers.delete(key);
                 }
+            }
+
+            if (!data.incident) {
+                mapEl.classList.add('d-none');
+                emptyEl.classList.remove('d-none');
             }
 
             if (!initialFitDone && bounds.length > 0) {
