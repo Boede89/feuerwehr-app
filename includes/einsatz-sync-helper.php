@@ -19,6 +19,7 @@ if (!function_exists('einsatz_ensure_table')) {
                 alarm_detail_json LONGTEXT NULL,
                 reach_json LONGTEXT NULL,
                 is_active TINYINT(1) NOT NULL DEFAULT 0,
+            is_sample TINYINT(1) NOT NULL DEFAULT 0,
                 last_synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY uniq_einheit_alarm (einheit_id, divera_alarm_id),
@@ -26,6 +27,10 @@ if (!function_exists('einsatz_ensure_table')) {
                 KEY idx_einheit_synced (einheit_id, last_synced_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
+    }
+    try {
+        $db->exec("ALTER TABLE einsatz_data ADD COLUMN is_sample TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active");
+    } catch (Throwable $e) {
     }
 }
 
@@ -94,6 +99,13 @@ if (!function_exists('einsatz_sync_from_divera')) {
         $alarms = fetch_divera_alarms($accessKey, $apiBase, $err);
         if (!is_array($alarms)) $alarms = [];
         $activeAlarm = null;
+        $sampleStmt = $db->prepare("SELECT * FROM einsatz_data WHERE einheit_id = ? AND is_active = 1 AND is_sample = 1 ORDER BY last_synced_at DESC LIMIT 1");
+        $sampleStmt->execute([$einheitId]);
+        $activeSample = $sampleStmt->fetch(PDO::FETCH_ASSOC);
+        if ($activeSample) {
+            return ['success' => true, 'message' => 'Aktiver Beispieleinsatz.', 'active' => $activeSample];
+        }
+
         foreach ($alarms as $a) {
             if (!empty($a['closed'])) continue;
             $id = (int)($a['id'] ?? 0);

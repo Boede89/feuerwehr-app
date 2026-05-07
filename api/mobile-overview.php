@@ -12,6 +12,9 @@
  */
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+require_once __DIR__ . '/../includes/einsatz-sync-helper.php';
 
 if (!$db instanceof PDO) {
     http_response_code(500);
@@ -69,6 +72,25 @@ function mobile_load_einsatzapp_tokens(PDO $db): array {
     return array_values(array_unique($tokens));
 }
 
+function mobile_overview_einheit_id_for_token(PDO $db, string $requestToken): int {
+    if ($requestToken === '') return 0;
+    try {
+        $stmt = $db->prepare("SELECT einheit_id, setting_value FROM einheit_settings WHERE setting_key = 'einsatzapp_api_tokens'");
+        $stmt->execute();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $eid = (int)($row['einheit_id'] ?? 0);
+            if ($eid <= 0) continue;
+            $decoded = json_decode(trim((string)($row['setting_value'] ?? '')), true);
+            if (!is_array($decoded)) continue;
+            foreach ($decoded as $entry) {
+                $token = trim((string)($entry['token'] ?? ''));
+                if ($token !== '' && hash_equals($token, $requestToken)) return $eid;
+            }
+        }
+    } catch (Throwable $e) {}
+    return 0;
+}
+
 function mobile_table_exists(PDO $db, string $table): bool {
     try {
         $stmt = $db->prepare('SHOW TABLES LIKE ?');
@@ -105,6 +127,7 @@ if (!$valid) {
     echo json_encode(['success' => false, 'message' => 'Nicht autorisiert (ungueltiger Mobile-Token).']);
     exit;
 }
+$einheitId = mobile_overview_einheit_id_for_token($db, $requestToken);
 
 $membersCount = mobile_table_exists($db, 'members') ? mobile_count($db, 'members') : 0;
 $vehiclesCount = mobile_table_exists($db, 'vehicles') ? mobile_count($db, 'vehicles') : 0;
@@ -125,6 +148,27 @@ if (mobile_table_exists($db, 'reservations')) {
     }
 }
 
+$sync = $einheitId > 0 ? einsatz_sync_from_divera($db, $einheitId) : ['active' => null];
+$activeIncident = $sync['active'] ?? null;
+$incidentOut = null;
+if ($activeIncident && $activeIncident['latitude'] !== null && $activeIncident['longitude'] !== null && (int)($activeIncident['is_active'] ?? 0) === 1) {
+    $answered = json_decode((string)($activeIncident['answered_by_status_json'] ?? '{}'), true);
+    if (!is_array($answered)) $answered = [];
+    $incidentOut = [
+        'alarm_id' => (int)($activeIncident['divera_alarm_id'] ?? 0),
+        'title' => (string)($activeIncident['title'] ?? ''),
+        'keyword' => (string)($activeIncident['keyword'] ?? ''),
+        'address' => (string)($activeIncident['address'] ?? ''),
+        'text' => (string)($activeIncident['text'] ?? ''),
+        'alarm_ts' => isset($activeIncident['alarm_ts']) ? (int)$activeIncident['alarm_ts'] : null,
+        'latitude' => (float)$activeIncident['latitude'],
+        'longitude' => (float)$activeIncident['longitude'],
+        'answered_by_status' => $answered,
+        'is_sample' => (int)($activeIncident['is_sample'] ?? 0) === 1,
+        'is_active' => true,
+    ];
+}
+
 echo json_encode([
     'success' => true,
     'message' => 'OK',
@@ -136,5 +180,6 @@ echo json_encode([
             'reservations_count' => $reservationsCount,
         ],
         'recent_reservations' => $recentReservations,
+        'active_incident' => $incidentOut,
     ],
 ], JSON_UNESCAPED_UNICODE);
