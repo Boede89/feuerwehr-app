@@ -193,6 +193,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         ");
         $incidentStmt->execute([$einheitId]);
         $incidentRow = $incidentStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$incidentRow) {
+            $fallbackStmt = $db->prepare("
+                SELECT label, latitude, longitude, updated_at
+                FROM mobile_incident_locations
+                WHERE einheit_id = 0
+                ORDER BY updated_at DESC
+                LIMIT 1
+            ");
+            $fallbackStmt->execute();
+            $incidentRow = $fallbackStmt->fetch(PDO::FETCH_ASSOC);
+        }
+        if (!$incidentRow) {
+            $latestStmt = $db->prepare("
+                SELECT label, latitude, longitude, updated_at
+                FROM mobile_incident_locations
+                ORDER BY updated_at DESC
+                LIMIT 1
+            ");
+            $latestStmt->execute();
+            $incidentRow = $latestStmt->fetch(PDO::FETCH_ASSOC);
+        }
         if ($incidentRow) {
             $incident = [
                 'label' => (string)($incidentRow['label'] ?? ''),
