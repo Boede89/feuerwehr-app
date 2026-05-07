@@ -29,6 +29,7 @@ try {
         SELECT label, latitude, longitude, updated_at
         FROM mobile_incident_locations
         WHERE einheit_id = ?
+          AND updated_at >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
         LIMIT 1
     ");
     $incidentStmt->execute([$einheitId]);
