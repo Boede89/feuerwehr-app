@@ -4,6 +4,8 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/einheiten-setup.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+require_once __DIR__ . '/../includes/einsatz-sync-helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || !hasAdminPermission()) {
     http_response_code(403);
@@ -24,22 +26,17 @@ if ($einheitId <= 0) {
 }
 
 try {
+    $sync = einsatz_sync_from_divera($db, $einheitId);
+    $activeIncident = $sync['active'] ?? einsatz_get_active($db, $einheitId);
     $incident = null;
-    $incidentStmt = $db->prepare("
-        SELECT label, latitude, longitude, updated_at
-        FROM mobile_incident_locations
-        WHERE einheit_id = ?
-          AND updated_at >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
-        LIMIT 1
-    ");
-    $incidentStmt->execute([$einheitId]);
-    $incidentRow = $incidentStmt->fetch(PDO::FETCH_ASSOC);
-    if ($incidentRow) {
+    if ($activeIncident && $activeIncident['latitude'] !== null && $activeIncident['longitude'] !== null) {
         $incident = [
-            'label' => (string)($incidentRow['label'] ?? ''),
-            'latitude' => (float)$incidentRow['latitude'],
-            'longitude' => (float)$incidentRow['longitude'],
-            'updated_at' => (string)($incidentRow['updated_at'] ?? ''),
+            'label' => (string)($activeIncident['address'] ?? $activeIncident['title'] ?? 'Einsatzstelle'),
+            'latitude' => isset($activeIncident['latitude']) ? (float)$activeIncident['latitude'] : null,
+            'longitude' => isset($activeIncident['longitude']) ? (float)$activeIncident['longitude'] : null,
+            'updated_at' => (string)($activeIncident['last_synced_at'] ?? ''),
+            'alarm_id' => (int)($activeIncident['divera_alarm_id'] ?? 0),
+            'alarm_ts' => isset($activeIncident['alarm_ts']) ? (int)$activeIncident['alarm_ts'] : null,
         ];
     }
 

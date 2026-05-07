@@ -1,6 +1,9 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+require_once __DIR__ . '/../includes/einsatz-sync-helper.php';
 
 if (!$db instanceof PDO) {
     http_response_code(500);
@@ -184,22 +187,17 @@ if ($einheitId <= 0) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
+        $sync = einsatz_sync_from_divera($db, $einheitId);
+        $activeIncident = $sync['active'] ?? einsatz_get_active($db, $einheitId);
         $incident = null;
-        $incidentStmt = $db->prepare("
-            SELECT label, latitude, longitude, updated_at
-            FROM mobile_incident_locations
-            WHERE einheit_id = ?
-              AND updated_at >= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
-            LIMIT 1
-        ");
-        $incidentStmt->execute([$einheitId]);
-        $incidentRow = $incidentStmt->fetch(PDO::FETCH_ASSOC);
-        if ($incidentRow) {
+        if ($activeIncident && $activeIncident['latitude'] !== null && $activeIncident['longitude'] !== null) {
             $incident = [
-                'label' => (string)($incidentRow['label'] ?? ''),
-                'latitude' => (float)$incidentRow['latitude'],
-                'longitude' => (float)$incidentRow['longitude'],
-                'updated_at' => (string)($incidentRow['updated_at'] ?? ''),
+                'label' => (string)($activeIncident['address'] ?? $activeIncident['title'] ?? 'Einsatzstelle'),
+                'latitude' => isset($activeIncident['latitude']) ? (float)$activeIncident['latitude'] : null,
+                'longitude' => isset($activeIncident['longitude']) ? (float)$activeIncident['longitude'] : null,
+                'updated_at' => (string)($activeIncident['last_synced_at'] ?? ''),
+                'alarm_id' => (int)($activeIncident['divera_alarm_id'] ?? 0),
+                'alarm_ts' => isset($activeIncident['alarm_ts']) ? (int)$activeIncident['alarm_ts'] : null,
             ];
         }
 
@@ -313,7 +311,7 @@ try {
     }
 
     if ($clearIncident) {
-        $clearStmt = $db->prepare("DELETE FROM mobile_incident_locations WHERE einheit_id = ?");
+        $clearStmt = $db->prepare("UPDATE einsatz_data SET is_active = 0 WHERE einheit_id = ? AND is_active = 1");
         $clearStmt->execute([$einheitId]);
     } else if ($hasIncidentPayload) {
         if ($incidentLabel === '' || strcasecmp($incidentLabel, 'Einsatzstelle') === 0) {
@@ -321,15 +319,11 @@ try {
             if ($geoLabel !== '') $incidentLabel = $geoLabel;
         }
         $incidentStmt = $db->prepare("
-            INSERT INTO mobile_incident_locations (einheit_id, label, latitude, longitude)
-            VALUES (?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-                label = VALUES(label),
-                latitude = VALUES(latitude),
-                longitude = VALUES(longitude),
-                updated_at = CURRENT_TIMESTAMP
+            UPDATE einsatz_data
+            SET address = ?, latitude = ?, longitude = ?, last_synced_at = CURRENT_TIMESTAMP
+            WHERE einheit_id = ? AND is_active = 1
         ");
-        $incidentStmt->execute([$einheitId, $incidentLabel, $incidentLat, $incidentLon]);
+        $incidentStmt->execute([$incidentLabel, $incidentLat, $incidentLon, $einheitId]);
     }
 
     echo json_encode([
