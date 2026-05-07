@@ -21,6 +21,8 @@ try {
     if (function_exists('einsatz_ensure_table')) {
         einsatz_ensure_table($conn);
     }
+    // Inaktive Beispieleinsaetze sollen nach Abschluss nicht bestehen bleiben.
+    $conn->exec("DELETE FROM einsatz_data WHERE is_sample = 1 AND is_active = 0");
 
     $baseSelect = "
         SELECT
