@@ -156,6 +156,7 @@ $action = trim((string)($payload['action'] ?? ''));
 
 try {
     if ($action === 'close_active') {
+        $db->beginTransaction();
         $stmt = $db->prepare("SELECT id, is_sample FROM einsatz_data WHERE einheit_id = ? AND is_active = 1 ORDER BY last_synced_at DESC LIMIT 1");
         $stmt->execute([$einheitId]);
         $active = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -170,6 +171,9 @@ try {
                 $upd->execute([$id]);
             }
         }
+        // Beispieleinsaetze immer bereinigen, sobald der Einsatzabschluss aus der App ausgeloest wird.
+        $db->prepare("DELETE FROM einsatz_data WHERE einheit_id = ? AND is_sample = 1")->execute([$einheitId]);
+        $db->commit();
         $db->prepare("DELETE FROM mobile_vehicle_locations WHERE einheit_id = ?")->execute([$einheitId]);
         $db->prepare("DELETE FROM mobile_incident_locations WHERE einheit_id = ?")->execute([$einheitId]);
         echo json_encode(['success' => true, 'message' => 'Einsatz abgeschlossen.']);
@@ -221,6 +225,9 @@ try {
     http_response_code(422);
     echo json_encode(['success' => false, 'message' => 'Unbekannte action.']);
 } catch (Throwable $e) {
+    if ($db instanceof PDO && $db->inTransaction()) {
+        $db->rollBack();
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Einsatzsteuerung fehlgeschlagen.']);
 }
