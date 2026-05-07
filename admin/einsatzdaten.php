@@ -10,13 +10,17 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || !hasAdminPermis
     exit;
 }
 $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einheit_id() : 0;
+$conn = (isset($db) && $db instanceof PDO) ? $db : null;
 $incidents = [];
 $incidentsError = null;
 try {
-    if (function_exists('einsatz_ensure_table')) {
-        einsatz_ensure_table($pdo);
+    if (!$conn) {
+        throw new RuntimeException('Keine gueltige Datenbankverbindung vorhanden.');
     }
-    $stmt = $pdo->prepare("
+    if (function_exists('einsatz_ensure_table')) {
+        einsatz_ensure_table($conn);
+    }
+    $stmt = $conn->prepare("
         SELECT
             id,
             einsatznummer,
