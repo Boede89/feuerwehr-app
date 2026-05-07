@@ -1,0 +1,136 @@
+<?php
+session_start();
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/einheiten-setup.php';
+
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || !hasAdminPermission()) {
+    header('Location: ../login.php?error=access_denied');
+    exit;
+}
+$einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einheit_id() : 0;
+?>
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Einsatzdaten</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="../assets/css/style.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+        #einsatz-map { height: 70vh; min-height: 420px; border-radius: .5rem; }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="../index.php"><i class="fas fa-fire"></i> Feuerwehr App</a>
+        <div class="d-flex ms-auto align-items-center">
+            <?php $admin_menu_in_navbar = true; include __DIR__ . '/includes/admin-menu.inc.php'; ?>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0"><i class="fas fa-map-marked-alt text-danger"></i> Einsatzdaten</h1>
+        <div class="text-muted small">Einheit-ID: <?php echo (int)$einheitId; ?></div>
+    </div>
+    <div class="card">
+        <div class="card-body">
+            <div id="einsatz-map"></div>
+            <div class="mt-3" id="einsatz-meta">Lade Daten ...</div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+    const map = L.map('einsatz-map').setView([51.1657, 10.4515], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    let incidentMarker = null;
+    const vehicleMarkers = new Map();
+    let initialFitDone = false;
+    const metaEl = document.getElementById('einsatz-meta');
+
+    function upsertVehicleMarker(v) {
+        const id = String(v.vehicle_id);
+        const label = v.vehicle_name || ('Fahrzeug #' + id);
+        let marker = vehicleMarkers.get(id);
+        if (!marker) {
+            marker = L.marker([v.latitude, v.longitude], { title: label }).addTo(map);
+            vehicleMarkers.set(id, marker);
+        } else {
+            marker.setLatLng([v.latitude, v.longitude]);
+        }
+        marker.bindPopup('<strong>' + label + '</strong><br>Letztes Update: ' + (v.updated_at || '-'));
+        return marker;
+    }
+
+    async function refresh() {
+        try {
+            const res = await fetch('einsatzdaten-feed.php', { credentials: 'same-origin' });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Unbekannter Fehler');
+            const data = json.data || {};
+
+            const bounds = [];
+
+            if (data.incident && Number.isFinite(data.incident.latitude) && Number.isFinite(data.incident.longitude)) {
+                const pos = [data.incident.latitude, data.incident.longitude];
+                if (!incidentMarker) {
+                    incidentMarker = L.marker(pos, { title: data.incident.label || 'Einsatzstelle' }).addTo(map);
+                    incidentMarker.bindPopup('<strong>' + (data.incident.label || 'Einsatzstelle') + '</strong>');
+                } else {
+                    incidentMarker.setLatLng(pos);
+                    incidentMarker.setPopupContent('<strong>' + (data.incident.label || 'Einsatzstelle') + '</strong>');
+                }
+                bounds.push(pos);
+            } else if (incidentMarker) {
+                map.removeLayer(incidentMarker);
+                incidentMarker = null;
+            }
+
+            const seen = new Set();
+            (data.vehicles || []).forEach(v => {
+                if (!Number.isFinite(v.latitude) || !Number.isFinite(v.longitude)) return;
+                const marker = upsertVehicleMarker(v);
+                bounds.push(marker.getLatLng());
+                seen.add(String(v.vehicle_id));
+            });
+
+            for (const [key, marker] of vehicleMarkers.entries()) {
+                if (!seen.has(key)) {
+                    map.removeLayer(marker);
+                    vehicleMarkers.delete(key);
+                }
+            }
+
+            if (!initialFitDone && bounds.length > 0) {
+                map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40] });
+                initialFitDone = true;
+            }
+
+            metaEl.innerHTML = '<span class="badge bg-primary">Fahrzeuge: ' + (data.vehicles || []).length + '</span>' +
+                (data.incident ? ' <span class="badge bg-danger">Einsatzstelle aktiv</span>' : ' <span class="badge bg-secondary">Keine Einsatzstelle</span>') +
+                ' <span class="text-muted ms-2">Letztes Polling: ' + new Date().toLocaleTimeString() + '</span>';
+        } catch (err) {
+            metaEl.innerHTML = '<span class="text-danger">Fehler beim Laden: ' + (err && err.message ? err.message : 'Unbekannt') + '</span>';
+        }
+    }
+
+    refresh();
+    setInterval(refresh, 5000);
+})();
+</script>
+</body>
+</html>

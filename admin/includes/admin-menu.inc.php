@@ -71,6 +71,7 @@ $index_url = isset($admin_menu_index) ? $admin_menu_index : '../index.php';
         <?php if ($can_members): ?>
         <li><a class="dropdown-item" href="<?php echo $base; ?>members.php"><i class="fas fa-users text-success me-2"></i>Mitgliederverwaltung</a></li>
         <?php endif; ?>
+        <li><a class="dropdown-item" href="<?php echo $base; ?>einsatzdaten.php"><i class="fas fa-map-marked-alt text-danger me-2"></i>Einsatzdaten</a></li>
         <?php if ($can_auswertung): ?>
         <li><a class="dropdown-item" href="<?php echo $base; ?>members-auswertung.php"><i class="fas fa-chart-pie text-info me-2"></i>Auswertung</a></li>
         <?php endif; ?>
