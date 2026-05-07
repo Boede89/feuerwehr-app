@@ -257,11 +257,13 @@ try {
             const data = json.data || {};
 
             const bounds = [];
+            let incidentPos = null;
 
             if (data.incident && Number.isFinite(data.incident.latitude) && Number.isFinite(data.incident.longitude)) {
                 mapEl.classList.remove('d-none');
                 emptyEl.classList.add('d-none');
                 const pos = [data.incident.latitude, data.incident.longitude];
+                incidentPos = pos;
                 if (!incidentMarker) {
                     incidentMarker = L.marker(pos, { title: data.incident.label || 'Einsatzstelle', icon: incidentIcon }).addTo(map);
                     incidentMarker.bindPopup('<strong>' + (data.incident.label || 'Einsatzstelle') + '</strong>');
@@ -304,7 +306,11 @@ try {
             }
 
             if (!initialFitDone && bounds.length > 0) {
-                map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40] });
+                if (incidentPos) {
+                    map.setView(incidentPos, 17);
+                } else {
+                    map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40] });
+                }
                 initialFitDone = true;
             }
 
