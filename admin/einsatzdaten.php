@@ -10,6 +10,42 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || !hasAdminPermis
     exit;
 }
 $einheitId = function_exists('get_current_einheit_id') ? (int)get_current_einheit_id() : 0;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'divera_sync') {
+    if (!isset($db) || !$db instanceof PDO) {
+        $_SESSION['einsatzdaten_sync_flash'] = 'Keine Datenbankverbindung.';
+    } else {
+        require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+        $eid = function_exists('get_current_einheit_id') ? (int)get_current_einheit_id() : 0;
+        if ($eid <= 0) {
+            $_SESSION['einsatzdaten_sync_flash'] = 'Bitte im Admin eine Einheit waehlen; ohne Einheitskontext kann Divera nicht zugeordnet synchronisiert werden.';
+        } else {
+            if (function_exists('einsatz_ensure_table')) {
+                einsatz_ensure_table($db);
+            }
+            $sr = einsatz_sync_from_divera($db, $eid);
+            $msg = trim((string)($sr['message'] ?? ''));
+            if ($msg === '') {
+                $msg = 'Synchronisation abgeschlossen.';
+            }
+            if (empty($sr['active'])) {
+                $msg .= ' Es liegt kein aktiver Divera-Einsatz vor (kein offener Alarm laut Divera-API). Die Tabelle bleibt leer oder enthaelt nur aeltere, inaktive Eintraege. Pruefen Sie den Divera Access Key der Einheit.';
+            } else {
+                $msg .= ' Ein aktiver Einsatz wurde in der Datenbank gespeichert.';
+            }
+            $_SESSION['einsatzdaten_sync_flash'] = $msg;
+        }
+    }
+    header('Location: einsatzdaten.php');
+    exit;
+}
+
+$syncFlashDisplay = null;
+if (!empty($_SESSION['einsatzdaten_sync_flash'])) {
+    $syncFlashDisplay = (string)$_SESSION['einsatzdaten_sync_flash'];
+    unset($_SESSION['einsatzdaten_sync_flash']);
+}
+
 $conn = (isset($db) && $db instanceof PDO) ? $db : null;
 $incidents = [];
 $incidentsError = null;
@@ -105,6 +141,12 @@ try {
         <h1 class="h3 mb-0"><i class="fas fa-map-marked-alt text-danger"></i> Einsatzdaten</h1>
         <div class="text-muted small">Einheit-ID: <?php echo (int)$einheitId; ?></div>
     </div>
+    <?php if ($syncFlashDisplay !== null && $syncFlashDisplay !== ''): ?>
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            <?php echo htmlspecialchars($syncFlashDisplay, ENT_QUOTES, 'UTF-8'); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Schliessen"></button>
+        </div>
+    <?php endif; ?>
     <div class="card">
         <div class="card-body">
             <div id="einsatz-map"></div>
@@ -115,9 +157,19 @@ try {
         </div>
     </div>
     <div class="card mt-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <strong><i class="fas fa-table text-primary"></i> Einsaetze aus Einsatzdatenbank</strong>
-            <span class="badge bg-secondary"><?php echo (int)count($incidents); ?> Eintraege</span>
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <span class="badge bg-secondary"><?php echo (int)count($incidents); ?> Eintraege</span>
+                <?php if ($einheitId > 0): ?>
+                    <form method="post" class="mb-0" onsubmit="return confirm('Divera jetzt abfragen und ggf. einen Einsatz in der Datenbank anlegen oder aktualisieren?');">
+                        <input type="hidden" name="action" value="divera_sync">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="fas fa-sync-alt"></i> Divera synchronisieren
+                        </button>
+                    </form>
+                <?php endif; ?>
+            </div>
         </div>
         <div class="card-body p-0">
             <?php if ($showingAllUnits): ?>
@@ -131,7 +183,10 @@ try {
                 </div>
             <?php elseif (empty($incidents)): ?>
                 <div class="alert alert-secondary m-3 mb-0">
-                    Keine Einsaetze in der Einsatzdatenbank vorhanden.
+                    Keine Einsaetze in der Einsatzdatenbank vorhanden. Zeilen entstehen, wenn Divera einen
+                    <strong>offenen</strong> Alarm meldet und die Synchronisation laeuft (mobil beim Datenabruf,
+                    Fahrzeug-API oder hier &quot;Divera synchronisieren&quot; mit gewaehlter Einheit und hinterlegtem Access Key).
+                    Ohne Alarm: in der App einen <strong>Beispieleinsatz aktivieren</strong>.
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
