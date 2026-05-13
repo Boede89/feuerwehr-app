@@ -1,0 +1,20 @@
+# Beispiele: Alarmdepeschen-IMAP regelmaessig abrufen
+# Anpassen: Pfad zum Projekt, Service-Name (hier: web, Container feuerwehr_web).
+
+# --- Variante A: alle Einheiten mit IMAP-Host in der DB (empfohlen) ---
+# Alle 2 Minuten (auf dem Docker-Host, im Verzeichnis mit docker-compose.yml):
+*/2 * * * * cd /opt/feuerwehr-app && docker compose exec -T web php /var/www/html/tools/import-alarmdepeschen-all-einheiten.php >>/var/log/alarmdepeschen-cron.log 2>&1
+
+# Falls nur "docker" ohne Compose v2:
+# */2 * * * * docker exec -T feuerwehr_web php /var/www/html/tools/import-alarmdepeschen-all-einheiten.php >>/var/log/alarmdepeschen-cron.log 2>&1
+
+# --- Variante B: nur eine Einheit (z. B. ID 1) ---
+# */2 * * * * cd /opt/feuerwehr-app && docker compose exec -T web bash -lc "cd /var/www/html && python3 tools/import-alarmdepeschen-imap.py --einheit-id=1" >>/var/log/alarmdepeschen-cron.log 2>&1
+
+# --- Variante C: ohne Docker (PHP mit IMAP-Erweiterung auf dem Server) ---
+# */2 * * * * cd /var/www/html && php tools/import-alarmdepeschen-imap.php --from-settings=1 --einheit-id=1 >>/var/log/alarmdepeschen-cron.log 2>&1
+
+# Hinweise:
+# - Logrotation fuer die Logdatei einrichten (logrotate).
+# - Kein Passwort in der Crontab noetig, wenn IMAP in einheit_settings (Admin) liegt.
+# - Container muss laufen; bei Fehlern pruefen: docker compose logs web

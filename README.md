@@ -93,7 +93,17 @@ pip install pymysql
 docker exec -it feuerwehr_web bash -lc "cd /var/www/html && python3 tools/import-alarmdepeschen-imap.py --einheit-id=1"
 ```
 
-4. Regelmaessig per Cron/Task ausfuehren (z. B. alle 2 Minuten).
+4. **Automatischer Abruf:** Auf dem Server (Docker-Host oder LXC) einen **Cronjob** oder **systemd-Timer** einrichten, der z. B. alle 1–2 Minuten den Import startet. Beispiele und fertige Zeile fuer `crontab -e`:
+
+- `tools/cron-alarmdepeschen.example` – Copy-Paste fuer `docker compose exec`
+- `tools/import-alarmdepeschen-all-einheiten.php` – importiert **alle** Einheiten, die einen IMAP-Host in den Einstellungen haben (ein Aufruf statt mehrerer `--einheit-id`)
+
+```bash
+# Alle 2 Minuten (im Projektordner mit docker-compose.yml):
+*/2 * * * * cd /pfad/zu/feuerwehr-app && docker compose exec -T web php /var/www/html/tools/import-alarmdepeschen-all-einheiten.php >>/var/log/alarmdepeschen-cron.log 2>&1
+```
+
+Logdatei per **logrotate** begrenzen. Ohne Cron laeuft der Import nur manuell oder bei Klicks im Admin – neue Depeschen erscheinen dann verzoegert.
 
 Verfuegbare Endpunkte:
 
