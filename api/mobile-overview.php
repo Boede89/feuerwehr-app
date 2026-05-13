@@ -91,6 +91,32 @@ function mobile_overview_einheit_id_for_token(PDO $db, string $requestToken): in
     return 0;
 }
 
+/**
+ * Wenn die App mit dem globalen settings-mobile_api_token arbeitet, gibt es keine Token→Einheit-Zuordnung.
+ * Dann Divera-Sync ueber die erste Einheit mit hinterlegtem Divera-Accesskey (sonst erste Einheit in der DB).
+ */
+function mobile_default_einheit_id_for_divera_sync(PDO $db): int {
+    try {
+        $stmt = $db->query("
+            SELECT einheit_id FROM einheit_settings
+            WHERE setting_key = 'divera_access_key' AND TRIM(COALESCE(setting_value, '')) <> ''
+            ORDER BY einheit_id ASC
+            LIMIT 1
+        ");
+        $eid = (int)($stmt->fetchColumn() ?: 0);
+        if ($eid > 0) {
+            return $eid;
+        }
+    } catch (Throwable $e) {
+    }
+    try {
+        $stmt = $db->query("SELECT id FROM einheiten ORDER BY sort_order ASC, name ASC LIMIT 1");
+        return (int)($stmt->fetchColumn() ?: 0);
+    } catch (Throwable $e) {
+    }
+    return 0;
+}
+
 function mobile_table_exists(PDO $db, string $table): bool {
     try {
         $stmt = $db->prepare('SHOW TABLES LIKE ?');
@@ -128,6 +154,9 @@ if (!$valid) {
     exit;
 }
 $einheitId = mobile_overview_einheit_id_for_token($db, $requestToken);
+if ($einheitId <= 0 && $serverToken !== '' && hash_equals($serverToken, $requestToken)) {
+    $einheitId = mobile_default_einheit_id_for_divera_sync($db);
+}
 
 $membersCount = mobile_table_exists($db, 'members') ? mobile_count($db, 'members') : 0;
 $vehiclesCount = mobile_table_exists($db, 'vehicles') ? mobile_count($db, 'vehicles') : 0;
@@ -151,7 +180,8 @@ if (mobile_table_exists($db, 'reservations')) {
 $sync = $einheitId > 0 ? einsatz_sync_from_divera($db, $einheitId) : ['active' => null];
 $activeIncident = $sync['active'] ?? null;
 $incidentOut = null;
-if ($activeIncident && $activeIncident['latitude'] !== null && $activeIncident['longitude'] !== null && (int)($activeIncident['is_active'] ?? 0) === 1) {
+// Einsatz auch ohne GPS ausliefern (App wertet Koordinaten optional aus).
+if ($activeIncident && (int)($activeIncident['is_active'] ?? 0) === 1) {
     $answered = json_decode((string)($activeIncident['answered_by_status_json'] ?? '{}'), true);
     if (!is_array($answered)) $answered = [];
     $incidentOut = [
@@ -161,12 +191,16 @@ if ($activeIncident && $activeIncident['latitude'] !== null && $activeIncident['
         'address' => (string)($activeIncident['address'] ?? ''),
         'text' => (string)($activeIncident['text'] ?? ''),
         'alarm_ts' => isset($activeIncident['alarm_ts']) ? (int)$activeIncident['alarm_ts'] : null,
-        'latitude' => (float)$activeIncident['latitude'],
-        'longitude' => (float)$activeIncident['longitude'],
         'answered_by_status' => $answered,
         'is_sample' => (int)($activeIncident['is_sample'] ?? 0) === 1,
         'is_active' => true,
     ];
+    $lat = $activeIncident['latitude'] ?? null;
+    $lon = $activeIncident['longitude'] ?? null;
+    if ($lat !== null && $lat !== '' && is_numeric($lat) && $lon !== null && $lon !== '' && is_numeric($lon)) {
+        $incidentOut['latitude'] = (float)$lat;
+        $incidentOut['longitude'] = (float)$lon;
+    }
 }
 
 echo json_encode([
