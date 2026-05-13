@@ -77,6 +77,35 @@ if (!function_exists('einsatz_pick_coord')) {
     }
 }
 
+if (!function_exists('einsatz_purge_mobile_vehicle_assignments')) {
+    /**
+     * Entfernt Fahrzeug-Personal-Zuordnungen aus der App, die nicht zum aktuellen Divera-Einsatz gehoeren.
+     * @param int $currentAlarmId Divera-Alarm-ID des aktiven Einsatzes; 0 = alle Zuordnungen der Einheit loeschen
+     */
+    function einsatz_purge_mobile_vehicle_assignments(PDO $db, int $einheitId, int $currentAlarmId): void {
+        if ($einheitId <= 0) {
+            return;
+        }
+        try {
+            $db->exec("ALTER TABLE mobile_vehicle_assignments ADD COLUMN divera_alarm_id INT NOT NULL DEFAULT 0");
+        } catch (Throwable $e) {
+        }
+        try {
+            if ($currentAlarmId <= 0) {
+                $st = $db->prepare("DELETE FROM mobile_vehicle_assignments WHERE einheit_id = ?");
+                $st->execute([$einheitId]);
+                return;
+            }
+            $st = $db->prepare("
+                DELETE FROM mobile_vehicle_assignments
+                WHERE einheit_id = ? AND (divera_alarm_id = 0 OR divera_alarm_id <> ?)
+            ");
+            $st->execute([$einheitId, $currentAlarmId]);
+        } catch (Throwable $e) {
+        }
+    }
+}
+
 if (!function_exists('einsatz_sync_from_divera')) {
     function einsatz_sync_from_divera(PDO $db, int $einheitId): array {
         if ($einheitId <= 0) {
@@ -103,6 +132,7 @@ if (!function_exists('einsatz_sync_from_divera')) {
         $sampleStmt->execute([$einheitId]);
         $activeSample = $sampleStmt->fetch(PDO::FETCH_ASSOC);
         if ($activeSample) {
+            einsatz_purge_mobile_vehicle_assignments($db, $einheitId, (int)($activeSample['divera_alarm_id'] ?? 0));
             return ['success' => true, 'message' => 'Aktiver Beispieleinsatz.', 'active' => $activeSample];
         }
 
@@ -118,6 +148,7 @@ if (!function_exists('einsatz_sync_from_divera')) {
         if ($activeAlarm === null) {
             $deactivate = $db->prepare("UPDATE einsatz_data SET is_active = 0 WHERE einheit_id = ?");
             $deactivate->execute([$einheitId]);
+            einsatz_purge_mobile_vehicle_assignments($db, $einheitId, 0);
             return ['success' => true, 'message' => 'Kein aktiver Einsatz.', 'active' => null];
         }
 
@@ -180,6 +211,8 @@ if (!function_exists('einsatz_sync_from_divera')) {
             WHERE einheit_id = ? AND divera_alarm_id <> ?
         ");
         $deactivateOthers->execute([$einheitId, $alarmId]);
+
+        einsatz_purge_mobile_vehicle_assignments($db, $einheitId, $alarmId);
 
         $active = einsatz_get_active($db, $einheitId);
         return ['success' => true, 'message' => 'Einsatz synchronisiert.', 'active' => $active];

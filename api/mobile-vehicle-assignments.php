@@ -98,6 +98,28 @@ function mobile_va_einheit_id_for_token(PDO $db, string $requestToken): int {
     return 0;
 }
 
+function mobile_va_default_einheit_id(PDO $db): int {
+    try {
+        $stmt = $db->query("
+            SELECT einheit_id FROM einheit_settings
+            WHERE setting_key = 'divera_access_key' AND TRIM(COALESCE(setting_value, '')) <> ''
+            ORDER BY einheit_id ASC
+            LIMIT 1
+        ");
+        $eid = (int)($stmt->fetchColumn() ?: 0);
+        if ($eid > 0) {
+            return $eid;
+        }
+    } catch (Throwable $e) {
+    }
+    try {
+        $stmt = $db->query("SELECT id FROM einheiten ORDER BY sort_order ASC, name ASC LIMIT 1");
+        return (int)($stmt->fetchColumn() ?: 0);
+    } catch (Throwable $e) {
+    }
+    return 0;
+}
+
 function mobile_va_ensure_table(PDO $db): void {
     $db->exec("
         CREATE TABLE IF NOT EXISTS mobile_vehicle_assignments (
@@ -105,13 +127,41 @@ function mobile_va_ensure_table(PDO $db): void {
             einheit_id INT NOT NULL DEFAULT 0,
             vehicle_id INT NOT NULL,
             member_id INT NOT NULL,
+            divera_alarm_id INT NOT NULL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY unique_einheit_member (einheit_id, member_id),
             UNIQUE KEY unique_einheit_vehicle_member (einheit_id, vehicle_id, member_id),
             KEY idx_einheit_vehicle (einheit_id, vehicle_id),
-            KEY idx_member (member_id)
+            KEY idx_member (member_id),
+            KEY idx_einheit_alarm (einheit_id, divera_alarm_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+    try {
+        $db->exec("ALTER TABLE mobile_vehicle_assignments ADD COLUMN divera_alarm_id INT NOT NULL DEFAULT 0 AFTER member_id");
+    } catch (Throwable $e) {
+    }
+    try {
+        $db->exec("ALTER TABLE mobile_vehicle_assignments ADD KEY idx_einheit_alarm (einheit_id, divera_alarm_id)");
+    } catch (Throwable $e) {
+    }
+}
+
+function mobile_va_active_divera_alarm_id(PDO $db, int $einheitId): int {
+    if ($einheitId <= 0) {
+        return 0;
+    }
+    try {
+        $stmt = $db->prepare("
+            SELECT divera_alarm_id FROM einsatz_data
+            WHERE einheit_id = ? AND is_active = 1
+            ORDER BY last_synced_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$einheitId]);
+        return (int)$stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return 0;
+    }
 }
 
 function mobile_va_crew_strength(PDO $db, array $memberIds): string {
@@ -147,15 +197,23 @@ function mobile_va_crew_strength(PDO $db, array $memberIds): string {
 }
 
 function mobile_va_load_assignments(PDO $db, int $einheitId): array {
+    $alarmId = mobile_va_active_divera_alarm_id($db, $einheitId);
+    if ($alarmId <= 0) {
+        return [
+            'by_vehicle' => [],
+            'crew_strength_by_vehicle' => [],
+            'divera_alarm_id' => null,
+        ];
+    }
     $sql = "
         SELECT a.vehicle_id, a.member_id, m.first_name, m.last_name
         FROM mobile_vehicle_assignments a
         JOIN members m ON m.id = a.member_id
-        WHERE a.einheit_id = ?
+        WHERE a.einheit_id = ? AND a.divera_alarm_id = ?
         ORDER BY a.vehicle_id ASC, m.last_name ASC, m.first_name ASC
     ";
     $stmt = $db->prepare($sql);
-    $stmt->execute([$einheitId]);
+    $stmt->execute([$einheitId, $alarmId]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $byVehicle = [];
     $memberIdsByVehicle = [];
@@ -180,6 +238,7 @@ function mobile_va_load_assignments(PDO $db, int $einheitId): array {
     return [
         'by_vehicle' => $byVehicle,
         'crew_strength_by_vehicle' => $crewByVehicle,
+        'divera_alarm_id' => $alarmId,
     ];
 }
 
@@ -201,7 +260,12 @@ if (!$valid) {
 }
 
 $einheitId = mobile_va_einheit_id_for_token($db, $requestToken);
-if ($einheitId <= 0) $einheitId = 0;
+if ($einheitId <= 0 && $serverToken !== '' && hash_equals($serverToken, $requestToken)) {
+    $einheitId = mobile_va_default_einheit_id($db);
+}
+if ($einheitId <= 0) {
+    $einheitId = 0;
+}
 
 try {
     mobile_va_ensure_table($db);
@@ -223,6 +287,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!in_array($action, ['assign', 'remove_member', 'clear_vehicle'], true)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Ungueltige Aktion.']);
+        exit;
+    }
+
+    $activeAlarmId = mobile_va_active_divera_alarm_id($db, $einheitId);
+    if ($activeAlarmId <= 0) {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'message' => 'Kein aktiver Einsatz – Fahrzeugzuordnungen sind nur waehrend eines Einsatzes moeglich.']);
         exit;
     }
 
@@ -262,7 +333,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmtMember = $db->prepare("SELECT id FROM members WHERE id = ? LIMIT 1");
             $stmtDeleteExisting = $db->prepare("DELETE FROM mobile_vehicle_assignments WHERE einheit_id = ? AND member_id = ?");
-            $stmtInsert = $db->prepare("INSERT INTO mobile_vehicle_assignments (einheit_id, vehicle_id, member_id) VALUES (?, ?, ?)");
+            $stmtInsert = $db->prepare("INSERT INTO mobile_vehicle_assignments (einheit_id, vehicle_id, member_id, divera_alarm_id) VALUES (?, ?, ?, ?)");
 
             foreach ($memberIds as $memberId) {
                 $stmtMember->execute([$memberId]);
@@ -271,7 +342,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 // 1 Person = 1 Fahrzeug (innerhalb derselben Einheit)
                 $stmtDeleteExisting->execute([$einheitId, $memberId]);
-                $stmtInsert->execute([$einheitId, $vehicleId, $memberId]);
+                $stmtInsert->execute([$einheitId, $vehicleId, $memberId, $activeAlarmId]);
             }
         } elseif ($action === 'remove_member') {
             $memberId = (int)($payload['member_id'] ?? 0);
@@ -281,11 +352,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode(['success' => false, 'message' => 'member_id ist erforderlich.']);
                 exit;
             }
-            $stmt = $db->prepare("DELETE FROM mobile_vehicle_assignments WHERE einheit_id = ? AND vehicle_id = ? AND member_id = ?");
-            $stmt->execute([$einheitId, $vehicleId, $memberId]);
+            $stmt = $db->prepare("DELETE FROM mobile_vehicle_assignments WHERE einheit_id = ? AND vehicle_id = ? AND member_id = ? AND divera_alarm_id = ?");
+            $stmt->execute([$einheitId, $vehicleId, $memberId, $activeAlarmId]);
         } elseif ($action === 'clear_vehicle') {
-            $stmt = $db->prepare("DELETE FROM mobile_vehicle_assignments WHERE einheit_id = ? AND vehicle_id = ?");
-            $stmt->execute([$einheitId, $vehicleId]);
+            $stmt = $db->prepare("DELETE FROM mobile_vehicle_assignments WHERE einheit_id = ? AND vehicle_id = ? AND divera_alarm_id = ?");
+            $stmt->execute([$einheitId, $vehicleId, $activeAlarmId]);
         }
 
         $db->commit();
@@ -306,6 +377,7 @@ try {
             'einheit_id' => $einheitId,
             'by_vehicle' => $assignmentData['by_vehicle'] ?? new stdClass(),
             'crew_strength_by_vehicle' => $assignmentData['crew_strength_by_vehicle'] ?? new stdClass(),
+            'divera_alarm_id' => $assignmentData['divera_alarm_id'] ?? null,
         ],
     ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {

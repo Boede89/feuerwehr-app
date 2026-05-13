@@ -383,6 +383,10 @@ if ($divera_id > 0 && $is_einsatz) {
             }
         }
     }
+    if ($einheit_id > 0) {
+        require_once __DIR__ . '/includes/mobile-anwesenheit-bridge.php';
+        anwesenheitsliste_merge_mobile_vehicle_assignments($db, $einheit_id, $divera_id, $draft);
+    }
 }
 
 // Fehlende Draft-Keys ergänzen (z. B. nach Update oder alter Session)
