@@ -291,6 +291,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $activeAlarmId = mobile_va_active_divera_alarm_id($db, $einheitId);
+    if ($activeAlarmId <= 0 && $einheitId > 0) {
+        $syncPath = __DIR__ . '/../includes/einsatz-sync-helper.php';
+        if (is_file($syncPath)) {
+            require_once __DIR__ . '/../includes/functions.php';
+            require_once __DIR__ . '/../includes/einheit-settings-helper.php';
+            require_once $syncPath;
+            if (function_exists('einsatz_sync_from_divera')) {
+                einsatz_sync_from_divera($db, $einheitId);
+            }
+            $activeAlarmId = mobile_va_active_divera_alarm_id($db, $einheitId);
+        }
+    }
     if ($activeAlarmId <= 0) {
         http_response_code(409);
         echo json_encode(['success' => false, 'message' => 'Kein aktiver Einsatz – Fahrzeugzuordnungen sind nur waehrend eines Einsatzes moeglich.']);
