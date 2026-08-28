@@ -23,6 +23,7 @@ if ($einheit_id_url > 0) {
 }
 $einheit_filter = $einheit_id_url > 0 ? $einheit_id_url : (isset($_SESSION['current_einheit_id']) ? (int)$_SESSION['current_einheit_id'] : null);
 $einheit_param = $einheit_filter > 0 ? '?einheit_id=' . (int)$einheit_filter : '';
+$new_tool_url = 'https://manager.lz-amern.de/';
 
 // Eingeloggte Benutzer (inkl. Systembenutzer) brauchen Reservierungs-Berechtigung
 if (is_logged_in() && !has_permission('reservations')) {
@@ -79,36 +80,26 @@ if (is_logged_in() && !has_permission('reservations')) {
                         <h3 class="mb-0">
                             <i class="fas fa-calendar-check"></i> Fahrzeug oder Raum reservieren
                         </h3>
-                        <p class="text-muted mb-0">Wählen Sie, was Sie reservieren möchten</p>
+                        <p class="text-muted mb-0">Reservierungen werden ab sofort im neuen Feuerwehr-Manager durchgeführt</p>
                     </div>
                     <div class="card-body p-4">
-                        <div class="row g-4 justify-content-center">
-                            <div class="col-md-6 col-lg-5">
-                                <a href="vehicle-selection.php<?php echo $einheit_param; ?>" class="text-decoration-none">
-                                    <div class="card h-100 shadow-sm feature-card clickable-card">
-                                        <div class="card-body text-center p-4 d-flex flex-column">
-                                            <div class="feature-icon mb-3">
-                                                <i class="fas fa-truck text-primary"></i>
-                                            </div>
-                                            <h5 class="card-title">Fahrzeug reservieren</h5>
-                                            <p class="card-text text-muted small">Ein Fahrzeug für den Einsatz oder die Übung reservieren</p>
-                                        </div>
-                                    </div>
+                        <div class="alert alert-info mb-4" role="alert">
+                            <h4 class="alert-heading mb-3">
+                                <i class="fas fa-info-circle"></i> Reservierungen im neuen Tool
+                            </h4>
+                            <p class="mb-0">
+                                Diese Funktion steht ab sofort in unserem neuen Tool unter
+                                <a href="<?php echo htmlspecialchars($new_tool_url, ENT_QUOTES, 'UTF-8'); ?>" class="alert-link fw-semibold">
+                                    <?php echo htmlspecialchars($new_tool_url, ENT_QUOTES, 'UTF-8'); ?>
                                 </a>
-                            </div>
-                            <div class="col-md-6 col-lg-5">
-                                <a href="room-selection.php<?php echo $einheit_param; ?>" class="text-decoration-none">
-                                    <div class="card h-100 shadow-sm feature-card clickable-card">
-                                        <div class="card-body text-center p-4 d-flex flex-column">
-                                            <div class="feature-icon mb-3">
-                                                <i class="fas fa-door-open text-primary"></i>
-                                            </div>
-                                            <h5 class="card-title">Raum reservieren</h5>
-                                            <p class="card-text text-muted small">Einen Raum im Gerätehaus reservieren</p>
-                                        </div>
-                                    </div>
-                                </a>
-                            </div>
+                                zur Verfügung.
+                            </p>
+                        </div>
+                        <div class="text-center">
+                            <a href="<?php echo htmlspecialchars($new_tool_url, ENT_QUOTES, 'UTF-8'); ?>"
+                               class="btn btn-primary btn-lg">
+                                <i class="fas fa-external-link-alt"></i> Zum neuen Reservierungstool
+                            </a>
                         </div>
                     </div>
                     <div class="card-footer text-center">
@@ -121,11 +112,6 @@ if (is_logged_in() && !has_permission('reservations')) {
         </div>
     </main>
 
-    <style>
-        .feature-card { transition: transform 0.2s ease, box-shadow 0.2s ease; cursor: pointer; }
-        .feature-card:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.15) !important; }
-        .feature-icon i { font-size: 3rem; }
-    </style>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
