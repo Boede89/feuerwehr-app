@@ -47,6 +47,7 @@ if (!$hat_einheit && is_logged_in() && !is_system_user() && !is_superadmin() && 
     }
 }
 $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung);
+$new_tool_url = 'https://manager.lz-amern.de/';
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -269,16 +270,27 @@ $zeige_einheiten_auswahl = !$hat_einheit && !empty($auswahl_liste_fuer_bedingung
                 <?php else: ?>
 
                 <?php $link_suffix = $hat_einheit && $einheit_id_url > 0 ? '?einheit_id=' . (int)$einheit_id_url : ''; ?>
+                <?php if (!is_logged_in() || has_permission('reservations')): ?>
+                <div class="alert alert-info mb-4" role="alert">
+                    <i class="fas fa-info-circle"></i>
+                    Reservierungen stehen ab sofort in unserem neuen Tool unter
+                    <a href="<?php echo htmlspecialchars($new_tool_url, ENT_QUOTES, 'UTF-8'); ?>" class="alert-link fw-semibold">
+                        <?php echo htmlspecialchars($new_tool_url, ENT_QUOTES, 'UTF-8'); ?>
+                    </a>
+                    zur Verfügung.
+                </div>
+                <?php endif; ?>
                 <div class="row g-4">
                     <?php if (!is_logged_in() || has_permission('reservations')): ?>
                     <div class="col-12 col-sm-6 col-lg-4">
-                        <a href="reservation-choice.php<?php echo $link_suffix; ?>" class="text-decoration-none">
+                        <a href="<?php echo htmlspecialchars($new_tool_url, ENT_QUOTES, 'UTF-8'); ?>" class="text-decoration-none">
                             <div class="card h-100 shadow-sm feature-card clickable-card">
                                 <div class="card-body text-center p-4 d-flex flex-column">
                                 <div class="feature-icon mb-3">
                                     <i class="fas fa-truck text-primary"></i>
                                 </div>
                                 <h5 class="card-title">Fahrzeug oder Raum reservieren</h5>
+                                <p class="card-text text-muted small mb-0">Im neuen Feuerwehr-Manager</p>
                                 </div>
                             </div>
                         </a>
