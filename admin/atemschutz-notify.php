@@ -136,24 +136,10 @@ try {
         $to = trim((string)($t['email'] ?? ''));
         if ($to === '') { continue; }
         
-        // Detaillierte Zertifikats-Informationen für diesen Geräteträger laden
+        // Geräteträger inkl. Geburtstag laden (Alter für G26.3-Gültigkeit)
         $stmt = $db->prepare("
-            SELECT 
-                id, first_name, last_name, email,
-                strecke_am, g263_am, uebung_am,
-                CASE 
-                    WHEN strecke_am IS NULL THEN NULL
-                    ELSE DATEDIFF(strecke_am, CURDATE())
-                END as strecke_diff,
-                CASE 
-                    WHEN g263_am IS NULL THEN NULL
-                    ELSE DATEDIFF(g263_am, CURDATE())
-                END as g263_diff,
-                CASE 
-                    WHEN uebung_am IS NULL THEN NULL
-                    ELSE DATEDIFF(uebung_am, CURDATE())
-                END as uebung_diff
-            FROM atemschutz_traeger 
+            SELECT id, first_name, last_name, email, birthdate, strecke_am, g263_am, uebung_am
+            FROM atemschutz_traeger
             WHERE id = ?
         ");
         $stmt->execute([$t['id']]);
@@ -161,69 +147,87 @@ try {
         
         if (!$traeger) { continue; }
         
-        // Problematic certificates sammeln
+        // Ablauf = Datum „Am“ + Gültigkeitsdauer (wie Dashboard/Liste), NICHT das Rohdatum
         $certificates = [];
         $warnDays = get_atemschutz_warn_days($db, $einheit_for_warn !== null ? $einheit_for_warn : 0);
-        
-        // Strecke prüfen
-        if ($traeger['strecke_diff'] !== null) {
-            if ($traeger['strecke_diff'] < 0) {
+        $nowDate = new DateTime('today');
+        $age = 0;
+        if (!empty($traeger['birthdate'])) {
+            try { $age = (new DateTime($traeger['birthdate']))->diff($nowDate)->y; } catch (Exception $e) {}
+        }
+
+        $streckeBis = !empty($traeger['strecke_am']) ? (new DateTime($traeger['strecke_am']))->modify('+1 year') : null;
+        $g263Bis = null;
+        if (!empty($traeger['g263_am'])) {
+            $g = new DateTime($traeger['g263_am']);
+            $g->modify(($age < 50 ? '+3 year' : '+1 year'));
+            $g263Bis = $g;
+        }
+        $uebungBis = !empty($traeger['uebung_am']) ? (new DateTime($traeger['uebung_am']))->modify('+1 year') : null;
+
+        $streckeDiff = $streckeBis ? (int)$nowDate->diff($streckeBis)->format('%r%a') : null;
+        $g263Diff = $g263Bis ? (int)$nowDate->diff($g263Bis)->format('%r%a') : null;
+        $uebungDiff = $uebungBis ? (int)$nowDate->diff($uebungBis)->format('%r%a') : null;
+
+        // Strecke prüfen (gültig 1 Jahr ab strecke_am)
+        if ($streckeDiff !== null) {
+            if ($streckeDiff < 0) {
                 $certificates[] = [
                     'type' => 'strecke',
                     'name' => 'Strecke-Zertifikat',
-                    'expiry_date' => $traeger['strecke_am'],
+                    'expiry_date' => $streckeBis->format('Y-m-d'),
                     'urgency' => 'abgelaufen',
-                    'days' => abs($traeger['strecke_diff'])
+                    'days' => abs($streckeDiff)
                 ];
-            } elseif ($traeger['strecke_diff'] <= $warnDays) {
+            } elseif ($streckeDiff <= $warnDays) {
                 $certificates[] = [
                     'type' => 'strecke',
                     'name' => 'Strecke-Zertifikat',
-                    'expiry_date' => $traeger['strecke_am'],
+                    'expiry_date' => $streckeBis->format('Y-m-d'),
                     'urgency' => 'warnung',
-                    'days' => $traeger['strecke_diff']
+                    'days' => $streckeDiff
                 ];
             }
         }
         
-        // G26.3 prüfen
-        if ($traeger['g263_diff'] !== null) {
-            if ($traeger['g263_diff'] < 0) {
+        // G26.3 prüfen (gültig 3 Jahre unter 50, sonst 1 Jahr ab g263_am)
+        if ($g263Diff !== null) {
+            if ($g263Diff < 0) {
                 $certificates[] = [
                     'type' => 'g263',
                     'name' => 'G26.3-Zertifikat',
-                    'expiry_date' => $traeger['g263_am'],
+                    'expiry_date' => $g263Bis->format('Y-m-d'),
                     'urgency' => 'abgelaufen',
-                    'days' => abs($traeger['g263_diff'])
+                    'days' => abs($g263Diff)
                 ];
-            } elseif ($traeger['g263_diff'] <= $warnDays) {
+            } elseif ($g263Diff <= $warnDays) {
                 $certificates[] = [
                     'type' => 'g263',
                     'name' => 'G26.3-Zertifikat',
-                    'expiry_date' => $traeger['g263_am'],
+                    'expiry_date' => $g263Bis->format('Y-m-d'),
                     'urgency' => 'warnung',
-                    'days' => $traeger['g263_diff']
+                    'days' => $g263Diff
                 ];
             }
         }
         
-        // Übung prüfen
-        if ($traeger['uebung_diff'] !== null) {
-            if ($traeger['uebung_diff'] < 0) {
+        // Übung/Einsatz prüfen (gültig 1 Jahr ab uebung_am)
+        if ($uebungDiff !== null) {
+            if ($uebungDiff < 0) {
                 $certificates[] = [
                     'type' => 'uebung',
                     'name' => 'Übung/Einsatz',
-                    'expiry_date' => $traeger['uebung_am'],
+                    'expiry_date' => $uebungBis->format('Y-m-d'),
                     'urgency' => 'abgelaufen',
-                    'days' => abs($traeger['uebung_diff'])
+                    'days' => abs($uebungDiff)
                 ];
-            } elseif ($traeger['uebung_diff'] <= $warnDays) {
+            } elseif ($uebungDiff <= $warnDays) {
                 $certificates[] = [
                     'type' => 'uebung',
                     'name' => 'Übung/Einsatz',
-                    'expiry_date' => $traeger['uebung_am'],
+                    'expiry_date' => $uebungBis->format('Y-m-d'),
                     'urgency' => 'warnung',
-                    'days' => $traeger['uebung_diff']
+                    'days' => $uebungDiff
                 ];
             }
         }
@@ -262,16 +266,20 @@ try {
         // Verwende immer das schöne Design
         $body = createCombinedAtemschutzEmail($traeger, $certificates, $hasExpired);
         
-        // Platzhalter ersetzen
+        // Platzhalter ersetzen (Ablaufdatum immer als deutsches Datum)
+        $expiryFormatted = '';
+        if (!empty($certificates[0]['expiry_date'])) {
+            $expiryFormatted = date('d.m.Y', strtotime($certificates[0]['expiry_date']));
+        }
         $subject = str_replace(
             ['{first_name}', '{last_name}', '{expiry_date}'],
-            [$traeger['first_name'], $traeger['last_name'], $certificates[0]['expiry_date'] ?? ''],
+            [$traeger['first_name'], $traeger['last_name'], $expiryFormatted],
             $subject
         );
         
         $body = str_replace(
             ['{first_name}', '{last_name}', '{expiry_date}'],
-            [$traeger['first_name'], $traeger['last_name'], $certificates[0]['expiry_date'] ?? ''],
+            [$traeger['first_name'], $traeger['last_name'], $expiryFormatted],
             $body
         );
         
