@@ -139,6 +139,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
     if (empty($vehicle_ids)) {
         $error = 'Bitte wählen Sie mindestens ein Fahrzeug aus.';
     } else {
+        if (!fw_form_once_consume('gwm_save_once', (string)($_POST['fw_once'] ?? ''))) {
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_abort();
+            }
+            header('Location: formulare.php?message=geraetewartmitteilung_bereits');
+            exit;
+        }
+        ignore_user_abort(true);
         try {
             $stmt = $db->prepare("INSERT INTO geraetewartmitteilungen (typ, einsatz_uebungsart, datum, einsatzbereitschaft, mangel_beschreibung, einsatzleiter_member_id, einsatzleiter_freitext, user_id, einheit_id) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?)");
             $stmt->execute([$typ, $art, $datum, $einsatzbereitschaft, $einsatzleiter_member_id, $einsatzleiter_freitext, $_SESSION['user_id'], $einheit_id > 0 ? $einheit_id : null]);
@@ -288,8 +296,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_geraetewartmitte
                 </div>
                 <div class="card-body p-4">
                     <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
-                    <form method="post" id="gwmForm">
+                    <form method="post" id="gwmForm" data-busy-text="Gerätewartmitteilung wird gespeichert …">
                         <input type="hidden" name="save_geraetewartmitteilung" value="1">
+                        <input type="hidden" name="fw_once" value="<?php echo htmlspecialchars(fw_form_once_token('gwm_save_once'), ENT_QUOTES, 'UTF-8'); ?>">
 
                         <div class="card mb-4">
                             <div class="card-header bg-light"><strong>Art des Einsatzes / der Übung</strong></div>

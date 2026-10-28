@@ -218,7 +218,7 @@ $members_json = json_encode(array_map(function($m) {
                     <?php if ($message): ?><div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
                     <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
-                    <form method="post" id="maengelForm" enctype="multipart/form-data">
+                    <form method="post" id="maengelForm" enctype="multipart/form-data" data-busy-text="Mängel werden gespeichert …">
                         <input type="hidden" name="save_maengel_draft" value="1">
                         <div id="maengelContainer">
                             <?php foreach ($maengel_draft as $idx => $m): ?>

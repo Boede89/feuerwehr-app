@@ -279,8 +279,62 @@ table.anwesenheit-tabelle tbody tr.anw-row.selected td.name-cell * {
     to { transform: translateX(0); }
 }
 
+/* Vollbild-Ladekreis während Speicher- und Sendevorgängen */
+#fwBusyOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 30000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.78);
+    pointer-events: auto;
+}
+
+#fwBusyOverlay.is-active {
+    display: flex;
+}
+
+.fw-busy-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.35rem 1.6rem;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    min-width: 220px;
+}
+
+.fw-busy-spinner {
+    width: 3.25rem;
+    height: 3.25rem;
+    margin: 0 auto 0.85rem;
+    border: 0.35rem solid rgba(13, 110, 253, 0.18);
+    border-top-color: #0d6efd;
+    border-radius: 50%;
+    animation: fw-busy-spin 0.7s linear infinite;
+}
+
+.fw-busy-text {
+    font-weight: 600;
+    color: #212529;
+}
+
+.fw-busy-hint {
+    margin-top: 0.35rem;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+@keyframes fw-busy-spin {
+    to { transform: rotate(360deg); }
+}
+
 /* Print Styles */
 @media print {
+    #fwBusyOverlay {
+        display: none !important;
+    }
     .navbar, .btn, .footer {
         display: none !important;
     }

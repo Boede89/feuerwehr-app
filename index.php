@@ -608,6 +608,7 @@ $new_tool_url = 'https://manager.lz-amern.de/';
             const originalText = submitBtn.innerHTML;
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Wird gesendet...';
+            if (window.fwBusy) window.fwBusy.show('Wird gesendet …');
             
             fetch('api/create-atemschutz-entry.php', {
                 method: 'POST',
@@ -631,6 +632,7 @@ $new_tool_url = 'https://manager.lz-amern.de/';
                 showErrorModal('Netzwerkfehler', 'Es ist ein Fehler beim Erstellen des Atemschutzeintrags aufgetreten. Bitte versuchen Sie es erneut.');
             })
             .finally(() => {
+                if (window.fwBusy) window.fwBusy.hide();
                 // Button wieder aktivieren
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
@@ -723,6 +725,7 @@ $new_tool_url = 'https://manager.lz-amern.de/';
             const originalText = submitBtn.innerHTML;
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Wird gesendet...';
+            if (window.fwBusy) window.fwBusy.show('Wird gesendet …');
             
             fetch('api/submit-feedback.php', {
                 method: 'POST',
@@ -746,6 +749,7 @@ $new_tool_url = 'https://manager.lz-amern.de/';
                 showErrorModal('Netzwerkfehler', 'Es ist ein Fehler beim Senden des Feedbacks aufgetreten. Bitte versuchen Sie es erneut.');
             })
             .finally(() => {
+                if (window.fwBusy) window.fwBusy.hide();
                 // Button wieder aktivieren
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;

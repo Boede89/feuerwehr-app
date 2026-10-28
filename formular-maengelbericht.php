@@ -112,6 +112,14 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht'])) {
+    ignore_user_abort(true);
+    if (!fw_form_once_consume('mb_save_once', (string)($_POST['fw_once'] ?? ''))) {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_abort();
+        }
+        header('Location: formulare.php?message=maengelbericht_bereits');
+        exit;
+    }
     $standort = trim($_POST['standort'] ?? '');
     $mangel_an = trim($_POST['mangel_an'] ?? '');
     $bezeichnung = trim($_POST['bezeichnung'] ?? '');
@@ -284,8 +292,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_maengelbericht']
                 </div>
                 <div class="card-body p-4">
                     <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
-                    <form method="post" id="maengelberichtForm" enctype="multipart/form-data">
+                    <form method="post" id="maengelberichtForm" enctype="multipart/form-data" data-busy-text="Mängelbericht wird gespeichert …">
                         <input type="hidden" name="save_maengelbericht" value="1">
+                        <input type="hidden" name="fw_once" value="<?php echo htmlspecialchars(fw_form_once_token('mb_save_once'), ENT_QUOTES, 'UTF-8'); ?>">
                         <input type="hidden" name="print_after_save" id="print_after_save" value="1">
                         <div class="mb-3">
                             <label for="standort" class="form-label">Standort</label>

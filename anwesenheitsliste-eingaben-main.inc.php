@@ -642,6 +642,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_final'])) {
     }
 
     if (empty($error)) {
+        if (!fw_form_once_consume('al_save_once', (string)($_POST['fw_once'] ?? ''))) {
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_abort();
+            }
+            $bereitsUrl = 'anwesenheitsliste.php?message=bereits' . ($einheit_id > 0 ? '&einheit_id=' . (int)$einheit_id : '');
+            header('Location: ' . $bereitsUrl);
+            exit;
+        }
+        ignore_user_abort(true);
         $create_mb_save = !empty($_POST['create_maengelbericht_after_save']) && $_POST['create_maengelbericht_after_save'] === '1';
         $create_gwm_save = !empty($_POST['create_geraetewartmitteilung_after_save']) && $_POST['create_geraetewartmitteilung_after_save'] === '1';
         try {
@@ -1328,8 +1337,9 @@ if ($is_einsatz) {
                             </div>
                             <span class="d-block mt-1 text-muted"><?php echo htmlspecialchars($titel_anzeige); ?></span>
                         </div>
-                        <form method="post" id="mainForm" enctype="multipart/form-data">
+                        <form method="post" id="mainForm" enctype="multipart/form-data" data-busy-text="Anwesenheitsliste wird gespeichert …">
                             <input type="hidden" name="save_final" value="1">
+                            <input type="hidden" name="fw_once" value="<?php echo htmlspecialchars(fw_form_once_token('al_save_once'), ENT_QUOTES, 'UTF-8'); ?>">
                             <input type="hidden" name="datum" id="datum_for_main" value="<?php echo htmlspecialchars($draft['datum'] ?? $datum); ?>">
                             <input type="hidden" name="print_after_save" id="print_after_save" value="0">
                             <input type="hidden" name="create_maengelbericht_after_save" id="create_maengelbericht_after_save" value="0">
@@ -1769,6 +1779,7 @@ if ($is_einsatz) {
             if (!input || !input.files || !input.files.length) return;
             var st = document.getElementById('al_anhaenge_upload_status');
             if (st) { st.classList.remove('d-none'); st.textContent = 'Wird hochgeladen…'; }
+            if (window.fwBusy) window.fwBusy.show('Datei wird hochgeladen …');
             var fd = new FormData();
             var i;
             for (i = 0; i < input.files.length; i++) {
@@ -1777,6 +1788,7 @@ if ($is_einsatz) {
             fetch('api/upload-anwesenheit-anhang.php', { method: 'POST', body: fd, credentials: 'same-origin' })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
+                    if (window.fwBusy) window.fwBusy.hide();
                     if (st) { st.textContent = ''; st.classList.add('d-none'); }
                     if (!data.success) {
                         window.alert(data.message || 'Upload fehlgeschlagen');
@@ -1786,6 +1798,7 @@ if ($is_einsatz) {
                     input.value = '';
                 })
                 .catch(function() {
+                    if (window.fwBusy) window.fwBusy.hide();
                     if (st) { st.textContent = ''; st.classList.add('d-none'); }
                     window.alert('Netzwerkfehler beim Upload');
                     input.value = '';
@@ -2004,6 +2017,7 @@ if ($is_einsatz) {
     document.querySelectorAll('.anwesenheits-save-before-nav').forEach(function(link) {
         link.addEventListener('click', function(e) {
             e.preventDefault();
+            if (window.fwBusy) window.fwBusy.show('Bitte warten …');
             var url = this.getAttribute('href');
             var form = document.getElementById('mainForm');
             if (!form || !url) { window.location.href = url || '#'; return; }

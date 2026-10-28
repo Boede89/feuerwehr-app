@@ -103,9 +103,21 @@ try {
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
                 <?php endif; ?>
+                <?php if (isset($_GET['message']) && $_GET['message'] === 'maengelbericht_bereits'): ?>
+                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>Dieser Mängelbericht wurde bereits gespeichert. Es wurde kein weiterer Bericht angelegt.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                <?php endif; ?>
                 <?php if (isset($_GET['message']) && $_GET['message'] === 'geraetewartmitteilung_erfolg'): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
                     <i class="fas fa-check-circle me-2"></i>Gerätewartmitteilung wurde erfolgreich gespeichert.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                <?php endif; ?>
+                <?php if (isset($_GET['message']) && $_GET['message'] === 'geraetewartmitteilung_bereits'): ?>
+                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>Diese Gerätewartmitteilung wurde bereits gespeichert. Es wurde kein weiterer Bericht angelegt.
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
                 <?php endif; ?>

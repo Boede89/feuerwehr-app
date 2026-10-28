@@ -300,6 +300,8 @@ $message = '';
 $error = '';
 if (isset($_GET['message']) && $_GET['message'] === 'erfolg') {
     $message = 'Anwesenheitsliste wurde angelegt.';
+} elseif (isset($_GET['message']) && $_GET['message'] === 'bereits') {
+    $message = 'Dieser Speichervorgang wurde bereits ausgeführt. Es wurde keine weitere Liste angelegt.';
 }
 // Datum: GET (z. B. nach Schritt 2) oder heute
 $datum = date('Y-m-d');

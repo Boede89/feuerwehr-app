@@ -7,6 +7,68 @@ if (!defined('APP_VERSION')) {
     define('APP_VERSION', '3.2');
 }
 
+/**
+ * Einmal-Token für Formulare, die nicht doppelt gespeichert werden dürfen.
+ * Gibt das aktuelle Token zurück und legt es bei Bedarf an.
+ */
+function fw_form_once_token($key) {
+    $key = preg_replace('/[^a-z0-9_\-]/i', '', (string)$key);
+    if ($key === '' || session_status() !== PHP_SESSION_ACTIVE) {
+        return '';
+    }
+    if (!isset($_SESSION['fw_once']) || !is_array($_SESSION['fw_once'])) {
+        $_SESSION['fw_once'] = [];
+    }
+    if (empty($_SESSION['fw_once'][$key]) || !is_string($_SESSION['fw_once'][$key])) {
+        $_SESSION['fw_once'][$key] = bin2hex(random_bytes(16));
+    }
+    return $_SESSION['fw_once'][$key];
+}
+
+/**
+ * Prüft und verbraucht ein Einmal-Token. Nur der erste gültige Aufruf liefert true.
+ */
+function fw_form_once_consume($key, $posted) {
+    $key = preg_replace('/[^a-z0-9_\-]/i', '', (string)$key);
+    if ($key === '' || session_status() !== PHP_SESSION_ACTIVE) {
+        return false;
+    }
+    $expected = (string)($_SESSION['fw_once'][$key] ?? '');
+    $posted = (string)$posted;
+    if ($expected === '' || $posted === '' || !hash_equals($expected, $posted)) {
+        return false;
+    }
+    $_SESSION['fw_once'][$key] = bin2hex(random_bytes(16));
+    return true;
+}
+
+function fw_busy_overlay_inject($html) {
+    if (!is_string($html) || $html === '') {
+        return $html;
+    }
+    if (stripos($html, 'busy-overlay.js') !== false || stripos($html, '</body>') === false) {
+        return $html;
+    }
+    if (!preg_match('#<html[\s>]#i', $html)) {
+        return $html;
+    }
+    if (!preg_match('#href="([^"]*?assets/css/style\.css[^"]*)"#i', $html, $m)) {
+        return $html;
+    }
+    $src = preg_replace('#css/style\.css[^"]*$#i', 'js/busy-overlay.js', $m[1]);
+    $tag = '<script src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '"></script>';
+    return preg_replace('#</body>#i', $tag . "\n</body>", $html, 1);
+}
+
+if (PHP_SAPI !== 'cli' && !defined('FW_BUSY_OB')) {
+    $fwBusyScript = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
+    $fwBusySkip = strpos($fwBusyScript, '/api/') !== false || strpos($fwBusyScript, '/tools/') !== false;
+    if (!$fwBusySkip) {
+        define('FW_BUSY_OB', true);
+        ob_start('fw_busy_overlay_inject');
+    }
+}
+
 // Google Calendar Klassen laden (pfadsicher relativ zu diesem Verzeichnis)
 $gc_sa_path = __DIR__ . '/google_calendar_service_account.php';
 $gc_api_path = __DIR__ . '/google_calendar.php';
